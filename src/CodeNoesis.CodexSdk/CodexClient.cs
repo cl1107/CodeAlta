@@ -61,9 +61,9 @@ public sealed class CodexClient : IAsyncDisposable
     /// <param name="optOutNotificationMethods">
     /// Optional list of exact notification method names to suppress for this connection.
     /// </param>
-    /// <param name="codexPath">
-    /// Optional explicit path to the <c>codex</c> executable. When <see langword="null"/>,
-    /// the executable is resolved from <c>PATH</c>.
+    /// <param name="processOptions">
+    /// Options controlling how the codex executable is located and started.
+    /// When <see langword="null"/>, defaults are used (PATH lookup with fnm fallback).
     /// </param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>An initialized <see cref="CodexClient"/> instance.</returns>
@@ -74,12 +74,12 @@ public sealed class CodexClient : IAsyncDisposable
         ClientInfo clientInfo,
         bool experimentalApi = false,
         IReadOnlyList<string>? optOutNotificationMethods = null,
-        string? codexPath = null,
+        CodexProcessOptions? processOptions = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(clientInfo);
 
-        var process = CodexProcess.Start(codexPath, cancellationToken);
+        var process = CodexProcess.Start(processOptions, cancellationToken);
         var jsonOptions = CreateJsonSerializerOptions();
         var transport = new JsonRpcTransport(process.StandardOutput, process.StandardInput, jsonOptions);
 

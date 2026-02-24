@@ -39,9 +39,9 @@ public sealed class CodexProcess : IAsyncDisposable
     /// <summary>
     /// Starts a new codex app-server process in stdio mode.
     /// </summary>
-    /// <param name="codexPath">
-    /// Optional explicit path to the <c>codex</c> executable. When <see langword="null"/>,
-    /// the method searches <c>PATH</c> for <c>codex</c> (handling Windows <c>.exe</c>/<c>.cmd</c>/<c>.bat</c> shims).
+    /// <param name="options">
+    /// Options that control executable resolution.  When <see langword="null"/>, defaults are used
+    /// (PATH lookup with fnm fallback enabled).
     /// </param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>A running <see cref="CodexProcess"/> instance.</returns>
@@ -51,15 +51,18 @@ public sealed class CodexProcess : IAsyncDisposable
     /// <exception cref="InvalidOperationException">
     /// Thrown when the process fails to start.
     /// </exception>
-    public static CodexProcess Start(string? codexPath = null, CancellationToken cancellationToken = default)
+    public static CodexProcess Start(CodexProcessOptions? options = null, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        options ??= new CodexProcessOptions();
 
-        var exePath = codexPath ?? FindExecutable("codex")
+        var exePath = options.CodexPath
+            ?? FindExecutable("codex")
+            ?? (options.TryFnmLookup ? FindExecutableViaFnm("codex") : null)
             ?? throw new FileNotFoundException(
                 "Could not find the 'codex' executable on PATH. " +
                 "Ensure codex is installed (e.g., via npm) and available in your PATH, " +
-                "or provide an explicit path via the codexPath parameter.");
+                "or provide an explicit path via CodexProcessOptions.CodexPath.");
 
         var psi = new ProcessStartInfo(exePath, "app-server --listen stdio://")
         {
@@ -133,14 +136,99 @@ public sealed class CodexProcess : IAsyncDisposable
     internal static string? FindExecutable(string name)
     {
         var pathVar = Environment.GetEnvironmentVariable("PATH") ?? "";
+        return FindExecutableInDirectories(name, pathVar.Split(Path.PathSeparator));
+    }
+
+    /// <summary>
+    /// Attempts to locate an executable managed by <c>fnm</c> (Fast Node Manager)
+    /// without modifying the current process's <c>PATH</c>.
+    /// </summary>
+    /// <param name="name">The executable name without extension (e.g. <c>"codex"</c>).</param>
+    /// <returns>The full path to the executable, or <see langword="null"/> if fnm is not installed
+    /// or the executable is not present in the fnm-managed directory.</returns>
+    /// <remarks>
+    /// Runs <c>fnm env --shell cmd</c>, extracts the <c>FNM_MULTISHELL_PATH</c> variable,
+    /// and probes that single directory for the requested executable.
+    /// </remarks>
+    internal static string? FindExecutableViaFnm(string name)
+    {
+        var fnmPath = FindExecutable("fnm");
+        if (fnmPath is null)
+            return null;
+
+        var multishellDir = GetFnmMultishellPath(fnmPath);
+        if (multishellDir is null)
+            return null;
+
+        return FindExecutableInDirectories(name, [multishellDir]);
+    }
+
+    /// <summary>
+    /// Runs <c>fnm env --shell cmd</c> and extracts <c>FNM_MULTISHELL_PATH</c>.
+    /// </summary>
+    /// <returns>The directory path, or <see langword="null"/> on failure.</returns>
+    private static string? GetFnmMultishellPath(string fnmPath)
+    {
+        var psi = new ProcessStartInfo(fnmPath, "env --shell cmd")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        Process? proc;
+        try
+        {
+            proc = Process.Start(psi);
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+
+        if (proc is null)
+            return null;
+
+        using (proc)
+        {
+            var output = proc.StandardOutput.ReadToEnd();
+            proc.WaitForExit();
+            if (proc.ExitCode != 0)
+                return null;
+
+            return ParseFnmMultishellPath(output);
+        }
+    }
+
+    /// <summary>
+    /// Parses the output of <c>fnm env --shell cmd</c> and returns the
+    /// <c>FNM_MULTISHELL_PATH</c> value, or <see langword="null"/> if not found.
+    /// </summary>
+    internal static string? ParseFnmMultishellPath(string fnmEnvOutput)
+    {
+        const string prefix = "SET FNM_MULTISHELL_PATH=";
+        foreach (var line in fnmEnvOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (line.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                return line[prefix.Length..];
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Searches the given directories for an executable by name, respecting
+    /// platform-specific shim extensions on Windows.
+    /// </summary>
+    private static string? FindExecutableInDirectories(string name, ReadOnlySpan<string> directories)
+    {
         var extensions = OperatingSystem.IsWindows()
             ? new[] { ".exe", ".cmd", ".bat" }
             : Array.Empty<string>();
 
-        foreach (var dir in pathVar.Split(Path.PathSeparator))
+        foreach (var dir in directories)
         {
-            // Try known executable extensions first (avoids matching Unix shell
-            // scripts on Windows that share the same base name).
             foreach (var ext in extensions)
             {
                 var withExt = Path.Combine(dir, name + ext);
@@ -148,7 +236,6 @@ public sealed class CodexProcess : IAsyncDisposable
                     return withExt;
             }
 
-            // Direct match (Linux/macOS binary without extension).
             if (!OperatingSystem.IsWindows())
             {
                 var candidate = Path.Combine(dir, name);
