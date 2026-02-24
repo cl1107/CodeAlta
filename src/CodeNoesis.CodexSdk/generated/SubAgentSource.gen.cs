@@ -6,7 +6,84 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public partial struct SubAgentSource
+internal sealed class SubAgentSourceJsonConverter : JsonConverter<SubAgentSource>
 {
-    public JsonElement Value { get; set; }
+    public override SubAgentSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.String)
+        {
+            var s = reader.GetString();
+            return s switch
+            {
+                "review" => new SubAgentSource.Review(),
+                "compact" => new SubAgentSource.Compact(),
+                "memory_consolidation" => new SubAgentSource.MemoryConsolidation(),
+                _ => throw new JsonException($"Unknown SubAgentSource string variant: '{s}'.")
+            };
+        }
+
+        if (reader.TokenType == JsonTokenType.StartObject)
+        {
+            using var doc = JsonDocument.ParseValue(ref reader);
+            var obj = doc.RootElement;
+            if (obj.TryGetProperty("thread_spawn", out var threadspawnElem))
+                return new SubAgentSource.ThreadSpawn { Value = JsonSerializer.Deserialize<JsonElement>(threadspawnElem, options)! };
+            if (obj.TryGetProperty("other", out var otherElem))
+                return new SubAgentSource.Other { Value = JsonSerializer.Deserialize<string>(otherElem, options)! };
+            throw new JsonException($"Unknown SubAgentSource object variant. Properties: {string.Join(", ", EnumeratePropertyNames(obj))}");
+        }
+
+        throw new JsonException($"Unexpected token {reader.TokenType} for SubAgentSource.");
+    }
+
+    private static IEnumerable<string> EnumeratePropertyNames(JsonElement element)
+    {
+        foreach (var p in element.EnumerateObject()) yield return p.Name;
+    }
+
+    public override void Write(Utf8JsonWriter writer, SubAgentSource value, JsonSerializerOptions options)
+    {
+        switch (value)
+        {
+            case SubAgentSource.Review:
+                writer.WriteStringValue("review");
+                break;
+            case SubAgentSource.Compact:
+                writer.WriteStringValue("compact");
+                break;
+            case SubAgentSource.MemoryConsolidation:
+                writer.WriteStringValue("memory_consolidation");
+                break;
+            case SubAgentSource.ThreadSpawn v:
+                writer.WriteStartObject();
+                writer.WritePropertyName("thread_spawn");
+                JsonSerializer.Serialize(writer, v.Value, options);
+                writer.WriteEndObject();
+                break;
+            case SubAgentSource.Other v:
+                writer.WriteStartObject();
+                writer.WritePropertyName("other");
+                JsonSerializer.Serialize(writer, v.Value, options);
+                writer.WriteEndObject();
+                break;
+            default:
+                throw new JsonException($"Unknown SubAgentSource variant: {value.GetType().Name}");
+        }
+    }
+}
+
+[JsonConverter(typeof(SubAgentSourceJsonConverter))]
+public abstract partial record SubAgentSource
+{
+    public sealed partial record Review : SubAgentSource;
+    public sealed partial record Compact : SubAgentSource;
+    public sealed partial record MemoryConsolidation : SubAgentSource;
+    public sealed partial record ThreadSpawn : SubAgentSource
+    {
+        public JsonElement Value { get; set; }
+    }
+    public sealed partial record Other : SubAgentSource
+    {
+        public string Value { get; set; } = string.Empty;
+    }
 }

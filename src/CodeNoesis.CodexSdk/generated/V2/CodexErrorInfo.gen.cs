@@ -11,7 +11,138 @@ namespace CodeNoesis.CodexSdk.V2;
 /// 
 /// When an upstream HTTP status is available (for example, from the Responses API or a provider), it is forwarded in `httpStatusCode` on the relevant `codexErrorInfo` variant.
 /// </summary>
-public partial struct CodexErrorInfo
+internal sealed class CodexErrorInfoJsonConverter : JsonConverter<CodexErrorInfo>
 {
-    public JsonElement Value { get; set; }
+    public override CodexErrorInfo Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.String)
+        {
+            var s = reader.GetString();
+            return s switch
+            {
+                "contextWindowExceeded" => new CodexErrorInfo.ContextWindowExceeded(),
+                "usageLimitExceeded" => new CodexErrorInfo.UsageLimitExceeded(),
+                "serverOverloaded" => new CodexErrorInfo.ServerOverloaded(),
+                "internalServerError" => new CodexErrorInfo.InternalServerError(),
+                "unauthorized" => new CodexErrorInfo.Unauthorized(),
+                "badRequest" => new CodexErrorInfo.BadRequest(),
+                "threadRollbackFailed" => new CodexErrorInfo.ThreadRollbackFailed(),
+                "sandboxError" => new CodexErrorInfo.SandboxError(),
+                "other" => new CodexErrorInfo.Other(),
+                _ => throw new JsonException($"Unknown CodexErrorInfo string variant: '{s}'.")
+            };
+        }
+
+        if (reader.TokenType == JsonTokenType.StartObject)
+        {
+            using var doc = JsonDocument.ParseValue(ref reader);
+            var obj = doc.RootElement;
+            if (obj.TryGetProperty("httpConnectionFailed", out var httpconnectionfailedElem))
+                return new CodexErrorInfo.HttpConnectionFailed { Value = JsonSerializer.Deserialize<JsonElement>(httpconnectionfailedElem, options)! };
+            if (obj.TryGetProperty("responseStreamConnectionFailed", out var responsestreamconnectionfailedElem))
+                return new CodexErrorInfo.ResponseStreamConnectionFailed { Value = JsonSerializer.Deserialize<JsonElement>(responsestreamconnectionfailedElem, options)! };
+            if (obj.TryGetProperty("responseStreamDisconnected", out var responsestreamdisconnectedElem))
+                return new CodexErrorInfo.ResponseStreamDisconnected { Value = JsonSerializer.Deserialize<JsonElement>(responsestreamdisconnectedElem, options)! };
+            if (obj.TryGetProperty("responseTooManyFailedAttempts", out var responsetoomanyfailedattemptsElem))
+                return new CodexErrorInfo.ResponseTooManyFailedAttempts { Value = JsonSerializer.Deserialize<JsonElement>(responsetoomanyfailedattemptsElem, options)! };
+            throw new JsonException($"Unknown CodexErrorInfo object variant. Properties: {string.Join(", ", EnumeratePropertyNames(obj))}");
+        }
+
+        throw new JsonException($"Unexpected token {reader.TokenType} for CodexErrorInfo.");
+    }
+
+    private static IEnumerable<string> EnumeratePropertyNames(JsonElement element)
+    {
+        foreach (var p in element.EnumerateObject()) yield return p.Name;
+    }
+
+    public override void Write(Utf8JsonWriter writer, CodexErrorInfo value, JsonSerializerOptions options)
+    {
+        switch (value)
+        {
+            case CodexErrorInfo.ContextWindowExceeded:
+                writer.WriteStringValue("contextWindowExceeded");
+                break;
+            case CodexErrorInfo.UsageLimitExceeded:
+                writer.WriteStringValue("usageLimitExceeded");
+                break;
+            case CodexErrorInfo.ServerOverloaded:
+                writer.WriteStringValue("serverOverloaded");
+                break;
+            case CodexErrorInfo.InternalServerError:
+                writer.WriteStringValue("internalServerError");
+                break;
+            case CodexErrorInfo.Unauthorized:
+                writer.WriteStringValue("unauthorized");
+                break;
+            case CodexErrorInfo.BadRequest:
+                writer.WriteStringValue("badRequest");
+                break;
+            case CodexErrorInfo.ThreadRollbackFailed:
+                writer.WriteStringValue("threadRollbackFailed");
+                break;
+            case CodexErrorInfo.SandboxError:
+                writer.WriteStringValue("sandboxError");
+                break;
+            case CodexErrorInfo.Other:
+                writer.WriteStringValue("other");
+                break;
+            case CodexErrorInfo.HttpConnectionFailed v:
+                writer.WriteStartObject();
+                writer.WritePropertyName("httpConnectionFailed");
+                JsonSerializer.Serialize(writer, v.Value, options);
+                writer.WriteEndObject();
+                break;
+            case CodexErrorInfo.ResponseStreamConnectionFailed v:
+                writer.WriteStartObject();
+                writer.WritePropertyName("responseStreamConnectionFailed");
+                JsonSerializer.Serialize(writer, v.Value, options);
+                writer.WriteEndObject();
+                break;
+            case CodexErrorInfo.ResponseStreamDisconnected v:
+                writer.WriteStartObject();
+                writer.WritePropertyName("responseStreamDisconnected");
+                JsonSerializer.Serialize(writer, v.Value, options);
+                writer.WriteEndObject();
+                break;
+            case CodexErrorInfo.ResponseTooManyFailedAttempts v:
+                writer.WriteStartObject();
+                writer.WritePropertyName("responseTooManyFailedAttempts");
+                JsonSerializer.Serialize(writer, v.Value, options);
+                writer.WriteEndObject();
+                break;
+            default:
+                throw new JsonException($"Unknown CodexErrorInfo variant: {value.GetType().Name}");
+        }
+    }
+}
+
+[JsonConverter(typeof(CodexErrorInfoJsonConverter))]
+public abstract partial record CodexErrorInfo
+{
+    public sealed partial record ContextWindowExceeded : CodexErrorInfo;
+    public sealed partial record UsageLimitExceeded : CodexErrorInfo;
+    public sealed partial record ServerOverloaded : CodexErrorInfo;
+    public sealed partial record InternalServerError : CodexErrorInfo;
+    public sealed partial record Unauthorized : CodexErrorInfo;
+    public sealed partial record BadRequest : CodexErrorInfo;
+    public sealed partial record ThreadRollbackFailed : CodexErrorInfo;
+    public sealed partial record SandboxError : CodexErrorInfo;
+    public sealed partial record Other : CodexErrorInfo;
+    public sealed partial record HttpConnectionFailed : CodexErrorInfo
+    {
+        public JsonElement Value { get; set; }
+    }
+    public sealed partial record ResponseStreamConnectionFailed : CodexErrorInfo
+    {
+        public JsonElement Value { get; set; }
+    }
+    public sealed partial record ResponseStreamDisconnected : CodexErrorInfo
+    {
+        public JsonElement Value { get; set; }
+    }
+    public sealed partial record ResponseTooManyFailedAttempts : CodexErrorInfo
+    {
+        public JsonElement Value { get; set; }
+    }
 }

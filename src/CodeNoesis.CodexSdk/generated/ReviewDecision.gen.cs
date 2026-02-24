@@ -9,7 +9,77 @@ namespace CodeNoesis.CodexSdk;
 /// <summary>
 /// User's decision in response to an ExecApprovalRequest.
 /// </summary>
-public partial struct ReviewDecision
+internal sealed class ReviewDecisionJsonConverter : JsonConverter<ReviewDecision>
 {
-    public JsonElement Value { get; set; }
+    public override ReviewDecision Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.String)
+        {
+            var s = reader.GetString();
+            return s switch
+            {
+                "approved" => new ReviewDecision.Approved(),
+                "approved_for_session" => new ReviewDecision.ApprovedForSession(),
+                "denied" => new ReviewDecision.Denied(),
+                "abort" => new ReviewDecision.Abort(),
+                _ => throw new JsonException($"Unknown ReviewDecision string variant: '{s}'.")
+            };
+        }
+
+        if (reader.TokenType == JsonTokenType.StartObject)
+        {
+            using var doc = JsonDocument.ParseValue(ref reader);
+            var obj = doc.RootElement;
+            if (obj.TryGetProperty("approved_execpolicy_amendment", out var approvedexecpolicyamendmentElem))
+                return new ReviewDecision.ApprovedExecpolicyAmendment { Value = JsonSerializer.Deserialize<JsonElement>(approvedexecpolicyamendmentElem, options)! };
+            throw new JsonException($"Unknown ReviewDecision object variant. Properties: {string.Join(", ", EnumeratePropertyNames(obj))}");
+        }
+
+        throw new JsonException($"Unexpected token {reader.TokenType} for ReviewDecision.");
+    }
+
+    private static IEnumerable<string> EnumeratePropertyNames(JsonElement element)
+    {
+        foreach (var p in element.EnumerateObject()) yield return p.Name;
+    }
+
+    public override void Write(Utf8JsonWriter writer, ReviewDecision value, JsonSerializerOptions options)
+    {
+        switch (value)
+        {
+            case ReviewDecision.Approved:
+                writer.WriteStringValue("approved");
+                break;
+            case ReviewDecision.ApprovedExecpolicyAmendment v:
+                writer.WriteStartObject();
+                writer.WritePropertyName("approved_execpolicy_amendment");
+                JsonSerializer.Serialize(writer, v.Value, options);
+                writer.WriteEndObject();
+                break;
+            case ReviewDecision.ApprovedForSession:
+                writer.WriteStringValue("approved_for_session");
+                break;
+            case ReviewDecision.Denied:
+                writer.WriteStringValue("denied");
+                break;
+            case ReviewDecision.Abort:
+                writer.WriteStringValue("abort");
+                break;
+            default:
+                throw new JsonException($"Unknown ReviewDecision variant: {value.GetType().Name}");
+        }
+    }
+}
+
+[JsonConverter(typeof(ReviewDecisionJsonConverter))]
+public abstract partial record ReviewDecision
+{
+    public sealed partial record Approved : ReviewDecision;
+    public sealed partial record ApprovedExecpolicyAmendment : ReviewDecision
+    {
+        public JsonElement Value { get; set; }
+    }
+    public sealed partial record ApprovedForSession : ReviewDecision;
+    public sealed partial record Denied : ReviewDecision;
+    public sealed partial record Abort : ReviewDecision;
 }

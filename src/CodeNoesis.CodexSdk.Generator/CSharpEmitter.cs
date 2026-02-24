@@ -19,6 +19,7 @@ public class CSharpEmitter
     private readonly string _rootNamespace;
     private readonly List<string> _serializableTypes = [];
     private readonly HashSet<string> _collectionTypes = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _valueTypes = new(StringComparer.Ordinal);
 
     public CSharpEmitter(IReadOnlyList<TypeDef> allDefs, string rootNamespace)
     {
@@ -38,6 +39,7 @@ public class CSharpEmitter
         var result = new Dictionary<string, List<(string, string)>>();
         _serializableTypes.Clear();
         _collectionTypes.Clear();
+        _valueTypes.Clear();
 
         foreach (var def in defs)
         {
@@ -130,6 +132,7 @@ public class CSharpEmitter
         }
 
         sb.AppendLine("}");
+        _valueTypes.Add($"{def.CsNamespace}.{def.Name}");
         return sb.ToString();
     }
 
@@ -290,8 +293,7 @@ public class CSharpEmitter
                     results.Add((e?.ToString() ?? "", v, true));
             }
             else if (v.Type.HasFlag(JsonObjectType.Object) &&
-                     v.Properties.Count == 1 &&
-                     v.AdditionalPropertiesSchema == null)
+                     v.Properties.Count == 1)
             {
                 var kv = v.Properties.First();
                 results.Add((kv.Key, kv.Value, false));
@@ -311,25 +313,108 @@ public class CSharpEmitter
         WriteFileHeader(sb, def.CsNamespace);
         WriteDescription(sb, schema.Description);
 
-        // Use abstract record with derived types
-        // String variants become unit records, object variants get properties
-        sb.AppendLine($"public abstract partial record {def.Name}");
-        sb.AppendLine("{");
-
+        // Build variant metadata for converter generation
+        var variantMeta = new List<(string key, string variantName, string? innerType, bool isString)>();
         foreach (var (key, valSchema, isString) in variants)
         {
             var variantName = SchemaWalker.ToPascalCase(key);
             if (variantName == def.Name) variantName += "Value";
 
+            string? innerType = null;
+            if (!isString)
+            {
+                var resolved = SchemaWalker.Resolve(valSchema);
+                innerType = MapType(resolved, def.CsNamespace);
+            }
+            variantMeta.Add((key, variantName, innerType, isString));
+        }
+
+        // Emit converter class
+        sb.AppendLine($"internal sealed class {def.Name}JsonConverter : JsonConverter<{def.Name}>");
+        sb.AppendLine("{");
+        sb.AppendLine($"    public override {def.Name} Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)");
+        sb.AppendLine("    {");
+        sb.AppendLine("        if (reader.TokenType == JsonTokenType.String)");
+        sb.AppendLine("        {");
+        sb.AppendLine("            var s = reader.GetString();");
+        sb.AppendLine("            return s switch");
+        sb.AppendLine("            {");
+        foreach (var (key, variantName, _, isString) in variantMeta)
+        {
+            if (isString)
+                sb.AppendLine($"                \"{key}\" => new {def.Name}.{variantName}(),");
+        }
+        sb.AppendLine($"                _ => throw new JsonException($\"Unknown {def.Name} string variant: '{{s}}'.\")");
+        sb.AppendLine("            };");
+        sb.AppendLine("        }");
+        sb.AppendLine();
+        sb.AppendLine("        if (reader.TokenType == JsonTokenType.StartObject)");
+        sb.AppendLine("        {");
+        sb.AppendLine("            using var doc = JsonDocument.ParseValue(ref reader);");
+        sb.AppendLine("            var obj = doc.RootElement;");
+        // For each object variant, check if its key property exists
+        foreach (var (key, variantName, innerType, isString) in variantMeta)
+        {
+            if (!isString)
+            {
+                sb.AppendLine($"            if (obj.TryGetProperty(\"{key}\", out var {variantName.ToLowerInvariant()}Elem))");
+                sb.AppendLine($"                return new {def.Name}.{variantName} {{ Value = JsonSerializer.Deserialize<{innerType}>({variantName.ToLowerInvariant()}Elem, options)! }};");
+            }
+        }
+        sb.AppendLine($"            throw new JsonException($\"Unknown {def.Name} object variant. Properties: {{string.Join(\", \", EnumeratePropertyNames(obj))}}\");");
+        sb.AppendLine("        }");
+        sb.AppendLine();
+        sb.AppendLine($"        throw new JsonException($\"Unexpected token {{reader.TokenType}} for {def.Name}.\");");
+        sb.AppendLine("    }");
+        sb.AppendLine();
+        sb.AppendLine("    private static IEnumerable<string> EnumeratePropertyNames(JsonElement element)");
+        sb.AppendLine("    {");
+        sb.AppendLine("        foreach (var p in element.EnumerateObject()) yield return p.Name;");
+        sb.AppendLine("    }");
+        sb.AppendLine();
+        sb.AppendLine($"    public override void Write(Utf8JsonWriter writer, {def.Name} value, JsonSerializerOptions options)");
+        sb.AppendLine("    {");
+        sb.AppendLine("        switch (value)");
+        sb.AppendLine("        {");
+        foreach (var (key, variantName, innerType, isString) in variantMeta)
+        {
+            if (isString)
+            {
+                sb.AppendLine($"            case {def.Name}.{variantName}:");
+                sb.AppendLine($"                writer.WriteStringValue(\"{key}\");");
+                sb.AppendLine($"                break;");
+            }
+            else
+            {
+                sb.AppendLine($"            case {def.Name}.{variantName} v:");
+                sb.AppendLine($"                writer.WriteStartObject();");
+                sb.AppendLine($"                writer.WritePropertyName(\"{key}\");");
+                sb.AppendLine($"                JsonSerializer.Serialize(writer, v.Value, options);");
+                sb.AppendLine($"                writer.WriteEndObject();");
+                sb.AppendLine($"                break;");
+            }
+        }
+        sb.AppendLine($"            default:");
+        sb.AppendLine($"                throw new JsonException($\"Unknown {def.Name} variant: {{value.GetType().Name}}\");");
+        sb.AppendLine("        }");
+        sb.AppendLine("    }");
+        sb.AppendLine("}");
+        sb.AppendLine();
+
+        // Emit type hierarchy with converter attribute
+        sb.AppendLine($"[JsonConverter(typeof({def.Name}JsonConverter))]");
+        sb.AppendLine($"public abstract partial record {def.Name}");
+        sb.AppendLine("{");
+
+        foreach (var (key, variantName, innerType, isString) in variantMeta)
+        {
             if (isString)
             {
                 sb.AppendLine($"    public sealed partial record {variantName} : {def.Name};");
             }
             else
             {
-                var resolved = SchemaWalker.Resolve(valSchema);
-                var innerType = MapType(resolved, def.CsNamespace);
-                var defaultVal = GetDefaultValue(innerType);
+                var defaultVal = GetDefaultValue(innerType!);
                 var defaultSuffix = defaultVal != null ? $" = {defaultVal};" : "";
                 sb.AppendLine($"    public sealed partial record {variantName} : {def.Name}");
                 sb.AppendLine($"    {{");
@@ -469,6 +554,7 @@ public class CSharpEmitter
         sb.AppendLine($"    public static implicit operator {csType}({def.Name} wrapper) => wrapper.Value;");
         sb.AppendLine($"    public override string ToString() => Value?.ToString() ?? \"\";");
         sb.AppendLine("}");
+        _valueTypes.Add($"{def.CsNamespace}.{def.Name}");
         return sb.ToString();
     }
 
@@ -481,6 +567,7 @@ public class CSharpEmitter
         sb.AppendLine("{");
         sb.AppendLine($"    public JsonElement Value {{ get; set; }}");
         sb.AppendLine("}");
+        _valueTypes.Add($"{def.CsNamespace}.{def.Name}");
         return sb.ToString();
     }
 
@@ -831,8 +918,10 @@ public class CSharpEmitter
         sb.AppendLine($"namespace {_rootNamespace};");
         sb.AppendLine();
 
-        // Detect duplicate short names across namespaces
-        var nameCount = new Dictionary<string, int>(StringComparer.Ordinal);
+        // Detect duplicate short names across namespaces.
+        // Use OrdinalIgnoreCase because STJ source-gen hint names are
+        // case-insensitive (e.g. "Subagent" vs "SubAgent" collide).
+        var nameCount = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         foreach (var fqn in _serializableTypes)
         {
             var shortName = fqn[(fqn.LastIndexOf('.') + 1)..];
@@ -868,6 +957,26 @@ public class CSharpEmitter
         {
             var propName = CollectionTypeToPropName(collectionType);
             sb.AppendLine($"[JsonSerializable(typeof({collectionType}), TypeInfoPropertyName = \"{propName}\")]");
+        }
+
+        // Register nullable variants of value types (enums/structs) that have
+        // case-insensitive duplicate short names across namespaces.  STJ
+        // auto-generates nullable serializers with hint names like
+        // "NullableMessagePhase" which collide when two namespaces share the
+        // same type name.  Explicit registration with unique
+        // TypeInfoPropertyName avoids the SYSLIB1031 collision.
+        foreach (var typeFqn in _valueTypes.Order())
+        {
+            var displayName = typeFqn.StartsWith(_rootNamespace + ".")
+                ? typeFqn[(_rootNamespace.Length + 1)..]
+                : typeFqn;
+
+            var shortName = typeFqn[(typeFqn.LastIndexOf('.') + 1)..];
+            if (nameCount.GetValueOrDefault(shortName) > 1)
+            {
+                var propName = "Nullable" + displayName.Replace(".", string.Empty);
+                sb.AppendLine($"[JsonSerializable(typeof({displayName}?), TypeInfoPropertyName = \"{propName}\")]");
+            }
         }
 
         sb.AppendLine($"internal partial class {contextClassName};");

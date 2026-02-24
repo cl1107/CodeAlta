@@ -6,7 +6,77 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public partial struct CommandExecutionApprovalDecision
+internal sealed class CommandExecutionApprovalDecisionJsonConverter : JsonConverter<CommandExecutionApprovalDecision>
 {
-    public JsonElement Value { get; set; }
+    public override CommandExecutionApprovalDecision Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.String)
+        {
+            var s = reader.GetString();
+            return s switch
+            {
+                "accept" => new CommandExecutionApprovalDecision.Accept(),
+                "acceptForSession" => new CommandExecutionApprovalDecision.AcceptForSession(),
+                "decline" => new CommandExecutionApprovalDecision.Decline(),
+                "cancel" => new CommandExecutionApprovalDecision.Cancel(),
+                _ => throw new JsonException($"Unknown CommandExecutionApprovalDecision string variant: '{s}'.")
+            };
+        }
+
+        if (reader.TokenType == JsonTokenType.StartObject)
+        {
+            using var doc = JsonDocument.ParseValue(ref reader);
+            var obj = doc.RootElement;
+            if (obj.TryGetProperty("acceptWithExecpolicyAmendment", out var acceptwithexecpolicyamendmentElem))
+                return new CommandExecutionApprovalDecision.AcceptWithExecpolicyAmendment { Value = JsonSerializer.Deserialize<JsonElement>(acceptwithexecpolicyamendmentElem, options)! };
+            throw new JsonException($"Unknown CommandExecutionApprovalDecision object variant. Properties: {string.Join(", ", EnumeratePropertyNames(obj))}");
+        }
+
+        throw new JsonException($"Unexpected token {reader.TokenType} for CommandExecutionApprovalDecision.");
+    }
+
+    private static IEnumerable<string> EnumeratePropertyNames(JsonElement element)
+    {
+        foreach (var p in element.EnumerateObject()) yield return p.Name;
+    }
+
+    public override void Write(Utf8JsonWriter writer, CommandExecutionApprovalDecision value, JsonSerializerOptions options)
+    {
+        switch (value)
+        {
+            case CommandExecutionApprovalDecision.Accept:
+                writer.WriteStringValue("accept");
+                break;
+            case CommandExecutionApprovalDecision.AcceptForSession:
+                writer.WriteStringValue("acceptForSession");
+                break;
+            case CommandExecutionApprovalDecision.AcceptWithExecpolicyAmendment v:
+                writer.WriteStartObject();
+                writer.WritePropertyName("acceptWithExecpolicyAmendment");
+                JsonSerializer.Serialize(writer, v.Value, options);
+                writer.WriteEndObject();
+                break;
+            case CommandExecutionApprovalDecision.Decline:
+                writer.WriteStringValue("decline");
+                break;
+            case CommandExecutionApprovalDecision.Cancel:
+                writer.WriteStringValue("cancel");
+                break;
+            default:
+                throw new JsonException($"Unknown CommandExecutionApprovalDecision variant: {value.GetType().Name}");
+        }
+    }
+}
+
+[JsonConverter(typeof(CommandExecutionApprovalDecisionJsonConverter))]
+public abstract partial record CommandExecutionApprovalDecision
+{
+    public sealed partial record Accept : CommandExecutionApprovalDecision;
+    public sealed partial record AcceptForSession : CommandExecutionApprovalDecision;
+    public sealed partial record AcceptWithExecpolicyAmendment : CommandExecutionApprovalDecision
+    {
+        public JsonElement Value { get; set; }
+    }
+    public sealed partial record Decline : CommandExecutionApprovalDecision;
+    public sealed partial record Cancel : CommandExecutionApprovalDecision;
 }
