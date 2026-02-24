@@ -7,6 +7,8 @@
     <IsPackable>true</IsPackable>
     <ImplicitUsings>enable</ImplicitUsings>
 
+    <PublishAot>true</PublishAot>
+
     <!-- Enable AOT analyzers -->
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
@@ -34,6 +36,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="LLamaSharp" />
+    <PackageReference Include="LLamaSharp.Backend.Cpu" />
+    <!--<PackageReference Include="LLamaSharp.Backend.Vulkan" />-->
     <PackageReference Include="MinVer">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -41,7 +46,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\..\JKToolKit.CodexSDK\src\JKToolKit.CodexSDK\JKToolKit.CodexSDK.csproj" />
     <ProjectReference Include="..\CodeNoesis.CodexSdk\CodeNoesis.CodexSdk.csproj" />
   </ItemGroup>
 </Project>
