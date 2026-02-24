@@ -9,13 +9,14 @@ namespace CodeNoesis.CodexSdk;
 /// <summary>
 /// Structured review result produced by a child review session.
 /// </summary>
-public sealed partial record ReviewOutputEvent(
-    [property: JsonPropertyName("findings")]
-    IReadOnlyList<ReviewFinding> Findings,
-    [property: JsonPropertyName("overall_confidence_score")]
-    float OverallConfidenceScore,
-    [property: JsonPropertyName("overall_correctness")]
-    string OverallCorrectness,
-    [property: JsonPropertyName("overall_explanation")]
-    string OverallExplanation
-);
+public sealed partial record ReviewOutputEvent
+{
+    [JsonPropertyName("findings")]
+    public List<ReviewFinding> Findings { get; set; } = [];
+    [JsonPropertyName("overall_confidence_score")]
+    public float OverallConfidenceScore { get; set; }
+    [JsonPropertyName("overall_correctness")]
+    public string OverallCorrectness { get; set; } = string.Empty;
+    [JsonPropertyName("overall_explanation")]
+    public string OverallExplanation { get; set; } = string.Empty;
+}

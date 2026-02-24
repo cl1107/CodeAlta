@@ -6,9 +6,10 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record TurnCompletedNotification(
-    [property: JsonPropertyName("threadId")]
-    string ThreadId,
-    [property: JsonPropertyName("turn")]
-    Turn Turn
-);
+public sealed partial record TurnCompletedNotification
+{
+    [JsonPropertyName("threadId")]
+    public string ThreadId { get; set; } = string.Empty;
+    [JsonPropertyName("turn")]
+    public Turn Turn { get; set; } = default!;
+}

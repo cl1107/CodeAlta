@@ -11,11 +11,12 @@ namespace CodeNoesis.CodexSdk;
 /// 
 /// It is up to the client how best to render embedded resources for the benefit of the LLM and/or the user.
 /// </summary>
-public sealed partial record EmbeddedResource(
-    [property: JsonPropertyName("resource")]
-    EmbeddedResourceResource Resource,
-    [property: JsonPropertyName("type")]
-    string Type,
-    [property: JsonPropertyName("annotations")]
-    Annotations? Annotations
-);
+public sealed partial record EmbeddedResource
+{
+    [JsonPropertyName("resource")]
+    public EmbeddedResourceResource Resource { get; set; } = default!;
+    [JsonPropertyName("type")]
+    public string Type { get; set; } = string.Empty;
+    [JsonPropertyName("annotations")]
+    public Annotations? Annotations { get; set; }
+}

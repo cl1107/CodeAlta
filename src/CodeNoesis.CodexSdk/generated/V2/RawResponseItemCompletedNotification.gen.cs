@@ -6,11 +6,12 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record RawResponseItemCompletedNotification(
-    [property: JsonPropertyName("item")]
-    ResponseItem Item,
-    [property: JsonPropertyName("threadId")]
-    string ThreadId,
-    [property: JsonPropertyName("turnId")]
-    string TurnId
-);
+public sealed partial record RawResponseItemCompletedNotification
+{
+    [JsonPropertyName("item")]
+    public ResponseItem Item { get; set; } = default!;
+    [JsonPropertyName("threadId")]
+    public string ThreadId { get; set; } = string.Empty;
+    [JsonPropertyName("turnId")]
+    public string TurnId { get; set; } = string.Empty;
+}

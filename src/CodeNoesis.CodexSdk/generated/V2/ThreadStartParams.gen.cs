@@ -6,24 +6,25 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record ThreadStartParams(
-    [property: JsonPropertyName("approvalPolicy")]
-    AskForApproval? ApprovalPolicy,
-    [property: JsonPropertyName("baseInstructions")]
-    string? BaseInstructions,
-    [property: JsonPropertyName("config")]
-    JsonElement? Config,
-    [property: JsonPropertyName("cwd")]
-    string? Cwd,
-    [property: JsonPropertyName("developerInstructions")]
-    string? DeveloperInstructions,
+public sealed partial record ThreadStartParams
+{
+    [JsonPropertyName("approvalPolicy")]
+    public AskForApproval? ApprovalPolicy { get; set; }
+    [JsonPropertyName("baseInstructions")]
+    public string? BaseInstructions { get; set; }
+    [JsonPropertyName("config")]
+    public JsonElement? Config { get; set; }
+    [JsonPropertyName("cwd")]
+    public string? Cwd { get; set; }
+    [JsonPropertyName("developerInstructions")]
+    public string? DeveloperInstructions { get; set; }
     /// <summary>If true, opt into emitting raw response items on the event stream.  This is for internal use only (e.g. Codex Cloud). (TODO): Figure out a better way to categorize internal / experimental events &amp; protocols.</summary>
-    [property: JsonPropertyName("experimentalRawEvents")]
-    bool? ExperimentalRawEvents,
-    [property: JsonPropertyName("model")]
-    string? Model,
-    [property: JsonPropertyName("modelProvider")]
-    string? ModelProvider,
-    [property: JsonPropertyName("sandbox")]
-    SandboxMode? Sandbox
-);
+    [JsonPropertyName("experimentalRawEvents")]
+    public bool? ExperimentalRawEvents { get; set; }
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
+    [JsonPropertyName("modelProvider")]
+    public string? ModelProvider { get; set; }
+    [JsonPropertyName("sandbox")]
+    public SandboxMode? Sandbox { get; set; }
+}

@@ -6,15 +6,16 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record CustomPrompt(
-    [property: JsonPropertyName("content")]
-    string Content,
-    [property: JsonPropertyName("name")]
-    string Name,
-    [property: JsonPropertyName("path")]
-    string Path,
-    [property: JsonPropertyName("argument_hint")]
-    string? ArgumentHint,
-    [property: JsonPropertyName("description")]
-    string? Description
-);
+public sealed partial record CustomPrompt
+{
+    [JsonPropertyName("content")]
+    public string Content { get; set; } = string.Empty;
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+    [JsonPropertyName("argument_hint")]
+    public string? ArgumentHint { get; set; }
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+}

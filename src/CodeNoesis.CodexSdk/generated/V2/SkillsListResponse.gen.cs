@@ -6,7 +6,8 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record SkillsListResponse(
-    [property: JsonPropertyName("data")]
-    IReadOnlyList<SkillsListEntry> Data
-);
+public sealed partial record SkillsListResponse
+{
+    [JsonPropertyName("data")]
+    public List<SkillsListEntry> Data { get; set; } = [];
+}

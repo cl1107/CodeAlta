@@ -6,8 +6,9 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record ThreadRollbackResponse(
+public sealed partial record ThreadRollbackResponse
+{
     /// <summary>The updated thread after applying the rollback, with `turns` populated.  The ThreadItems stored in each Turn are lossy since we explicitly do not persist all agent interactions, such as command executions. This is the same behavior as `thread/resume`.</summary>
-    [property: JsonPropertyName("thread")]
-    Thread Thread
-);
+    [JsonPropertyName("thread")]
+    public Thread Thread { get; set; } = default!;
+}

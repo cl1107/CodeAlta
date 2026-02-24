@@ -6,7 +6,8 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record CancelLoginChatGptParams(
-    [property: JsonPropertyName("loginId")]
-    string LoginId
-);
+public sealed partial record CancelLoginChatGptParams
+{
+    [JsonPropertyName("loginId")]
+    public string LoginId { get; set; } = string.Empty;
+}

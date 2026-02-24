@@ -9,9 +9,10 @@ namespace CodeNoesis.CodexSdk;
 /// <summary>
 /// Location of the code related to a review finding.
 /// </summary>
-public sealed partial record ReviewCodeLocation(
-    [property: JsonPropertyName("absolute_file_path")]
-    string AbsoluteFilePath,
-    [property: JsonPropertyName("line_range")]
-    ReviewLineRange LineRange
-);
+public sealed partial record ReviewCodeLocation
+{
+    [JsonPropertyName("absolute_file_path")]
+    public string AbsoluteFilePath { get; set; } = string.Empty;
+    [JsonPropertyName("line_range")]
+    public ReviewLineRange LineRange { get; set; } = default!;
+}

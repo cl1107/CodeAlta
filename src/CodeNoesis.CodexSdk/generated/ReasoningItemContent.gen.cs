@@ -11,14 +11,16 @@ namespace CodeNoesis.CodexSdk;
 [JsonDerivedType(typeof(TextReasoningItemContent), typeDiscriminator: "text")]
 public abstract partial record ReasoningItemContent
 {
-    public sealed partial record ReasoningTextReasoningItemContent(
-        [property: JsonPropertyName("text")]
-        string Text
-    ) : ReasoningItemContent;
+    public sealed partial record ReasoningTextReasoningItemContent : ReasoningItemContent
+    {
+        [JsonPropertyName("text")]
+        public string Text { get; set; } = string.Empty;
+    }
 
-    public sealed partial record TextReasoningItemContent(
-        [property: JsonPropertyName("text")]
-        string Text
-    ) : ReasoningItemContent;
+    public sealed partial record TextReasoningItemContent : ReasoningItemContent
+    {
+        [JsonPropertyName("text")]
+        public string Text { get; set; } = string.Empty;
+    }
 
 }

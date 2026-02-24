@@ -38,12 +38,41 @@ if (schemaFile is null)
         Console.WriteLine("Generating schema via: codex app-server generate-json-schema ...");
 
         Directory.CreateDirectory(schemaDir);
-        var psi = new ProcessStartInfo("codex", $"app-server generate-json-schema --out \"{schemaDir}\"")
+
+        // Resolve the codex executable. On Windows it may be a .ps1/.cmd shim
+        // installed via fnm/npm, so fall back to invoking through the shell.
+        var codexPath = FindExecutable("codex");
+        ProcessStartInfo psi;
+        if (codexPath != null)
         {
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false
-        };
+            psi = new ProcessStartInfo(codexPath, $"app-server generate-json-schema --out \"{schemaDir}\"")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false
+            };
+        }
+        else if (OperatingSystem.IsWindows())
+        {
+            // Use pwsh to resolve PATH shims (.ps1 / .cmd wrappers)
+            psi = new ProcessStartInfo("pwsh",
+                $"-NoProfile -NonInteractive -Command \"codex app-server generate-json-schema --out '{schemaDir}'\"")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false
+            };
+        }
+        else
+        {
+            psi = new ProcessStartInfo("/bin/sh",
+                $"-c \"codex app-server generate-json-schema --out '{schemaDir}'\"")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false
+            };
+        }
 
         using var proc = Process.Start(psi)
             ?? throw new InvalidOperationException("Failed to start codex process.");
@@ -110,4 +139,42 @@ foreach (var (ns, files) in filesByNamespace)
 }
 
 Console.WriteLine($"Generated {totalFiles} files in {outputDir}/");
+
+// Generate serializer context
+var contextCode = emitter.EmitSerializerContext("CodexJsonSerializerContext");
+var contextPath = Path.Combine(outputDir, "CodexJsonSerializerContext.gen.cs");
+await File.WriteAllTextAsync(contextPath, contextCode).ConfigureAwait(false);
+totalFiles++;
+
+Console.WriteLine($"  (includes serializer context with {totalFiles - 1} type registrations)");
 return 0;
+
+static string? FindExecutable(string name)
+{
+    var pathVar = Environment.GetEnvironmentVariable("PATH") ?? "";
+    var extensions = OperatingSystem.IsWindows()
+        ? new[] { ".exe", ".cmd", ".bat" }
+        : Array.Empty<string>();
+
+    foreach (var dir in pathVar.Split(Path.PathSeparator))
+    {
+        // Try known executable extensions first (avoids matching Unix shell
+        // scripts on Windows that share the same base name).
+        foreach (var ext in extensions)
+        {
+            var withExt = Path.Combine(dir, name + ext);
+            if (File.Exists(withExt))
+                return withExt;
+        }
+
+        // Direct match (Linux binary without extension)
+        if (!OperatingSystem.IsWindows())
+        {
+            var candidate = Path.Combine(dir, name);
+            if (File.Exists(candidate))
+                return candidate;
+        }
+    }
+
+    return null;
+}

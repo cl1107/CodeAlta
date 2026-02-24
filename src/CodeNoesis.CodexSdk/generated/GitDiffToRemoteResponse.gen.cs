@@ -6,9 +6,10 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record GitDiffToRemoteResponse(
-    [property: JsonPropertyName("diff")]
-    string Diff,
-    [property: JsonPropertyName("sha")]
-    GitSha Sha
-);
+public sealed partial record GitDiffToRemoteResponse
+{
+    [JsonPropertyName("diff")]
+    public string Diff { get; set; } = string.Empty;
+    [JsonPropertyName("sha")]
+    public GitSha Sha { get; set; } = default!;
+}

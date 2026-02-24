@@ -6,9 +6,10 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record ByteRange(
-    [property: JsonPropertyName("end")]
-    uint End,
-    [property: JsonPropertyName("start")]
-    uint Start
-);
+public sealed partial record ByteRange
+{
+    [JsonPropertyName("end")]
+    public uint End { get; set; }
+    [JsonPropertyName("start")]
+    public uint Start { get; set; }
+}

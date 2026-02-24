@@ -6,11 +6,12 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record OverriddenMetadata(
-    [property: JsonPropertyName("effectiveValue")]
-    JsonElement EffectiveValue,
-    [property: JsonPropertyName("message")]
-    string Message,
-    [property: JsonPropertyName("overridingLayer")]
-    ConfigLayerMetadata OverridingLayer
-);
+public sealed partial record OverriddenMetadata
+{
+    [JsonPropertyName("effectiveValue")]
+    public JsonElement EffectiveValue { get; set; }
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = string.Empty;
+    [JsonPropertyName("overridingLayer")]
+    public ConfigLayerMetadata OverridingLayer { get; set; } = default!;
+}

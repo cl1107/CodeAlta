@@ -6,7 +6,8 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record McpToolCallError(
-    [property: JsonPropertyName("message")]
-    string Message
-);
+public sealed partial record McpToolCallError
+{
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = string.Empty;
+}

@@ -6,7 +6,8 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record GitDiffToRemoteParams(
-    [property: JsonPropertyName("cwd")]
-    string Cwd
-);
+public sealed partial record GitDiffToRemoteParams
+{
+    [JsonPropertyName("cwd")]
+    public string Cwd { get; set; } = string.Empty;
+}

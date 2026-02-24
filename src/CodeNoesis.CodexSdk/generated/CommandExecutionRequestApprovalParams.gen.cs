@@ -6,26 +6,27 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record CommandExecutionRequestApprovalParams(
-    [property: JsonPropertyName("itemId")]
-    string ItemId,
-    [property: JsonPropertyName("threadId")]
-    string ThreadId,
-    [property: JsonPropertyName("turnId")]
-    string TurnId,
+public sealed partial record CommandExecutionRequestApprovalParams
+{
+    [JsonPropertyName("itemId")]
+    public string ItemId { get; set; } = string.Empty;
+    [JsonPropertyName("threadId")]
+    public string ThreadId { get; set; } = string.Empty;
+    [JsonPropertyName("turnId")]
+    public string TurnId { get; set; } = string.Empty;
     /// <summary>The command to be executed.</summary>
-    [property: JsonPropertyName("command")]
-    string? Command,
+    [JsonPropertyName("command")]
+    public string? Command { get; set; }
     /// <summary>Best-effort parsed command actions for friendly display.</summary>
-    [property: JsonPropertyName("commandActions")]
-    IReadOnlyList<JsonElement>? CommandActions,
+    [JsonPropertyName("commandActions")]
+    public List<JsonElement>? CommandActions { get; set; }
     /// <summary>The command's working directory.</summary>
-    [property: JsonPropertyName("cwd")]
-    string? Cwd,
+    [JsonPropertyName("cwd")]
+    public string? Cwd { get; set; }
     /// <summary>Optional proposed execpolicy amendment to allow similar commands without prompting.</summary>
-    [property: JsonPropertyName("proposedExecpolicyAmendment")]
-    IReadOnlyList<JsonElement>? ProposedExecpolicyAmendment,
+    [JsonPropertyName("proposedExecpolicyAmendment")]
+    public List<JsonElement>? ProposedExecpolicyAmendment { get; set; }
     /// <summary>Optional explanatory reason (e.g. request for network access).</summary>
-    [property: JsonPropertyName("reason")]
-    string? Reason
-);
+    [JsonPropertyName("reason")]
+    public string? Reason { get; set; }
+}

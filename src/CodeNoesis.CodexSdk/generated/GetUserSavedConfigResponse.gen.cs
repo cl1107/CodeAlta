@@ -6,7 +6,8 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record GetUserSavedConfigResponse(
-    [property: JsonPropertyName("config")]
-    UserSavedConfig Config
-);
+public sealed partial record GetUserSavedConfigResponse
+{
+    [JsonPropertyName("config")]
+    public UserSavedConfig Config { get; set; } = default!;
+}

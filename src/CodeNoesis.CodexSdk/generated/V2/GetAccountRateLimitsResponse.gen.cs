@@ -6,7 +6,8 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record GetAccountRateLimitsResponse(
-    [property: JsonPropertyName("rateLimits")]
-    RateLimitSnapshot RateLimits
-);
+public sealed partial record GetAccountRateLimitsResponse
+{
+    [JsonPropertyName("rateLimits")]
+    public RateLimitSnapshot RateLimits { get; set; } = default!;
+}

@@ -6,11 +6,12 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record WindowsWorldWritableWarningNotification(
-    [property: JsonPropertyName("extraCount")]
-    uint ExtraCount,
-    [property: JsonPropertyName("failedScan")]
-    bool FailedScan,
-    [property: JsonPropertyName("samplePaths")]
-    IReadOnlyList<string> SamplePaths
-);
+public sealed partial record WindowsWorldWritableWarningNotification
+{
+    [JsonPropertyName("extraCount")]
+    public uint ExtraCount { get; set; }
+    [JsonPropertyName("failedScan")]
+    public bool FailedScan { get; set; }
+    [JsonPropertyName("samplePaths")]
+    public List<string> SamplePaths { get; set; } = [];
+}

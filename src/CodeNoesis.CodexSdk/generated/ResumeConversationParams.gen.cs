@@ -6,13 +6,14 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record ResumeConversationParams(
-    [property: JsonPropertyName("conversationId")]
-    ThreadId? ConversationId,
-    [property: JsonPropertyName("history")]
-    IReadOnlyList<JsonElement>? History,
-    [property: JsonPropertyName("overrides")]
-    NewConversationParams? Overrides,
-    [property: JsonPropertyName("path")]
-    string? Path
-);
+public sealed partial record ResumeConversationParams
+{
+    [JsonPropertyName("conversationId")]
+    public ThreadId? ConversationId { get; set; }
+    [JsonPropertyName("history")]
+    public List<JsonElement>? History { get; set; }
+    [JsonPropertyName("overrides")]
+    public NewConversationParams? Overrides { get; set; }
+    [JsonPropertyName("path")]
+    public string? Path { get; set; }
+}

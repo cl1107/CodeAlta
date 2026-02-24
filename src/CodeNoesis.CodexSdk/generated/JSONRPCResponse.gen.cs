@@ -9,9 +9,10 @@ namespace CodeNoesis.CodexSdk;
 /// <summary>
 /// A successful (non-error) response to a request.
 /// </summary>
-public sealed partial record JSONRPCResponse(
-    [property: JsonPropertyName("id")]
-    RequestId Id,
-    [property: JsonPropertyName("result")]
-    JsonElement Result
-);
+public sealed partial record JSONRPCResponse
+{
+    [JsonPropertyName("id")]
+    public RequestId Id { get; set; } = default!;
+    [JsonPropertyName("result")]
+    public JsonElement Result { get; set; }
+}

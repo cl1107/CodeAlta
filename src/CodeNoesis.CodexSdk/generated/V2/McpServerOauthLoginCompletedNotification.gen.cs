@@ -6,11 +6,12 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record McpServerOauthLoginCompletedNotification(
-    [property: JsonPropertyName("name")]
-    string Name,
-    [property: JsonPropertyName("success")]
-    bool Success,
-    [property: JsonPropertyName("error")]
-    string? Error
-);
+public sealed partial record McpServerOauthLoginCompletedNotification
+{
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
+}

@@ -11,21 +11,22 @@ namespace CodeNoesis.CodexSdk.V2;
 /// 
 /// Note: resource links returned by tools are not guaranteed to appear in the results of `resources/list` requests.
 /// </summary>
-public sealed partial record ResourceLink(
-    [property: JsonPropertyName("name")]
-    string Name,
-    [property: JsonPropertyName("type")]
-    string Type,
-    [property: JsonPropertyName("uri")]
-    string Uri,
-    [property: JsonPropertyName("annotations")]
-    Annotations? Annotations,
-    [property: JsonPropertyName("description")]
-    string? Description,
-    [property: JsonPropertyName("mimeType")]
-    string? MimeType,
-    [property: JsonPropertyName("size")]
-    long? Size,
-    [property: JsonPropertyName("title")]
-    string? Title
-);
+public sealed partial record ResourceLink
+{
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+    [JsonPropertyName("type")]
+    public string Type { get; set; } = string.Empty;
+    [JsonPropertyName("uri")]
+    public string Uri { get; set; } = string.Empty;
+    [JsonPropertyName("annotations")]
+    public Annotations? Annotations { get; set; }
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+    [JsonPropertyName("mimeType")]
+    public string? MimeType { get; set; }
+    [JsonPropertyName("size")]
+    public long? Size { get; set; }
+    [JsonPropertyName("title")]
+    public string? Title { get; set; }
+}

@@ -6,7 +6,8 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record InterruptConversationParams(
-    [property: JsonPropertyName("conversationId")]
-    ThreadId ConversationId
-);
+public sealed partial record InterruptConversationParams
+{
+    [JsonPropertyName("conversationId")]
+    public ThreadId ConversationId { get; set; } = default!;
+}

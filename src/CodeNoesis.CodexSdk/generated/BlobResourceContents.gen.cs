@@ -6,11 +6,12 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record BlobResourceContents(
-    [property: JsonPropertyName("blob")]
-    string Blob,
-    [property: JsonPropertyName("uri")]
-    string Uri,
-    [property: JsonPropertyName("mimeType")]
-    string? MimeType
-);
+public sealed partial record BlobResourceContents
+{
+    [JsonPropertyName("blob")]
+    public string Blob { get; set; } = string.Empty;
+    [JsonPropertyName("uri")]
+    public string Uri { get; set; } = string.Empty;
+    [JsonPropertyName("mimeType")]
+    public string? MimeType { get; set; }
+}

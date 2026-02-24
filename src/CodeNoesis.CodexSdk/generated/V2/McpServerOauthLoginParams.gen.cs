@@ -6,11 +6,12 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record McpServerOauthLoginParams(
-    [property: JsonPropertyName("name")]
-    string Name,
-    [property: JsonPropertyName("scopes")]
-    IReadOnlyList<JsonElement>? Scopes,
-    [property: JsonPropertyName("timeoutSecs")]
-    long? TimeoutSecs
-);
+public sealed partial record McpServerOauthLoginParams
+{
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+    [JsonPropertyName("scopes")]
+    public List<JsonElement>? Scopes { get; set; }
+    [JsonPropertyName("timeoutSecs")]
+    public long? TimeoutSecs { get; set; }
+}

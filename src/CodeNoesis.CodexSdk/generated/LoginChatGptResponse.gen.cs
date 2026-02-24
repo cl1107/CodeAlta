@@ -6,9 +6,10 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record LoginChatGptResponse(
-    [property: JsonPropertyName("authUrl")]
-    string AuthUrl,
-    [property: JsonPropertyName("loginId")]
-    string LoginId
-);
+public sealed partial record LoginChatGptResponse
+{
+    [JsonPropertyName("authUrl")]
+    public string AuthUrl { get; set; } = string.Empty;
+    [JsonPropertyName("loginId")]
+    public string LoginId { get; set; } = string.Empty;
+}

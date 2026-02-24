@@ -6,5 +6,7 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public readonly partial record struct AgentMessageContent(
-    JsonElement Value);
+public partial record struct AgentMessageContent
+{
+    public JsonElement Value { get; set; }
+}

@@ -6,20 +6,21 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record ThreadListParams(
+public sealed partial record ThreadListParams
+{
     /// <summary>Optional archived filter; when set to true, only archived threads are returned. If false or null, only non-archived threads are returned.</summary>
-    [property: JsonPropertyName("archived")]
-    bool? Archived,
+    [JsonPropertyName("archived")]
+    public bool? Archived { get; set; }
     /// <summary>Opaque pagination cursor returned by a previous call.</summary>
-    [property: JsonPropertyName("cursor")]
-    string? Cursor,
+    [JsonPropertyName("cursor")]
+    public string? Cursor { get; set; }
     /// <summary>Optional page size; defaults to a reasonable server-side value.</summary>
-    [property: JsonPropertyName("limit")]
-    uint? Limit,
+    [JsonPropertyName("limit")]
+    public uint? Limit { get; set; }
     /// <summary>Optional provider filter; when set, only sessions recorded under these providers are returned. When present but empty, includes all providers.</summary>
-    [property: JsonPropertyName("modelProviders")]
-    IReadOnlyList<JsonElement>? ModelProviders,
+    [JsonPropertyName("modelProviders")]
+    public List<JsonElement>? ModelProviders { get; set; }
     /// <summary>Optional sort key; defaults to created_at.</summary>
-    [property: JsonPropertyName("sortKey")]
-    ThreadSortKey? SortKey
-);
+    [JsonPropertyName("sortKey")]
+    public ThreadSortKey? SortKey { get; set; }
+}

@@ -6,13 +6,14 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record ErrorNotification(
-    [property: JsonPropertyName("error")]
-    TurnError Error,
-    [property: JsonPropertyName("threadId")]
-    string ThreadId,
-    [property: JsonPropertyName("turnId")]
-    string TurnId,
-    [property: JsonPropertyName("willRetry")]
-    bool WillRetry
-);
+public sealed partial record ErrorNotification
+{
+    [JsonPropertyName("error")]
+    public TurnError Error { get; set; } = default!;
+    [JsonPropertyName("threadId")]
+    public string ThreadId { get; set; } = string.Empty;
+    [JsonPropertyName("turnId")]
+    public string TurnId { get; set; } = string.Empty;
+    [JsonPropertyName("willRetry")]
+    public bool WillRetry { get; set; }
+}

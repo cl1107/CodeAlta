@@ -13,30 +13,31 @@ namespace CodeNoesis.CodexSdk.V2;
 /// 
 /// Prefer using thread_id whenever possible.
 /// </summary>
-public sealed partial record ThreadResumeParams(
-    [property: JsonPropertyName("threadId")]
-    string ThreadId,
-    [property: JsonPropertyName("approvalPolicy")]
-    AskForApproval? ApprovalPolicy,
-    [property: JsonPropertyName("baseInstructions")]
-    string? BaseInstructions,
-    [property: JsonPropertyName("config")]
-    JsonElement? Config,
-    [property: JsonPropertyName("cwd")]
-    string? Cwd,
-    [property: JsonPropertyName("developerInstructions")]
-    string? DeveloperInstructions,
+public sealed partial record ThreadResumeParams
+{
+    [JsonPropertyName("threadId")]
+    public string ThreadId { get; set; } = string.Empty;
+    [JsonPropertyName("approvalPolicy")]
+    public AskForApproval? ApprovalPolicy { get; set; }
+    [JsonPropertyName("baseInstructions")]
+    public string? BaseInstructions { get; set; }
+    [JsonPropertyName("config")]
+    public JsonElement? Config { get; set; }
+    [JsonPropertyName("cwd")]
+    public string? Cwd { get; set; }
+    [JsonPropertyName("developerInstructions")]
+    public string? DeveloperInstructions { get; set; }
     /// <summary>[UNSTABLE] FOR CODEX CLOUD - DO NOT USE. If specified, the thread will be resumed with the provided history instead of loaded from disk.</summary>
-    [property: JsonPropertyName("history")]
-    IReadOnlyList<JsonElement>? History,
+    [JsonPropertyName("history")]
+    public List<JsonElement>? History { get; set; }
     /// <summary>Configuration overrides for the resumed thread, if any.</summary>
-    [property: JsonPropertyName("model")]
-    string? Model,
-    [property: JsonPropertyName("modelProvider")]
-    string? ModelProvider,
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
+    [JsonPropertyName("modelProvider")]
+    public string? ModelProvider { get; set; }
     /// <summary>[UNSTABLE] Specify the rollout path to resume from. If specified, the thread_id param will be ignored.</summary>
-    [property: JsonPropertyName("path")]
-    string? Path,
-    [property: JsonPropertyName("sandbox")]
-    SandboxMode? Sandbox
-);
+    [JsonPropertyName("path")]
+    public string? Path { get; set; }
+    [JsonPropertyName("sandbox")]
+    public SandboxMode? Sandbox { get; set; }
+}

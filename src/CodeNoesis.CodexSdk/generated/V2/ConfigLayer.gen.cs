@@ -6,11 +6,12 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record ConfigLayer(
-    [property: JsonPropertyName("config")]
-    JsonElement Config,
-    [property: JsonPropertyName("name")]
-    ConfigLayerSource Name,
-    [property: JsonPropertyName("version")]
-    string Version
-);
+public sealed partial record ConfigLayer
+{
+    [JsonPropertyName("config")]
+    public JsonElement Config { get; set; }
+    [JsonPropertyName("name")]
+    public ConfigLayerSource Name { get; set; } = default!;
+    [JsonPropertyName("version")]
+    public string Version { get; set; } = string.Empty;
+}

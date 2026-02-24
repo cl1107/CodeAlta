@@ -6,11 +6,12 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record HistoryEntry(
-    [property: JsonPropertyName("conversation_id")]
-    string ConversationId,
-    [property: JsonPropertyName("text")]
-    string Text,
-    [property: JsonPropertyName("ts")]
-    ulong Ts
-);
+public sealed partial record HistoryEntry
+{
+    [JsonPropertyName("conversation_id")]
+    public string ConversationId { get; set; } = string.Empty;
+    [JsonPropertyName("text")]
+    public string Text { get; set; } = string.Empty;
+    [JsonPropertyName("ts")]
+    public ulong Ts { get; set; }
+}

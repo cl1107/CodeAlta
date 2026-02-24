@@ -6,11 +6,12 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record ThreadLoadedListResponse(
+public sealed partial record ThreadLoadedListResponse
+{
     /// <summary>Thread ids for sessions currently loaded in memory.</summary>
-    [property: JsonPropertyName("data")]
-    IReadOnlyList<string> Data,
+    [JsonPropertyName("data")]
+    public List<string> Data { get; set; } = [];
     /// <summary>Opaque cursor to pass to the next call to continue after the last item. if None, there are no more items to return.</summary>
-    [property: JsonPropertyName("nextCursor")]
-    string? NextCursor
-);
+    [JsonPropertyName("nextCursor")]
+    public string? NextCursor { get; set; }
+}

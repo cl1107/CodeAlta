@@ -6,15 +6,16 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record TokenUsageBreakdown(
-    [property: JsonPropertyName("cachedInputTokens")]
-    long CachedInputTokens,
-    [property: JsonPropertyName("inputTokens")]
-    long InputTokens,
-    [property: JsonPropertyName("outputTokens")]
-    long OutputTokens,
-    [property: JsonPropertyName("reasoningOutputTokens")]
-    long ReasoningOutputTokens,
-    [property: JsonPropertyName("totalTokens")]
-    long TotalTokens
-);
+public sealed partial record TokenUsageBreakdown
+{
+    [JsonPropertyName("cachedInputTokens")]
+    public long CachedInputTokens { get; set; }
+    [JsonPropertyName("inputTokens")]
+    public long InputTokens { get; set; }
+    [JsonPropertyName("outputTokens")]
+    public long OutputTokens { get; set; }
+    [JsonPropertyName("reasoningOutputTokens")]
+    public long ReasoningOutputTokens { get; set; }
+    [JsonPropertyName("totalTokens")]
+    public long TotalTokens { get; set; }
+}

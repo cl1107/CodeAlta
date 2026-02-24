@@ -6,11 +6,12 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record ThreadTokenUsage(
-    [property: JsonPropertyName("last")]
-    TokenUsageBreakdown Last,
-    [property: JsonPropertyName("total")]
-    TokenUsageBreakdown Total,
-    [property: JsonPropertyName("modelContextWindow")]
-    long? ModelContextWindow
-);
+public sealed partial record ThreadTokenUsage
+{
+    [JsonPropertyName("last")]
+    public TokenUsageBreakdown Last { get; set; } = default!;
+    [JsonPropertyName("total")]
+    public TokenUsageBreakdown Total { get; set; } = default!;
+    [JsonPropertyName("modelContextWindow")]
+    public long? ModelContextWindow { get; set; }
+}

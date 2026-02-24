@@ -6,19 +6,20 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record Model(
-    [property: JsonPropertyName("defaultReasoningEffort")]
-    ReasoningEffort DefaultReasoningEffort,
-    [property: JsonPropertyName("description")]
-    string Description,
-    [property: JsonPropertyName("displayName")]
-    string DisplayName,
-    [property: JsonPropertyName("id")]
-    string Id,
-    [property: JsonPropertyName("isDefault")]
-    bool IsDefault,
-    [property: JsonPropertyName("model")]
-    string ModelValue,
-    [property: JsonPropertyName("supportedReasoningEfforts")]
-    IReadOnlyList<ReasoningEffortOption> SupportedReasoningEfforts
-);
+public sealed partial record Model
+{
+    [JsonPropertyName("defaultReasoningEffort")]
+    public ReasoningEffort DefaultReasoningEffort { get; set; } = default!;
+    [JsonPropertyName("description")]
+    public string Description { get; set; } = string.Empty;
+    [JsonPropertyName("displayName")]
+    public string DisplayName { get; set; } = string.Empty;
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+    [JsonPropertyName("isDefault")]
+    public bool IsDefault { get; set; }
+    [JsonPropertyName("model")]
+    public string ModelValue { get; set; } = string.Empty;
+    [JsonPropertyName("supportedReasoningEfforts")]
+    public List<ReasoningEffortOption> SupportedReasoningEfforts { get; set; } = [];
+}

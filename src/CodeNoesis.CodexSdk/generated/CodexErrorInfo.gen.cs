@@ -9,7 +9,7 @@ namespace CodeNoesis.CodexSdk;
 /// <summary>
 /// Codex errors that we expose to clients.
 /// </summary>
-public readonly partial struct CodexErrorInfo
+public partial struct CodexErrorInfo
 {
-    public JsonElement Value { get; init; }
+    public JsonElement Value { get; set; }
 }

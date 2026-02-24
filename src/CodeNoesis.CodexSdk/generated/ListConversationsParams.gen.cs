@@ -6,11 +6,12 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record ListConversationsParams(
-    [property: JsonPropertyName("cursor")]
-    string? Cursor,
-    [property: JsonPropertyName("modelProviders")]
-    IReadOnlyList<JsonElement>? ModelProviders,
-    [property: JsonPropertyName("pageSize")]
-    uint? PageSize
-);
+public sealed partial record ListConversationsParams
+{
+    [JsonPropertyName("cursor")]
+    public string? Cursor { get; set; }
+    [JsonPropertyName("modelProviders")]
+    public List<JsonElement>? ModelProviders { get; set; }
+    [JsonPropertyName("pageSize")]
+    public uint? PageSize { get; set; }
+}

@@ -6,9 +6,10 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record SkillsConfigWriteParams(
-    [property: JsonPropertyName("enabled")]
-    bool Enabled,
-    [property: JsonPropertyName("path")]
-    string Path
-);
+public sealed partial record SkillsConfigWriteParams
+{
+    [JsonPropertyName("enabled")]
+    public bool Enabled { get; set; }
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+}

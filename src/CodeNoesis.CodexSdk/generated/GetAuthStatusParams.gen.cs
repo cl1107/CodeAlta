@@ -6,9 +6,10 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record GetAuthStatusParams(
-    [property: JsonPropertyName("includeToken")]
-    bool? IncludeToken,
-    [property: JsonPropertyName("refreshToken")]
-    bool? RefreshToken
-);
+public sealed partial record GetAuthStatusParams
+{
+    [JsonPropertyName("includeToken")]
+    public bool? IncludeToken { get; set; }
+    [JsonPropertyName("refreshToken")]
+    public bool? RefreshToken { get; set; }
+}

@@ -6,11 +6,12 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record ByteRange(
+public sealed partial record ByteRange
+{
     /// <summary>End byte offset (exclusive) within the UTF-8 text buffer.</summary>
-    [property: JsonPropertyName("end")]
-    uint End,
+    [JsonPropertyName("end")]
+    public uint End { get; set; }
     /// <summary>Start byte offset (inclusive) within the UTF-8 text buffer.</summary>
-    [property: JsonPropertyName("start")]
-    uint Start
-);
+    [JsonPropertyName("start")]
+    public uint Start { get; set; }
+}

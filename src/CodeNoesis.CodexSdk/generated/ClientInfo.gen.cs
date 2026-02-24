@@ -6,11 +6,12 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record ClientInfo(
-    [property: JsonPropertyName("name")]
-    string Name,
-    [property: JsonPropertyName("version")]
-    string Version,
-    [property: JsonPropertyName("title")]
-    string? Title
-);
+public sealed partial record ClientInfo
+{
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+    [JsonPropertyName("version")]
+    public string Version { get; set; } = string.Empty;
+    [JsonPropertyName("title")]
+    public string? Title { get; set; }
+}

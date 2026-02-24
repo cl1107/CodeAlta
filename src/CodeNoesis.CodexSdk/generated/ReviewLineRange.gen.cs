@@ -9,9 +9,10 @@ namespace CodeNoesis.CodexSdk;
 /// <summary>
 /// Inclusive line range in a file associated with the finding.
 /// </summary>
-public sealed partial record ReviewLineRange(
-    [property: JsonPropertyName("end")]
-    uint End,
-    [property: JsonPropertyName("start")]
-    uint Start
-);
+public sealed partial record ReviewLineRange
+{
+    [JsonPropertyName("end")]
+    public uint End { get; set; }
+    [JsonPropertyName("start")]
+    public uint Start { get; set; }
+}

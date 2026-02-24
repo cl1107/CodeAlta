@@ -6,37 +6,38 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record Thread(
+public sealed partial record Thread
+{
     /// <summary>Version of the CLI that created the thread.</summary>
-    [property: JsonPropertyName("cliVersion")]
-    string CliVersion,
+    [JsonPropertyName("cliVersion")]
+    public string CliVersion { get; set; } = string.Empty;
     /// <summary>Unix timestamp (in seconds) when the thread was created.</summary>
-    [property: JsonPropertyName("createdAt")]
-    long CreatedAt,
+    [JsonPropertyName("createdAt")]
+    public long CreatedAt { get; set; }
     /// <summary>Working directory captured for the thread.</summary>
-    [property: JsonPropertyName("cwd")]
-    string Cwd,
-    [property: JsonPropertyName("id")]
-    string Id,
+    [JsonPropertyName("cwd")]
+    public string Cwd { get; set; } = string.Empty;
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
     /// <summary>Model provider used for this thread (for example, 'openai').</summary>
-    [property: JsonPropertyName("modelProvider")]
-    string ModelProvider,
+    [JsonPropertyName("modelProvider")]
+    public string ModelProvider { get; set; } = string.Empty;
     /// <summary>[UNSTABLE] Path to the thread on disk.</summary>
-    [property: JsonPropertyName("path")]
-    string Path,
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
     /// <summary>Usually the first user message in the thread, if available.</summary>
-    [property: JsonPropertyName("preview")]
-    string Preview,
+    [JsonPropertyName("preview")]
+    public string Preview { get; set; } = string.Empty;
     /// <summary>Origin of the thread (CLI, VSCode, codex exec, codex app-server, etc.).</summary>
-    [property: JsonPropertyName("source")]
-    SessionSource Source,
+    [JsonPropertyName("source")]
+    public SessionSource Source { get; set; } = default!;
     /// <summary>Only populated on `thread/resume`, `thread/rollback`, `thread/fork`, and `thread/read` (when `includeTurns` is true) responses. For all other responses and notifications returning a Thread, the turns field will be an empty list.</summary>
-    [property: JsonPropertyName("turns")]
-    IReadOnlyList<Turn> Turns,
+    [JsonPropertyName("turns")]
+    public List<Turn> Turns { get; set; } = [];
     /// <summary>Unix timestamp (in seconds) when the thread was last updated.</summary>
-    [property: JsonPropertyName("updatedAt")]
-    long UpdatedAt,
+    [JsonPropertyName("updatedAt")]
+    public long UpdatedAt { get; set; }
     /// <summary>Optional Git metadata captured when the thread was created.</summary>
-    [property: JsonPropertyName("gitInfo")]
-    GitInfo? GitInfo
-);
+    [JsonPropertyName("gitInfo")]
+    public GitInfo? GitInfo { get; set; }
+}

@@ -6,11 +6,12 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record ConfigEdit(
-    [property: JsonPropertyName("keyPath")]
-    string KeyPath,
-    [property: JsonPropertyName("mergeStrategy")]
-    MergeStrategy MergeStrategy,
-    [property: JsonPropertyName("value")]
-    JsonElement Value
-);
+public sealed partial record ConfigEdit
+{
+    [JsonPropertyName("keyPath")]
+    public string KeyPath { get; set; } = string.Empty;
+    [JsonPropertyName("mergeStrategy")]
+    public MergeStrategy MergeStrategy { get; set; } = default!;
+    [JsonPropertyName("value")]
+    public JsonElement Value { get; set; }
+}

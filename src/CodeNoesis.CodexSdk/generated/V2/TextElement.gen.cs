@@ -6,11 +6,12 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record TextElement(
+public sealed partial record TextElement
+{
     /// <summary>Byte range in the parent `text` buffer that this element occupies.</summary>
-    [property: JsonPropertyName("byteRange")]
-    ByteRange ByteRange,
+    [JsonPropertyName("byteRange")]
+    public ByteRange ByteRange { get; set; } = default!;
     /// <summary>Optional human-readable placeholder for the element, displayed in the UI.</summary>
-    [property: JsonPropertyName("placeholder")]
-    string? Placeholder
-);
+    [JsonPropertyName("placeholder")]
+    public string? Placeholder { get; set; }
+}

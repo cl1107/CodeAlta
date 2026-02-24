@@ -6,9 +6,10 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record SetDefaultModelParams(
-    [property: JsonPropertyName("model")]
-    string? Model,
-    [property: JsonPropertyName("reasoningEffort")]
-    ReasoningEffort? ReasoningEffort
-);
+public sealed partial record SetDefaultModelParams
+{
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
+    [JsonPropertyName("reasoningEffort")]
+    public ReasoningEffort? ReasoningEffort { get; set; }
+}

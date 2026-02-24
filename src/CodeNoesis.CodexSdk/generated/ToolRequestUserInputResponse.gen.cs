@@ -9,7 +9,8 @@ namespace CodeNoesis.CodexSdk;
 /// <summary>
 /// EXPERIMENTAL. Response payload mapping question ids to answers.
 /// </summary>
-public sealed partial record ToolRequestUserInputResponse(
-    [property: JsonPropertyName("answers")]
-    IReadOnlyDictionary<string, ToolRequestUserInputAnswer> Answers
-);
+public sealed partial record ToolRequestUserInputResponse
+{
+    [JsonPropertyName("answers")]
+    public Dictionary<string, ToolRequestUserInputAnswer> Answers { get; set; } = [];
+}

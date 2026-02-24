@@ -16,9 +16,10 @@ public abstract partial record PatchChangeKind
 
     public sealed partial record DeletePatchChangeKind : PatchChangeKind;
 
-    public sealed partial record UpdatePatchChangeKind(
-        [property: JsonPropertyName("move_path")]
-        string? MovePath
-    ) : PatchChangeKind;
+    public sealed partial record UpdatePatchChangeKind : PatchChangeKind
+    {
+        [JsonPropertyName("move_path")]
+        public string? MovePath { get; set; }
+    }
 
 }

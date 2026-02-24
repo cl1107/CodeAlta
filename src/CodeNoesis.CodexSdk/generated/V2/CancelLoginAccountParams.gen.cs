@@ -6,7 +6,8 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record CancelLoginAccountParams(
-    [property: JsonPropertyName("loginId")]
-    string LoginId
-);
+public sealed partial record CancelLoginAccountParams
+{
+    [JsonPropertyName("loginId")]
+    public string LoginId { get; set; } = string.Empty;
+}

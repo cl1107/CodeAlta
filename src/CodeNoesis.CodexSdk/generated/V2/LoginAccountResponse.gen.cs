@@ -13,11 +13,13 @@ public abstract partial record LoginAccountResponse
 {
     public sealed partial record ApiKeyv2 : LoginAccountResponse;
 
-    public sealed partial record Chatgptv2(
-        [property: JsonPropertyName("authUrl")]
-        string AuthUrl,
-        [property: JsonPropertyName("loginId")]
-        string LoginId
-    ) : LoginAccountResponse;
+    public sealed partial record Chatgptv2 : LoginAccountResponse
+    {
+        /// <summary>URL the client should open in a browser to initiate the OAuth flow.</summary>
+        [JsonPropertyName("authUrl")]
+        public string AuthUrl { get; set; } = string.Empty;
+        [JsonPropertyName("loginId")]
+        public string LoginId { get; set; } = string.Empty;
+    }
 
 }

@@ -6,25 +6,26 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record ConversationSummary(
-    [property: JsonPropertyName("cliVersion")]
-    string CliVersion,
-    [property: JsonPropertyName("conversationId")]
-    ThreadId ConversationId,
-    [property: JsonPropertyName("cwd")]
-    string Cwd,
-    [property: JsonPropertyName("modelProvider")]
-    string ModelProvider,
-    [property: JsonPropertyName("path")]
-    string Path,
-    [property: JsonPropertyName("preview")]
-    string Preview,
-    [property: JsonPropertyName("source")]
-    SessionSource Source,
-    [property: JsonPropertyName("gitInfo")]
-    ConversationGitInfo? GitInfo,
-    [property: JsonPropertyName("timestamp")]
-    string? Timestamp,
-    [property: JsonPropertyName("updatedAt")]
-    string? UpdatedAt
-);
+public sealed partial record ConversationSummary
+{
+    [JsonPropertyName("cliVersion")]
+    public string CliVersion { get; set; } = string.Empty;
+    [JsonPropertyName("conversationId")]
+    public ThreadId ConversationId { get; set; } = default!;
+    [JsonPropertyName("cwd")]
+    public string Cwd { get; set; } = string.Empty;
+    [JsonPropertyName("modelProvider")]
+    public string ModelProvider { get; set; } = string.Empty;
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+    [JsonPropertyName("preview")]
+    public string Preview { get; set; } = string.Empty;
+    [JsonPropertyName("source")]
+    public SessionSource Source { get; set; } = default!;
+    [JsonPropertyName("gitInfo")]
+    public ConversationGitInfo? GitInfo { get; set; }
+    [JsonPropertyName("timestamp")]
+    public string? Timestamp { get; set; }
+    [JsonPropertyName("updatedAt")]
+    public string? UpdatedAt { get; set; }
+}

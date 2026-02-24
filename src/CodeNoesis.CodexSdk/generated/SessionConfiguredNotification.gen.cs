@@ -6,19 +6,20 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record SessionConfiguredNotification(
-    [property: JsonPropertyName("historyEntryCount")]
-    uint HistoryEntryCount,
-    [property: JsonPropertyName("historyLogId")]
-    ulong HistoryLogId,
-    [property: JsonPropertyName("model")]
-    string Model,
-    [property: JsonPropertyName("rolloutPath")]
-    string RolloutPath,
-    [property: JsonPropertyName("sessionId")]
-    ThreadId SessionId,
-    [property: JsonPropertyName("initialMessages")]
-    IReadOnlyList<JsonElement>? InitialMessages,
-    [property: JsonPropertyName("reasoningEffort")]
-    ReasoningEffort? ReasoningEffort
-);
+public sealed partial record SessionConfiguredNotification
+{
+    [JsonPropertyName("historyEntryCount")]
+    public uint HistoryEntryCount { get; set; }
+    [JsonPropertyName("historyLogId")]
+    public ulong HistoryLogId { get; set; }
+    [JsonPropertyName("model")]
+    public string Model { get; set; } = string.Empty;
+    [JsonPropertyName("rolloutPath")]
+    public string RolloutPath { get; set; } = string.Empty;
+    [JsonPropertyName("sessionId")]
+    public ThreadId SessionId { get; set; } = default!;
+    [JsonPropertyName("initialMessages")]
+    public List<JsonElement>? InitialMessages { get; set; }
+    [JsonPropertyName("reasoningEffort")]
+    public ReasoningEffort? ReasoningEffort { get; set; }
+}

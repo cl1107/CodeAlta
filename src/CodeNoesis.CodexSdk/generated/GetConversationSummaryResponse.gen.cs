@@ -6,7 +6,8 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record GetConversationSummaryResponse(
-    [property: JsonPropertyName("summary")]
-    ConversationSummary Summary
-);
+public sealed partial record GetConversationSummaryResponse
+{
+    [JsonPropertyName("summary")]
+    public ConversationSummary Summary { get; set; } = default!;
+}

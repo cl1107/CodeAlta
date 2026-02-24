@@ -6,10 +6,11 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record ConfigReadParams(
+public sealed partial record ConfigReadParams
+{
     /// <summary>Optional working directory to resolve project config layers. If specified, return the effective config as seen from that directory (i.e., including any project layers between `cwd` and the project/repo root).</summary>
-    [property: JsonPropertyName("cwd")]
-    string? Cwd,
-    [property: JsonPropertyName("includeLayers")]
-    bool? IncludeLayers
-);
+    [JsonPropertyName("cwd")]
+    public string? Cwd { get; set; }
+    [JsonPropertyName("includeLayers")]
+    public bool? IncludeLayers { get; set; }
+}

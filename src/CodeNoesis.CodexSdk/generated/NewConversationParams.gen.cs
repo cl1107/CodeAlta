@@ -6,27 +6,28 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record NewConversationParams(
-    [property: JsonPropertyName("approvalPolicy")]
-    AskForApproval? ApprovalPolicy,
-    [property: JsonPropertyName("baseInstructions")]
-    string? BaseInstructions,
-    [property: JsonPropertyName("compactPrompt")]
-    string? CompactPrompt,
-    [property: JsonPropertyName("config")]
-    JsonElement? Config,
-    [property: JsonPropertyName("cwd")]
-    string? Cwd,
-    [property: JsonPropertyName("developerInstructions")]
-    string? DeveloperInstructions,
-    [property: JsonPropertyName("includeApplyPatchTool")]
-    bool? IncludeApplyPatchTool,
-    [property: JsonPropertyName("model")]
-    string? Model,
-    [property: JsonPropertyName("modelProvider")]
-    string? ModelProvider,
-    [property: JsonPropertyName("profile")]
-    string? Profile,
-    [property: JsonPropertyName("sandbox")]
-    SandboxMode? Sandbox
-);
+public sealed partial record NewConversationParams
+{
+    [JsonPropertyName("approvalPolicy")]
+    public AskForApproval? ApprovalPolicy { get; set; }
+    [JsonPropertyName("baseInstructions")]
+    public string? BaseInstructions { get; set; }
+    [JsonPropertyName("compactPrompt")]
+    public string? CompactPrompt { get; set; }
+    [JsonPropertyName("config")]
+    public JsonElement? Config { get; set; }
+    [JsonPropertyName("cwd")]
+    public string? Cwd { get; set; }
+    [JsonPropertyName("developerInstructions")]
+    public string? DeveloperInstructions { get; set; }
+    [JsonPropertyName("includeApplyPatchTool")]
+    public bool? IncludeApplyPatchTool { get; set; }
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
+    [JsonPropertyName("modelProvider")]
+    public string? ModelProvider { get; set; }
+    [JsonPropertyName("profile")]
+    public string? Profile { get; set; }
+    [JsonPropertyName("sandbox")]
+    public SandboxMode? Sandbox { get; set; }
+}

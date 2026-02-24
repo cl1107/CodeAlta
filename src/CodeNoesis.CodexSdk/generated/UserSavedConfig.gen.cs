@@ -6,29 +6,30 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record UserSavedConfig(
-    [property: JsonPropertyName("profiles")]
-    IReadOnlyDictionary<string, Profile> Profiles,
-    [property: JsonPropertyName("approvalPolicy")]
-    AskForApproval? ApprovalPolicy,
-    [property: JsonPropertyName("forcedChatgptWorkspaceId")]
-    string? ForcedChatgptWorkspaceId,
-    [property: JsonPropertyName("forcedLoginMethod")]
-    ForcedLoginMethod? ForcedLoginMethod,
-    [property: JsonPropertyName("model")]
-    string? Model,
-    [property: JsonPropertyName("modelReasoningEffort")]
-    ReasoningEffort? ModelReasoningEffort,
-    [property: JsonPropertyName("modelReasoningSummary")]
-    ReasoningSummary? ModelReasoningSummary,
-    [property: JsonPropertyName("modelVerbosity")]
-    Verbosity? ModelVerbosity,
-    [property: JsonPropertyName("profile")]
-    string? Profile,
-    [property: JsonPropertyName("sandboxMode")]
-    SandboxMode? SandboxMode,
-    [property: JsonPropertyName("sandboxSettings")]
-    SandboxSettings? SandboxSettings,
-    [property: JsonPropertyName("tools")]
-    Tools? Tools
-);
+public sealed partial record UserSavedConfig
+{
+    [JsonPropertyName("profiles")]
+    public Dictionary<string, Profile> Profiles { get; set; } = [];
+    [JsonPropertyName("approvalPolicy")]
+    public AskForApproval? ApprovalPolicy { get; set; }
+    [JsonPropertyName("forcedChatgptWorkspaceId")]
+    public string? ForcedChatgptWorkspaceId { get; set; }
+    [JsonPropertyName("forcedLoginMethod")]
+    public ForcedLoginMethod? ForcedLoginMethod { get; set; }
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
+    [JsonPropertyName("modelReasoningEffort")]
+    public ReasoningEffort? ModelReasoningEffort { get; set; }
+    [JsonPropertyName("modelReasoningSummary")]
+    public ReasoningSummary? ModelReasoningSummary { get; set; }
+    [JsonPropertyName("modelVerbosity")]
+    public Verbosity? ModelVerbosity { get; set; }
+    [JsonPropertyName("profile")]
+    public string? Profile { get; set; }
+    [JsonPropertyName("sandboxMode")]
+    public SandboxMode? SandboxMode { get; set; }
+    [JsonPropertyName("sandboxSettings")]
+    public SandboxSettings? SandboxSettings { get; set; }
+    [JsonPropertyName("tools")]
+    public Tools? Tools { get; set; }
+}

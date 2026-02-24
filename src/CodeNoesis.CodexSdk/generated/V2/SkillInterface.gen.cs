@@ -6,17 +6,18 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record SkillInterface(
-    [property: JsonPropertyName("brandColor")]
-    string? BrandColor,
-    [property: JsonPropertyName("defaultPrompt")]
-    string? DefaultPrompt,
-    [property: JsonPropertyName("displayName")]
-    string? DisplayName,
-    [property: JsonPropertyName("iconLarge")]
-    string? IconLarge,
-    [property: JsonPropertyName("iconSmall")]
-    string? IconSmall,
-    [property: JsonPropertyName("shortDescription")]
-    string? ShortDescription
-);
+public sealed partial record SkillInterface
+{
+    [JsonPropertyName("brandColor")]
+    public string? BrandColor { get; set; }
+    [JsonPropertyName("defaultPrompt")]
+    public string? DefaultPrompt { get; set; }
+    [JsonPropertyName("displayName")]
+    public string? DisplayName { get; set; }
+    [JsonPropertyName("iconLarge")]
+    public string? IconLarge { get; set; }
+    [JsonPropertyName("iconSmall")]
+    public string? IconSmall { get; set; }
+    [JsonPropertyName("shortDescription")]
+    public string? ShortDescription { get; set; }
+}

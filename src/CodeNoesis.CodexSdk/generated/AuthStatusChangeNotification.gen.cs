@@ -9,7 +9,8 @@ namespace CodeNoesis.CodexSdk;
 /// <summary>
 /// Deprecated notification. Use AccountUpdatedNotification instead.
 /// </summary>
-public sealed partial record AuthStatusChangeNotification(
-    [property: JsonPropertyName("authMethod")]
-    AuthMode? AuthMethod
-);
+public sealed partial record AuthStatusChangeNotification
+{
+    [JsonPropertyName("authMethod")]
+    public AuthMode? AuthMethod { get; set; }
+}

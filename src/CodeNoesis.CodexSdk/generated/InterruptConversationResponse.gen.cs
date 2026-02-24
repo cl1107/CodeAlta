@@ -6,7 +6,8 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record InterruptConversationResponse(
-    [property: JsonPropertyName("abortReason")]
-    TurnAbortReason AbortReason
-);
+public sealed partial record InterruptConversationResponse
+{
+    [JsonPropertyName("abortReason")]
+    public TurnAbortReason AbortReason { get; set; } = default!;
+}

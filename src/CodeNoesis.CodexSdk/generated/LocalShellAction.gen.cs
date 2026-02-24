@@ -6,5 +6,7 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public readonly partial record struct LocalShellAction(
-    JsonElement Value);
+public partial record struct LocalShellAction
+{
+    public JsonElement Value { get; set; }
+}

@@ -9,11 +9,12 @@ namespace CodeNoesis.CodexSdk.V2;
 /// <summary>
 /// Notification that the turn-level unified diff has changed. Contains the latest aggregated diff across all file changes in the turn.
 /// </summary>
-public sealed partial record TurnDiffUpdatedNotification(
-    [property: JsonPropertyName("diff")]
-    string Diff,
-    [property: JsonPropertyName("threadId")]
-    string ThreadId,
-    [property: JsonPropertyName("turnId")]
-    string TurnId
-);
+public sealed partial record TurnDiffUpdatedNotification
+{
+    [JsonPropertyName("diff")]
+    public string Diff { get; set; } = string.Empty;
+    [JsonPropertyName("threadId")]
+    public string ThreadId { get; set; } = string.Empty;
+    [JsonPropertyName("turnId")]
+    public string TurnId { get; set; } = string.Empty;
+}

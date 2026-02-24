@@ -9,11 +9,12 @@ namespace CodeNoesis.CodexSdk;
 /// <summary>
 /// A request that expects a response.
 /// </summary>
-public sealed partial record JSONRPCRequest(
-    [property: JsonPropertyName("id")]
-    RequestId Id,
-    [property: JsonPropertyName("method")]
-    string Method,
-    [property: JsonPropertyName("params")]
-    JsonElement? Params
-);
+public sealed partial record JSONRPCRequest
+{
+    [JsonPropertyName("id")]
+    public RequestId Id { get; set; } = default!;
+    [JsonPropertyName("method")]
+    public string Method { get; set; } = string.Empty;
+    [JsonPropertyName("params")]
+    public JsonElement? Params { get; set; }
+}

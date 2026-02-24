@@ -13,22 +13,25 @@ namespace CodeNoesis.CodexSdk.V2;
 [JsonDerivedType(typeof(OtherWebSearchAction), typeDiscriminator: "other")]
 public abstract partial record WebSearchAction
 {
-    public sealed partial record SearchWebSearchAction(
-        [property: JsonPropertyName("query")]
-        string? Query
-    ) : WebSearchAction;
+    public sealed partial record SearchWebSearchAction : WebSearchAction
+    {
+        [JsonPropertyName("query")]
+        public string? Query { get; set; }
+    }
 
-    public sealed partial record OpenPageWebSearchAction(
-        [property: JsonPropertyName("url")]
-        string? Url
-    ) : WebSearchAction;
+    public sealed partial record OpenPageWebSearchAction : WebSearchAction
+    {
+        [JsonPropertyName("url")]
+        public string? Url { get; set; }
+    }
 
-    public sealed partial record FindInPageWebSearchAction(
-        [property: JsonPropertyName("pattern")]
-        string? Pattern,
-        [property: JsonPropertyName("url")]
-        string? Url
-    ) : WebSearchAction;
+    public sealed partial record FindInPageWebSearchAction : WebSearchAction
+    {
+        [JsonPropertyName("pattern")]
+        public string? Pattern { get; set; }
+        [JsonPropertyName("url")]
+        public string? Url { get; set; }
+    }
 
     public sealed partial record OtherWebSearchAction : WebSearchAction;
 

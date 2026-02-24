@@ -11,10 +11,11 @@ namespace CodeNoesis.CodexSdk.V2;
 [JsonDerivedType(typeof(Chatgptv2), typeDiscriminator: "chatgpt")]
 public abstract partial record LoginAccountParams
 {
-    public sealed partial record ApiKeyv2(
-        [property: JsonPropertyName("apiKey")]
-        string ApiKey
-    ) : LoginAccountParams;
+    public sealed partial record ApiKeyv2 : LoginAccountParams
+    {
+        [JsonPropertyName("apiKey")]
+        public string ApiKey { get; set; } = string.Empty;
+    }
 
     public sealed partial record Chatgptv2 : LoginAccountParams;
 

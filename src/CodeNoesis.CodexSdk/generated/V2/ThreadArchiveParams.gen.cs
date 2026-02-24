@@ -6,7 +6,8 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record ThreadArchiveParams(
-    [property: JsonPropertyName("threadId")]
-    string ThreadId
-);
+public sealed partial record ThreadArchiveParams
+{
+    [JsonPropertyName("threadId")]
+    public string ThreadId { get; set; } = string.Empty;
+}

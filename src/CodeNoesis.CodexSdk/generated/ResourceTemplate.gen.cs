@@ -9,17 +9,18 @@ namespace CodeNoesis.CodexSdk;
 /// <summary>
 /// A template description for resources available on the server.
 /// </summary>
-public sealed partial record ResourceTemplate(
-    [property: JsonPropertyName("name")]
-    string Name,
-    [property: JsonPropertyName("uriTemplate")]
-    string UriTemplate,
-    [property: JsonPropertyName("annotations")]
-    Annotations? Annotations,
-    [property: JsonPropertyName("description")]
-    string? Description,
-    [property: JsonPropertyName("mimeType")]
-    string? MimeType,
-    [property: JsonPropertyName("title")]
-    string? Title
-);
+public sealed partial record ResourceTemplate
+{
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+    [JsonPropertyName("uriTemplate")]
+    public string UriTemplate { get; set; } = string.Empty;
+    [JsonPropertyName("annotations")]
+    public Annotations? Annotations { get; set; }
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+    [JsonPropertyName("mimeType")]
+    public string? MimeType { get; set; }
+    [JsonPropertyName("title")]
+    public string? Title { get; set; }
+}

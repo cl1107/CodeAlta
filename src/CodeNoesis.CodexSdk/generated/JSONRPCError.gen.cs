@@ -9,9 +9,10 @@ namespace CodeNoesis.CodexSdk;
 /// <summary>
 /// A response to a request that indicates an error occurred.
 /// </summary>
-public sealed partial record JSONRPCError(
-    [property: JsonPropertyName("error")]
-    JSONRPCErrorError Error,
-    [property: JsonPropertyName("id")]
-    RequestId Id
-);
+public sealed partial record JSONRPCError
+{
+    [JsonPropertyName("error")]
+    public JSONRPCErrorError Error { get; set; } = default!;
+    [JsonPropertyName("id")]
+    public RequestId Id { get; set; } = default!;
+}

@@ -6,12 +6,13 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record ReviewStartParams(
-    [property: JsonPropertyName("target")]
-    ReviewTarget Target,
-    [property: JsonPropertyName("threadId")]
-    string ThreadId,
+public sealed partial record ReviewStartParams
+{
+    [JsonPropertyName("target")]
+    public ReviewTarget Target { get; set; } = default!;
+    [JsonPropertyName("threadId")]
+    public string ThreadId { get; set; } = string.Empty;
     /// <summary>Where to run the review: inline (default) on the current thread or detached on a new thread (returned in `reviewThreadId`).</summary>
-    [property: JsonPropertyName("delivery")]
-    ReviewDelivery? Delivery
-);
+    [JsonPropertyName("delivery")]
+    public ReviewDelivery? Delivery { get; set; }
+}

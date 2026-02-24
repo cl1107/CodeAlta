@@ -17,6 +17,7 @@ public class CSharpEmitter
 {
     private readonly Dictionary<string, TypeDef> _pointerToTypeDef = new();
     private readonly string _rootNamespace;
+    private readonly List<string> _serializableTypes = [];
 
     public CSharpEmitter(IReadOnlyList<TypeDef> allDefs, string rootNamespace)
     {
@@ -34,6 +35,7 @@ public class CSharpEmitter
         IReadOnlyList<TypeDef> defs)
     {
         var result = new Dictionary<string, List<(string, string)>>();
+        _serializableTypes.Clear();
 
         foreach (var def in defs)
         {
@@ -46,6 +48,7 @@ public class CSharpEmitter
                 result[def.CsNamespace] = list;
             }
             list.Add(($"{def.Name}.gen.cs", code));
+            _serializableTypes.Add($"{def.CsNamespace}.{def.Name}");
         }
         return result;
     }
@@ -184,38 +187,12 @@ public class CSharpEmitter
             }
             else
             {
-                // Check for copy-constructor conflict: single param whose type name
-                // matches the variant record name
-                var hasCopyCtorConflict = props.Count == 1 &&
-                    props[0].CsType.Split('.').Last() == variantTypeName;
-
-                if (hasCopyCtorConflict)
-                {
-                    // Emit as body properties instead of positional record
-                    sb.AppendLine($"    public sealed partial record {variantTypeName} : {def.Name}");
-                    sb.AppendLine($"    {{");
-                    foreach (var p in props)
-                    {
-                        if (p.JsonName != p.CsName)
-                            sb.AppendLine($"        [JsonPropertyName(\"{p.JsonName}\")]");
-                        sb.AppendLine($"        public required {p.CsType} {p.CsName} {{ get; init; }}");
-                    }
-                    sb.AppendLine($"    }}");
-                }
-                else
-                {
-                    sb.AppendLine($"    public sealed partial record {variantTypeName}(");
-                    for (var i = 0; i < props.Count; i++)
-                    {
-                        var p = props[i];
-                        var comma = i < props.Count - 1 ? "," : "";
-                        if (p.JsonName != p.CsName)
-                            sb.AppendLine($"        [property: JsonPropertyName(\"{p.JsonName}\")]");
-                        sb.AppendLine($"        {p.CsType} {p.CsName}{comma}");
-                    }
-                    sb.AppendLine($"    ) : {def.Name};");
-                }
+                sb.AppendLine($"    public sealed partial record {variantTypeName} : {def.Name}");
+                sb.AppendLine($"    {{");
+                WriteProperties(sb, props, "        ");
+                sb.AppendLine($"    }}");
             }
+            _serializableTypes.Add($"{def.CsNamespace}.{def.Name}.{variantTypeName}");
             sb.AppendLine();
         }
 
@@ -289,9 +266,9 @@ public class CSharpEmitter
             return EmitKeyDiscriminatedUnion(def, schema, keyVariants);
 
         // Fallback: JsonElement wrapper — no custom converter, deserialize manually
-        sb.AppendLine($"public readonly partial struct {def.Name}");
+        sb.AppendLine($"public partial struct {def.Name}");
         sb.AppendLine("{");
-        sb.AppendLine($"    public JsonElement Value {{ get; init; }}");
+        sb.AppendLine($"    public JsonElement Value {{ get; set; }}");
         sb.AppendLine("}");
         return sb.ToString();
     }
@@ -350,8 +327,15 @@ public class CSharpEmitter
             {
                 var resolved = SchemaWalker.Resolve(valSchema);
                 var innerType = MapType(resolved, def.CsNamespace);
-                sb.AppendLine($"    public sealed partial record {variantName}({innerType} Value) : {def.Name};");
+                var defaultVal = GetDefaultValue(innerType);
+                var defaultSuffix = defaultVal != null ? $" = {defaultVal};" : "";
+                sb.AppendLine($"    public sealed partial record {variantName} : {def.Name}");
+                sb.AppendLine($"    {{");
+                sb.AppendLine($"        public {innerType} Value {{ get; set; }}{defaultSuffix}");
+                sb.AppendLine($"    }}");
             }
+
+            _serializableTypes.Add($"{def.CsNamespace}.{def.Name}.{variantName}");
         }
 
         sb.AppendLine("}");
@@ -377,9 +361,9 @@ public class CSharpEmitter
         }
 
         // Fallback
-        sb.AppendLine($"public readonly partial struct {def.Name}");
+        sb.AppendLine($"public partial struct {def.Name}");
         sb.AppendLine("{");
-        sb.AppendLine($"    public JsonElement Value {{ get; init; }}");
+        sb.AppendLine($"    public JsonElement Value {{ get; set; }}");
         sb.AppendLine("}");
         return sb.ToString();
     }
@@ -405,56 +389,26 @@ public class CSharpEmitter
             return sb.ToString();
         }
 
-        // Use positional record for conciseness
-        sb.Append($"public sealed partial record {def.Name}");
+        sb.AppendLine($"public sealed partial record {def.Name}");
+        sb.AppendLine("{");
 
-        if (props.Count > 0)
-        {
-            sb.AppendLine("(");
-            for (var i = 0; i < props.Count; i++)
-            {
-                var p = props[i];
-                var comma = i < props.Count - 1 ? "," : "";
-
-                if (!string.IsNullOrEmpty(p.Description))
-                {
-                    // Collapse to single line for positional record params
-                    var desc = EscapeXml(p.Description).Replace("\r", "").Replace("\n", " ").Trim();
-                    sb.AppendLine($"    /// <summary>{desc}</summary>");
-                }
-
-                // Add [JsonPropertyName] if the JSON name differs from C# name
-                if (p.JsonName != p.CsName)
-                    sb.AppendLine($"    [property: JsonPropertyName(\"{p.JsonName}\")]");
-
-                sb.AppendLine($"    {p.CsType} {p.CsName}{comma}");
-            }
-            sb.Append(")");
-        }
+        WriteProperties(sb, props, "    ");
 
         if (hasAdditionalProps)
         {
             var valueType = MapType(schema.AdditionalPropertiesSchema!, def.CsNamespace);
-            sb.AppendLine();
-            sb.AppendLine("{");
             sb.AppendLine($"    [JsonExtensionData]");
-            sb.AppendLine($"    public Dictionary<string, {valueType}>? AdditionalProperties {{ get; init; }}");
-            sb.AppendLine("}");
+            sb.AppendLine($"    public Dictionary<string, {valueType}>? AdditionalProperties {{ get; set; }}");
         }
         else if (schema.AllowAdditionalProperties &&
                  schema.ExtensionData?.ContainsKey("additionalProperties") == true &&
                  schema.ExtensionData["additionalProperties"] is bool b && b)
         {
-            sb.AppendLine();
-            sb.AppendLine("{");
             sb.AppendLine($"    [JsonExtensionData]");
-            sb.AppendLine($"    public Dictionary<string, JsonElement>? ExtensionData {{ get; init; }}");
-            sb.AppendLine("}");
+            sb.AppendLine($"    public Dictionary<string, JsonElement>? ExtensionData {{ get; set; }}");
         }
-        else
-        {
-            sb.AppendLine(";");
-        }
+
+        sb.AppendLine("}");
 
         return sb.ToString();
     }
@@ -502,11 +456,14 @@ public class CSharpEmitter
         var sb = new StringBuilder();
         WriteFileHeader(sb, def.CsNamespace);
         WriteDescription(sb, def.Schema.Description);
-        // C# 12 doesn't have true type aliases yet — use a wrapper struct
-        sb.AppendLine($"public readonly partial record struct {def.Name}(");
-        sb.AppendLine($"    {csType} Value)");
+        var defaultVal = GetDefaultValue(csType);
+        var defaultSuffix = defaultVal != null ? $" = {defaultVal};" : "";
+        sb.AppendLine($"public partial record struct {def.Name}");
         sb.AppendLine("{");
-        sb.AppendLine($"    public static implicit operator {def.Name}({csType} value) => new(value);");
+        if (defaultVal != null)
+            sb.AppendLine($"    public {def.Name}() {{ }}");
+        sb.AppendLine($"    public {csType} Value {{ get; set; }}{defaultSuffix}");
+        sb.AppendLine($"    public static implicit operator {def.Name}({csType} value) => new() {{ Value = value }};");
         sb.AppendLine($"    public static implicit operator {csType}({def.Name} wrapper) => wrapper.Value;");
         sb.AppendLine($"    public override string ToString() => Value?.ToString() ?? \"\";");
         sb.AppendLine("}");
@@ -518,8 +475,10 @@ public class CSharpEmitter
         var sb = new StringBuilder();
         WriteFileHeader(sb, def.CsNamespace);
         WriteDescription(sb, schema.Description);
-        sb.AppendLine($"public readonly partial record struct {def.Name}(");
-        sb.AppendLine($"    JsonElement Value);");
+        sb.AppendLine($"public partial record struct {def.Name}");
+        sb.AppendLine("{");
+        sb.AppendLine($"    public JsonElement Value {{ get; set; }}");
+        sb.AppendLine("}");
         return sb.ToString();
     }
 
@@ -594,9 +553,9 @@ public class CSharpEmitter
             if (schema.Item != null)
             {
                 var itemType = MapType(SchemaWalker.Resolve(schema.Item), contextNs);
-                return $"IReadOnlyList<{itemType}>";
+                return $"List<{itemType}>";
             }
-            return "IReadOnlyList<JsonElement>";
+            return "List<JsonElement>";
         }
 
         // Object with additionalProperties (map type)
@@ -606,7 +565,7 @@ public class CSharpEmitter
         {
             var valType = MapType(SchemaWalker.Resolve(
                 schema.AdditionalPropertiesSchema), contextNs);
-            return $"IReadOnlyDictionary<string, {valType}>";
+            return $"Dictionary<string, {valType}>";
         }
 
         // Object
@@ -636,7 +595,7 @@ public class CSharpEmitter
         if (type == JsonObjectType.Boolean) return "bool";
         if (type == JsonObjectType.Integer) return MapIntFormat(schema.Format);
         if (type == JsonObjectType.Number) return MapNumberFormat(schema.Format);
-        if (type.HasFlag(JsonObjectType.Array)) return "IReadOnlyList<JsonElement>";
+        if (type.HasFlag(JsonObjectType.Array)) return "List<JsonElement>";
         if (type.HasFlag(JsonObjectType.Object)) return "JsonElement";
         return "JsonElement";
     }
@@ -725,6 +684,87 @@ public class CSharpEmitter
 
     private static string EscapeXml(string s) =>
         s.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
+
+    private void WriteProperties(StringBuilder sb, List<PropertyInfo> props, string indent)
+    {
+        foreach (var p in props)
+        {
+            if (!string.IsNullOrEmpty(p.Description))
+            {
+                var desc = EscapeXml(p.Description).Replace("\r", "").Replace("\n", " ").Trim();
+                sb.AppendLine($"{indent}/// <summary>{desc}</summary>");
+            }
+
+            if (p.JsonName != p.CsName)
+                sb.AppendLine($"{indent}[JsonPropertyName(\"{p.JsonName}\")]");
+
+            var defaultVal = GetDefaultValue(p.CsType);
+            var defaultSuffix = defaultVal != null ? $" = {defaultVal};" : "";
+            sb.AppendLine($"{indent}public {p.CsType} {p.CsName} {{ get; set; }}{defaultSuffix}");
+        }
+    }
+
+    private static string? GetDefaultValue(string csType)
+    {
+        if (csType.EndsWith("?")) return null;
+        if (csType == "string") return "string.Empty";
+        if (csType.StartsWith("List<")) return "[]";
+        if (csType.StartsWith("Dictionary<")) return "[]";
+        // Value types have implicit defaults
+        if (csType is "bool" or "int" or "long" or "short" or "uint" or "ulong"
+            or "ushort" or "float" or "double" or "decimal" or "byte" or "sbyte"
+            or "char" or "JsonElement")
+            return null;
+        // Other reference types (records, etc.)
+        return "default!";
+    }
+
+    /// <summary>
+    /// Generates the partial serializer context file with [JsonSerializable] attributes
+    /// for all emitted types. Call after <see cref="EmitAll"/>.
+    /// </summary>
+    public string EmitSerializerContext(string contextClassName)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("// <auto-generated/>");
+        sb.AppendLine("#nullable enable");
+        sb.AppendLine("#pragma warning disable SYSLIB1031 // Duplicate type name");
+        sb.AppendLine();
+        sb.AppendLine("using System.Text.Json.Serialization;");
+        sb.AppendLine();
+        sb.AppendLine($"namespace {_rootNamespace};");
+        sb.AppendLine();
+
+        // Detect duplicate short names across namespaces
+        var nameCount = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var fqn in _serializableTypes)
+        {
+            var shortName = fqn[(fqn.LastIndexOf('.') + 1)..];
+            nameCount[shortName] = nameCount.GetValueOrDefault(shortName) + 1;
+        }
+
+        foreach (var typeFqn in _serializableTypes.Order())
+        {
+            var displayName = typeFqn.StartsWith(_rootNamespace + ".")
+                ? typeFqn[(_rootNamespace.Length + 1)..]
+                : typeFqn;
+
+            var shortName = typeFqn[(typeFqn.LastIndexOf('.') + 1)..];
+            if (nameCount.GetValueOrDefault(shortName) > 1)
+            {
+                // Use the full display path (dots removed) to disambiguate
+                var propName = displayName.Replace(".", string.Empty);
+                sb.AppendLine($"[JsonSerializable(typeof({displayName}), TypeInfoPropertyName = \"{propName}\")]");
+            }
+            else
+            {
+                sb.AppendLine($"[JsonSerializable(typeof({displayName}))]");
+            }
+        }
+
+        sb.AppendLine($"internal partial class {contextClassName};");
+        return sb.ToString();
+    }
 
     #endregion
 }

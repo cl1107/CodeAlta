@@ -6,7 +6,7 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public readonly partial struct CommandExecutionApprovalDecision
+public partial struct CommandExecutionApprovalDecision
 {
-    public JsonElement Value { get; init; }
+    public JsonElement Value { get; set; }
 }

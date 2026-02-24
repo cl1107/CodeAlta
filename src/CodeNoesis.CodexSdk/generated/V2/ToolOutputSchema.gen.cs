@@ -9,11 +9,12 @@ namespace CodeNoesis.CodexSdk.V2;
 /// <summary>
 /// An optional JSON Schema object defining the structure of the tool's output returned in the structuredContent field of a CallToolResult.
 /// </summary>
-public sealed partial record ToolOutputSchema(
-    [property: JsonPropertyName("properties")]
-    JsonElement? Properties,
-    [property: JsonPropertyName("required")]
-    IReadOnlyList<JsonElement>? Required,
-    [property: JsonPropertyName("type")]
-    string? Type
-);
+public sealed partial record ToolOutputSchema
+{
+    [JsonPropertyName("properties")]
+    public JsonElement? Properties { get; set; }
+    [JsonPropertyName("required")]
+    public List<JsonElement>? Required { get; set; }
+    [JsonPropertyName("type")]
+    public string? Type { get; set; }
+}

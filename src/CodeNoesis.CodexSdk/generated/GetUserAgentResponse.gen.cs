@@ -6,7 +6,8 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record GetUserAgentResponse(
-    [property: JsonPropertyName("userAgent")]
-    string UserAgent
-);
+public sealed partial record GetUserAgentResponse
+{
+    [JsonPropertyName("userAgent")]
+    public string UserAgent { get; set; } = string.Empty;
+}

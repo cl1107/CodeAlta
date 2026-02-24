@@ -12,19 +12,22 @@ namespace CodeNoesis.CodexSdk.V2;
 [JsonDerivedType(typeof(OutputTextContentItem), typeDiscriminator: "output_text")]
 public abstract partial record ContentItem
 {
-    public sealed partial record InputTextContentItem(
-        [property: JsonPropertyName("text")]
-        string Text
-    ) : ContentItem;
+    public sealed partial record InputTextContentItem : ContentItem
+    {
+        [JsonPropertyName("text")]
+        public string Text { get; set; } = string.Empty;
+    }
 
-    public sealed partial record InputImageContentItem(
-        [property: JsonPropertyName("image_url")]
-        string ImageUrl
-    ) : ContentItem;
+    public sealed partial record InputImageContentItem : ContentItem
+    {
+        [JsonPropertyName("image_url")]
+        public string ImageUrl { get; set; } = string.Empty;
+    }
 
-    public sealed partial record OutputTextContentItem(
-        [property: JsonPropertyName("text")]
-        string Text
-    ) : ContentItem;
+    public sealed partial record OutputTextContentItem : ContentItem
+    {
+        [JsonPropertyName("text")]
+        public string Text { get; set; } = string.Empty;
+    }
 
 }

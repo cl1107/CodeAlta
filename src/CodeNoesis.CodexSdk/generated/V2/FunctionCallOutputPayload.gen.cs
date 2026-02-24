@@ -11,11 +11,12 @@ namespace CodeNoesis.CodexSdk.V2;
 /// 
 /// `content` preserves the historical plain-string payload so downstream integrations (tests, logging, etc.) can keep treating tool output as `String`. When an MCP server returns richer data we additionally populate `content_items` with the structured form that the Responses/Chat Completions APIs understand.
 /// </summary>
-public sealed partial record FunctionCallOutputPayload(
-    [property: JsonPropertyName("content")]
-    string Content,
-    [property: JsonPropertyName("content_items")]
-    IReadOnlyList<JsonElement>? ContentItems,
-    [property: JsonPropertyName("success")]
-    bool? Success
-);
+public sealed partial record FunctionCallOutputPayload
+{
+    [JsonPropertyName("content")]
+    public string Content { get; set; } = string.Empty;
+    [JsonPropertyName("content_items")]
+    public List<JsonElement>? ContentItems { get; set; }
+    [JsonPropertyName("success")]
+    public bool? Success { get; set; }
+}

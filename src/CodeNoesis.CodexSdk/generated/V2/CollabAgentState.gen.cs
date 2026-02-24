@@ -6,9 +6,10 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record CollabAgentState(
-    [property: JsonPropertyName("status")]
-    CollabAgentStatus Status,
-    [property: JsonPropertyName("message")]
-    string? Message
-);
+public sealed partial record CollabAgentState
+{
+    [JsonPropertyName("status")]
+    public CollabAgentStatus Status { get; set; } = default!;
+    [JsonPropertyName("message")]
+    public string? Message { get; set; }
+}

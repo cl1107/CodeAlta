@@ -6,9 +6,10 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record SendUserMessageParams(
-    [property: JsonPropertyName("conversationId")]
-    ThreadId ConversationId,
-    [property: JsonPropertyName("items")]
-    IReadOnlyList<InputItem> Items
-);
+public sealed partial record SendUserMessageParams
+{
+    [JsonPropertyName("conversationId")]
+    public ThreadId ConversationId { get; set; } = default!;
+    [JsonPropertyName("items")]
+    public List<InputItem> Items { get; set; } = [];
+}

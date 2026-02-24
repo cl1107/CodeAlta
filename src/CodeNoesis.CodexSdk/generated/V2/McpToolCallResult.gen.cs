@@ -6,9 +6,10 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record McpToolCallResult(
-    [property: JsonPropertyName("content")]
-    IReadOnlyList<ContentBlock> Content,
-    [property: JsonPropertyName("structuredContent")]
-    JsonElement? StructuredContent
-);
+public sealed partial record McpToolCallResult
+{
+    [JsonPropertyName("content")]
+    public List<ContentBlock> Content { get; set; } = [];
+    [JsonPropertyName("structuredContent")]
+    public JsonElement? StructuredContent { get; set; }
+}

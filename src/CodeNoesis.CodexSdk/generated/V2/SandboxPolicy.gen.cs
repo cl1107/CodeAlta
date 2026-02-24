@@ -17,20 +17,22 @@ public abstract partial record SandboxPolicy
 
     public sealed partial record ReadOnlySandboxPolicy : SandboxPolicy;
 
-    public sealed partial record ExternalSandboxSandboxPolicy(
-        [property: JsonPropertyName("networkAccess")]
-        NetworkAccess NetworkAccess
-    ) : SandboxPolicy;
+    public sealed partial record ExternalSandboxSandboxPolicy : SandboxPolicy
+    {
+        [JsonPropertyName("networkAccess")]
+        public NetworkAccess NetworkAccess { get; set; } = default!;
+    }
 
-    public sealed partial record WorkspaceWriteSandboxPolicy(
-        [property: JsonPropertyName("excludeSlashTmp")]
-        bool? ExcludeSlashTmp,
-        [property: JsonPropertyName("excludeTmpdirEnvVar")]
-        bool? ExcludeTmpdirEnvVar,
-        [property: JsonPropertyName("networkAccess")]
-        bool? NetworkAccess,
-        [property: JsonPropertyName("writableRoots")]
-        IReadOnlyList<AbsolutePathBuf>? WritableRoots
-    ) : SandboxPolicy;
+    public sealed partial record WorkspaceWriteSandboxPolicy : SandboxPolicy
+    {
+        [JsonPropertyName("excludeSlashTmp")]
+        public bool? ExcludeSlashTmp { get; set; }
+        [JsonPropertyName("excludeTmpdirEnvVar")]
+        public bool? ExcludeTmpdirEnvVar { get; set; }
+        [JsonPropertyName("networkAccess")]
+        public bool? NetworkAccess { get; set; }
+        [JsonPropertyName("writableRoots")]
+        public List<AbsolutePathBuf>? WritableRoots { get; set; }
+    }
 
 }

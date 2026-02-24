@@ -6,33 +6,34 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record TurnStartParams(
-    [property: JsonPropertyName("input")]
-    IReadOnlyList<UserInput> Input,
-    [property: JsonPropertyName("threadId")]
-    string ThreadId,
+public sealed partial record TurnStartParams
+{
+    [JsonPropertyName("input")]
+    public List<UserInput> Input { get; set; } = [];
+    [JsonPropertyName("threadId")]
+    public string ThreadId { get; set; } = string.Empty;
     /// <summary>Override the approval policy for this turn and subsequent turns.</summary>
-    [property: JsonPropertyName("approvalPolicy")]
-    AskForApproval? ApprovalPolicy,
+    [JsonPropertyName("approvalPolicy")]
+    public AskForApproval? ApprovalPolicy { get; set; }
     /// <summary>EXPERIMENTAL - set a pre-set collaboration mode. Takes precedence over model, reasoning_effort, and developer instructions if set.</summary>
-    [property: JsonPropertyName("collaborationMode")]
-    CollaborationMode? CollaborationMode,
+    [JsonPropertyName("collaborationMode")]
+    public CollaborationMode? CollaborationMode { get; set; }
     /// <summary>Override the working directory for this turn and subsequent turns.</summary>
-    [property: JsonPropertyName("cwd")]
-    string? Cwd,
+    [JsonPropertyName("cwd")]
+    public string? Cwd { get; set; }
     /// <summary>Override the reasoning effort for this turn and subsequent turns.</summary>
-    [property: JsonPropertyName("effort")]
-    ReasoningEffort? Effort,
+    [JsonPropertyName("effort")]
+    public ReasoningEffort? Effort { get; set; }
     /// <summary>Override the model for this turn and subsequent turns.</summary>
-    [property: JsonPropertyName("model")]
-    string? Model,
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
     /// <summary>Optional JSON Schema used to constrain the final assistant message for this turn.</summary>
-    [property: JsonPropertyName("outputSchema")]
-    JsonElement? OutputSchema,
+    [JsonPropertyName("outputSchema")]
+    public JsonElement? OutputSchema { get; set; }
     /// <summary>Override the sandbox policy for this turn and subsequent turns.</summary>
-    [property: JsonPropertyName("sandboxPolicy")]
-    SandboxPolicy? SandboxPolicy,
+    [JsonPropertyName("sandboxPolicy")]
+    public SandboxPolicy? SandboxPolicy { get; set; }
     /// <summary>Override the reasoning summary for this turn and subsequent turns.</summary>
-    [property: JsonPropertyName("summary")]
-    ReasoningSummary? Summary
-);
+    [JsonPropertyName("summary")]
+    public ReasoningSummary? Summary { get; set; }
+}

@@ -6,9 +6,10 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record SkillErrorInfo(
-    [property: JsonPropertyName("message")]
-    string Message,
-    [property: JsonPropertyName("path")]
-    string Path
-);
+public sealed partial record SkillErrorInfo
+{
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = string.Empty;
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+}

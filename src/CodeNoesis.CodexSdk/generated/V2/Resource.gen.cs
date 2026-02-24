@@ -9,19 +9,20 @@ namespace CodeNoesis.CodexSdk.V2;
 /// <summary>
 /// A known resource that the server is capable of reading.
 /// </summary>
-public sealed partial record Resource(
-    [property: JsonPropertyName("name")]
-    string Name,
-    [property: JsonPropertyName("uri")]
-    string Uri,
-    [property: JsonPropertyName("annotations")]
-    Annotations? Annotations,
-    [property: JsonPropertyName("description")]
-    string? Description,
-    [property: JsonPropertyName("mimeType")]
-    string? MimeType,
-    [property: JsonPropertyName("size")]
-    long? Size,
-    [property: JsonPropertyName("title")]
-    string? Title
-);
+public sealed partial record Resource
+{
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+    [JsonPropertyName("uri")]
+    public string Uri { get; set; } = string.Empty;
+    [JsonPropertyName("annotations")]
+    public Annotations? Annotations { get; set; }
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+    [JsonPropertyName("mimeType")]
+    public string? MimeType { get; set; }
+    [JsonPropertyName("size")]
+    public long? Size { get; set; }
+    [JsonPropertyName("title")]
+    public string? Title { get; set; }
+}

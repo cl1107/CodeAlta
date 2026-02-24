@@ -6,18 +6,19 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record ApplyPatchApprovalParams(
+public sealed partial record ApplyPatchApprovalParams
+{
     /// <summary>Use to correlate this with [codex_core::protocol::PatchApplyBeginEvent] and [codex_core::protocol::PatchApplyEndEvent].</summary>
-    [property: JsonPropertyName("callId")]
-    string CallId,
-    [property: JsonPropertyName("conversationId")]
-    ThreadId ConversationId,
-    [property: JsonPropertyName("fileChanges")]
-    IReadOnlyDictionary<string, FileChange> FileChanges,
+    [JsonPropertyName("callId")]
+    public string CallId { get; set; } = string.Empty;
+    [JsonPropertyName("conversationId")]
+    public ThreadId ConversationId { get; set; } = default!;
+    [JsonPropertyName("fileChanges")]
+    public Dictionary<string, FileChange> FileChanges { get; set; } = [];
     /// <summary>When set, the agent is asking the user to allow writes under this root for the remainder of the session (unclear if this is honored today).</summary>
-    [property: JsonPropertyName("grantRoot")]
-    string? GrantRoot,
+    [JsonPropertyName("grantRoot")]
+    public string? GrantRoot { get; set; }
     /// <summary>Optional explanatory reason (e.g. request for extra write access).</summary>
-    [property: JsonPropertyName("reason")]
-    string? Reason
-);
+    [JsonPropertyName("reason")]
+    public string? Reason { get; set; }
+}

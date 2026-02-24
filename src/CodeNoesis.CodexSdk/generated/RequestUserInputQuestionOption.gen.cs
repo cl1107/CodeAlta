@@ -6,9 +6,10 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record RequestUserInputQuestionOption(
-    [property: JsonPropertyName("description")]
-    string Description,
-    [property: JsonPropertyName("label")]
-    string Label
-);
+public sealed partial record RequestUserInputQuestionOption
+{
+    [JsonPropertyName("description")]
+    public string Description { get; set; } = string.Empty;
+    [JsonPropertyName("label")]
+    public string Label { get; set; } = string.Empty;
+}

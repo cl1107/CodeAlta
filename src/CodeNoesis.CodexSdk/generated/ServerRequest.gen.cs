@@ -20,51 +20,56 @@ public abstract partial record ServerRequest
     /// <summary>
     /// NEW APIs Sent when approval is requested for a specific command execution. This request is used for Turns started via turn/start.
     /// </summary>
-    public sealed partial record ItemCommandExecutionRequestApprovalRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        CommandExecutionRequestApprovalParams Params
-    ) : ServerRequest;
+    public sealed partial record ItemCommandExecutionRequestApprovalRequest : ServerRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public CommandExecutionRequestApprovalParams Params { get; set; } = default!;
+    }
 
     /// <summary>
     /// Sent when approval is requested for a specific file change. This request is used for Turns started via turn/start.
     /// </summary>
-    public sealed partial record ItemFileChangeRequestApprovalRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        FileChangeRequestApprovalParams Params
-    ) : ServerRequest;
+    public sealed partial record ItemFileChangeRequestApprovalRequest : ServerRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public FileChangeRequestApprovalParams Params { get; set; } = default!;
+    }
 
     /// <summary>
     /// EXPERIMENTAL - Request input from the user for a tool call.
     /// </summary>
-    public sealed partial record ItemToolRequestUserInputRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        ToolRequestUserInputParams Params
-    ) : ServerRequest;
+    public sealed partial record ItemToolRequestUserInputRequest : ServerRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public ToolRequestUserInputParams Params { get; set; } = default!;
+    }
 
     /// <summary>
     /// DEPRECATED APIs below Request to approve a patch. This request is used for Turns started via the legacy APIs (i.e. SendUserTurn, SendUserMessage).
     /// </summary>
-    public sealed partial record ApplyPatchApprovalRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        ApplyPatchApprovalParams Params
-    ) : ServerRequest;
+    public sealed partial record ApplyPatchApprovalRequest : ServerRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public ApplyPatchApprovalParams Params { get; set; } = default!;
+    }
 
     /// <summary>
     /// Request to exec a command. This request is used for Turns started via the legacy APIs (i.e. SendUserTurn, SendUserMessage).
     /// </summary>
-    public sealed partial record ExecCommandApprovalRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        ExecCommandApprovalParams Params
-    ) : ServerRequest;
+    public sealed partial record ExecCommandApprovalRequest : ServerRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public ExecCommandApprovalParams Params { get; set; } = default!;
+    }
 
 }

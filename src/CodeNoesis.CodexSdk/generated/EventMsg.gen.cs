@@ -78,20 +78,22 @@ public abstract partial record EventMsg
     /// <summary>
     /// Error while executing a submission
     /// </summary>
-    public sealed partial record ErrorEventMsg(
-        [property: JsonPropertyName("codex_error_info")]
-        CodeNoesis.CodexSdk.V2.CodexErrorInfo? CodexErrorInfo,
-        [property: JsonPropertyName("message")]
-        string Message
-    ) : EventMsg;
+    public sealed partial record ErrorEventMsg : EventMsg
+    {
+        [JsonPropertyName("codex_error_info")]
+        public CodeNoesis.CodexSdk.V2.CodexErrorInfo? CodexErrorInfo { get; set; }
+        [JsonPropertyName("message")]
+        public string Message { get; set; } = string.Empty;
+    }
 
     /// <summary>
     /// Warning issued while processing a submission. Unlike `Error`, this indicates the turn continued but the user should still be notified.
     /// </summary>
-    public sealed partial record WarningEventMsg(
-        [property: JsonPropertyName("message")]
-        string Message
-    ) : EventMsg;
+    public sealed partial record WarningEventMsg : EventMsg
+    {
+        [JsonPropertyName("message")]
+        public string Message { get; set; } = string.Empty;
+    }
 
     /// <summary>
     /// Conversation history was compacted (either automatically or manually).
@@ -101,460 +103,578 @@ public abstract partial record EventMsg
     /// <summary>
     /// Conversation history was rolled back by dropping the last N user turns.
     /// </summary>
-    public sealed partial record ThreadRolledBackEventMsg(
-        [property: JsonPropertyName("num_turns")]
-        uint NumTurns
-    ) : EventMsg;
+    public sealed partial record ThreadRolledBackEventMsg : EventMsg
+    {
+        /// <summary>Number of user turns that were removed from context.</summary>
+        [JsonPropertyName("num_turns")]
+        public uint NumTurns { get; set; }
+    }
 
     /// <summary>
     /// Agent has started a turn. v1 wire format uses `task_started`; accept `turn_started` for v2 interop.
     /// </summary>
-    public sealed partial record TaskStartedEventMsg(
-        [property: JsonPropertyName("model_context_window")]
-        long? ModelContextWindow
-    ) : EventMsg;
+    public sealed partial record TaskStartedEventMsg : EventMsg
+    {
+        [JsonPropertyName("model_context_window")]
+        public long? ModelContextWindow { get; set; }
+    }
 
     /// <summary>
     /// Agent has completed all actions. v1 wire format uses `task_complete`; accept `turn_complete` for v2 interop.
     /// </summary>
-    public sealed partial record TaskCompleteEventMsg(
-        [property: JsonPropertyName("last_agent_message")]
-        string? LastAgentMessage
-    ) : EventMsg;
+    public sealed partial record TaskCompleteEventMsg : EventMsg
+    {
+        [JsonPropertyName("last_agent_message")]
+        public string? LastAgentMessage { get; set; }
+    }
 
     /// <summary>
     /// Usage update for the current session, including totals and last turn. Optional means unknown — UIs should not display when `None`.
     /// </summary>
-    public sealed partial record TokenCountEventMsg(
-        [property: JsonPropertyName("info")]
-        TokenUsageInfo? Info,
-        [property: JsonPropertyName("rate_limits")]
-        CodeNoesis.CodexSdk.V2.RateLimitSnapshot? RateLimits
-    ) : EventMsg;
+    public sealed partial record TokenCountEventMsg : EventMsg
+    {
+        [JsonPropertyName("info")]
+        public TokenUsageInfo? Info { get; set; }
+        [JsonPropertyName("rate_limits")]
+        public CodeNoesis.CodexSdk.V2.RateLimitSnapshot? RateLimits { get; set; }
+    }
 
     /// <summary>
     /// Agent text output message
     /// </summary>
-    public sealed partial record AgentMessageEventMsg(
-        [property: JsonPropertyName("message")]
-        string Message
-    ) : EventMsg;
+    public sealed partial record AgentMessageEventMsg : EventMsg
+    {
+        [JsonPropertyName("message")]
+        public string Message { get; set; } = string.Empty;
+    }
 
     /// <summary>
     /// User/system input message (what was sent to the model)
     /// </summary>
-    public sealed partial record UserMessageEventMsg(
-        [property: JsonPropertyName("images")]
-        IReadOnlyList<JsonElement>? Images,
-        [property: JsonPropertyName("local_images")]
-        IReadOnlyList<string>? LocalImages,
-        [property: JsonPropertyName("message")]
-        string Message,
-        [property: JsonPropertyName("text_elements")]
-        IReadOnlyList<CodeNoesis.CodexSdk.V2.TextElement>? TextElements
-    ) : EventMsg;
+    public sealed partial record UserMessageEventMsg : EventMsg
+    {
+        /// <summary>Image URLs sourced from `UserInput::Image`. These are safe to replay in legacy UI history events and correspond to images sent to the model.</summary>
+        [JsonPropertyName("images")]
+        public List<JsonElement>? Images { get; set; }
+        /// <summary>Local file paths sourced from `UserInput::LocalImage`. These are kept so the UI can reattach images when editing history, and should not be sent to the model or treated as API-ready URLs.</summary>
+        [JsonPropertyName("local_images")]
+        public List<string>? LocalImages { get; set; }
+        [JsonPropertyName("message")]
+        public string Message { get; set; } = string.Empty;
+        /// <summary>UI-defined spans within `message` used to render or persist special elements.</summary>
+        [JsonPropertyName("text_elements")]
+        public List<CodeNoesis.CodexSdk.V2.TextElement>? TextElements { get; set; }
+    }
 
     /// <summary>
     /// Agent text output delta message
     /// </summary>
-    public sealed partial record AgentMessageDeltaEventMsg(
-        [property: JsonPropertyName("delta")]
-        string Delta
-    ) : EventMsg;
+    public sealed partial record AgentMessageDeltaEventMsg : EventMsg
+    {
+        [JsonPropertyName("delta")]
+        public string Delta { get; set; } = string.Empty;
+    }
 
     /// <summary>
     /// Reasoning event from agent.
     /// </summary>
-    public sealed partial record AgentReasoningEventMsg(
-        [property: JsonPropertyName("text")]
-        string Text
-    ) : EventMsg;
+    public sealed partial record AgentReasoningEventMsg : EventMsg
+    {
+        [JsonPropertyName("text")]
+        public string Text { get; set; } = string.Empty;
+    }
 
     /// <summary>
     /// Agent reasoning delta event from agent.
     /// </summary>
-    public sealed partial record AgentReasoningDeltaEventMsg(
-        [property: JsonPropertyName("delta")]
-        string Delta
-    ) : EventMsg;
+    public sealed partial record AgentReasoningDeltaEventMsg : EventMsg
+    {
+        [JsonPropertyName("delta")]
+        public string Delta { get; set; } = string.Empty;
+    }
 
     /// <summary>
     /// Raw chain-of-thought from agent.
     /// </summary>
-    public sealed partial record AgentReasoningRawContentEventMsg(
-        [property: JsonPropertyName("text")]
-        string Text
-    ) : EventMsg;
+    public sealed partial record AgentReasoningRawContentEventMsg : EventMsg
+    {
+        [JsonPropertyName("text")]
+        public string Text { get; set; } = string.Empty;
+    }
 
     /// <summary>
     /// Agent reasoning content delta event from agent.
     /// </summary>
-    public sealed partial record AgentReasoningRawContentDeltaEventMsg(
-        [property: JsonPropertyName("delta")]
-        string Delta
-    ) : EventMsg;
+    public sealed partial record AgentReasoningRawContentDeltaEventMsg : EventMsg
+    {
+        [JsonPropertyName("delta")]
+        public string Delta { get; set; } = string.Empty;
+    }
 
     /// <summary>
     /// Signaled when the model begins a new reasoning summary section (e.g., a new titled block).
     /// </summary>
-    public sealed partial record AgentReasoningSectionBreakEventMsg(
-        [property: JsonPropertyName("item_id")]
-        string? ItemId,
-        [property: JsonPropertyName("summary_index")]
-        long? SummaryIndex
-    ) : EventMsg;
+    public sealed partial record AgentReasoningSectionBreakEventMsg : EventMsg
+    {
+        [JsonPropertyName("item_id")]
+        public string? ItemId { get; set; }
+        [JsonPropertyName("summary_index")]
+        public long? SummaryIndex { get; set; }
+    }
 
     /// <summary>
     /// Ack the client's configure message.
     /// </summary>
-    public sealed partial record SessionConfiguredEventMsg(
-        [property: JsonPropertyName("approval_policy")]
-        CodeNoesis.CodexSdk.V2.AskForApproval ApprovalPolicy,
-        [property: JsonPropertyName("cwd")]
-        string Cwd,
-        [property: JsonPropertyName("forked_from_id")]
-        ThreadId? ForkedFromId,
-        [property: JsonPropertyName("history_entry_count")]
-        uint HistoryEntryCount,
-        [property: JsonPropertyName("history_log_id")]
-        ulong HistoryLogId,
-        [property: JsonPropertyName("initial_messages")]
-        IReadOnlyList<JsonElement>? InitialMessages,
-        [property: JsonPropertyName("model")]
-        string Model,
-        [property: JsonPropertyName("model_provider_id")]
-        string ModelProviderId,
-        [property: JsonPropertyName("reasoning_effort")]
-        CodeNoesis.CodexSdk.V2.ReasoningEffort? ReasoningEffort,
-        [property: JsonPropertyName("rollout_path")]
-        string RolloutPath,
-        [property: JsonPropertyName("sandbox_policy")]
-        CodeNoesis.CodexSdk.V2.SandboxPolicy SandboxPolicy,
-        [property: JsonPropertyName("session_id")]
-        ThreadId SessionId
-    ) : EventMsg;
+    public sealed partial record SessionConfiguredEventMsg : EventMsg
+    {
+        /// <summary>When to escalate for approval for execution</summary>
+        [JsonPropertyName("approval_policy")]
+        public CodeNoesis.CodexSdk.V2.AskForApproval ApprovalPolicy { get; set; } = default!;
+        /// <summary>Working directory that should be treated as the *root* of the session.</summary>
+        [JsonPropertyName("cwd")]
+        public string Cwd { get; set; } = string.Empty;
+        [JsonPropertyName("forked_from_id")]
+        public ThreadId? ForkedFromId { get; set; }
+        /// <summary>Current number of entries in the history log.</summary>
+        [JsonPropertyName("history_entry_count")]
+        public uint HistoryEntryCount { get; set; }
+        /// <summary>Identifier of the history log file (inode on Unix, 0 otherwise).</summary>
+        [JsonPropertyName("history_log_id")]
+        public ulong HistoryLogId { get; set; }
+        /// <summary>Optional initial messages (as events) for resumed sessions. When present, UIs can use these to seed the history.</summary>
+        [JsonPropertyName("initial_messages")]
+        public List<JsonElement>? InitialMessages { get; set; }
+        /// <summary>Tell the client what model is being queried.</summary>
+        [JsonPropertyName("model")]
+        public string Model { get; set; } = string.Empty;
+        [JsonPropertyName("model_provider_id")]
+        public string ModelProviderId { get; set; } = string.Empty;
+        /// <summary>The effort the model is putting into reasoning about the user's request.</summary>
+        [JsonPropertyName("reasoning_effort")]
+        public CodeNoesis.CodexSdk.V2.ReasoningEffort? ReasoningEffort { get; set; }
+        [JsonPropertyName("rollout_path")]
+        public string RolloutPath { get; set; } = string.Empty;
+        /// <summary>How to sandbox commands executed in the system</summary>
+        [JsonPropertyName("sandbox_policy")]
+        public CodeNoesis.CodexSdk.V2.SandboxPolicy SandboxPolicy { get; set; } = default!;
+        /// <summary>Name left as session_id instead of thread_id for backwards compatibility.</summary>
+        [JsonPropertyName("session_id")]
+        public ThreadId SessionId { get; set; } = default!;
+    }
 
     /// <summary>
     /// Incremental MCP startup progress updates.
     /// </summary>
-    public sealed partial record McpStartupUpdateEventMsg(
-        [property: JsonPropertyName("server")]
-        string Server,
-        [property: JsonPropertyName("status")]
-        McpStartupStatus Status
-    ) : EventMsg;
+    public sealed partial record McpStartupUpdateEventMsg : EventMsg
+    {
+        /// <summary>Server name being started.</summary>
+        [JsonPropertyName("server")]
+        public string Server { get; set; } = string.Empty;
+        /// <summary>Current startup status.</summary>
+        [JsonPropertyName("status")]
+        public McpStartupStatus Status { get; set; } = default!;
+    }
 
     /// <summary>
     /// Aggregate MCP startup completion summary.
     /// </summary>
-    public sealed partial record McpStartupCompleteEventMsg(
-        [property: JsonPropertyName("cancelled")]
-        IReadOnlyList<string> Cancelled,
-        [property: JsonPropertyName("failed")]
-        IReadOnlyList<McpStartupFailure> Failed,
-        [property: JsonPropertyName("ready")]
-        IReadOnlyList<string> Ready
-    ) : EventMsg;
+    public sealed partial record McpStartupCompleteEventMsg : EventMsg
+    {
+        [JsonPropertyName("cancelled")]
+        public List<string> Cancelled { get; set; } = [];
+        [JsonPropertyName("failed")]
+        public List<McpStartupFailure> Failed { get; set; } = [];
+        [JsonPropertyName("ready")]
+        public List<string> Ready { get; set; } = [];
+    }
 
-    public sealed partial record McpToolCallBeginEventMsg(
-        [property: JsonPropertyName("call_id")]
-        string CallId,
-        [property: JsonPropertyName("invocation")]
-        McpInvocation Invocation
-    ) : EventMsg;
+    public sealed partial record McpToolCallBeginEventMsg : EventMsg
+    {
+        /// <summary>Identifier so this can be paired with the McpToolCallEnd event.</summary>
+        [JsonPropertyName("call_id")]
+        public string CallId { get; set; } = string.Empty;
+        [JsonPropertyName("invocation")]
+        public McpInvocation Invocation { get; set; } = default!;
+    }
 
-    public sealed partial record McpToolCallEndEventMsg(
-        [property: JsonPropertyName("call_id")]
-        string CallId,
-        [property: JsonPropertyName("duration")]
-        Duration Duration,
-        [property: JsonPropertyName("invocation")]
-        McpInvocation Invocation,
-        [property: JsonPropertyName("result")]
-        Result_of_CallToolResult_or_String Result
-    ) : EventMsg;
+    public sealed partial record McpToolCallEndEventMsg : EventMsg
+    {
+        /// <summary>Identifier for the corresponding McpToolCallBegin that finished.</summary>
+        [JsonPropertyName("call_id")]
+        public string CallId { get; set; } = string.Empty;
+        [JsonPropertyName("duration")]
+        public Duration Duration { get; set; } = default!;
+        [JsonPropertyName("invocation")]
+        public McpInvocation Invocation { get; set; } = default!;
+        /// <summary>Result of the tool call. Note this could be an error.</summary>
+        [JsonPropertyName("result")]
+        public Result_of_CallToolResult_or_String Result { get; set; } = default!;
+    }
 
-    public sealed partial record WebSearchBeginEventMsg(
-        [property: JsonPropertyName("call_id")]
-        string CallId
-    ) : EventMsg;
+    public sealed partial record WebSearchBeginEventMsg : EventMsg
+    {
+        [JsonPropertyName("call_id")]
+        public string CallId { get; set; } = string.Empty;
+    }
 
-    public sealed partial record WebSearchEndEventMsg(
-        [property: JsonPropertyName("call_id")]
-        string CallId,
-        [property: JsonPropertyName("query")]
-        string Query
-    ) : EventMsg;
+    public sealed partial record WebSearchEndEventMsg : EventMsg
+    {
+        [JsonPropertyName("call_id")]
+        public string CallId { get; set; } = string.Empty;
+        [JsonPropertyName("query")]
+        public string Query { get; set; } = string.Empty;
+    }
 
     /// <summary>
     /// Notification that the server is about to execute a command.
     /// </summary>
-    public sealed partial record ExecCommandBeginEventMsg(
-        [property: JsonPropertyName("call_id")]
-        string CallId,
-        [property: JsonPropertyName("command")]
-        IReadOnlyList<string> Command,
-        [property: JsonPropertyName("cwd")]
-        string Cwd,
-        [property: JsonPropertyName("interaction_input")]
-        string? InteractionInput,
-        [property: JsonPropertyName("parsed_cmd")]
-        IReadOnlyList<ParsedCommand> ParsedCmd,
-        [property: JsonPropertyName("process_id")]
-        string? ProcessId,
-        [property: JsonPropertyName("source")]
-        ExecCommandSource Source,
-        [property: JsonPropertyName("turn_id")]
-        string TurnId
-    ) : EventMsg;
+    public sealed partial record ExecCommandBeginEventMsg : EventMsg
+    {
+        /// <summary>Identifier so this can be paired with the ExecCommandEnd event.</summary>
+        [JsonPropertyName("call_id")]
+        public string CallId { get; set; } = string.Empty;
+        /// <summary>The command to be executed.</summary>
+        [JsonPropertyName("command")]
+        public List<string> Command { get; set; } = [];
+        /// <summary>The command's working directory if not the default cwd for the agent.</summary>
+        [JsonPropertyName("cwd")]
+        public string Cwd { get; set; } = string.Empty;
+        /// <summary>Raw input sent to a unified exec session (if this is an interaction event).</summary>
+        [JsonPropertyName("interaction_input")]
+        public string? InteractionInput { get; set; }
+        [JsonPropertyName("parsed_cmd")]
+        public List<ParsedCommand> ParsedCmd { get; set; } = [];
+        /// <summary>Identifier for the underlying PTY process (when available).</summary>
+        [JsonPropertyName("process_id")]
+        public string? ProcessId { get; set; }
+        /// <summary>Where the command originated. Defaults to Agent for backward compatibility.</summary>
+        [JsonPropertyName("source")]
+        public ExecCommandSource Source { get; set; } = default!;
+        /// <summary>Turn ID that this command belongs to.</summary>
+        [JsonPropertyName("turn_id")]
+        public string TurnId { get; set; } = string.Empty;
+    }
 
     /// <summary>
     /// Incremental chunk of output from a running command.
     /// </summary>
-    public sealed partial record ExecCommandOutputDeltaEventMsg(
-        [property: JsonPropertyName("call_id")]
-        string CallId,
-        [property: JsonPropertyName("chunk")]
-        string Chunk,
-        [property: JsonPropertyName("stream")]
-        ExecOutputStream Stream
-    ) : EventMsg;
+    public sealed partial record ExecCommandOutputDeltaEventMsg : EventMsg
+    {
+        /// <summary>Identifier for the ExecCommandBegin that produced this chunk.</summary>
+        [JsonPropertyName("call_id")]
+        public string CallId { get; set; } = string.Empty;
+        /// <summary>Raw bytes from the stream (may not be valid UTF-8).</summary>
+        [JsonPropertyName("chunk")]
+        public string Chunk { get; set; } = string.Empty;
+        /// <summary>Which stream produced this chunk.</summary>
+        [JsonPropertyName("stream")]
+        public ExecOutputStream Stream { get; set; } = default!;
+    }
 
     /// <summary>
     /// Terminal interaction for an in-progress command (stdin sent and stdout observed).
     /// </summary>
-    public sealed partial record TerminalInteractionEventMsg(
-        [property: JsonPropertyName("call_id")]
-        string CallId,
-        [property: JsonPropertyName("process_id")]
-        string ProcessId,
-        [property: JsonPropertyName("stdin")]
-        string Stdin
-    ) : EventMsg;
+    public sealed partial record TerminalInteractionEventMsg : EventMsg
+    {
+        /// <summary>Identifier for the ExecCommandBegin that produced this chunk.</summary>
+        [JsonPropertyName("call_id")]
+        public string CallId { get; set; } = string.Empty;
+        /// <summary>Process id associated with the running command.</summary>
+        [JsonPropertyName("process_id")]
+        public string ProcessId { get; set; } = string.Empty;
+        /// <summary>Stdin sent to the running session.</summary>
+        [JsonPropertyName("stdin")]
+        public string Stdin { get; set; } = string.Empty;
+    }
 
-    public sealed partial record ExecCommandEndEventMsg(
-        [property: JsonPropertyName("aggregated_output")]
-        string? AggregatedOutput,
-        [property: JsonPropertyName("call_id")]
-        string CallId,
-        [property: JsonPropertyName("command")]
-        IReadOnlyList<string> Command,
-        [property: JsonPropertyName("cwd")]
-        string Cwd,
-        [property: JsonPropertyName("duration")]
-        Duration Duration,
-        [property: JsonPropertyName("exit_code")]
-        int ExitCode,
-        [property: JsonPropertyName("formatted_output")]
-        string FormattedOutput,
-        [property: JsonPropertyName("interaction_input")]
-        string? InteractionInput,
-        [property: JsonPropertyName("parsed_cmd")]
-        IReadOnlyList<ParsedCommand> ParsedCmd,
-        [property: JsonPropertyName("process_id")]
-        string? ProcessId,
-        [property: JsonPropertyName("source")]
-        ExecCommandSource Source,
-        [property: JsonPropertyName("stderr")]
-        string Stderr,
-        [property: JsonPropertyName("stdout")]
-        string Stdout,
-        [property: JsonPropertyName("turn_id")]
-        string TurnId
-    ) : EventMsg;
+    public sealed partial record ExecCommandEndEventMsg : EventMsg
+    {
+        /// <summary>Captured aggregated output</summary>
+        [JsonPropertyName("aggregated_output")]
+        public string? AggregatedOutput { get; set; }
+        /// <summary>Identifier for the ExecCommandBegin that finished.</summary>
+        [JsonPropertyName("call_id")]
+        public string CallId { get; set; } = string.Empty;
+        /// <summary>The command that was executed.</summary>
+        [JsonPropertyName("command")]
+        public List<string> Command { get; set; } = [];
+        /// <summary>The command's working directory if not the default cwd for the agent.</summary>
+        [JsonPropertyName("cwd")]
+        public string Cwd { get; set; } = string.Empty;
+        /// <summary>The duration of the command execution.</summary>
+        [JsonPropertyName("duration")]
+        public Duration Duration { get; set; } = default!;
+        /// <summary>The command's exit code.</summary>
+        [JsonPropertyName("exit_code")]
+        public int ExitCode { get; set; }
+        /// <summary>Formatted output from the command, as seen by the model.</summary>
+        [JsonPropertyName("formatted_output")]
+        public string FormattedOutput { get; set; } = string.Empty;
+        /// <summary>Raw input sent to a unified exec session (if this is an interaction event).</summary>
+        [JsonPropertyName("interaction_input")]
+        public string? InteractionInput { get; set; }
+        [JsonPropertyName("parsed_cmd")]
+        public List<ParsedCommand> ParsedCmd { get; set; } = [];
+        /// <summary>Identifier for the underlying PTY process (when available).</summary>
+        [JsonPropertyName("process_id")]
+        public string? ProcessId { get; set; }
+        /// <summary>Where the command originated. Defaults to Agent for backward compatibility.</summary>
+        [JsonPropertyName("source")]
+        public ExecCommandSource Source { get; set; } = default!;
+        /// <summary>Captured stderr</summary>
+        [JsonPropertyName("stderr")]
+        public string Stderr { get; set; } = string.Empty;
+        /// <summary>Captured stdout</summary>
+        [JsonPropertyName("stdout")]
+        public string Stdout { get; set; } = string.Empty;
+        /// <summary>Turn ID that this command belongs to.</summary>
+        [JsonPropertyName("turn_id")]
+        public string TurnId { get; set; } = string.Empty;
+    }
 
     /// <summary>
     /// Notification that the agent attached a local image via the view_image tool.
     /// </summary>
-    public sealed partial record ViewImageToolCallEventMsg(
-        [property: JsonPropertyName("call_id")]
-        string CallId,
-        [property: JsonPropertyName("path")]
-        string Path
-    ) : EventMsg;
+    public sealed partial record ViewImageToolCallEventMsg : EventMsg
+    {
+        /// <summary>Identifier for the originating tool call.</summary>
+        [JsonPropertyName("call_id")]
+        public string CallId { get; set; } = string.Empty;
+        /// <summary>Local filesystem path provided to the tool.</summary>
+        [JsonPropertyName("path")]
+        public string Path { get; set; } = string.Empty;
+    }
 
-    public sealed partial record ExecApprovalRequestEventMsg(
-        [property: JsonPropertyName("call_id")]
-        string CallId,
-        [property: JsonPropertyName("command")]
-        IReadOnlyList<string> Command,
-        [property: JsonPropertyName("cwd")]
-        string Cwd,
-        [property: JsonPropertyName("parsed_cmd")]
-        IReadOnlyList<ParsedCommand> ParsedCmd,
-        [property: JsonPropertyName("proposed_execpolicy_amendment")]
-        IReadOnlyList<JsonElement>? ProposedExecpolicyAmendment,
-        [property: JsonPropertyName("reason")]
-        string? Reason,
-        [property: JsonPropertyName("turn_id")]
-        string? TurnId
-    ) : EventMsg;
+    public sealed partial record ExecApprovalRequestEventMsg : EventMsg
+    {
+        /// <summary>Identifier for the associated exec call, if available.</summary>
+        [JsonPropertyName("call_id")]
+        public string CallId { get; set; } = string.Empty;
+        /// <summary>The command to be executed.</summary>
+        [JsonPropertyName("command")]
+        public List<string> Command { get; set; } = [];
+        /// <summary>The command's working directory.</summary>
+        [JsonPropertyName("cwd")]
+        public string Cwd { get; set; } = string.Empty;
+        [JsonPropertyName("parsed_cmd")]
+        public List<ParsedCommand> ParsedCmd { get; set; } = [];
+        /// <summary>Proposed execpolicy amendment that can be applied to allow future runs.</summary>
+        [JsonPropertyName("proposed_execpolicy_amendment")]
+        public List<JsonElement>? ProposedExecpolicyAmendment { get; set; }
+        /// <summary>Optional human-readable reason for the approval (e.g. retry without sandbox).</summary>
+        [JsonPropertyName("reason")]
+        public string? Reason { get; set; }
+        /// <summary>Turn ID that this command belongs to. Uses `#[serde(default)]` for backwards compatibility.</summary>
+        [JsonPropertyName("turn_id")]
+        public string? TurnId { get; set; }
+    }
 
-    public sealed partial record RequestUserInputEventMsg(
-        [property: JsonPropertyName("call_id")]
-        string CallId,
-        [property: JsonPropertyName("questions")]
-        IReadOnlyList<RequestUserInputQuestion> Questions,
-        [property: JsonPropertyName("turn_id")]
-        string? TurnId
-    ) : EventMsg;
+    public sealed partial record RequestUserInputEventMsg : EventMsg
+    {
+        /// <summary>Responses API call id for the associated tool call, if available.</summary>
+        [JsonPropertyName("call_id")]
+        public string CallId { get; set; } = string.Empty;
+        [JsonPropertyName("questions")]
+        public List<RequestUserInputQuestion> Questions { get; set; } = [];
+        /// <summary>Turn ID that this request belongs to. Uses `#[serde(default)]` for backwards compatibility.</summary>
+        [JsonPropertyName("turn_id")]
+        public string? TurnId { get; set; }
+    }
 
-    public sealed partial record ElicitationRequestEventMsg(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("message")]
-        string Message,
-        [property: JsonPropertyName("server_name")]
-        string ServerName
-    ) : EventMsg;
+    public sealed partial record ElicitationRequestEventMsg : EventMsg
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("message")]
+        public string Message { get; set; } = string.Empty;
+        [JsonPropertyName("server_name")]
+        public string ServerName { get; set; } = string.Empty;
+    }
 
-    public sealed partial record ApplyPatchApprovalRequestEventMsg(
-        [property: JsonPropertyName("call_id")]
-        string CallId,
-        [property: JsonPropertyName("changes")]
-        IReadOnlyDictionary<string, FileChange> Changes,
-        [property: JsonPropertyName("grant_root")]
-        string? GrantRoot,
-        [property: JsonPropertyName("reason")]
-        string? Reason,
-        [property: JsonPropertyName("turn_id")]
-        string? TurnId
-    ) : EventMsg;
+    public sealed partial record ApplyPatchApprovalRequestEventMsg : EventMsg
+    {
+        /// <summary>Responses API call id for the associated patch apply call, if available.</summary>
+        [JsonPropertyName("call_id")]
+        public string CallId { get; set; } = string.Empty;
+        [JsonPropertyName("changes")]
+        public Dictionary<string, FileChange> Changes { get; set; } = [];
+        /// <summary>When set, the agent is asking the user to allow writes under this root for the remainder of the session.</summary>
+        [JsonPropertyName("grant_root")]
+        public string? GrantRoot { get; set; }
+        /// <summary>Optional explanatory reason (e.g. request for extra write access).</summary>
+        [JsonPropertyName("reason")]
+        public string? Reason { get; set; }
+        /// <summary>Turn ID that this patch belongs to. Uses `#[serde(default)]` for backwards compatibility with older senders.</summary>
+        [JsonPropertyName("turn_id")]
+        public string? TurnId { get; set; }
+    }
 
     /// <summary>
     /// Notification advising the user that something they are using has been deprecated and should be phased out.
     /// </summary>
-    public sealed partial record DeprecationNoticeEventMsg(
-        [property: JsonPropertyName("details")]
-        string? Details,
-        [property: JsonPropertyName("summary")]
-        string Summary
-    ) : EventMsg;
+    public sealed partial record DeprecationNoticeEventMsg : EventMsg
+    {
+        /// <summary>Optional extra guidance, such as migration steps or rationale.</summary>
+        [JsonPropertyName("details")]
+        public string? Details { get; set; }
+        /// <summary>Concise summary of what is deprecated.</summary>
+        [JsonPropertyName("summary")]
+        public string Summary { get; set; } = string.Empty;
+    }
 
-    public sealed partial record BackgroundEventEventMsg(
-        [property: JsonPropertyName("message")]
-        string Message
-    ) : EventMsg;
+    public sealed partial record BackgroundEventEventMsg : EventMsg
+    {
+        [JsonPropertyName("message")]
+        public string Message { get; set; } = string.Empty;
+    }
 
-    public sealed partial record UndoStartedEventMsg(
-        [property: JsonPropertyName("message")]
-        string? Message
-    ) : EventMsg;
+    public sealed partial record UndoStartedEventMsg : EventMsg
+    {
+        [JsonPropertyName("message")]
+        public string? Message { get; set; }
+    }
 
-    public sealed partial record UndoCompletedEventMsg(
-        [property: JsonPropertyName("message")]
-        string? Message,
-        [property: JsonPropertyName("success")]
-        bool Success
-    ) : EventMsg;
+    public sealed partial record UndoCompletedEventMsg : EventMsg
+    {
+        [JsonPropertyName("message")]
+        public string? Message { get; set; }
+        [JsonPropertyName("success")]
+        public bool Success { get; set; }
+    }
 
     /// <summary>
     /// Notification that a model stream experienced an error or disconnect and the system is handling it (e.g., retrying with backoff).
     /// </summary>
-    public sealed partial record StreamErrorEventMsg(
-        [property: JsonPropertyName("additional_details")]
-        string? AdditionalDetails,
-        [property: JsonPropertyName("codex_error_info")]
-        CodeNoesis.CodexSdk.V2.CodexErrorInfo? CodexErrorInfo,
-        [property: JsonPropertyName("message")]
-        string Message
-    ) : EventMsg;
+    public sealed partial record StreamErrorEventMsg : EventMsg
+    {
+        /// <summary>Optional details about the underlying stream failure (often the same human-readable message that is surfaced as the terminal error if retries are exhausted).</summary>
+        [JsonPropertyName("additional_details")]
+        public string? AdditionalDetails { get; set; }
+        [JsonPropertyName("codex_error_info")]
+        public CodeNoesis.CodexSdk.V2.CodexErrorInfo? CodexErrorInfo { get; set; }
+        [JsonPropertyName("message")]
+        public string Message { get; set; } = string.Empty;
+    }
 
     /// <summary>
     /// Notification that the agent is about to apply a code patch. Mirrors `ExecCommandBegin` so front‑ends can show progress indicators.
     /// </summary>
-    public sealed partial record PatchApplyBeginEventMsg(
-        [property: JsonPropertyName("auto_approved")]
-        bool AutoApproved,
-        [property: JsonPropertyName("call_id")]
-        string CallId,
-        [property: JsonPropertyName("changes")]
-        IReadOnlyDictionary<string, FileChange> Changes,
-        [property: JsonPropertyName("turn_id")]
-        string? TurnId
-    ) : EventMsg;
+    public sealed partial record PatchApplyBeginEventMsg : EventMsg
+    {
+        /// <summary>If true, there was no ApplyPatchApprovalRequest for this patch.</summary>
+        [JsonPropertyName("auto_approved")]
+        public bool AutoApproved { get; set; }
+        /// <summary>Identifier so this can be paired with the PatchApplyEnd event.</summary>
+        [JsonPropertyName("call_id")]
+        public string CallId { get; set; } = string.Empty;
+        /// <summary>The changes to be applied.</summary>
+        [JsonPropertyName("changes")]
+        public Dictionary<string, FileChange> Changes { get; set; } = [];
+        /// <summary>Turn ID that this patch belongs to. Uses `#[serde(default)]` for backwards compatibility.</summary>
+        [JsonPropertyName("turn_id")]
+        public string? TurnId { get; set; }
+    }
 
     /// <summary>
     /// Notification that a patch application has finished.
     /// </summary>
-    public sealed partial record PatchApplyEndEventMsg(
-        [property: JsonPropertyName("call_id")]
-        string CallId,
-        [property: JsonPropertyName("changes")]
-        IReadOnlyDictionary<string, FileChange>? Changes,
-        [property: JsonPropertyName("stderr")]
-        string Stderr,
-        [property: JsonPropertyName("stdout")]
-        string Stdout,
-        [property: JsonPropertyName("success")]
-        bool Success,
-        [property: JsonPropertyName("turn_id")]
-        string? TurnId
-    ) : EventMsg;
+    public sealed partial record PatchApplyEndEventMsg : EventMsg
+    {
+        /// <summary>Identifier for the PatchApplyBegin that finished.</summary>
+        [JsonPropertyName("call_id")]
+        public string CallId { get; set; } = string.Empty;
+        /// <summary>The changes that were applied (mirrors PatchApplyBeginEvent::changes).</summary>
+        [JsonPropertyName("changes")]
+        public Dictionary<string, FileChange>? Changes { get; set; }
+        /// <summary>Captured stderr (parser errors, IO failures, etc.).</summary>
+        [JsonPropertyName("stderr")]
+        public string Stderr { get; set; } = string.Empty;
+        /// <summary>Captured stdout (summary printed by apply_patch).</summary>
+        [JsonPropertyName("stdout")]
+        public string Stdout { get; set; } = string.Empty;
+        /// <summary>Whether the patch was applied successfully.</summary>
+        [JsonPropertyName("success")]
+        public bool Success { get; set; }
+        /// <summary>Turn ID that this patch belongs to. Uses `#[serde(default)]` for backwards compatibility.</summary>
+        [JsonPropertyName("turn_id")]
+        public string? TurnId { get; set; }
+    }
 
-    public sealed partial record TurnDiffEventMsg(
-        [property: JsonPropertyName("unified_diff")]
-        string UnifiedDiff
-    ) : EventMsg;
+    public sealed partial record TurnDiffEventMsg : EventMsg
+    {
+        [JsonPropertyName("unified_diff")]
+        public string UnifiedDiff { get; set; } = string.Empty;
+    }
 
     /// <summary>
     /// Response to GetHistoryEntryRequest.
     /// </summary>
-    public sealed partial record GetHistoryEntryResponseEventMsg(
-        [property: JsonPropertyName("entry")]
-        HistoryEntry? Entry,
-        [property: JsonPropertyName("log_id")]
-        ulong LogId,
-        [property: JsonPropertyName("offset")]
-        uint Offset
-    ) : EventMsg;
+    public sealed partial record GetHistoryEntryResponseEventMsg : EventMsg
+    {
+        /// <summary>The entry at the requested offset, if available and parseable.</summary>
+        [JsonPropertyName("entry")]
+        public HistoryEntry? Entry { get; set; }
+        [JsonPropertyName("log_id")]
+        public ulong LogId { get; set; }
+        [JsonPropertyName("offset")]
+        public uint Offset { get; set; }
+    }
 
     /// <summary>
     /// List of MCP tools available to the agent.
     /// </summary>
-    public sealed partial record McpListToolsResponseEventMsg(
-        [property: JsonPropertyName("auth_statuses")]
-        IReadOnlyDictionary<string, CodeNoesis.CodexSdk.V2.McpAuthStatus> AuthStatuses,
-        [property: JsonPropertyName("resource_templates")]
-        IReadOnlyDictionary<string, IReadOnlyList<CodeNoesis.CodexSdk.V2.ResourceTemplate>> ResourceTemplates,
-        [property: JsonPropertyName("resources")]
-        IReadOnlyDictionary<string, IReadOnlyList<CodeNoesis.CodexSdk.V2.Resource>> Resources,
-        [property: JsonPropertyName("tools")]
-        IReadOnlyDictionary<string, CodeNoesis.CodexSdk.V2.Tool> Tools
-    ) : EventMsg;
+    public sealed partial record McpListToolsResponseEventMsg : EventMsg
+    {
+        /// <summary>Authentication status for each configured MCP server.</summary>
+        [JsonPropertyName("auth_statuses")]
+        public Dictionary<string, CodeNoesis.CodexSdk.V2.McpAuthStatus> AuthStatuses { get; set; } = [];
+        /// <summary>Known resource templates grouped by server name.</summary>
+        [JsonPropertyName("resource_templates")]
+        public Dictionary<string, List<CodeNoesis.CodexSdk.V2.ResourceTemplate>> ResourceTemplates { get; set; } = [];
+        /// <summary>Known resources grouped by server name.</summary>
+        [JsonPropertyName("resources")]
+        public Dictionary<string, List<CodeNoesis.CodexSdk.V2.Resource>> Resources { get; set; } = [];
+        /// <summary>Fully qualified tool name -&gt; tool definition.</summary>
+        [JsonPropertyName("tools")]
+        public Dictionary<string, CodeNoesis.CodexSdk.V2.Tool> Tools { get; set; } = [];
+    }
 
     /// <summary>
     /// List of custom prompts available to the agent.
     /// </summary>
-    public sealed partial record ListCustomPromptsResponseEventMsg(
-        [property: JsonPropertyName("custom_prompts")]
-        IReadOnlyList<CustomPrompt> CustomPrompts
-    ) : EventMsg;
+    public sealed partial record ListCustomPromptsResponseEventMsg : EventMsg
+    {
+        [JsonPropertyName("custom_prompts")]
+        public List<CustomPrompt> CustomPrompts { get; set; } = [];
+    }
 
     /// <summary>
     /// List of skills available to the agent.
     /// </summary>
-    public sealed partial record ListSkillsResponseEventMsg(
-        [property: JsonPropertyName("skills")]
-        IReadOnlyList<CodeNoesis.CodexSdk.V2.SkillsListEntry> Skills
-    ) : EventMsg;
+    public sealed partial record ListSkillsResponseEventMsg : EventMsg
+    {
+        [JsonPropertyName("skills")]
+        public List<CodeNoesis.CodexSdk.V2.SkillsListEntry> Skills { get; set; } = [];
+    }
 
     /// <summary>
     /// Notification that skill data may have been updated and clients may want to reload.
     /// </summary>
     public sealed partial record SkillsUpdateAvailableEventMsg : EventMsg;
 
-    public sealed partial record PlanUpdateEventMsg(
-        [property: JsonPropertyName("explanation")]
-        string? Explanation,
-        [property: JsonPropertyName("plan")]
-        IReadOnlyList<PlanItemArg> Plan
-    ) : EventMsg;
+    public sealed partial record PlanUpdateEventMsg : EventMsg
+    {
+        [JsonPropertyName("explanation")]
+        public string? Explanation { get; set; }
+        [JsonPropertyName("plan")]
+        public List<PlanItemArg> Plan { get; set; } = [];
+    }
 
-    public sealed partial record TurnAbortedEventMsg(
-        [property: JsonPropertyName("reason")]
-        TurnAbortReason Reason
-    ) : EventMsg;
+    public sealed partial record TurnAbortedEventMsg : EventMsg
+    {
+        [JsonPropertyName("reason")]
+        public TurnAbortReason Reason { get; set; } = default!;
+    }
 
     /// <summary>
     /// Notification that the agent is shutting down.
@@ -564,187 +684,233 @@ public abstract partial record EventMsg
     /// <summary>
     /// Entered review mode.
     /// </summary>
-    public sealed partial record EnteredReviewModeEventMsg(
-        [property: JsonPropertyName("target")]
-        CodeNoesis.CodexSdk.V2.ReviewTarget Target,
-        [property: JsonPropertyName("user_facing_hint")]
-        string? UserFacingHint
-    ) : EventMsg;
+    public sealed partial record EnteredReviewModeEventMsg : EventMsg
+    {
+        [JsonPropertyName("target")]
+        public CodeNoesis.CodexSdk.V2.ReviewTarget Target { get; set; } = default!;
+        [JsonPropertyName("user_facing_hint")]
+        public string? UserFacingHint { get; set; }
+    }
 
     /// <summary>
     /// Exited review mode with an optional final result to apply.
     /// </summary>
-    public sealed partial record ExitedReviewModeEventMsg(
-        [property: JsonPropertyName("review_output")]
-        ReviewOutputEvent? ReviewOutput
-    ) : EventMsg;
+    public sealed partial record ExitedReviewModeEventMsg : EventMsg
+    {
+        [JsonPropertyName("review_output")]
+        public ReviewOutputEvent? ReviewOutput { get; set; }
+    }
 
-    public sealed partial record RawResponseItemEventMsg(
-        [property: JsonPropertyName("item")]
-        CodeNoesis.CodexSdk.V2.ResponseItem Item
-    ) : EventMsg;
+    public sealed partial record RawResponseItemEventMsg : EventMsg
+    {
+        [JsonPropertyName("item")]
+        public CodeNoesis.CodexSdk.V2.ResponseItem Item { get; set; } = default!;
+    }
 
-    public sealed partial record ItemStartedEventMsg(
-        [property: JsonPropertyName("item")]
-        TurnItem Item,
-        [property: JsonPropertyName("thread_id")]
-        ThreadId ThreadId,
-        [property: JsonPropertyName("turn_id")]
-        string TurnId
-    ) : EventMsg;
+    public sealed partial record ItemStartedEventMsg : EventMsg
+    {
+        [JsonPropertyName("item")]
+        public TurnItem Item { get; set; } = default!;
+        [JsonPropertyName("thread_id")]
+        public ThreadId ThreadId { get; set; } = default!;
+        [JsonPropertyName("turn_id")]
+        public string TurnId { get; set; } = string.Empty;
+    }
 
-    public sealed partial record ItemCompletedEventMsg(
-        [property: JsonPropertyName("item")]
-        TurnItem Item,
-        [property: JsonPropertyName("thread_id")]
-        ThreadId ThreadId,
-        [property: JsonPropertyName("turn_id")]
-        string TurnId
-    ) : EventMsg;
+    public sealed partial record ItemCompletedEventMsg : EventMsg
+    {
+        [JsonPropertyName("item")]
+        public TurnItem Item { get; set; } = default!;
+        [JsonPropertyName("thread_id")]
+        public ThreadId ThreadId { get; set; } = default!;
+        [JsonPropertyName("turn_id")]
+        public string TurnId { get; set; } = string.Empty;
+    }
 
-    public sealed partial record AgentMessageContentDeltaEventMsg(
-        [property: JsonPropertyName("delta")]
-        string Delta,
-        [property: JsonPropertyName("item_id")]
-        string ItemId,
-        [property: JsonPropertyName("thread_id")]
-        string ThreadId,
-        [property: JsonPropertyName("turn_id")]
-        string TurnId
-    ) : EventMsg;
+    public sealed partial record AgentMessageContentDeltaEventMsg : EventMsg
+    {
+        [JsonPropertyName("delta")]
+        public string Delta { get; set; } = string.Empty;
+        [JsonPropertyName("item_id")]
+        public string ItemId { get; set; } = string.Empty;
+        [JsonPropertyName("thread_id")]
+        public string ThreadId { get; set; } = string.Empty;
+        [JsonPropertyName("turn_id")]
+        public string TurnId { get; set; } = string.Empty;
+    }
 
-    public sealed partial record ReasoningContentDeltaEventMsg(
-        [property: JsonPropertyName("delta")]
-        string Delta,
-        [property: JsonPropertyName("item_id")]
-        string ItemId,
-        [property: JsonPropertyName("summary_index")]
-        long? SummaryIndex,
-        [property: JsonPropertyName("thread_id")]
-        string ThreadId,
-        [property: JsonPropertyName("turn_id")]
-        string TurnId
-    ) : EventMsg;
+    public sealed partial record ReasoningContentDeltaEventMsg : EventMsg
+    {
+        [JsonPropertyName("delta")]
+        public string Delta { get; set; } = string.Empty;
+        [JsonPropertyName("item_id")]
+        public string ItemId { get; set; } = string.Empty;
+        [JsonPropertyName("summary_index")]
+        public long? SummaryIndex { get; set; }
+        [JsonPropertyName("thread_id")]
+        public string ThreadId { get; set; } = string.Empty;
+        [JsonPropertyName("turn_id")]
+        public string TurnId { get; set; } = string.Empty;
+    }
 
-    public sealed partial record ReasoningRawContentDeltaEventMsg(
-        [property: JsonPropertyName("content_index")]
-        long? ContentIndex,
-        [property: JsonPropertyName("delta")]
-        string Delta,
-        [property: JsonPropertyName("item_id")]
-        string ItemId,
-        [property: JsonPropertyName("thread_id")]
-        string ThreadId,
-        [property: JsonPropertyName("turn_id")]
-        string TurnId
-    ) : EventMsg;
+    public sealed partial record ReasoningRawContentDeltaEventMsg : EventMsg
+    {
+        [JsonPropertyName("content_index")]
+        public long? ContentIndex { get; set; }
+        [JsonPropertyName("delta")]
+        public string Delta { get; set; } = string.Empty;
+        [JsonPropertyName("item_id")]
+        public string ItemId { get; set; } = string.Empty;
+        [JsonPropertyName("thread_id")]
+        public string ThreadId { get; set; } = string.Empty;
+        [JsonPropertyName("turn_id")]
+        public string TurnId { get; set; } = string.Empty;
+    }
 
     /// <summary>
     /// Collab interaction: agent spawn begin.
     /// </summary>
-    public sealed partial record CollabAgentSpawnBeginEventMsg(
-        [property: JsonPropertyName("call_id")]
-        string CallId,
-        [property: JsonPropertyName("prompt")]
-        string Prompt,
-        [property: JsonPropertyName("sender_thread_id")]
-        ThreadId SenderThreadId
-    ) : EventMsg;
+    public sealed partial record CollabAgentSpawnBeginEventMsg : EventMsg
+    {
+        /// <summary>Identifier for the collab tool call.</summary>
+        [JsonPropertyName("call_id")]
+        public string CallId { get; set; } = string.Empty;
+        /// <summary>Initial prompt sent to the agent. Can be empty to prevent CoT leaking at the beginning.</summary>
+        [JsonPropertyName("prompt")]
+        public string Prompt { get; set; } = string.Empty;
+        /// <summary>Thread ID of the sender.</summary>
+        [JsonPropertyName("sender_thread_id")]
+        public ThreadId SenderThreadId { get; set; } = default!;
+    }
 
     /// <summary>
     /// Collab interaction: agent spawn end.
     /// </summary>
-    public sealed partial record CollabAgentSpawnEndEventMsg(
-        [property: JsonPropertyName("call_id")]
-        string CallId,
-        [property: JsonPropertyName("new_thread_id")]
-        ThreadId? NewThreadId,
-        [property: JsonPropertyName("prompt")]
-        string Prompt,
-        [property: JsonPropertyName("sender_thread_id")]
-        ThreadId SenderThreadId,
-        [property: JsonPropertyName("status")]
-        AgentStatus Status
-    ) : EventMsg;
+    public sealed partial record CollabAgentSpawnEndEventMsg : EventMsg
+    {
+        /// <summary>Identifier for the collab tool call.</summary>
+        [JsonPropertyName("call_id")]
+        public string CallId { get; set; } = string.Empty;
+        /// <summary>Thread ID of the newly spawned agent, if it was created.</summary>
+        [JsonPropertyName("new_thread_id")]
+        public ThreadId? NewThreadId { get; set; }
+        /// <summary>Initial prompt sent to the agent. Can be empty to prevent CoT leaking at the beginning.</summary>
+        [JsonPropertyName("prompt")]
+        public string Prompt { get; set; } = string.Empty;
+        /// <summary>Thread ID of the sender.</summary>
+        [JsonPropertyName("sender_thread_id")]
+        public ThreadId SenderThreadId { get; set; } = default!;
+        /// <summary>Last known status of the new agent reported to the sender agent.</summary>
+        [JsonPropertyName("status")]
+        public AgentStatus Status { get; set; } = default!;
+    }
 
     /// <summary>
     /// Collab interaction: agent interaction begin.
     /// </summary>
-    public sealed partial record CollabAgentInteractionBeginEventMsg(
-        [property: JsonPropertyName("call_id")]
-        string CallId,
-        [property: JsonPropertyName("prompt")]
-        string Prompt,
-        [property: JsonPropertyName("receiver_thread_id")]
-        ThreadId ReceiverThreadId,
-        [property: JsonPropertyName("sender_thread_id")]
-        ThreadId SenderThreadId
-    ) : EventMsg;
+    public sealed partial record CollabAgentInteractionBeginEventMsg : EventMsg
+    {
+        /// <summary>Identifier for the collab tool call.</summary>
+        [JsonPropertyName("call_id")]
+        public string CallId { get; set; } = string.Empty;
+        /// <summary>Prompt sent from the sender to the receiver. Can be empty to prevent CoT leaking at the beginning.</summary>
+        [JsonPropertyName("prompt")]
+        public string Prompt { get; set; } = string.Empty;
+        /// <summary>Thread ID of the receiver.</summary>
+        [JsonPropertyName("receiver_thread_id")]
+        public ThreadId ReceiverThreadId { get; set; } = default!;
+        /// <summary>Thread ID of the sender.</summary>
+        [JsonPropertyName("sender_thread_id")]
+        public ThreadId SenderThreadId { get; set; } = default!;
+    }
 
     /// <summary>
     /// Collab interaction: agent interaction end.
     /// </summary>
-    public sealed partial record CollabAgentInteractionEndEventMsg(
-        [property: JsonPropertyName("call_id")]
-        string CallId,
-        [property: JsonPropertyName("prompt")]
-        string Prompt,
-        [property: JsonPropertyName("receiver_thread_id")]
-        ThreadId ReceiverThreadId,
-        [property: JsonPropertyName("sender_thread_id")]
-        ThreadId SenderThreadId,
-        [property: JsonPropertyName("status")]
-        AgentStatus Status
-    ) : EventMsg;
+    public sealed partial record CollabAgentInteractionEndEventMsg : EventMsg
+    {
+        /// <summary>Identifier for the collab tool call.</summary>
+        [JsonPropertyName("call_id")]
+        public string CallId { get; set; } = string.Empty;
+        /// <summary>Prompt sent from the sender to the receiver. Can be empty to prevent CoT leaking at the beginning.</summary>
+        [JsonPropertyName("prompt")]
+        public string Prompt { get; set; } = string.Empty;
+        /// <summary>Thread ID of the receiver.</summary>
+        [JsonPropertyName("receiver_thread_id")]
+        public ThreadId ReceiverThreadId { get; set; } = default!;
+        /// <summary>Thread ID of the sender.</summary>
+        [JsonPropertyName("sender_thread_id")]
+        public ThreadId SenderThreadId { get; set; } = default!;
+        /// <summary>Last known status of the receiver agent reported to the sender agent.</summary>
+        [JsonPropertyName("status")]
+        public AgentStatus Status { get; set; } = default!;
+    }
 
     /// <summary>
     /// Collab interaction: waiting begin.
     /// </summary>
-    public sealed partial record CollabWaitingBeginEventMsg(
-        [property: JsonPropertyName("call_id")]
-        string CallId,
-        [property: JsonPropertyName("receiver_thread_ids")]
-        IReadOnlyList<ThreadId> ReceiverThreadIds,
-        [property: JsonPropertyName("sender_thread_id")]
-        ThreadId SenderThreadId
-    ) : EventMsg;
+    public sealed partial record CollabWaitingBeginEventMsg : EventMsg
+    {
+        /// <summary>ID of the waiting call.</summary>
+        [JsonPropertyName("call_id")]
+        public string CallId { get; set; } = string.Empty;
+        /// <summary>Thread ID of the receivers.</summary>
+        [JsonPropertyName("receiver_thread_ids")]
+        public List<ThreadId> ReceiverThreadIds { get; set; } = [];
+        /// <summary>Thread ID of the sender.</summary>
+        [JsonPropertyName("sender_thread_id")]
+        public ThreadId SenderThreadId { get; set; } = default!;
+    }
 
     /// <summary>
     /// Collab interaction: waiting end.
     /// </summary>
-    public sealed partial record CollabWaitingEndEventMsg(
-        [property: JsonPropertyName("call_id")]
-        string CallId,
-        [property: JsonPropertyName("sender_thread_id")]
-        ThreadId SenderThreadId,
-        [property: JsonPropertyName("statuses")]
-        IReadOnlyDictionary<string, AgentStatus> Statuses
-    ) : EventMsg;
+    public sealed partial record CollabWaitingEndEventMsg : EventMsg
+    {
+        /// <summary>ID of the waiting call.</summary>
+        [JsonPropertyName("call_id")]
+        public string CallId { get; set; } = string.Empty;
+        /// <summary>Thread ID of the sender.</summary>
+        [JsonPropertyName("sender_thread_id")]
+        public ThreadId SenderThreadId { get; set; } = default!;
+        /// <summary>Last known status of the receiver agents reported to the sender agent.</summary>
+        [JsonPropertyName("statuses")]
+        public Dictionary<string, AgentStatus> Statuses { get; set; } = [];
+    }
 
     /// <summary>
     /// Collab interaction: close begin.
     /// </summary>
-    public sealed partial record CollabCloseBeginEventMsg(
-        [property: JsonPropertyName("call_id")]
-        string CallId,
-        [property: JsonPropertyName("receiver_thread_id")]
-        ThreadId ReceiverThreadId,
-        [property: JsonPropertyName("sender_thread_id")]
-        ThreadId SenderThreadId
-    ) : EventMsg;
+    public sealed partial record CollabCloseBeginEventMsg : EventMsg
+    {
+        /// <summary>Identifier for the collab tool call.</summary>
+        [JsonPropertyName("call_id")]
+        public string CallId { get; set; } = string.Empty;
+        /// <summary>Thread ID of the receiver.</summary>
+        [JsonPropertyName("receiver_thread_id")]
+        public ThreadId ReceiverThreadId { get; set; } = default!;
+        /// <summary>Thread ID of the sender.</summary>
+        [JsonPropertyName("sender_thread_id")]
+        public ThreadId SenderThreadId { get; set; } = default!;
+    }
 
     /// <summary>
     /// Collab interaction: close end.
     /// </summary>
-    public sealed partial record CollabCloseEndEventMsg(
-        [property: JsonPropertyName("call_id")]
-        string CallId,
-        [property: JsonPropertyName("receiver_thread_id")]
-        ThreadId ReceiverThreadId,
-        [property: JsonPropertyName("sender_thread_id")]
-        ThreadId SenderThreadId,
-        [property: JsonPropertyName("status")]
-        AgentStatus Status
-    ) : EventMsg;
+    public sealed partial record CollabCloseEndEventMsg : EventMsg
+    {
+        /// <summary>Identifier for the collab tool call.</summary>
+        [JsonPropertyName("call_id")]
+        public string CallId { get; set; } = string.Empty;
+        /// <summary>Thread ID of the receiver.</summary>
+        [JsonPropertyName("receiver_thread_id")]
+        public ThreadId ReceiverThreadId { get; set; } = default!;
+        /// <summary>Thread ID of the sender.</summary>
+        [JsonPropertyName("sender_thread_id")]
+        public ThreadId SenderThreadId { get; set; } = default!;
+        /// <summary>Last known status of the receiver agent reported to the sender agent before the close.</summary>
+        [JsonPropertyName("status")]
+        public AgentStatus Status { get; set; } = default!;
+    }
 
 }

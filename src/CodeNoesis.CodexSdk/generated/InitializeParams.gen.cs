@@ -6,7 +6,8 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record InitializeParams(
-    [property: JsonPropertyName("clientInfo")]
-    ClientInfo ClientInfo
-);
+public sealed partial record InitializeParams
+{
+    [JsonPropertyName("clientInfo")]
+    public ClientInfo ClientInfo { get; set; } = default!;
+}

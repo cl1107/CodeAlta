@@ -6,5 +6,7 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public readonly partial record struct ReasoningItemReasoningSummary(
-    JsonElement Value);
+public partial record struct ReasoningItemReasoningSummary
+{
+    public JsonElement Value { get; set; }
+}

@@ -6,9 +6,10 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record ConfigRequirements(
-    [property: JsonPropertyName("allowedApprovalPolicies")]
-    IReadOnlyList<JsonElement>? AllowedApprovalPolicies,
-    [property: JsonPropertyName("allowedSandboxModes")]
-    IReadOnlyList<JsonElement>? AllowedSandboxModes
-);
+public sealed partial record ConfigRequirements
+{
+    [JsonPropertyName("allowedApprovalPolicies")]
+    public List<JsonElement>? AllowedApprovalPolicies { get; set; }
+    [JsonPropertyName("allowedSandboxModes")]
+    public List<JsonElement>? AllowedSandboxModes { get; set; }
+}

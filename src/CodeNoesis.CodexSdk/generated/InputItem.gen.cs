@@ -12,19 +12,22 @@ namespace CodeNoesis.CodexSdk;
 [JsonDerivedType(typeof(LocalImageInputItem), typeDiscriminator: "localImage")]
 public abstract partial record InputItem
 {
-    public sealed partial record TextInputItem(
-        [property: JsonPropertyName("data")]
-        JsonElement Data
-    ) : InputItem;
+    public sealed partial record TextInputItem : InputItem
+    {
+        [JsonPropertyName("data")]
+        public JsonElement Data { get; set; }
+    }
 
-    public sealed partial record ImageInputItem(
-        [property: JsonPropertyName("data")]
-        JsonElement Data
-    ) : InputItem;
+    public sealed partial record ImageInputItem : InputItem
+    {
+        [JsonPropertyName("data")]
+        public JsonElement Data { get; set; }
+    }
 
-    public sealed partial record LocalImageInputItem(
-        [property: JsonPropertyName("data")]
-        JsonElement Data
-    ) : InputItem;
+    public sealed partial record LocalImageInputItem : InputItem
+    {
+        [JsonPropertyName("data")]
+        public JsonElement Data { get; set; }
+    }
 
 }

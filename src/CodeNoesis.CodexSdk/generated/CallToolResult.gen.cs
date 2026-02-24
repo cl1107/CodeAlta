@@ -9,11 +9,12 @@ namespace CodeNoesis.CodexSdk;
 /// <summary>
 /// The server's response to a tool call.
 /// </summary>
-public sealed partial record CallToolResult(
-    [property: JsonPropertyName("content")]
-    IReadOnlyList<ContentBlock> Content,
-    [property: JsonPropertyName("isError")]
-    bool? IsError,
-    [property: JsonPropertyName("structuredContent")]
-    JsonElement? StructuredContent
-);
+public sealed partial record CallToolResult
+{
+    [JsonPropertyName("content")]
+    public List<ContentBlock> Content { get; set; } = [];
+    [JsonPropertyName("isError")]
+    public bool? IsError { get; set; }
+    [JsonPropertyName("structuredContent")]
+    public JsonElement? StructuredContent { get; set; }
+}

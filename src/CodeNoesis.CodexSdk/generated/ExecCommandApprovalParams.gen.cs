@@ -6,18 +6,19 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record ExecCommandApprovalParams(
+public sealed partial record ExecCommandApprovalParams
+{
     /// <summary>Use to correlate this with [codex_core::protocol::ExecCommandBeginEvent] and [codex_core::protocol::ExecCommandEndEvent].</summary>
-    [property: JsonPropertyName("callId")]
-    string CallId,
-    [property: JsonPropertyName("command")]
-    IReadOnlyList<string> Command,
-    [property: JsonPropertyName("conversationId")]
-    ThreadId ConversationId,
-    [property: JsonPropertyName("cwd")]
-    string Cwd,
-    [property: JsonPropertyName("parsedCmd")]
-    IReadOnlyList<ParsedCommand> ParsedCmd,
-    [property: JsonPropertyName("reason")]
-    string? Reason
-);
+    [JsonPropertyName("callId")]
+    public string CallId { get; set; } = string.Empty;
+    [JsonPropertyName("command")]
+    public List<string> Command { get; set; } = [];
+    [JsonPropertyName("conversationId")]
+    public ThreadId ConversationId { get; set; } = default!;
+    [JsonPropertyName("cwd")]
+    public string Cwd { get; set; } = string.Empty;
+    [JsonPropertyName("parsedCmd")]
+    public List<ParsedCommand> ParsedCmd { get; set; } = [];
+    [JsonPropertyName("reason")]
+    public string? Reason { get; set; }
+}

@@ -19,49 +19,53 @@ public abstract partial record CollaborationMode
     /// <summary>
     /// Settings for a collaboration mode.
     /// </summary>
-    public sealed partial record Plan(
-        [property: JsonPropertyName("developer_instructions")]
-        string? DeveloperInstructions,
-        [property: JsonPropertyName("model")]
-        string Model,
-        [property: JsonPropertyName("reasoning_effort")]
-        ReasoningEffort? ReasoningEffort
-    ) : CollaborationMode;
+    public sealed partial record Plan : CollaborationMode
+    {
+        [JsonPropertyName("developer_instructions")]
+        public string? DeveloperInstructions { get; set; }
+        [JsonPropertyName("model")]
+        public string Model { get; set; } = string.Empty;
+        [JsonPropertyName("reasoning_effort")]
+        public ReasoningEffort? ReasoningEffort { get; set; }
+    }
 
     /// <summary>
     /// Settings for a collaboration mode.
     /// </summary>
-    public sealed partial record Pairprogramming(
-        [property: JsonPropertyName("developer_instructions")]
-        string? DeveloperInstructions,
-        [property: JsonPropertyName("model")]
-        string Model,
-        [property: JsonPropertyName("reasoning_effort")]
-        ReasoningEffort? ReasoningEffort
-    ) : CollaborationMode;
+    public sealed partial record Pairprogramming : CollaborationMode
+    {
+        [JsonPropertyName("developer_instructions")]
+        public string? DeveloperInstructions { get; set; }
+        [JsonPropertyName("model")]
+        public string Model { get; set; } = string.Empty;
+        [JsonPropertyName("reasoning_effort")]
+        public ReasoningEffort? ReasoningEffort { get; set; }
+    }
 
     /// <summary>
     /// Settings for a collaboration mode.
     /// </summary>
-    public sealed partial record Execute(
-        [property: JsonPropertyName("developer_instructions")]
-        string? DeveloperInstructions,
-        [property: JsonPropertyName("model")]
-        string Model,
-        [property: JsonPropertyName("reasoning_effort")]
-        ReasoningEffort? ReasoningEffort
-    ) : CollaborationMode;
+    public sealed partial record Execute : CollaborationMode
+    {
+        [JsonPropertyName("developer_instructions")]
+        public string? DeveloperInstructions { get; set; }
+        [JsonPropertyName("model")]
+        public string Model { get; set; } = string.Empty;
+        [JsonPropertyName("reasoning_effort")]
+        public ReasoningEffort? ReasoningEffort { get; set; }
+    }
 
     /// <summary>
     /// Settings for a collaboration mode.
     /// </summary>
-    public sealed partial record Custom(
-        [property: JsonPropertyName("developer_instructions")]
-        string? DeveloperInstructions,
-        [property: JsonPropertyName("model")]
-        string Model,
-        [property: JsonPropertyName("reasoning_effort")]
-        ReasoningEffort? ReasoningEffort
-    ) : CollaborationMode;
+    public sealed partial record Custom : CollaborationMode
+    {
+        [JsonPropertyName("developer_instructions")]
+        public string? DeveloperInstructions { get; set; }
+        [JsonPropertyName("model")]
+        public string Model { get; set; } = string.Empty;
+        [JsonPropertyName("reasoning_effort")]
+        public ReasoningEffort? ReasoningEffort { get; set; }
+    }
 
 }

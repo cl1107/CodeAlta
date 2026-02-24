@@ -6,15 +6,16 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record McpServerStatus(
-    [property: JsonPropertyName("authStatus")]
-    McpAuthStatus AuthStatus,
-    [property: JsonPropertyName("name")]
-    string Name,
-    [property: JsonPropertyName("resources")]
-    IReadOnlyList<Resource> Resources,
-    [property: JsonPropertyName("resourceTemplates")]
-    IReadOnlyList<ResourceTemplate> ResourceTemplates,
-    [property: JsonPropertyName("tools")]
-    IReadOnlyDictionary<string, Tool> Tools
-);
+public sealed partial record McpServerStatus
+{
+    [JsonPropertyName("authStatus")]
+    public McpAuthStatus AuthStatus { get; set; } = default!;
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+    [JsonPropertyName("resources")]
+    public List<Resource> Resources { get; set; } = [];
+    [JsonPropertyName("resourceTemplates")]
+    public List<ResourceTemplate> ResourceTemplates { get; set; } = [];
+    [JsonPropertyName("tools")]
+    public Dictionary<string, Tool> Tools { get; set; } = [];
+}

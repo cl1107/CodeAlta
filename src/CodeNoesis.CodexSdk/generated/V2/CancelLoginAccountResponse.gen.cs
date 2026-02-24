@@ -6,7 +6,8 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record CancelLoginAccountResponse(
-    [property: JsonPropertyName("status")]
-    CancelLoginAccountStatus Status
-);
+public sealed partial record CancelLoginAccountResponse
+{
+    [JsonPropertyName("status")]
+    public CancelLoginAccountStatus Status { get; set; } = default!;
+}

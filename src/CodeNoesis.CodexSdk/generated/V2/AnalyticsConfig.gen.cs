@@ -6,7 +6,8 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record AnalyticsConfig(
-    [property: JsonPropertyName("enabled")]
-    bool? Enabled
-);
+public sealed partial record AnalyticsConfig
+{
+    [JsonPropertyName("enabled")]
+    public bool? Enabled { get; set; }
+}

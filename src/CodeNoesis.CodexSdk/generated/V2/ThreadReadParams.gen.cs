@@ -6,10 +6,11 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record ThreadReadParams(
-    [property: JsonPropertyName("threadId")]
-    string ThreadId,
+public sealed partial record ThreadReadParams
+{
+    [JsonPropertyName("threadId")]
+    public string ThreadId { get; set; } = string.Empty;
     /// <summary>When true, include turns and their items from rollout history.</summary>
-    [property: JsonPropertyName("includeTurns")]
-    bool? IncludeTurns
-);
+    [JsonPropertyName("includeTurns")]
+    public bool? IncludeTurns { get; set; }
+}

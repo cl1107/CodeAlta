@@ -6,11 +6,12 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record ExecOneOffCommandResponse(
-    [property: JsonPropertyName("exitCode")]
-    int ExitCode,
-    [property: JsonPropertyName("stderr")]
-    string Stderr,
-    [property: JsonPropertyName("stdout")]
-    string Stdout
-);
+public sealed partial record ExecOneOffCommandResponse
+{
+    [JsonPropertyName("exitCode")]
+    public int ExitCode { get; set; }
+    [JsonPropertyName("stderr")]
+    public string Stderr { get; set; } = string.Empty;
+    [JsonPropertyName("stdout")]
+    public string Stdout { get; set; } = string.Empty;
+}

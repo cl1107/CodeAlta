@@ -13,34 +13,39 @@ namespace CodeNoesis.CodexSdk;
 [JsonDerivedType(typeof(UnknownParsedCommand), typeDiscriminator: "unknown")]
 public abstract partial record ParsedCommand
 {
-    public sealed partial record ReadParsedCommand(
-        [property: JsonPropertyName("cmd")]
-        string Cmd,
-        [property: JsonPropertyName("name")]
-        string Name,
-        [property: JsonPropertyName("path")]
-        string Path
-    ) : ParsedCommand;
+    public sealed partial record ReadParsedCommand : ParsedCommand
+    {
+        [JsonPropertyName("cmd")]
+        public string Cmd { get; set; } = string.Empty;
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = string.Empty;
+        /// <summary>(Best effort) Path to the file being read by the command. When possible, this is an absolute path, though when relative, it should be resolved against the `cwd`` that will be used to run the command to derive the absolute path.</summary>
+        [JsonPropertyName("path")]
+        public string Path { get; set; } = string.Empty;
+    }
 
-    public sealed partial record ListFilesParsedCommand(
-        [property: JsonPropertyName("cmd")]
-        string Cmd,
-        [property: JsonPropertyName("path")]
-        string? Path
-    ) : ParsedCommand;
+    public sealed partial record ListFilesParsedCommand : ParsedCommand
+    {
+        [JsonPropertyName("cmd")]
+        public string Cmd { get; set; } = string.Empty;
+        [JsonPropertyName("path")]
+        public string? Path { get; set; }
+    }
 
-    public sealed partial record SearchParsedCommand(
-        [property: JsonPropertyName("cmd")]
-        string Cmd,
-        [property: JsonPropertyName("path")]
-        string? Path,
-        [property: JsonPropertyName("query")]
-        string? Query
-    ) : ParsedCommand;
+    public sealed partial record SearchParsedCommand : ParsedCommand
+    {
+        [JsonPropertyName("cmd")]
+        public string Cmd { get; set; } = string.Empty;
+        [JsonPropertyName("path")]
+        public string? Path { get; set; }
+        [JsonPropertyName("query")]
+        public string? Query { get; set; }
+    }
 
-    public sealed partial record UnknownParsedCommand(
-        [property: JsonPropertyName("cmd")]
-        string Cmd
-    ) : ParsedCommand;
+    public sealed partial record UnknownParsedCommand : ParsedCommand
+    {
+        [JsonPropertyName("cmd")]
+        public string Cmd { get; set; } = string.Empty;
+    }
 
 }

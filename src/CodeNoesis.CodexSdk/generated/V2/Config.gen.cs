@@ -6,47 +6,48 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record Config(
-    [property: JsonPropertyName("analytics")]
-    AnalyticsConfig? Analytics,
-    [property: JsonPropertyName("approval_policy")]
-    AskForApproval? ApprovalPolicy,
-    [property: JsonPropertyName("compact_prompt")]
-    string? CompactPrompt,
-    [property: JsonPropertyName("developer_instructions")]
-    string? DeveloperInstructions,
-    [property: JsonPropertyName("forced_chatgpt_workspace_id")]
-    string? ForcedChatgptWorkspaceId,
-    [property: JsonPropertyName("forced_login_method")]
-    ForcedLoginMethod? ForcedLoginMethod,
-    [property: JsonPropertyName("instructions")]
-    string? Instructions,
-    [property: JsonPropertyName("model")]
-    string? Model,
-    [property: JsonPropertyName("model_auto_compact_token_limit")]
-    long? ModelAutoCompactTokenLimit,
-    [property: JsonPropertyName("model_context_window")]
-    long? ModelContextWindow,
-    [property: JsonPropertyName("model_provider")]
-    string? ModelProvider,
-    [property: JsonPropertyName("model_reasoning_effort")]
-    ReasoningEffort? ModelReasoningEffort,
-    [property: JsonPropertyName("model_reasoning_summary")]
-    ReasoningSummary? ModelReasoningSummary,
-    [property: JsonPropertyName("model_verbosity")]
-    Verbosity? ModelVerbosity,
-    [property: JsonPropertyName("profile")]
-    string? Profile,
-    [property: JsonPropertyName("profiles")]
-    IReadOnlyDictionary<string, ProfileV2>? Profiles,
-    [property: JsonPropertyName("review_model")]
-    string? ReviewModel,
-    [property: JsonPropertyName("sandbox_mode")]
-    SandboxMode? SandboxMode,
-    [property: JsonPropertyName("sandbox_workspace_write")]
-    SandboxWorkspaceWrite? SandboxWorkspaceWrite,
-    [property: JsonPropertyName("tools")]
-    ToolsV2? Tools,
-    [property: JsonPropertyName("web_search")]
-    WebSearchMode? WebSearch
-);
+public sealed partial record Config
+{
+    [JsonPropertyName("analytics")]
+    public AnalyticsConfig? Analytics { get; set; }
+    [JsonPropertyName("approval_policy")]
+    public AskForApproval? ApprovalPolicy { get; set; }
+    [JsonPropertyName("compact_prompt")]
+    public string? CompactPrompt { get; set; }
+    [JsonPropertyName("developer_instructions")]
+    public string? DeveloperInstructions { get; set; }
+    [JsonPropertyName("forced_chatgpt_workspace_id")]
+    public string? ForcedChatgptWorkspaceId { get; set; }
+    [JsonPropertyName("forced_login_method")]
+    public ForcedLoginMethod? ForcedLoginMethod { get; set; }
+    [JsonPropertyName("instructions")]
+    public string? Instructions { get; set; }
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
+    [JsonPropertyName("model_auto_compact_token_limit")]
+    public long? ModelAutoCompactTokenLimit { get; set; }
+    [JsonPropertyName("model_context_window")]
+    public long? ModelContextWindow { get; set; }
+    [JsonPropertyName("model_provider")]
+    public string? ModelProvider { get; set; }
+    [JsonPropertyName("model_reasoning_effort")]
+    public ReasoningEffort? ModelReasoningEffort { get; set; }
+    [JsonPropertyName("model_reasoning_summary")]
+    public ReasoningSummary? ModelReasoningSummary { get; set; }
+    [JsonPropertyName("model_verbosity")]
+    public Verbosity? ModelVerbosity { get; set; }
+    [JsonPropertyName("profile")]
+    public string? Profile { get; set; }
+    [JsonPropertyName("profiles")]
+    public Dictionary<string, ProfileV2>? Profiles { get; set; }
+    [JsonPropertyName("review_model")]
+    public string? ReviewModel { get; set; }
+    [JsonPropertyName("sandbox_mode")]
+    public SandboxMode? SandboxMode { get; set; }
+    [JsonPropertyName("sandbox_workspace_write")]
+    public SandboxWorkspaceWrite? SandboxWorkspaceWrite { get; set; }
+    [JsonPropertyName("tools")]
+    public ToolsV2? Tools { get; set; }
+    [JsonPropertyName("web_search")]
+    public WebSearchMode? WebSearch { get; set; }
+}

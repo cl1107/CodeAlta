@@ -6,9 +6,10 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record Duration(
-    [property: JsonPropertyName("nanos")]
-    uint Nanos,
-    [property: JsonPropertyName("secs")]
-    ulong Secs
-);
+public sealed partial record Duration
+{
+    [JsonPropertyName("nanos")]
+    public uint Nanos { get; set; }
+    [JsonPropertyName("secs")]
+    public ulong Secs { get; set; }
+}

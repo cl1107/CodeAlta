@@ -20,121 +20,147 @@ namespace CodeNoesis.CodexSdk.V2;
 [JsonDerivedType(typeof(ExitedReviewModeThreadItem), typeDiscriminator: "exitedReviewMode")]
 public abstract partial record ThreadItem
 {
-    public sealed partial record UserMessageThreadItem(
-        [property: JsonPropertyName("content")]
-        IReadOnlyList<UserInput> Content,
-        [property: JsonPropertyName("id")]
-        string Id
-    ) : ThreadItem;
+    public sealed partial record UserMessageThreadItem : ThreadItem
+    {
+        [JsonPropertyName("content")]
+        public List<UserInput> Content { get; set; } = [];
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = string.Empty;
+    }
 
-    public sealed partial record AgentMessageThreadItem(
-        [property: JsonPropertyName("id")]
-        string Id,
-        [property: JsonPropertyName("text")]
-        string Text
-    ) : ThreadItem;
+    public sealed partial record AgentMessageThreadItem : ThreadItem
+    {
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = string.Empty;
+        [JsonPropertyName("text")]
+        public string Text { get; set; } = string.Empty;
+    }
 
-    public sealed partial record ReasoningThreadItem(
-        [property: JsonPropertyName("content")]
-        IReadOnlyList<string>? Content,
-        [property: JsonPropertyName("id")]
-        string Id,
-        [property: JsonPropertyName("summary")]
-        IReadOnlyList<string>? Summary
-    ) : ThreadItem;
+    public sealed partial record ReasoningThreadItem : ThreadItem
+    {
+        [JsonPropertyName("content")]
+        public List<string>? Content { get; set; }
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = string.Empty;
+        [JsonPropertyName("summary")]
+        public List<string>? Summary { get; set; }
+    }
 
-    public sealed partial record CommandExecutionThreadItem(
-        [property: JsonPropertyName("aggregatedOutput")]
-        string? AggregatedOutput,
-        [property: JsonPropertyName("command")]
-        string Command,
-        [property: JsonPropertyName("commandActions")]
-        IReadOnlyList<CommandAction> CommandActions,
-        [property: JsonPropertyName("cwd")]
-        string Cwd,
-        [property: JsonPropertyName("durationMs")]
-        long? DurationMs,
-        [property: JsonPropertyName("exitCode")]
-        int? ExitCode,
-        [property: JsonPropertyName("id")]
-        string Id,
-        [property: JsonPropertyName("processId")]
-        string? ProcessId,
-        [property: JsonPropertyName("status")]
-        CommandExecutionStatus Status
-    ) : ThreadItem;
+    public sealed partial record CommandExecutionThreadItem : ThreadItem
+    {
+        /// <summary>The command's output, aggregated from stdout and stderr.</summary>
+        [JsonPropertyName("aggregatedOutput")]
+        public string? AggregatedOutput { get; set; }
+        /// <summary>The command to be executed.</summary>
+        [JsonPropertyName("command")]
+        public string Command { get; set; } = string.Empty;
+        /// <summary>A best-effort parsing of the command to understand the action(s) it will perform. This returns a list of CommandAction objects because a single shell command may be composed of many commands piped together.</summary>
+        [JsonPropertyName("commandActions")]
+        public List<CommandAction> CommandActions { get; set; } = [];
+        /// <summary>The command's working directory.</summary>
+        [JsonPropertyName("cwd")]
+        public string Cwd { get; set; } = string.Empty;
+        /// <summary>The duration of the command execution in milliseconds.</summary>
+        [JsonPropertyName("durationMs")]
+        public long? DurationMs { get; set; }
+        /// <summary>The command's exit code.</summary>
+        [JsonPropertyName("exitCode")]
+        public int? ExitCode { get; set; }
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = string.Empty;
+        /// <summary>Identifier for the underlying PTY process (when available).</summary>
+        [JsonPropertyName("processId")]
+        public string? ProcessId { get; set; }
+        [JsonPropertyName("status")]
+        public CommandExecutionStatus Status { get; set; } = default!;
+    }
 
-    public sealed partial record FileChangeThreadItem(
-        [property: JsonPropertyName("changes")]
-        IReadOnlyList<FileUpdateChange> Changes,
-        [property: JsonPropertyName("id")]
-        string Id,
-        [property: JsonPropertyName("status")]
-        PatchApplyStatus Status
-    ) : ThreadItem;
+    public sealed partial record FileChangeThreadItem : ThreadItem
+    {
+        [JsonPropertyName("changes")]
+        public List<FileUpdateChange> Changes { get; set; } = [];
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = string.Empty;
+        [JsonPropertyName("status")]
+        public PatchApplyStatus Status { get; set; } = default!;
+    }
 
-    public sealed partial record McpToolCallThreadItem(
-        [property: JsonPropertyName("arguments")]
-        JsonElement Arguments,
-        [property: JsonPropertyName("durationMs")]
-        long? DurationMs,
-        [property: JsonPropertyName("error")]
-        McpToolCallError? Error,
-        [property: JsonPropertyName("id")]
-        string Id,
-        [property: JsonPropertyName("result")]
-        McpToolCallResult? Result,
-        [property: JsonPropertyName("server")]
-        string Server,
-        [property: JsonPropertyName("status")]
-        McpToolCallStatus Status,
-        [property: JsonPropertyName("tool")]
-        string Tool
-    ) : ThreadItem;
+    public sealed partial record McpToolCallThreadItem : ThreadItem
+    {
+        [JsonPropertyName("arguments")]
+        public JsonElement Arguments { get; set; }
+        /// <summary>The duration of the MCP tool call in milliseconds.</summary>
+        [JsonPropertyName("durationMs")]
+        public long? DurationMs { get; set; }
+        [JsonPropertyName("error")]
+        public McpToolCallError? Error { get; set; }
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = string.Empty;
+        [JsonPropertyName("result")]
+        public McpToolCallResult? Result { get; set; }
+        [JsonPropertyName("server")]
+        public string Server { get; set; } = string.Empty;
+        [JsonPropertyName("status")]
+        public McpToolCallStatus Status { get; set; } = default!;
+        [JsonPropertyName("tool")]
+        public string Tool { get; set; } = string.Empty;
+    }
 
-    public sealed partial record CollabAgentToolCallThreadItem(
-        [property: JsonPropertyName("agentsStates")]
-        IReadOnlyDictionary<string, CollabAgentState> AgentsStates,
-        [property: JsonPropertyName("id")]
-        string Id,
-        [property: JsonPropertyName("prompt")]
-        string? Prompt,
-        [property: JsonPropertyName("receiverThreadIds")]
-        IReadOnlyList<string> ReceiverThreadIds,
-        [property: JsonPropertyName("senderThreadId")]
-        string SenderThreadId,
-        [property: JsonPropertyName("status")]
-        CollabAgentToolCallStatus Status,
-        [property: JsonPropertyName("tool")]
-        CollabAgentTool Tool
-    ) : ThreadItem;
+    public sealed partial record CollabAgentToolCallThreadItem : ThreadItem
+    {
+        /// <summary>Last known status of the target agents, when available.</summary>
+        [JsonPropertyName("agentsStates")]
+        public Dictionary<string, CollabAgentState> AgentsStates { get; set; } = [];
+        /// <summary>Unique identifier for this collab tool call.</summary>
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = string.Empty;
+        /// <summary>Prompt text sent as part of the collab tool call, when available.</summary>
+        [JsonPropertyName("prompt")]
+        public string? Prompt { get; set; }
+        /// <summary>Thread ID of the receiving agent, when applicable. In case of spawn operation, this corresponds to the newly spawned agent.</summary>
+        [JsonPropertyName("receiverThreadIds")]
+        public List<string> ReceiverThreadIds { get; set; } = [];
+        /// <summary>Thread ID of the agent issuing the collab request.</summary>
+        [JsonPropertyName("senderThreadId")]
+        public string SenderThreadId { get; set; } = string.Empty;
+        /// <summary>Current status of the collab tool call.</summary>
+        [JsonPropertyName("status")]
+        public CollabAgentToolCallStatus Status { get; set; } = default!;
+        /// <summary>Name of the collab tool that was invoked.</summary>
+        [JsonPropertyName("tool")]
+        public CollabAgentTool Tool { get; set; } = default!;
+    }
 
-    public sealed partial record WebSearchThreadItem(
-        [property: JsonPropertyName("id")]
-        string Id,
-        [property: JsonPropertyName("query")]
-        string Query
-    ) : ThreadItem;
+    public sealed partial record WebSearchThreadItem : ThreadItem
+    {
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = string.Empty;
+        [JsonPropertyName("query")]
+        public string Query { get; set; } = string.Empty;
+    }
 
-    public sealed partial record ImageViewThreadItem(
-        [property: JsonPropertyName("id")]
-        string Id,
-        [property: JsonPropertyName("path")]
-        string Path
-    ) : ThreadItem;
+    public sealed partial record ImageViewThreadItem : ThreadItem
+    {
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = string.Empty;
+        [JsonPropertyName("path")]
+        public string Path { get; set; } = string.Empty;
+    }
 
-    public sealed partial record EnteredReviewModeThreadItem(
-        [property: JsonPropertyName("id")]
-        string Id,
-        [property: JsonPropertyName("review")]
-        string Review
-    ) : ThreadItem;
+    public sealed partial record EnteredReviewModeThreadItem : ThreadItem
+    {
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = string.Empty;
+        [JsonPropertyName("review")]
+        public string Review { get; set; } = string.Empty;
+    }
 
-    public sealed partial record ExitedReviewModeThreadItem(
-        [property: JsonPropertyName("id")]
-        string Id,
-        [property: JsonPropertyName("review")]
-        string Review
-    ) : ThreadItem;
+    public sealed partial record ExitedReviewModeThreadItem : ThreadItem
+    {
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = string.Empty;
+        [JsonPropertyName("review")]
+        public string Review { get; set; } = string.Empty;
+    }
 
 }

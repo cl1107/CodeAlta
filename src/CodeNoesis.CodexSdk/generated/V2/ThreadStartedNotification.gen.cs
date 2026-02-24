@@ -6,7 +6,8 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record ThreadStartedNotification(
-    [property: JsonPropertyName("thread")]
-    Thread Thread
-);
+public sealed partial record ThreadStartedNotification
+{
+    [JsonPropertyName("thread")]
+    public Thread Thread { get; set; } = default!;
+}

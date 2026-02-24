@@ -9,9 +9,10 @@ namespace CodeNoesis.CodexSdk;
 /// <summary>
 /// EXPERIMENTAL. Defines a single selectable option for request_user_input.
 /// </summary>
-public sealed partial record ToolRequestUserInputOption(
-    [property: JsonPropertyName("description")]
-    string Description,
-    [property: JsonPropertyName("label")]
-    string Label
-);
+public sealed partial record ToolRequestUserInputOption
+{
+    [JsonPropertyName("description")]
+    public string Description { get; set; } = string.Empty;
+    [JsonPropertyName("label")]
+    public string Label { get; set; } = string.Empty;
+}

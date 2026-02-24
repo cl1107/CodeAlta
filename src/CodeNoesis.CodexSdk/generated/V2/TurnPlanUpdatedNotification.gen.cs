@@ -6,13 +6,14 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record TurnPlanUpdatedNotification(
-    [property: JsonPropertyName("plan")]
-    IReadOnlyList<TurnPlanStep> Plan,
-    [property: JsonPropertyName("threadId")]
-    string ThreadId,
-    [property: JsonPropertyName("turnId")]
-    string TurnId,
-    [property: JsonPropertyName("explanation")]
-    string? Explanation
-);
+public sealed partial record TurnPlanUpdatedNotification
+{
+    [JsonPropertyName("plan")]
+    public List<TurnPlanStep> Plan { get; set; } = [];
+    [JsonPropertyName("threadId")]
+    public string ThreadId { get; set; } = string.Empty;
+    [JsonPropertyName("turnId")]
+    public string TurnId { get; set; } = string.Empty;
+    [JsonPropertyName("explanation")]
+    public string? Explanation { get; set; }
+}

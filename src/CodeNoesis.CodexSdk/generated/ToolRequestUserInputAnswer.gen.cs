@@ -9,7 +9,8 @@ namespace CodeNoesis.CodexSdk;
 /// <summary>
 /// EXPERIMENTAL. Captures a user's answer to a request_user_input question.
 /// </summary>
-public sealed partial record ToolRequestUserInputAnswer(
-    [property: JsonPropertyName("answers")]
-    IReadOnlyList<string> Answers
-);
+public sealed partial record ToolRequestUserInputAnswer
+{
+    [JsonPropertyName("answers")]
+    public List<string> Answers { get; set; } = [];
+}

@@ -6,11 +6,12 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record TokenUsageInfo(
-    [property: JsonPropertyName("last_token_usage")]
-    TokenUsage LastTokenUsage,
-    [property: JsonPropertyName("total_token_usage")]
-    TokenUsage TotalTokenUsage,
-    [property: JsonPropertyName("model_context_window")]
-    long? ModelContextWindow
-);
+public sealed partial record TokenUsageInfo
+{
+    [JsonPropertyName("last_token_usage")]
+    public TokenUsage LastTokenUsage { get; set; } = default!;
+    [JsonPropertyName("total_token_usage")]
+    public TokenUsage TotalTokenUsage { get; set; } = default!;
+    [JsonPropertyName("model_context_window")]
+    public long? ModelContextWindow { get; set; }
+}

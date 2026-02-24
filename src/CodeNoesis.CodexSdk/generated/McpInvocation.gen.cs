@@ -6,14 +6,15 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record McpInvocation(
+public sealed partial record McpInvocation
+{
     /// <summary>Name of the MCP server as defined in the config.</summary>
-    [property: JsonPropertyName("server")]
-    string Server,
+    [JsonPropertyName("server")]
+    public string Server { get; set; } = string.Empty;
     /// <summary>Name of the tool as given by the MCP server.</summary>
-    [property: JsonPropertyName("tool")]
-    string Tool,
+    [JsonPropertyName("tool")]
+    public string Tool { get; set; } = string.Empty;
     /// <summary>Arguments to the tool call.</summary>
-    [property: JsonPropertyName("arguments")]
-    JsonElement? Arguments
-);
+    [JsonPropertyName("arguments")]
+    public JsonElement? Arguments { get; set; }
+}

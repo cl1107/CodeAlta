@@ -9,13 +9,14 @@ namespace CodeNoesis.CodexSdk;
 /// <summary>
 /// An image provided to or from an LLM.
 /// </summary>
-public sealed partial record ImageContent(
-    [property: JsonPropertyName("data")]
-    string Data,
-    [property: JsonPropertyName("mimeType")]
-    string MimeType,
-    [property: JsonPropertyName("type")]
-    string Type,
-    [property: JsonPropertyName("annotations")]
-    Annotations? Annotations
-);
+public sealed partial record ImageContent
+{
+    [JsonPropertyName("data")]
+    public string Data { get; set; } = string.Empty;
+    [JsonPropertyName("mimeType")]
+    public string MimeType { get; set; } = string.Empty;
+    [JsonPropertyName("type")]
+    public string Type { get; set; } = string.Empty;
+    [JsonPropertyName("annotations")]
+    public Annotations? Annotations { get; set; }
+}

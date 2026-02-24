@@ -6,11 +6,12 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record GitInfo(
-    [property: JsonPropertyName("branch")]
-    string? Branch,
-    [property: JsonPropertyName("originUrl")]
-    string? OriginUrl,
-    [property: JsonPropertyName("sha")]
-    string? Sha
-);
+public sealed partial record GitInfo
+{
+    [JsonPropertyName("branch")]
+    public string? Branch { get; set; }
+    [JsonPropertyName("originUrl")]
+    public string? OriginUrl { get; set; }
+    [JsonPropertyName("sha")]
+    public string? Sha { get; set; }
+}

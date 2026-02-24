@@ -9,7 +9,7 @@ namespace CodeNoesis.CodexSdk;
 /// <summary>
 /// Agent lifecycle status, derived from emitted events.
 /// </summary>
-public readonly partial struct AgentStatus
+public partial struct AgentStatus
 {
-    public JsonElement Value { get; init; }
+    public JsonElement Value { get; set; }
 }

@@ -17,10 +17,11 @@ public abstract partial record McpStartupStatus
 
     public sealed partial record StateMcpStartupStatus2 : McpStartupStatus;
 
-    public sealed partial record Failed(
-        [property: JsonPropertyName("error")]
-        string Error
-    ) : McpStartupStatus;
+    public sealed partial record Failed : McpStartupStatus
+    {
+        [JsonPropertyName("error")]
+        public string Error { get; set; } = string.Empty;
+    }
 
     public sealed partial record StateMcpStartupStatus3 : McpStartupStatus;
 

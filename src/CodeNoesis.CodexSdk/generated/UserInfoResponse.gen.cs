@@ -6,7 +6,8 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record UserInfoResponse(
-    [property: JsonPropertyName("allegedUserEmail")]
-    string? AllegedUserEmail
-);
+public sealed partial record UserInfoResponse
+{
+    [JsonPropertyName("allegedUserEmail")]
+    public string? AllegedUserEmail { get; set; }
+}

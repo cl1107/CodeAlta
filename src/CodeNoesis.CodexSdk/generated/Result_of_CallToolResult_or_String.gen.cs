@@ -8,6 +8,12 @@ namespace CodeNoesis.CodexSdk;
 
 public abstract partial record Result_of_CallToolResult_or_String
 {
-    public sealed partial record Ok(CallToolResult Value) : Result_of_CallToolResult_or_String;
-    public sealed partial record Err(string Value) : Result_of_CallToolResult_or_String;
+    public sealed partial record Ok : Result_of_CallToolResult_or_String
+    {
+        public CallToolResult Value { get; set; } = default!;
+    }
+    public sealed partial record Err : Result_of_CallToolResult_or_String
+    {
+        public string Value { get; set; } = string.Empty;
+    }
 }

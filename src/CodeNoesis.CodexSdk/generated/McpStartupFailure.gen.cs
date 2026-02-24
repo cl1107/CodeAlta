@@ -6,9 +6,10 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record McpStartupFailure(
-    [property: JsonPropertyName("error")]
-    string Error,
-    [property: JsonPropertyName("server")]
-    string Server
-);
+public sealed partial record McpStartupFailure
+{
+    [JsonPropertyName("error")]
+    public string Error { get; set; } = string.Empty;
+    [JsonPropertyName("server")]
+    public string Server { get; set; } = string.Empty;
+}

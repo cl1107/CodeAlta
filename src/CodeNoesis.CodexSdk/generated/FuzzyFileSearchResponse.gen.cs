@@ -6,7 +6,8 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record FuzzyFileSearchResponse(
-    [property: JsonPropertyName("files")]
-    IReadOnlyList<FuzzyFileSearchResult> Files
-);
+public sealed partial record FuzzyFileSearchResponse
+{
+    [JsonPropertyName("files")]
+    public List<FuzzyFileSearchResult> Files { get; set; } = [];
+}

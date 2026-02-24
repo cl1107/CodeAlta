@@ -6,7 +6,8 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record CommandExecutionRequestApprovalResponse(
-    [property: JsonPropertyName("decision")]
-    CommandExecutionApprovalDecision Decision
-);
+public sealed partial record CommandExecutionRequestApprovalResponse
+{
+    [JsonPropertyName("decision")]
+    public CommandExecutionApprovalDecision Decision { get; set; } = default!;
+}

@@ -6,11 +6,12 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record DeprecationNoticeNotification(
+public sealed partial record DeprecationNoticeNotification
+{
     /// <summary>Concise summary of what is deprecated.</summary>
-    [property: JsonPropertyName("summary")]
-    string Summary,
+    [JsonPropertyName("summary")]
+    public string Summary { get; set; } = string.Empty;
     /// <summary>Optional extra guidance, such as migration steps or rationale.</summary>
-    [property: JsonPropertyName("details")]
-    string? Details
-);
+    [JsonPropertyName("details")]
+    public string? Details { get; set; }
+}

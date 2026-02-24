@@ -47,55 +47,55 @@ public abstract partial record ServerNotification
     public sealed partial record ErrorNotification : ServerNotification
     {
         [JsonPropertyName("params")]
-        public required CodeNoesis.CodexSdk.V2.ErrorNotification Params { get; init; }
+        public CodeNoesis.CodexSdk.V2.ErrorNotification Params { get; set; } = default!;
     }
 
     public sealed partial record ThreadStartedNotification : ServerNotification
     {
         [JsonPropertyName("params")]
-        public required CodeNoesis.CodexSdk.V2.ThreadStartedNotification Params { get; init; }
+        public CodeNoesis.CodexSdk.V2.ThreadStartedNotification Params { get; set; } = default!;
     }
 
     public sealed partial record ThreadTokenUsageUpdatedNotification : ServerNotification
     {
         [JsonPropertyName("params")]
-        public required CodeNoesis.CodexSdk.V2.ThreadTokenUsageUpdatedNotification Params { get; init; }
+        public CodeNoesis.CodexSdk.V2.ThreadTokenUsageUpdatedNotification Params { get; set; } = default!;
     }
 
     public sealed partial record TurnStartedNotification : ServerNotification
     {
         [JsonPropertyName("params")]
-        public required CodeNoesis.CodexSdk.V2.TurnStartedNotification Params { get; init; }
+        public CodeNoesis.CodexSdk.V2.TurnStartedNotification Params { get; set; } = default!;
     }
 
     public sealed partial record TurnCompletedNotification : ServerNotification
     {
         [JsonPropertyName("params")]
-        public required CodeNoesis.CodexSdk.V2.TurnCompletedNotification Params { get; init; }
+        public CodeNoesis.CodexSdk.V2.TurnCompletedNotification Params { get; set; } = default!;
     }
 
     public sealed partial record TurnDiffUpdatedNotification : ServerNotification
     {
         [JsonPropertyName("params")]
-        public required CodeNoesis.CodexSdk.V2.TurnDiffUpdatedNotification Params { get; init; }
+        public CodeNoesis.CodexSdk.V2.TurnDiffUpdatedNotification Params { get; set; } = default!;
     }
 
     public sealed partial record TurnPlanUpdatedNotification : ServerNotification
     {
         [JsonPropertyName("params")]
-        public required CodeNoesis.CodexSdk.V2.TurnPlanUpdatedNotification Params { get; init; }
+        public CodeNoesis.CodexSdk.V2.TurnPlanUpdatedNotification Params { get; set; } = default!;
     }
 
     public sealed partial record ItemStartedNotification : ServerNotification
     {
         [JsonPropertyName("params")]
-        public required CodeNoesis.CodexSdk.V2.ItemStartedNotification Params { get; init; }
+        public CodeNoesis.CodexSdk.V2.ItemStartedNotification Params { get; set; } = default!;
     }
 
     public sealed partial record ItemCompletedNotification : ServerNotification
     {
         [JsonPropertyName("params")]
-        public required CodeNoesis.CodexSdk.V2.ItemCompletedNotification Params { get; init; }
+        public CodeNoesis.CodexSdk.V2.ItemCompletedNotification Params { get; set; } = default!;
     }
 
     /// <summary>
@@ -104,82 +104,91 @@ public abstract partial record ServerNotification
     public sealed partial record RawResponseItemCompletedNotification : ServerNotification
     {
         [JsonPropertyName("params")]
-        public required CodeNoesis.CodexSdk.V2.RawResponseItemCompletedNotification Params { get; init; }
+        public CodeNoesis.CodexSdk.V2.RawResponseItemCompletedNotification Params { get; set; } = default!;
     }
 
-    public sealed partial record ItemAgentMessageDeltaNotification(
-        [property: JsonPropertyName("params")]
-        CodeNoesis.CodexSdk.V2.AgentMessageDeltaNotification Params
-    ) : ServerNotification;
+    public sealed partial record ItemAgentMessageDeltaNotification : ServerNotification
+    {
+        [JsonPropertyName("params")]
+        public CodeNoesis.CodexSdk.V2.AgentMessageDeltaNotification Params { get; set; } = default!;
+    }
 
-    public sealed partial record ItemCommandExecutionOutputDeltaNotification(
-        [property: JsonPropertyName("params")]
-        CodeNoesis.CodexSdk.V2.CommandExecutionOutputDeltaNotification Params
-    ) : ServerNotification;
+    public sealed partial record ItemCommandExecutionOutputDeltaNotification : ServerNotification
+    {
+        [JsonPropertyName("params")]
+        public CodeNoesis.CodexSdk.V2.CommandExecutionOutputDeltaNotification Params { get; set; } = default!;
+    }
 
-    public sealed partial record ItemCommandExecutionTerminalInteractionNotification(
-        [property: JsonPropertyName("params")]
-        CodeNoesis.CodexSdk.V2.TerminalInteractionNotification Params
-    ) : ServerNotification;
+    public sealed partial record ItemCommandExecutionTerminalInteractionNotification : ServerNotification
+    {
+        [JsonPropertyName("params")]
+        public CodeNoesis.CodexSdk.V2.TerminalInteractionNotification Params { get; set; } = default!;
+    }
 
-    public sealed partial record ItemFileChangeOutputDeltaNotification(
-        [property: JsonPropertyName("params")]
-        CodeNoesis.CodexSdk.V2.FileChangeOutputDeltaNotification Params
-    ) : ServerNotification;
+    public sealed partial record ItemFileChangeOutputDeltaNotification : ServerNotification
+    {
+        [JsonPropertyName("params")]
+        public CodeNoesis.CodexSdk.V2.FileChangeOutputDeltaNotification Params { get; set; } = default!;
+    }
 
-    public sealed partial record ItemMcpToolCallProgressNotification(
-        [property: JsonPropertyName("params")]
-        CodeNoesis.CodexSdk.V2.McpToolCallProgressNotification Params
-    ) : ServerNotification;
+    public sealed partial record ItemMcpToolCallProgressNotification : ServerNotification
+    {
+        [JsonPropertyName("params")]
+        public CodeNoesis.CodexSdk.V2.McpToolCallProgressNotification Params { get; set; } = default!;
+    }
 
     public sealed partial record McpServerOauthLoginCompletedNotification : ServerNotification
     {
         [JsonPropertyName("params")]
-        public required CodeNoesis.CodexSdk.V2.McpServerOauthLoginCompletedNotification Params { get; init; }
+        public CodeNoesis.CodexSdk.V2.McpServerOauthLoginCompletedNotification Params { get; set; } = default!;
     }
 
     public sealed partial record AccountUpdatedNotification : ServerNotification
     {
         [JsonPropertyName("params")]
-        public required CodeNoesis.CodexSdk.V2.AccountUpdatedNotification Params { get; init; }
+        public CodeNoesis.CodexSdk.V2.AccountUpdatedNotification Params { get; set; } = default!;
     }
 
     public sealed partial record AccountRateLimitsUpdatedNotification : ServerNotification
     {
         [JsonPropertyName("params")]
-        public required CodeNoesis.CodexSdk.V2.AccountRateLimitsUpdatedNotification Params { get; init; }
+        public CodeNoesis.CodexSdk.V2.AccountRateLimitsUpdatedNotification Params { get; set; } = default!;
     }
 
-    public sealed partial record ItemReasoningSummaryTextDeltaNotification(
-        [property: JsonPropertyName("params")]
-        CodeNoesis.CodexSdk.V2.ReasoningSummaryTextDeltaNotification Params
-    ) : ServerNotification;
+    public sealed partial record ItemReasoningSummaryTextDeltaNotification : ServerNotification
+    {
+        [JsonPropertyName("params")]
+        public CodeNoesis.CodexSdk.V2.ReasoningSummaryTextDeltaNotification Params { get; set; } = default!;
+    }
 
-    public sealed partial record ItemReasoningSummaryPartAddedNotification(
-        [property: JsonPropertyName("params")]
-        CodeNoesis.CodexSdk.V2.ReasoningSummaryPartAddedNotification Params
-    ) : ServerNotification;
+    public sealed partial record ItemReasoningSummaryPartAddedNotification : ServerNotification
+    {
+        [JsonPropertyName("params")]
+        public CodeNoesis.CodexSdk.V2.ReasoningSummaryPartAddedNotification Params { get; set; } = default!;
+    }
 
-    public sealed partial record ItemReasoningTextDeltaNotification(
-        [property: JsonPropertyName("params")]
-        CodeNoesis.CodexSdk.V2.ReasoningTextDeltaNotification Params
-    ) : ServerNotification;
+    public sealed partial record ItemReasoningTextDeltaNotification : ServerNotification
+    {
+        [JsonPropertyName("params")]
+        public CodeNoesis.CodexSdk.V2.ReasoningTextDeltaNotification Params { get; set; } = default!;
+    }
 
-    public sealed partial record ThreadCompactedNotification(
-        [property: JsonPropertyName("params")]
-        CodeNoesis.CodexSdk.V2.ContextCompactedNotification Params
-    ) : ServerNotification;
+    public sealed partial record ThreadCompactedNotification : ServerNotification
+    {
+        [JsonPropertyName("params")]
+        public CodeNoesis.CodexSdk.V2.ContextCompactedNotification Params { get; set; } = default!;
+    }
 
     public sealed partial record DeprecationNoticeNotification : ServerNotification
     {
         [JsonPropertyName("params")]
-        public required CodeNoesis.CodexSdk.V2.DeprecationNoticeNotification Params { get; init; }
+        public CodeNoesis.CodexSdk.V2.DeprecationNoticeNotification Params { get; set; } = default!;
     }
 
     public sealed partial record ConfigWarningNotification : ServerNotification
     {
         [JsonPropertyName("params")]
-        public required CodeNoesis.CodexSdk.V2.ConfigWarningNotification Params { get; init; }
+        public CodeNoesis.CodexSdk.V2.ConfigWarningNotification Params { get; set; } = default!;
     }
 
     /// <summary>
@@ -188,13 +197,13 @@ public abstract partial record ServerNotification
     public sealed partial record WindowsWorldWritableWarningNotification : ServerNotification
     {
         [JsonPropertyName("params")]
-        public required CodeNoesis.CodexSdk.V2.WindowsWorldWritableWarningNotification Params { get; init; }
+        public CodeNoesis.CodexSdk.V2.WindowsWorldWritableWarningNotification Params { get; set; } = default!;
     }
 
     public sealed partial record AccountLoginCompletedNotification : ServerNotification
     {
         [JsonPropertyName("params")]
-        public required CodeNoesis.CodexSdk.V2.AccountLoginCompletedNotification Params { get; init; }
+        public CodeNoesis.CodexSdk.V2.AccountLoginCompletedNotification Params { get; set; } = default!;
     }
 
     /// <summary>
@@ -203,7 +212,7 @@ public abstract partial record ServerNotification
     public sealed partial record AuthStatusChangeNotification : ServerNotification
     {
         [JsonPropertyName("params")]
-        public required AuthStatusChangeNotification Params { get; init; }
+        public AuthStatusChangeNotification Params { get; set; } = default!;
     }
 
     /// <summary>
@@ -212,13 +221,13 @@ public abstract partial record ServerNotification
     public sealed partial record LoginChatGptCompleteNotification : ServerNotification
     {
         [JsonPropertyName("params")]
-        public required LoginChatGptCompleteNotification Params { get; init; }
+        public LoginChatGptCompleteNotification Params { get; set; } = default!;
     }
 
     public sealed partial record SessionConfiguredNotification : ServerNotification
     {
         [JsonPropertyName("params")]
-        public required SessionConfiguredNotification Params { get; init; }
+        public SessionConfiguredNotification Params { get; set; } = default!;
     }
 
 }

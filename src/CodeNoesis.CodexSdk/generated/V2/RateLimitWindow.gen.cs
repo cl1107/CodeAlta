@@ -6,11 +6,12 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record RateLimitWindow(
-    [property: JsonPropertyName("usedPercent")]
-    int UsedPercent,
-    [property: JsonPropertyName("resetsAt")]
-    long? ResetsAt,
-    [property: JsonPropertyName("windowDurationMins")]
-    long? WindowDurationMins
-);
+public sealed partial record RateLimitWindow
+{
+    [JsonPropertyName("usedPercent")]
+    public int UsedPercent { get; set; }
+    [JsonPropertyName("resetsAt")]
+    public long? ResetsAt { get; set; }
+    [JsonPropertyName("windowDurationMins")]
+    public long? WindowDurationMins { get; set; }
+}

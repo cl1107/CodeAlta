@@ -6,9 +6,10 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record ListConversationsResponse(
-    [property: JsonPropertyName("items")]
-    IReadOnlyList<ConversationSummary> Items,
-    [property: JsonPropertyName("nextCursor")]
-    string? NextCursor
-);
+public sealed partial record ListConversationsResponse
+{
+    [JsonPropertyName("items")]
+    public List<ConversationSummary> Items { get; set; } = [];
+    [JsonPropertyName("nextCursor")]
+    public string? NextCursor { get; set; }
+}

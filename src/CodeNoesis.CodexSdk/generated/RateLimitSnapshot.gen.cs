@@ -6,13 +6,14 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record RateLimitSnapshot(
-    [property: JsonPropertyName("credits")]
-    CreditsSnapshot? Credits,
-    [property: JsonPropertyName("plan_type")]
-    PlanType? PlanType,
-    [property: JsonPropertyName("primary")]
-    RateLimitWindow? Primary,
-    [property: JsonPropertyName("secondary")]
-    RateLimitWindow? Secondary
-);
+public sealed partial record RateLimitSnapshot
+{
+    [JsonPropertyName("credits")]
+    public CreditsSnapshot? Credits { get; set; }
+    [JsonPropertyName("plan_type")]
+    public PlanType? PlanType { get; set; }
+    [JsonPropertyName("primary")]
+    public RateLimitWindow? Primary { get; set; }
+    [JsonPropertyName("secondary")]
+    public RateLimitWindow? Secondary { get; set; }
+}

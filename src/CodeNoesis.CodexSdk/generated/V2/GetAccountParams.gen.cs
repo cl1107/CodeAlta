@@ -6,7 +6,8 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record GetAccountParams(
-    [property: JsonPropertyName("refreshToken")]
-    bool? RefreshToken
-);
+public sealed partial record GetAccountParams
+{
+    [JsonPropertyName("refreshToken")]
+    public bool? RefreshToken { get; set; }
+}

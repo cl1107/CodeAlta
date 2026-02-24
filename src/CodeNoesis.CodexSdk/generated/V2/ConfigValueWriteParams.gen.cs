@@ -6,16 +6,17 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record ConfigValueWriteParams(
-    [property: JsonPropertyName("keyPath")]
-    string KeyPath,
-    [property: JsonPropertyName("mergeStrategy")]
-    MergeStrategy MergeStrategy,
-    [property: JsonPropertyName("value")]
-    JsonElement Value,
-    [property: JsonPropertyName("expectedVersion")]
-    string? ExpectedVersion,
+public sealed partial record ConfigValueWriteParams
+{
+    [JsonPropertyName("keyPath")]
+    public string KeyPath { get; set; } = string.Empty;
+    [JsonPropertyName("mergeStrategy")]
+    public MergeStrategy MergeStrategy { get; set; } = default!;
+    [JsonPropertyName("value")]
+    public JsonElement Value { get; set; }
+    [JsonPropertyName("expectedVersion")]
+    public string? ExpectedVersion { get; set; }
     /// <summary>Path to the config file to write; defaults to the user's `config.toml` when omitted.</summary>
-    [property: JsonPropertyName("filePath")]
-    string? FilePath
-);
+    [JsonPropertyName("filePath")]
+    public string? FilePath { get; set; }
+}

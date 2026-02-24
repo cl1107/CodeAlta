@@ -6,11 +6,12 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record AccountLoginCompletedNotification(
-    [property: JsonPropertyName("success")]
-    bool Success,
-    [property: JsonPropertyName("error")]
-    string? Error,
-    [property: JsonPropertyName("loginId")]
-    string? LoginId
-);
+public sealed partial record AccountLoginCompletedNotification
+{
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
+    [JsonPropertyName("loginId")]
+    public string? LoginId { get; set; }
+}

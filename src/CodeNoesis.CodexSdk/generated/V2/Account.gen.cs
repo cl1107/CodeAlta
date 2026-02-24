@@ -13,11 +13,12 @@ public abstract partial record Account
 {
     public sealed partial record ApiKeyAccount : Account;
 
-    public sealed partial record ChatgptAccount(
-        [property: JsonPropertyName("email")]
-        string Email,
-        [property: JsonPropertyName("planType")]
-        PlanType PlanType
-    ) : Account;
+    public sealed partial record ChatgptAccount : Account
+    {
+        [JsonPropertyName("email")]
+        public string Email { get; set; } = string.Empty;
+        [JsonPropertyName("planType")]
+        public PlanType PlanType { get; set; } = default!;
+    }
 
 }

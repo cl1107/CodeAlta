@@ -6,11 +6,12 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record SkillsListParams(
+public sealed partial record SkillsListParams
+{
     /// <summary>When empty, defaults to the current session working directory.</summary>
-    [property: JsonPropertyName("cwds")]
-    IReadOnlyList<string>? Cwds,
+    [JsonPropertyName("cwds")]
+    public List<string>? Cwds { get; set; }
     /// <summary>When true, bypass the skills cache and re-scan skills from disk.</summary>
-    [property: JsonPropertyName("forceReload")]
-    bool? ForceReload
-);
+    [JsonPropertyName("forceReload")]
+    public bool? ForceReload { get; set; }
+}

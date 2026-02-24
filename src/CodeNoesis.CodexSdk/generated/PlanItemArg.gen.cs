@@ -6,9 +6,10 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record PlanItemArg(
-    [property: JsonPropertyName("status")]
-    StepStatus Status,
-    [property: JsonPropertyName("step")]
-    string Step
-);
+public sealed partial record PlanItemArg
+{
+    [JsonPropertyName("status")]
+    public StepStatus Status { get; set; } = default!;
+    [JsonPropertyName("step")]
+    public string Step { get; set; } = string.Empty;
+}

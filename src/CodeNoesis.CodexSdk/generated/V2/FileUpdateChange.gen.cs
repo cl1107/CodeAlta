@@ -6,11 +6,12 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record FileUpdateChange(
-    [property: JsonPropertyName("diff")]
-    string Diff,
-    [property: JsonPropertyName("kind")]
-    PatchChangeKind Kind,
-    [property: JsonPropertyName("path")]
-    string Path
-);
+public sealed partial record FileUpdateChange
+{
+    [JsonPropertyName("diff")]
+    public string Diff { get; set; } = string.Empty;
+    [JsonPropertyName("kind")]
+    public PatchChangeKind Kind { get; set; } = default!;
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+}

@@ -6,13 +6,14 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record SandboxSettings(
-    [property: JsonPropertyName("excludeSlashTmp")]
-    bool? ExcludeSlashTmp,
-    [property: JsonPropertyName("excludeTmpdirEnvVar")]
-    bool? ExcludeTmpdirEnvVar,
-    [property: JsonPropertyName("networkAccess")]
-    bool? NetworkAccess,
-    [property: JsonPropertyName("writableRoots")]
-    IReadOnlyList<AbsolutePathBuf>? WritableRoots
-);
+public sealed partial record SandboxSettings
+{
+    [JsonPropertyName("excludeSlashTmp")]
+    public bool? ExcludeSlashTmp { get; set; }
+    [JsonPropertyName("excludeTmpdirEnvVar")]
+    public bool? ExcludeTmpdirEnvVar { get; set; }
+    [JsonPropertyName("networkAccess")]
+    public bool? NetworkAccess { get; set; }
+    [JsonPropertyName("writableRoots")]
+    public List<AbsolutePathBuf>? WritableRoots { get; set; }
+}

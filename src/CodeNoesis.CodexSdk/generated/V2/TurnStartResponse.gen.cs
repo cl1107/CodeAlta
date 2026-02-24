@@ -6,7 +6,8 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record TurnStartResponse(
-    [property: JsonPropertyName("turn")]
-    Turn Turn
-);
+public sealed partial record TurnStartResponse
+{
+    [JsonPropertyName("turn")]
+    public Turn Turn { get; set; } = default!;
+}

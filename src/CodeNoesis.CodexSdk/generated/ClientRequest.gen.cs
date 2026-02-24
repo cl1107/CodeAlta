@@ -65,402 +65,455 @@ namespace CodeNoesis.CodexSdk;
 [JsonDerivedType(typeof(ExecOneOffCommandRequest), typeDiscriminator: "execOneOffCommand")]
 public abstract partial record ClientRequest
 {
-    public sealed partial record InitializeRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        InitializeParams Params
-    ) : ClientRequest;
+    public sealed partial record InitializeRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public InitializeParams Params { get; set; } = default!;
+    }
 
     /// <summary>
     /// NEW APIs
     /// </summary>
-    public sealed partial record ThreadStartRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        CodeNoesis.CodexSdk.V2.ThreadStartParams Params
-    ) : ClientRequest;
+    public sealed partial record ThreadStartRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public CodeNoesis.CodexSdk.V2.ThreadStartParams Params { get; set; } = default!;
+    }
 
-    public sealed partial record ThreadResumeRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        CodeNoesis.CodexSdk.V2.ThreadResumeParams Params
-    ) : ClientRequest;
+    public sealed partial record ThreadResumeRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public CodeNoesis.CodexSdk.V2.ThreadResumeParams Params { get; set; } = default!;
+    }
 
-    public sealed partial record ThreadForkRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        CodeNoesis.CodexSdk.V2.ThreadForkParams Params
-    ) : ClientRequest;
+    public sealed partial record ThreadForkRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public CodeNoesis.CodexSdk.V2.ThreadForkParams Params { get; set; } = default!;
+    }
 
-    public sealed partial record ThreadArchiveRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        CodeNoesis.CodexSdk.V2.ThreadArchiveParams Params
-    ) : ClientRequest;
+    public sealed partial record ThreadArchiveRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public CodeNoesis.CodexSdk.V2.ThreadArchiveParams Params { get; set; } = default!;
+    }
 
-    public sealed partial record ThreadRollbackRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        CodeNoesis.CodexSdk.V2.ThreadRollbackParams Params
-    ) : ClientRequest;
+    public sealed partial record ThreadRollbackRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public CodeNoesis.CodexSdk.V2.ThreadRollbackParams Params { get; set; } = default!;
+    }
 
-    public sealed partial record ThreadListRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        CodeNoesis.CodexSdk.V2.ThreadListParams Params
-    ) : ClientRequest;
+    public sealed partial record ThreadListRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public CodeNoesis.CodexSdk.V2.ThreadListParams Params { get; set; } = default!;
+    }
 
-    public sealed partial record ThreadLoadedListRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        CodeNoesis.CodexSdk.V2.ThreadLoadedListParams Params
-    ) : ClientRequest;
+    public sealed partial record ThreadLoadedListRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public CodeNoesis.CodexSdk.V2.ThreadLoadedListParams Params { get; set; } = default!;
+    }
 
-    public sealed partial record ThreadReadRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        CodeNoesis.CodexSdk.V2.ThreadReadParams Params
-    ) : ClientRequest;
+    public sealed partial record ThreadReadRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public CodeNoesis.CodexSdk.V2.ThreadReadParams Params { get; set; } = default!;
+    }
 
-    public sealed partial record SkillsListRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        CodeNoesis.CodexSdk.V2.SkillsListParams Params
-    ) : ClientRequest;
+    public sealed partial record SkillsListRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public CodeNoesis.CodexSdk.V2.SkillsListParams Params { get; set; } = default!;
+    }
 
-    public sealed partial record SkillsConfigWriteRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        CodeNoesis.CodexSdk.V2.SkillsConfigWriteParams Params
-    ) : ClientRequest;
+    public sealed partial record SkillsConfigWriteRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public CodeNoesis.CodexSdk.V2.SkillsConfigWriteParams Params { get; set; } = default!;
+    }
 
-    public sealed partial record TurnStartRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        CodeNoesis.CodexSdk.V2.TurnStartParams Params
-    ) : ClientRequest;
+    public sealed partial record TurnStartRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public CodeNoesis.CodexSdk.V2.TurnStartParams Params { get; set; } = default!;
+    }
 
-    public sealed partial record TurnInterruptRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        CodeNoesis.CodexSdk.V2.TurnInterruptParams Params
-    ) : ClientRequest;
+    public sealed partial record TurnInterruptRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public CodeNoesis.CodexSdk.V2.TurnInterruptParams Params { get; set; } = default!;
+    }
 
-    public sealed partial record ReviewStartRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        CodeNoesis.CodexSdk.V2.ReviewStartParams Params
-    ) : ClientRequest;
+    public sealed partial record ReviewStartRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public CodeNoesis.CodexSdk.V2.ReviewStartParams Params { get; set; } = default!;
+    }
 
-    public sealed partial record ModelListRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        CodeNoesis.CodexSdk.V2.ModelListParams Params
-    ) : ClientRequest;
+    public sealed partial record ModelListRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public CodeNoesis.CodexSdk.V2.ModelListParams Params { get; set; } = default!;
+    }
 
     /// <summary>
     /// EXPERIMENTAL - list collaboration mode presets.
     /// </summary>
-    public sealed partial record CollaborationModeListRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        CodeNoesis.CodexSdk.V2.CollaborationModeListParams Params
-    ) : ClientRequest;
+    public sealed partial record CollaborationModeListRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public CodeNoesis.CodexSdk.V2.CollaborationModeListParams Params { get; set; } = default!;
+    }
 
-    public sealed partial record McpServerOauthLoginRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        CodeNoesis.CodexSdk.V2.McpServerOauthLoginParams Params
-    ) : ClientRequest;
+    public sealed partial record McpServerOauthLoginRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public CodeNoesis.CodexSdk.V2.McpServerOauthLoginParams Params { get; set; } = default!;
+    }
 
-    public sealed partial record ConfigMcpServerReloadRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        JsonElement? Params
-    ) : ClientRequest;
+    public sealed partial record ConfigMcpServerReloadRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public JsonElement? Params { get; set; }
+    }
 
-    public sealed partial record McpServerStatusListRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        CodeNoesis.CodexSdk.V2.ListMcpServerStatusParams Params
-    ) : ClientRequest;
+    public sealed partial record McpServerStatusListRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public CodeNoesis.CodexSdk.V2.ListMcpServerStatusParams Params { get; set; } = default!;
+    }
 
-    public sealed partial record AccountLoginStartRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        CodeNoesis.CodexSdk.V2.LoginAccountParams Params
-    ) : ClientRequest;
+    public sealed partial record AccountLoginStartRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public CodeNoesis.CodexSdk.V2.LoginAccountParams Params { get; set; } = default!;
+    }
 
-    public sealed partial record AccountLoginCancelRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        CodeNoesis.CodexSdk.V2.CancelLoginAccountParams Params
-    ) : ClientRequest;
+    public sealed partial record AccountLoginCancelRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public CodeNoesis.CodexSdk.V2.CancelLoginAccountParams Params { get; set; } = default!;
+    }
 
-    public sealed partial record AccountLogoutRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        JsonElement? Params
-    ) : ClientRequest;
+    public sealed partial record AccountLogoutRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public JsonElement? Params { get; set; }
+    }
 
-    public sealed partial record AccountRateLimitsReadRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        JsonElement? Params
-    ) : ClientRequest;
+    public sealed partial record AccountRateLimitsReadRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public JsonElement? Params { get; set; }
+    }
 
-    public sealed partial record FeedbackUploadRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        CodeNoesis.CodexSdk.V2.FeedbackUploadParams Params
-    ) : ClientRequest;
+    public sealed partial record FeedbackUploadRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public CodeNoesis.CodexSdk.V2.FeedbackUploadParams Params { get; set; } = default!;
+    }
 
     /// <summary>
     /// Execute a command (argv vector) under the server's sandbox.
     /// </summary>
-    public sealed partial record CommandExecRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        CodeNoesis.CodexSdk.V2.CommandExecParams Params
-    ) : ClientRequest;
+    public sealed partial record CommandExecRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public CodeNoesis.CodexSdk.V2.CommandExecParams Params { get; set; } = default!;
+    }
 
-    public sealed partial record ConfigReadRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        CodeNoesis.CodexSdk.V2.ConfigReadParams Params
-    ) : ClientRequest;
+    public sealed partial record ConfigReadRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public CodeNoesis.CodexSdk.V2.ConfigReadParams Params { get; set; } = default!;
+    }
 
-    public sealed partial record ConfigValueWriteRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        CodeNoesis.CodexSdk.V2.ConfigValueWriteParams Params
-    ) : ClientRequest;
+    public sealed partial record ConfigValueWriteRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public CodeNoesis.CodexSdk.V2.ConfigValueWriteParams Params { get; set; } = default!;
+    }
 
-    public sealed partial record ConfigBatchWriteRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        CodeNoesis.CodexSdk.V2.ConfigBatchWriteParams Params
-    ) : ClientRequest;
+    public sealed partial record ConfigBatchWriteRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public CodeNoesis.CodexSdk.V2.ConfigBatchWriteParams Params { get; set; } = default!;
+    }
 
-    public sealed partial record ConfigRequirementsReadRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        JsonElement? Params
-    ) : ClientRequest;
+    public sealed partial record ConfigRequirementsReadRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public JsonElement? Params { get; set; }
+    }
 
-    public sealed partial record AccountReadRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        CodeNoesis.CodexSdk.V2.GetAccountParams Params
-    ) : ClientRequest;
+    public sealed partial record AccountReadRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public CodeNoesis.CodexSdk.V2.GetAccountParams Params { get; set; } = default!;
+    }
 
     /// <summary>
     /// DEPRECATED APIs below
     /// </summary>
-    public sealed partial record NewConversationRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        NewConversationParams Params
-    ) : ClientRequest;
+    public sealed partial record NewConversationRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public NewConversationParams Params { get; set; } = default!;
+    }
 
-    public sealed partial record GetConversationSummaryRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        GetConversationSummaryParams Params
-    ) : ClientRequest;
+    public sealed partial record GetConversationSummaryRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public GetConversationSummaryParams Params { get; set; } = default!;
+    }
 
     /// <summary>
     /// List recorded Codex conversations (rollouts) with optional pagination and search.
     /// </summary>
-    public sealed partial record ListConversationsRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        ListConversationsParams Params
-    ) : ClientRequest;
+    public sealed partial record ListConversationsRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public ListConversationsParams Params { get; set; } = default!;
+    }
 
     /// <summary>
     /// Resume a recorded Codex conversation from a rollout file.
     /// </summary>
-    public sealed partial record ResumeConversationRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        ResumeConversationParams Params
-    ) : ClientRequest;
+    public sealed partial record ResumeConversationRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public ResumeConversationParams Params { get; set; } = default!;
+    }
 
     /// <summary>
     /// Fork a recorded Codex conversation into a new session.
     /// </summary>
-    public sealed partial record ForkConversationRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        ForkConversationParams Params
-    ) : ClientRequest;
+    public sealed partial record ForkConversationRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public ForkConversationParams Params { get; set; } = default!;
+    }
 
-    public sealed partial record ArchiveConversationRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        ArchiveConversationParams Params
-    ) : ClientRequest;
+    public sealed partial record ArchiveConversationRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public ArchiveConversationParams Params { get; set; } = default!;
+    }
 
-    public sealed partial record SendUserMessageRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        SendUserMessageParams Params
-    ) : ClientRequest;
+    public sealed partial record SendUserMessageRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public SendUserMessageParams Params { get; set; } = default!;
+    }
 
-    public sealed partial record SendUserTurnRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        SendUserTurnParams Params
-    ) : ClientRequest;
+    public sealed partial record SendUserTurnRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public SendUserTurnParams Params { get; set; } = default!;
+    }
 
-    public sealed partial record InterruptConversationRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        InterruptConversationParams Params
-    ) : ClientRequest;
+    public sealed partial record InterruptConversationRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public InterruptConversationParams Params { get; set; } = default!;
+    }
 
-    public sealed partial record AddConversationListenerRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        AddConversationListenerParams Params
-    ) : ClientRequest;
+    public sealed partial record AddConversationListenerRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public AddConversationListenerParams Params { get; set; } = default!;
+    }
 
-    public sealed partial record RemoveConversationListenerRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        RemoveConversationListenerParams Params
-    ) : ClientRequest;
+    public sealed partial record RemoveConversationListenerRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public RemoveConversationListenerParams Params { get; set; } = default!;
+    }
 
-    public sealed partial record GitDiffToRemoteRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        GitDiffToRemoteParams Params
-    ) : ClientRequest;
+    public sealed partial record GitDiffToRemoteRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public GitDiffToRemoteParams Params { get; set; } = default!;
+    }
 
-    public sealed partial record LoginApiKeyRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        LoginApiKeyParams Params
-    ) : ClientRequest;
+    public sealed partial record LoginApiKeyRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public LoginApiKeyParams Params { get; set; } = default!;
+    }
 
-    public sealed partial record LoginChatGptRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        JsonElement? Params
-    ) : ClientRequest;
+    public sealed partial record LoginChatGptRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public JsonElement? Params { get; set; }
+    }
 
-    public sealed partial record CancelLoginChatGptRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        CancelLoginChatGptParams Params
-    ) : ClientRequest;
+    public sealed partial record CancelLoginChatGptRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public CancelLoginChatGptParams Params { get; set; } = default!;
+    }
 
-    public sealed partial record LogoutChatGptRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        JsonElement? Params
-    ) : ClientRequest;
+    public sealed partial record LogoutChatGptRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public JsonElement? Params { get; set; }
+    }
 
     /// <summary>
     /// DEPRECATED in favor of GetAccount
     /// </summary>
-    public sealed partial record GetAuthStatusRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        GetAuthStatusParams Params
-    ) : ClientRequest;
+    public sealed partial record GetAuthStatusRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public GetAuthStatusParams Params { get; set; } = default!;
+    }
 
-    public sealed partial record GetUserSavedConfigRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        JsonElement? Params
-    ) : ClientRequest;
+    public sealed partial record GetUserSavedConfigRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public JsonElement? Params { get; set; }
+    }
 
-    public sealed partial record SetDefaultModelRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        SetDefaultModelParams Params
-    ) : ClientRequest;
+    public sealed partial record SetDefaultModelRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public SetDefaultModelParams Params { get; set; } = default!;
+    }
 
-    public sealed partial record GetUserAgentRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        JsonElement? Params
-    ) : ClientRequest;
+    public sealed partial record GetUserAgentRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public JsonElement? Params { get; set; }
+    }
 
-    public sealed partial record UserInfoRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        JsonElement? Params
-    ) : ClientRequest;
+    public sealed partial record UserInfoRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public JsonElement? Params { get; set; }
+    }
 
-    public sealed partial record FuzzyFileSearchRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        FuzzyFileSearchParams Params
-    ) : ClientRequest;
+    public sealed partial record FuzzyFileSearchRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public FuzzyFileSearchParams Params { get; set; } = default!;
+    }
 
     /// <summary>
     /// Execute a command (argv vector) under the server's sandbox.
     /// </summary>
-    public sealed partial record ExecOneOffCommandRequest(
-        [property: JsonPropertyName("id")]
-        RequestId Id,
-        [property: JsonPropertyName("params")]
-        ExecOneOffCommandParams Params
-    ) : ClientRequest;
+    public sealed partial record ExecOneOffCommandRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public ExecOneOffCommandParams Params { get; set; } = default!;
+    }
 
 }

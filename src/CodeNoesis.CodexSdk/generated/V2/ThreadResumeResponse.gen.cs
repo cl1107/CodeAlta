@@ -6,19 +6,20 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record ThreadResumeResponse(
-    [property: JsonPropertyName("approvalPolicy")]
-    AskForApproval ApprovalPolicy,
-    [property: JsonPropertyName("cwd")]
-    string Cwd,
-    [property: JsonPropertyName("model")]
-    string Model,
-    [property: JsonPropertyName("modelProvider")]
-    string ModelProvider,
-    [property: JsonPropertyName("sandbox")]
-    SandboxPolicy Sandbox,
-    [property: JsonPropertyName("thread")]
-    Thread Thread,
-    [property: JsonPropertyName("reasoningEffort")]
-    ReasoningEffort? ReasoningEffort
-);
+public sealed partial record ThreadResumeResponse
+{
+    [JsonPropertyName("approvalPolicy")]
+    public AskForApproval ApprovalPolicy { get; set; } = default!;
+    [JsonPropertyName("cwd")]
+    public string Cwd { get; set; } = string.Empty;
+    [JsonPropertyName("model")]
+    public string Model { get; set; } = string.Empty;
+    [JsonPropertyName("modelProvider")]
+    public string ModelProvider { get; set; } = string.Empty;
+    [JsonPropertyName("sandbox")]
+    public SandboxPolicy Sandbox { get; set; } = default!;
+    [JsonPropertyName("thread")]
+    public Thread Thread { get; set; } = default!;
+    [JsonPropertyName("reasoningEffort")]
+    public ReasoningEffort? ReasoningEffort { get; set; }
+}

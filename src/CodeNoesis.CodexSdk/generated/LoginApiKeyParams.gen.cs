@@ -6,7 +6,8 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record LoginApiKeyParams(
-    [property: JsonPropertyName("apiKey")]
-    string ApiKey
-);
+public sealed partial record LoginApiKeyParams
+{
+    [JsonPropertyName("apiKey")]
+    public string ApiKey { get; set; } = string.Empty;
+}

@@ -9,15 +9,16 @@ namespace CodeNoesis.CodexSdk;
 /// <summary>
 /// A single review finding describing an observed issue or recommendation.
 /// </summary>
-public sealed partial record ReviewFinding(
-    [property: JsonPropertyName("body")]
-    string Body,
-    [property: JsonPropertyName("code_location")]
-    ReviewCodeLocation CodeLocation,
-    [property: JsonPropertyName("confidence_score")]
-    float ConfidenceScore,
-    [property: JsonPropertyName("priority")]
-    int Priority,
-    [property: JsonPropertyName("title")]
-    string Title
-);
+public sealed partial record ReviewFinding
+{
+    [JsonPropertyName("body")]
+    public string Body { get; set; } = string.Empty;
+    [JsonPropertyName("code_location")]
+    public ReviewCodeLocation CodeLocation { get; set; } = default!;
+    [JsonPropertyName("confidence_score")]
+    public float ConfidenceScore { get; set; }
+    [JsonPropertyName("priority")]
+    public int Priority { get; set; }
+    [JsonPropertyName("title")]
+    public string Title { get; set; } = string.Empty;
+}

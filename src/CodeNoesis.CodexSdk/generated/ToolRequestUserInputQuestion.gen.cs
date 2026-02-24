@@ -9,13 +9,14 @@ namespace CodeNoesis.CodexSdk;
 /// <summary>
 /// EXPERIMENTAL. Represents one request_user_input question and its optional options.
 /// </summary>
-public sealed partial record ToolRequestUserInputQuestion(
-    [property: JsonPropertyName("header")]
-    string Header,
-    [property: JsonPropertyName("id")]
-    string Id,
-    [property: JsonPropertyName("question")]
-    string Question,
-    [property: JsonPropertyName("options")]
-    IReadOnlyList<JsonElement>? Options
-);
+public sealed partial record ToolRequestUserInputQuestion
+{
+    [JsonPropertyName("header")]
+    public string Header { get; set; } = string.Empty;
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+    [JsonPropertyName("question")]
+    public string Question { get; set; } = string.Empty;
+    [JsonPropertyName("options")]
+    public List<JsonElement>? Options { get; set; }
+}

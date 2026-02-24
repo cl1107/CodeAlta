@@ -6,15 +6,16 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record ReasoningSummaryTextDeltaNotification(
-    [property: JsonPropertyName("delta")]
-    string Delta,
-    [property: JsonPropertyName("itemId")]
-    string ItemId,
-    [property: JsonPropertyName("summaryIndex")]
-    long SummaryIndex,
-    [property: JsonPropertyName("threadId")]
-    string ThreadId,
-    [property: JsonPropertyName("turnId")]
-    string TurnId
-);
+public sealed partial record ReasoningSummaryTextDeltaNotification
+{
+    [JsonPropertyName("delta")]
+    public string Delta { get; set; } = string.Empty;
+    [JsonPropertyName("itemId")]
+    public string ItemId { get; set; } = string.Empty;
+    [JsonPropertyName("summaryIndex")]
+    public long SummaryIndex { get; set; }
+    [JsonPropertyName("threadId")]
+    public string ThreadId { get; set; } = string.Empty;
+    [JsonPropertyName("turnId")]
+    public string TurnId { get; set; } = string.Empty;
+}

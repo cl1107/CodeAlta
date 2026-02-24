@@ -9,7 +9,7 @@ namespace CodeNoesis.CodexSdk;
 /// <summary>
 /// User's decision in response to an ExecApprovalRequest.
 /// </summary>
-public readonly partial struct ReviewDecision
+public partial struct ReviewDecision
 {
-    public JsonElement Value { get; init; }
+    public JsonElement Value { get; set; }
 }

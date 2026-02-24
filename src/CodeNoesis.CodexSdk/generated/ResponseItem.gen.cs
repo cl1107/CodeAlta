@@ -20,95 +20,107 @@ namespace CodeNoesis.CodexSdk;
 [JsonDerivedType(typeof(OtherResponseItem), typeDiscriminator: "other")]
 public abstract partial record ResponseItem
 {
-    public sealed partial record MessageResponseItem(
-        [property: JsonPropertyName("content")]
-        IReadOnlyList<ContentItem> Content,
-        [property: JsonPropertyName("end_turn")]
-        bool? EndTurn,
-        [property: JsonPropertyName("id")]
-        string? Id,
-        [property: JsonPropertyName("role")]
-        string Role
-    ) : ResponseItem;
+    public sealed partial record MessageResponseItem : ResponseItem
+    {
+        [JsonPropertyName("content")]
+        public List<ContentItem> Content { get; set; } = [];
+        [JsonPropertyName("end_turn")]
+        public bool? EndTurn { get; set; }
+        [JsonPropertyName("id")]
+        public string? Id { get; set; }
+        [JsonPropertyName("role")]
+        public string Role { get; set; } = string.Empty;
+    }
 
-    public sealed partial record ReasoningResponseItem(
-        [property: JsonPropertyName("content")]
-        IReadOnlyList<JsonElement>? Content,
-        [property: JsonPropertyName("encrypted_content")]
-        string? EncryptedContent,
-        [property: JsonPropertyName("id")]
-        string Id,
-        [property: JsonPropertyName("summary")]
-        IReadOnlyList<ReasoningItemReasoningSummary> Summary
-    ) : ResponseItem;
+    public sealed partial record ReasoningResponseItem : ResponseItem
+    {
+        [JsonPropertyName("content")]
+        public List<JsonElement>? Content { get; set; }
+        [JsonPropertyName("encrypted_content")]
+        public string? EncryptedContent { get; set; }
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = string.Empty;
+        [JsonPropertyName("summary")]
+        public List<ReasoningItemReasoningSummary> Summary { get; set; } = [];
+    }
 
-    public sealed partial record LocalShellCallResponseItem(
-        [property: JsonPropertyName("action")]
-        LocalShellAction Action,
-        [property: JsonPropertyName("call_id")]
-        string? CallId,
-        [property: JsonPropertyName("id")]
-        string? Id,
-        [property: JsonPropertyName("status")]
-        LocalShellStatus Status
-    ) : ResponseItem;
+    public sealed partial record LocalShellCallResponseItem : ResponseItem
+    {
+        [JsonPropertyName("action")]
+        public LocalShellAction Action { get; set; } = default!;
+        /// <summary>Set when using the Responses API.</summary>
+        [JsonPropertyName("call_id")]
+        public string? CallId { get; set; }
+        /// <summary>Set when using the chat completions API.</summary>
+        [JsonPropertyName("id")]
+        public string? Id { get; set; }
+        [JsonPropertyName("status")]
+        public LocalShellStatus Status { get; set; } = default!;
+    }
 
-    public sealed partial record FunctionCallResponseItem(
-        [property: JsonPropertyName("arguments")]
-        string Arguments,
-        [property: JsonPropertyName("call_id")]
-        string CallId,
-        [property: JsonPropertyName("id")]
-        string? Id,
-        [property: JsonPropertyName("name")]
-        string Name
-    ) : ResponseItem;
+    public sealed partial record FunctionCallResponseItem : ResponseItem
+    {
+        [JsonPropertyName("arguments")]
+        public string Arguments { get; set; } = string.Empty;
+        [JsonPropertyName("call_id")]
+        public string CallId { get; set; } = string.Empty;
+        [JsonPropertyName("id")]
+        public string? Id { get; set; }
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = string.Empty;
+    }
 
-    public sealed partial record FunctionCallOutputResponseItem(
-        [property: JsonPropertyName("call_id")]
-        string CallId,
-        [property: JsonPropertyName("output")]
-        FunctionCallOutputPayload Output
-    ) : ResponseItem;
+    public sealed partial record FunctionCallOutputResponseItem : ResponseItem
+    {
+        [JsonPropertyName("call_id")]
+        public string CallId { get; set; } = string.Empty;
+        [JsonPropertyName("output")]
+        public FunctionCallOutputPayload Output { get; set; } = default!;
+    }
 
-    public sealed partial record CustomToolCallResponseItem(
-        [property: JsonPropertyName("call_id")]
-        string CallId,
-        [property: JsonPropertyName("id")]
-        string? Id,
-        [property: JsonPropertyName("input")]
-        string Input,
-        [property: JsonPropertyName("name")]
-        string Name,
-        [property: JsonPropertyName("status")]
-        string? Status
-    ) : ResponseItem;
+    public sealed partial record CustomToolCallResponseItem : ResponseItem
+    {
+        [JsonPropertyName("call_id")]
+        public string CallId { get; set; } = string.Empty;
+        [JsonPropertyName("id")]
+        public string? Id { get; set; }
+        [JsonPropertyName("input")]
+        public string Input { get; set; } = string.Empty;
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = string.Empty;
+        [JsonPropertyName("status")]
+        public string? Status { get; set; }
+    }
 
-    public sealed partial record CustomToolCallOutputResponseItem(
-        [property: JsonPropertyName("call_id")]
-        string CallId,
-        [property: JsonPropertyName("output")]
-        string Output
-    ) : ResponseItem;
+    public sealed partial record CustomToolCallOutputResponseItem : ResponseItem
+    {
+        [JsonPropertyName("call_id")]
+        public string CallId { get; set; } = string.Empty;
+        [JsonPropertyName("output")]
+        public string Output { get; set; } = string.Empty;
+    }
 
-    public sealed partial record WebSearchCallResponseItem(
-        [property: JsonPropertyName("action")]
-        WebSearchAction Action,
-        [property: JsonPropertyName("id")]
-        string? Id,
-        [property: JsonPropertyName("status")]
-        string? Status
-    ) : ResponseItem;
+    public sealed partial record WebSearchCallResponseItem : ResponseItem
+    {
+        [JsonPropertyName("action")]
+        public WebSearchAction Action { get; set; } = default!;
+        [JsonPropertyName("id")]
+        public string? Id { get; set; }
+        [JsonPropertyName("status")]
+        public string? Status { get; set; }
+    }
 
-    public sealed partial record GhostSnapshotResponseItem(
-        [property: JsonPropertyName("ghost_commit")]
-        GhostCommit GhostCommit
-    ) : ResponseItem;
+    public sealed partial record GhostSnapshotResponseItem : ResponseItem
+    {
+        [JsonPropertyName("ghost_commit")]
+        public GhostCommit GhostCommit { get; set; } = default!;
+    }
 
-    public sealed partial record CompactionResponseItem(
-        [property: JsonPropertyName("encrypted_content")]
-        string EncryptedContent
-    ) : ResponseItem;
+    public sealed partial record CompactionResponseItem : ResponseItem
+    {
+        [JsonPropertyName("encrypted_content")]
+        public string EncryptedContent { get; set; } = string.Empty;
+    }
 
     public sealed partial record OtherResponseItem : ResponseItem;
 

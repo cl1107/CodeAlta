@@ -6,7 +6,8 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record AccountUpdatedNotification(
-    [property: JsonPropertyName("authMode")]
-    AuthMode? AuthMode
-);
+public sealed partial record AccountUpdatedNotification
+{
+    [JsonPropertyName("authMode")]
+    public AuthMode? AuthMode { get; set; }
+}

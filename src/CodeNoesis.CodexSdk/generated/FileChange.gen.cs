@@ -12,21 +12,24 @@ namespace CodeNoesis.CodexSdk;
 [JsonDerivedType(typeof(UpdateFileChange), typeDiscriminator: "update")]
 public abstract partial record FileChange
 {
-    public sealed partial record AddFileChange(
-        [property: JsonPropertyName("content")]
-        string Content
-    ) : FileChange;
+    public sealed partial record AddFileChange : FileChange
+    {
+        [JsonPropertyName("content")]
+        public string Content { get; set; } = string.Empty;
+    }
 
-    public sealed partial record DeleteFileChange(
-        [property: JsonPropertyName("content")]
-        string Content
-    ) : FileChange;
+    public sealed partial record DeleteFileChange : FileChange
+    {
+        [JsonPropertyName("content")]
+        public string Content { get; set; } = string.Empty;
+    }
 
-    public sealed partial record UpdateFileChange(
-        [property: JsonPropertyName("move_path")]
-        string? MovePath,
-        [property: JsonPropertyName("unified_diff")]
-        string UnifiedDiff
-    ) : FileChange;
+    public sealed partial record UpdateFileChange : FileChange
+    {
+        [JsonPropertyName("move_path")]
+        public string? MovePath { get; set; }
+        [JsonPropertyName("unified_diff")]
+        public string UnifiedDiff { get; set; } = string.Empty;
+    }
 
 }

@@ -6,13 +6,14 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record NewConversationResponse(
-    [property: JsonPropertyName("conversationId")]
-    ThreadId ConversationId,
-    [property: JsonPropertyName("model")]
-    string Model,
-    [property: JsonPropertyName("rolloutPath")]
-    string RolloutPath,
-    [property: JsonPropertyName("reasoningEffort")]
-    ReasoningEffort? ReasoningEffort
-);
+public sealed partial record NewConversationResponse
+{
+    [JsonPropertyName("conversationId")]
+    public ThreadId ConversationId { get; set; } = default!;
+    [JsonPropertyName("model")]
+    public string Model { get; set; } = string.Empty;
+    [JsonPropertyName("rolloutPath")]
+    public string RolloutPath { get; set; } = string.Empty;
+    [JsonPropertyName("reasoningEffort")]
+    public ReasoningEffort? ReasoningEffort { get; set; }
+}

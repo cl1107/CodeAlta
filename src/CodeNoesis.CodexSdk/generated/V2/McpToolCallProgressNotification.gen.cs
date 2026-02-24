@@ -6,13 +6,14 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record McpToolCallProgressNotification(
-    [property: JsonPropertyName("itemId")]
-    string ItemId,
-    [property: JsonPropertyName("message")]
-    string Message,
-    [property: JsonPropertyName("threadId")]
-    string ThreadId,
-    [property: JsonPropertyName("turnId")]
-    string TurnId
-);
+public sealed partial record McpToolCallProgressNotification
+{
+    [JsonPropertyName("itemId")]
+    public string ItemId { get; set; } = string.Empty;
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = string.Empty;
+    [JsonPropertyName("threadId")]
+    public string ThreadId { get; set; } = string.Empty;
+    [JsonPropertyName("turnId")]
+    public string TurnId { get; set; } = string.Empty;
+}

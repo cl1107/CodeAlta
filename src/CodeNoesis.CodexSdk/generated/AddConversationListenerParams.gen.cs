@@ -6,9 +6,10 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record AddConversationListenerParams(
-    [property: JsonPropertyName("conversationId")]
-    ThreadId ConversationId,
-    [property: JsonPropertyName("experimentalRawEvents")]
-    bool? ExperimentalRawEvents
-);
+public sealed partial record AddConversationListenerParams
+{
+    [JsonPropertyName("conversationId")]
+    public ThreadId ConversationId { get; set; } = default!;
+    [JsonPropertyName("experimentalRawEvents")]
+    public bool? ExperimentalRawEvents { get; set; }
+}

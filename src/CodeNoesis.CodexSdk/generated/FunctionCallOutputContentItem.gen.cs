@@ -14,14 +14,16 @@ namespace CodeNoesis.CodexSdk;
 [JsonDerivedType(typeof(InputImageFunctionCallOutputContentItem), typeDiscriminator: "input_image")]
 public abstract partial record FunctionCallOutputContentItem
 {
-    public sealed partial record InputTextFunctionCallOutputContentItem(
-        [property: JsonPropertyName("text")]
-        string Text
-    ) : FunctionCallOutputContentItem;
+    public sealed partial record InputTextFunctionCallOutputContentItem : FunctionCallOutputContentItem
+    {
+        [JsonPropertyName("text")]
+        public string Text { get; set; } = string.Empty;
+    }
 
-    public sealed partial record InputImageFunctionCallOutputContentItem(
-        [property: JsonPropertyName("image_url")]
-        string ImageUrl
-    ) : FunctionCallOutputContentItem;
+    public sealed partial record InputImageFunctionCallOutputContentItem : FunctionCallOutputContentItem
+    {
+        [JsonPropertyName("image_url")]
+        public string ImageUrl { get; set; } = string.Empty;
+    }
 
 }

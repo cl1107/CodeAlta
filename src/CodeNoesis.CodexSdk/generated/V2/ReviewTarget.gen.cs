@@ -21,27 +21,31 @@ public abstract partial record ReviewTarget
     /// <summary>
     /// Review changes between the current branch and the given base branch.
     /// </summary>
-    public sealed partial record BaseBranchReviewTarget(
-        [property: JsonPropertyName("branch")]
-        string Branch
-    ) : ReviewTarget;
+    public sealed partial record BaseBranchReviewTarget : ReviewTarget
+    {
+        [JsonPropertyName("branch")]
+        public string Branch { get; set; } = string.Empty;
+    }
 
     /// <summary>
     /// Review the changes introduced by a specific commit.
     /// </summary>
-    public sealed partial record CommitReviewTarget(
-        [property: JsonPropertyName("sha")]
-        string Sha,
-        [property: JsonPropertyName("title")]
-        string? Title
-    ) : ReviewTarget;
+    public sealed partial record CommitReviewTarget : ReviewTarget
+    {
+        [JsonPropertyName("sha")]
+        public string Sha { get; set; } = string.Empty;
+        /// <summary>Optional human-readable label (e.g., commit subject) for UIs.</summary>
+        [JsonPropertyName("title")]
+        public string? Title { get; set; }
+    }
 
     /// <summary>
     /// Arbitrary instructions, equivalent to the old free-form prompt.
     /// </summary>
-    public sealed partial record CustomReviewTarget(
-        [property: JsonPropertyName("instructions")]
-        string Instructions
-    ) : ReviewTarget;
+    public sealed partial record CustomReviewTarget : ReviewTarget
+    {
+        [JsonPropertyName("instructions")]
+        public string Instructions { get; set; } = string.Empty;
+    }
 
 }

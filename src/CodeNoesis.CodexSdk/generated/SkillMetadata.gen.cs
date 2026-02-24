@@ -6,20 +6,21 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record SkillMetadata(
-    [property: JsonPropertyName("description")]
-    string Description,
-    [property: JsonPropertyName("enabled")]
-    bool Enabled,
-    [property: JsonPropertyName("name")]
-    string Name,
-    [property: JsonPropertyName("path")]
-    string Path,
-    [property: JsonPropertyName("scope")]
-    SkillScope Scope,
-    [property: JsonPropertyName("interface")]
-    SkillInterface? Interface,
+public sealed partial record SkillMetadata
+{
+    [JsonPropertyName("description")]
+    public string Description { get; set; } = string.Empty;
+    [JsonPropertyName("enabled")]
+    public bool Enabled { get; set; }
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+    [JsonPropertyName("scope")]
+    public SkillScope Scope { get; set; } = default!;
+    [JsonPropertyName("interface")]
+    public SkillInterface? Interface { get; set; }
     /// <summary>Legacy short_description from SKILL.md. Prefer SKILL.toml interface.short_description.</summary>
-    [property: JsonPropertyName("short_description")]
-    string? ShortDescription
-);
+    [JsonPropertyName("short_description")]
+    public string? ShortDescription { get; set; }
+}

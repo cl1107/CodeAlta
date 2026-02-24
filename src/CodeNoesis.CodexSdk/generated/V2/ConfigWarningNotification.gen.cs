@@ -6,11 +6,12 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record ConfigWarningNotification(
+public sealed partial record ConfigWarningNotification
+{
     /// <summary>Concise summary of the warning.</summary>
-    [property: JsonPropertyName("summary")]
-    string Summary,
+    [JsonPropertyName("summary")]
+    public string Summary { get; set; } = string.Empty;
     /// <summary>Optional extra guidance or error details.</summary>
-    [property: JsonPropertyName("details")]
-    string? Details
-);
+    [JsonPropertyName("details")]
+    public string? Details { get; set; }
+}

@@ -9,11 +9,12 @@ namespace CodeNoesis.CodexSdk;
 /// <summary>
 /// Text provided to or from an LLM.
 /// </summary>
-public sealed partial record TextContent(
-    [property: JsonPropertyName("text")]
-    string Text,
-    [property: JsonPropertyName("type")]
-    string Type,
-    [property: JsonPropertyName("annotations")]
-    Annotations? Annotations
-);
+public sealed partial record TextContent
+{
+    [JsonPropertyName("text")]
+    public string Text { get; set; } = string.Empty;
+    [JsonPropertyName("type")]
+    public string Type { get; set; } = string.Empty;
+    [JsonPropertyName("annotations")]
+    public Annotations? Annotations { get; set; }
+}

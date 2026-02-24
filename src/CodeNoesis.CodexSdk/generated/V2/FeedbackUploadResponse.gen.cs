@@ -6,7 +6,8 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record FeedbackUploadResponse(
-    [property: JsonPropertyName("threadId")]
-    string ThreadId
-);
+public sealed partial record FeedbackUploadResponse
+{
+    [JsonPropertyName("threadId")]
+    public string ThreadId { get; set; } = string.Empty;
+}

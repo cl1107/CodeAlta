@@ -6,10 +6,11 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public readonly partial record struct ThreadId(
-    string Value)
+public partial record struct ThreadId
 {
-    public static implicit operator ThreadId(string value) => new(value);
+    public ThreadId() { }
+    public string Value { get; set; } = string.Empty;
+    public static implicit operator ThreadId(string value) => new() { Value = value };
     public static implicit operator string(ThreadId wrapper) => wrapper.Value;
     public override string ToString() => Value?.ToString() ?? "";
 }

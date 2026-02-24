@@ -6,7 +6,8 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record SkillsConfigWriteResponse(
-    [property: JsonPropertyName("effectiveEnabled")]
-    bool EffectiveEnabled
-);
+public sealed partial record SkillsConfigWriteResponse
+{
+    [JsonPropertyName("effectiveEnabled")]
+    public bool EffectiveEnabled { get; set; }
+}

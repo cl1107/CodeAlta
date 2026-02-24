@@ -6,8 +6,9 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record ConfigRequirementsReadResponse(
+public sealed partial record ConfigRequirementsReadResponse
+{
     /// <summary>Null if no requirements are configured (e.g. no requirements.toml/MDM entries).</summary>
-    [property: JsonPropertyName("requirements")]
-    ConfigRequirements? Requirements
-);
+    [JsonPropertyName("requirements")]
+    public ConfigRequirements? Requirements { get; set; }
+}

@@ -6,9 +6,10 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record TurnPlanStep(
-    [property: JsonPropertyName("status")]
-    TurnPlanStepStatus Status,
-    [property: JsonPropertyName("step")]
-    string Step
-);
+public sealed partial record TurnPlanStep
+{
+    [JsonPropertyName("status")]
+    public TurnPlanStepStatus Status { get; set; } = default!;
+    [JsonPropertyName("step")]
+    public string Step { get; set; } = string.Empty;
+}

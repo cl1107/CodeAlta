@@ -6,9 +6,10 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record ArchiveConversationParams(
-    [property: JsonPropertyName("conversationId")]
-    ThreadId ConversationId,
-    [property: JsonPropertyName("rolloutPath")]
-    string RolloutPath
-);
+public sealed partial record ArchiveConversationParams
+{
+    [JsonPropertyName("conversationId")]
+    public ThreadId ConversationId { get; set; } = default!;
+    [JsonPropertyName("rolloutPath")]
+    public string RolloutPath { get; set; } = string.Empty;
+}

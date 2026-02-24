@@ -6,9 +6,10 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record ConfigLayerMetadata(
-    [property: JsonPropertyName("name")]
-    ConfigLayerSource Name,
-    [property: JsonPropertyName("version")]
-    string Version
-);
+public sealed partial record ConfigLayerMetadata
+{
+    [JsonPropertyName("name")]
+    public ConfigLayerSource Name { get; set; } = default!;
+    [JsonPropertyName("version")]
+    public string Version { get; set; } = string.Empty;
+}

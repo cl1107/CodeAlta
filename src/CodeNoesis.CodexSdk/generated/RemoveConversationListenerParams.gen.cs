@@ -6,7 +6,8 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record RemoveConversationListenerParams(
-    [property: JsonPropertyName("subscriptionId")]
-    string SubscriptionId
-);
+public sealed partial record RemoveConversationListenerParams
+{
+    [JsonPropertyName("subscriptionId")]
+    public string SubscriptionId { get; set; } = string.Empty;
+}

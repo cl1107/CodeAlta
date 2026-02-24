@@ -9,11 +9,12 @@ namespace CodeNoesis.CodexSdk;
 /// <summary>
 /// Deprecated in favor of AccountLoginCompletedNotification.
 /// </summary>
-public sealed partial record LoginChatGptCompleteNotification(
-    [property: JsonPropertyName("loginId")]
-    string LoginId,
-    [property: JsonPropertyName("success")]
-    bool Success,
-    [property: JsonPropertyName("error")]
-    string? Error
-);
+public sealed partial record LoginChatGptCompleteNotification
+{
+    [JsonPropertyName("loginId")]
+    public string LoginId { get; set; } = string.Empty;
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
+}

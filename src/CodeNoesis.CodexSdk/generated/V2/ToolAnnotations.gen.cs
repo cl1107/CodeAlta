@@ -13,15 +13,16 @@ namespace CodeNoesis.CodexSdk.V2;
 /// 
 /// Clients should never make tool use decisions based on ToolAnnotations received from untrusted servers.
 /// </summary>
-public sealed partial record ToolAnnotations(
-    [property: JsonPropertyName("destructiveHint")]
-    bool? DestructiveHint,
-    [property: JsonPropertyName("idempotentHint")]
-    bool? IdempotentHint,
-    [property: JsonPropertyName("openWorldHint")]
-    bool? OpenWorldHint,
-    [property: JsonPropertyName("readOnlyHint")]
-    bool? ReadOnlyHint,
-    [property: JsonPropertyName("title")]
-    string? Title
-);
+public sealed partial record ToolAnnotations
+{
+    [JsonPropertyName("destructiveHint")]
+    public bool? DestructiveHint { get; set; }
+    [JsonPropertyName("idempotentHint")]
+    public bool? IdempotentHint { get; set; }
+    [JsonPropertyName("openWorldHint")]
+    public bool? OpenWorldHint { get; set; }
+    [JsonPropertyName("readOnlyHint")]
+    public bool? ReadOnlyHint { get; set; }
+    [JsonPropertyName("title")]
+    public string? Title { get; set; }
+}

@@ -6,10 +6,11 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record ListMcpServerStatusResponse(
-    [property: JsonPropertyName("data")]
-    IReadOnlyList<McpServerStatus> Data,
+public sealed partial record ListMcpServerStatusResponse
+{
+    [JsonPropertyName("data")]
+    public List<McpServerStatus> Data { get; set; } = [];
     /// <summary>Opaque cursor to pass to the next call to continue after the last item. If None, there are no more items to return.</summary>
-    [property: JsonPropertyName("nextCursor")]
-    string? NextCursor
-);
+    [JsonPropertyName("nextCursor")]
+    public string? NextCursor { get; set; }
+}

@@ -6,14 +6,15 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record ConfigWriteResponse(
+public sealed partial record ConfigWriteResponse
+{
     /// <summary>Canonical path to the config file that was written.</summary>
-    [property: JsonPropertyName("filePath")]
-    AbsolutePathBuf FilePath,
-    [property: JsonPropertyName("status")]
-    WriteStatus Status,
-    [property: JsonPropertyName("version")]
-    string Version,
-    [property: JsonPropertyName("overriddenMetadata")]
-    OverriddenMetadata? OverriddenMetadata
-);
+    [JsonPropertyName("filePath")]
+    public AbsolutePathBuf FilePath { get; set; } = default!;
+    [JsonPropertyName("status")]
+    public WriteStatus Status { get; set; } = default!;
+    [JsonPropertyName("version")]
+    public string Version { get; set; } = string.Empty;
+    [JsonPropertyName("overriddenMetadata")]
+    public OverriddenMetadata? OverriddenMetadata { get; set; }
+}

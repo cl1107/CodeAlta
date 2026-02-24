@@ -9,11 +9,12 @@ namespace CodeNoesis.CodexSdk.V2;
 /// <summary>
 /// A JSON Schema object defining the expected parameters for the tool.
 /// </summary>
-public sealed partial record ToolInputSchema(
-    [property: JsonPropertyName("properties")]
-    JsonElement? Properties,
-    [property: JsonPropertyName("required")]
-    IReadOnlyList<JsonElement>? Required,
-    [property: JsonPropertyName("type")]
-    string? Type
-);
+public sealed partial record ToolInputSchema
+{
+    [JsonPropertyName("properties")]
+    public JsonElement? Properties { get; set; }
+    [JsonPropertyName("required")]
+    public List<JsonElement>? Required { get; set; }
+    [JsonPropertyName("type")]
+    public string? Type { get; set; }
+}

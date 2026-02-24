@@ -6,9 +6,10 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record ReasoningEffortOption(
-    [property: JsonPropertyName("description")]
-    string Description,
-    [property: JsonPropertyName("reasoningEffort")]
-    ReasoningEffort ReasoningEffort
-);
+public sealed partial record ReasoningEffortOption
+{
+    [JsonPropertyName("description")]
+    public string Description { get; set; } = string.Empty;
+    [JsonPropertyName("reasoningEffort")]
+    public ReasoningEffort ReasoningEffort { get; set; } = default!;
+}

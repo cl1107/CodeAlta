@@ -6,9 +6,10 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record GetAccountResponse(
-    [property: JsonPropertyName("requiresOpenaiAuth")]
-    bool RequiresOpenaiAuth,
-    [property: JsonPropertyName("account")]
-    Account? Account
-);
+public sealed partial record GetAccountResponse
+{
+    [JsonPropertyName("requiresOpenaiAuth")]
+    public bool RequiresOpenaiAuth { get; set; }
+    [JsonPropertyName("account")]
+    public Account? Account { get; set; }
+}

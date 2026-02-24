@@ -6,13 +6,14 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record ExecOneOffCommandParams(
-    [property: JsonPropertyName("command")]
-    IReadOnlyList<string> Command,
-    [property: JsonPropertyName("cwd")]
-    string? Cwd,
-    [property: JsonPropertyName("sandboxPolicy")]
-    SandboxPolicy? SandboxPolicy,
-    [property: JsonPropertyName("timeoutMs")]
-    ulong? TimeoutMs
-);
+public sealed partial record ExecOneOffCommandParams
+{
+    [JsonPropertyName("command")]
+    public List<string> Command { get; set; } = [];
+    [JsonPropertyName("cwd")]
+    public string? Cwd { get; set; }
+    [JsonPropertyName("sandboxPolicy")]
+    public SandboxPolicy? SandboxPolicy { get; set; }
+    [JsonPropertyName("timeoutMs")]
+    public ulong? TimeoutMs { get; set; }
+}

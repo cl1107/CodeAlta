@@ -6,9 +6,10 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record Tools(
-    [property: JsonPropertyName("viewImage")]
-    bool? ViewImage,
-    [property: JsonPropertyName("webSearch")]
-    bool? WebSearch
-);
+public sealed partial record Tools
+{
+    [JsonPropertyName("viewImage")]
+    public bool? ViewImage { get; set; }
+    [JsonPropertyName("webSearch")]
+    public bool? WebSearch { get; set; }
+}

@@ -6,13 +6,14 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record FeedbackUploadParams(
-    [property: JsonPropertyName("classification")]
-    string Classification,
-    [property: JsonPropertyName("includeLogs")]
-    bool IncludeLogs,
-    [property: JsonPropertyName("reason")]
-    string? Reason,
-    [property: JsonPropertyName("threadId")]
-    string? ThreadId
-);
+public sealed partial record FeedbackUploadParams
+{
+    [JsonPropertyName("classification")]
+    public string Classification { get; set; } = string.Empty;
+    [JsonPropertyName("includeLogs")]
+    public bool IncludeLogs { get; set; }
+    [JsonPropertyName("reason")]
+    public string? Reason { get; set; }
+    [JsonPropertyName("threadId")]
+    public string? ThreadId { get; set; }
+}

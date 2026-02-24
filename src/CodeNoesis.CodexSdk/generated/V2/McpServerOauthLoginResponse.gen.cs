@@ -6,7 +6,8 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record McpServerOauthLoginResponse(
-    [property: JsonPropertyName("authorizationUrl")]
-    string AuthorizationUrl
-);
+public sealed partial record McpServerOauthLoginResponse
+{
+    [JsonPropertyName("authorizationUrl")]
+    public string AuthorizationUrl { get; set; } = string.Empty;
+}

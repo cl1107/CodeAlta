@@ -13,34 +13,38 @@ namespace CodeNoesis.CodexSdk;
 [JsonDerivedType(typeof(WebSearchTurnItem), typeDiscriminator: "WebSearch")]
 public abstract partial record TurnItem
 {
-    public sealed partial record UserMessageTurnItem(
-        [property: JsonPropertyName("content")]
-        IReadOnlyList<UserInput> Content,
-        [property: JsonPropertyName("id")]
-        string Id
-    ) : TurnItem;
+    public sealed partial record UserMessageTurnItem : TurnItem
+    {
+        [JsonPropertyName("content")]
+        public List<UserInput> Content { get; set; } = [];
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = string.Empty;
+    }
 
-    public sealed partial record AgentMessageTurnItem(
-        [property: JsonPropertyName("content")]
-        IReadOnlyList<AgentMessageContent> Content,
-        [property: JsonPropertyName("id")]
-        string Id
-    ) : TurnItem;
+    public sealed partial record AgentMessageTurnItem : TurnItem
+    {
+        [JsonPropertyName("content")]
+        public List<AgentMessageContent> Content { get; set; } = [];
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = string.Empty;
+    }
 
-    public sealed partial record ReasoningTurnItem(
-        [property: JsonPropertyName("id")]
-        string Id,
-        [property: JsonPropertyName("raw_content")]
-        IReadOnlyList<string>? RawContent,
-        [property: JsonPropertyName("summary_text")]
-        IReadOnlyList<string> SummaryText
-    ) : TurnItem;
+    public sealed partial record ReasoningTurnItem : TurnItem
+    {
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = string.Empty;
+        [JsonPropertyName("raw_content")]
+        public List<string>? RawContent { get; set; }
+        [JsonPropertyName("summary_text")]
+        public List<string> SummaryText { get; set; } = [];
+    }
 
-    public sealed partial record WebSearchTurnItem(
-        [property: JsonPropertyName("id")]
-        string Id,
-        [property: JsonPropertyName("query")]
-        string Query
-    ) : TurnItem;
+    public sealed partial record WebSearchTurnItem : TurnItem
+    {
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = string.Empty;
+        [JsonPropertyName("query")]
+        public string Query { get; set; } = string.Empty;
+    }
 
 }

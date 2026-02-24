@@ -13,28 +13,33 @@ namespace CodeNoesis.CodexSdk.V2;
 [JsonDerivedType(typeof(SkillUserInput), typeDiscriminator: "skill")]
 public abstract partial record UserInput
 {
-    public sealed partial record TextUserInput(
-        [property: JsonPropertyName("text")]
-        string Text,
-        [property: JsonPropertyName("text_elements")]
-        IReadOnlyList<TextElement>? TextElements
-    ) : UserInput;
+    public sealed partial record TextUserInput : UserInput
+    {
+        [JsonPropertyName("text")]
+        public string Text { get; set; } = string.Empty;
+        /// <summary>UI-defined spans within `text` used to render or persist special elements.</summary>
+        [JsonPropertyName("text_elements")]
+        public List<TextElement>? TextElements { get; set; }
+    }
 
-    public sealed partial record ImageUserInput(
-        [property: JsonPropertyName("url")]
-        string Url
-    ) : UserInput;
+    public sealed partial record ImageUserInput : UserInput
+    {
+        [JsonPropertyName("url")]
+        public string Url { get; set; } = string.Empty;
+    }
 
-    public sealed partial record LocalImageUserInput(
-        [property: JsonPropertyName("path")]
-        string Path
-    ) : UserInput;
+    public sealed partial record LocalImageUserInput : UserInput
+    {
+        [JsonPropertyName("path")]
+        public string Path { get; set; } = string.Empty;
+    }
 
-    public sealed partial record SkillUserInput(
-        [property: JsonPropertyName("name")]
-        string Name,
-        [property: JsonPropertyName("path")]
-        string Path
-    ) : UserInput;
+    public sealed partial record SkillUserInput : UserInput
+    {
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = string.Empty;
+        [JsonPropertyName("path")]
+        public string Path { get; set; } = string.Empty;
+    }
 
 }

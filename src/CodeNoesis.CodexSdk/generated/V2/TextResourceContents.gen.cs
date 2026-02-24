@@ -6,11 +6,12 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record TextResourceContents(
-    [property: JsonPropertyName("text")]
-    string Text,
-    [property: JsonPropertyName("uri")]
-    string Uri,
-    [property: JsonPropertyName("mimeType")]
-    string? MimeType
-);
+public sealed partial record TextResourceContents
+{
+    [JsonPropertyName("text")]
+    public string Text { get; set; } = string.Empty;
+    [JsonPropertyName("uri")]
+    public string Uri { get; set; } = string.Empty;
+    [JsonPropertyName("mimeType")]
+    public string? MimeType { get; set; }
+}

@@ -6,10 +6,11 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record ThreadRollbackParams(
+public sealed partial record ThreadRollbackParams
+{
     /// <summary>The number of turns to drop from the end of the thread. Must be &gt;= 1.  This only modifies the thread's history and does not revert local file changes that have been made by the agent. Clients are responsible for reverting these changes.</summary>
-    [property: JsonPropertyName("numTurns")]
-    uint NumTurns,
-    [property: JsonPropertyName("threadId")]
-    string ThreadId
-);
+    [JsonPropertyName("numTurns")]
+    public uint NumTurns { get; set; }
+    [JsonPropertyName("threadId")]
+    public string ThreadId { get; set; } = string.Empty;
+}

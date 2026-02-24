@@ -9,9 +9,10 @@ namespace CodeNoesis.CodexSdk;
 /// <summary>
 /// A notification which does not expect a response.
 /// </summary>
-public sealed partial record JSONRPCNotification(
-    [property: JsonPropertyName("method")]
-    string Method,
-    [property: JsonPropertyName("params")]
-    JsonElement? Params
-);
+public sealed partial record JSONRPCNotification
+{
+    [JsonPropertyName("method")]
+    public string Method { get; set; } = string.Empty;
+    [JsonPropertyName("params")]
+    public JsonElement? Params { get; set; }
+}

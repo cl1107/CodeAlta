@@ -6,7 +6,8 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record FileChangeRequestApprovalResponse(
-    [property: JsonPropertyName("decision")]
-    FileChangeApprovalDecision Decision
-);
+public sealed partial record FileChangeRequestApprovalResponse
+{
+    [JsonPropertyName("decision")]
+    public FileChangeApprovalDecision Decision { get; set; } = default!;
+}

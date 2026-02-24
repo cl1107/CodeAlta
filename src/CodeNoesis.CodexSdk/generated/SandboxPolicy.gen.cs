@@ -29,23 +29,30 @@ public abstract partial record SandboxPolicy
     /// <summary>
     /// Indicates the process is already in an external sandbox. Allows full disk access while honoring the provided network setting.
     /// </summary>
-    public sealed partial record ExternalSandboxSandboxPolicy(
-        [property: JsonPropertyName("network_access")]
-        NetworkAccess NetworkAccess
-    ) : SandboxPolicy;
+    public sealed partial record ExternalSandboxSandboxPolicy : SandboxPolicy
+    {
+        /// <summary>Whether the external sandbox permits outbound network traffic.</summary>
+        [JsonPropertyName("network_access")]
+        public NetworkAccess NetworkAccess { get; set; } = default!;
+    }
 
     /// <summary>
     /// Same as `ReadOnly` but additionally grants write access to the current working directory ("workspace").
     /// </summary>
-    public sealed partial record WorkspaceWriteSandboxPolicy(
-        [property: JsonPropertyName("exclude_slash_tmp")]
-        bool? ExcludeSlashTmp,
-        [property: JsonPropertyName("exclude_tmpdir_env_var")]
-        bool? ExcludeTmpdirEnvVar,
-        [property: JsonPropertyName("network_access")]
-        bool? NetworkAccess,
-        [property: JsonPropertyName("writable_roots")]
-        IReadOnlyList<AbsolutePathBuf>? WritableRoots
-    ) : SandboxPolicy;
+    public sealed partial record WorkspaceWriteSandboxPolicy : SandboxPolicy
+    {
+        /// <summary>When set to `true`, will NOT include the `/tmp` among the default writable roots on UNIX. Defaults to `false`.</summary>
+        [JsonPropertyName("exclude_slash_tmp")]
+        public bool? ExcludeSlashTmp { get; set; }
+        /// <summary>When set to `true`, will NOT include the per-user `TMPDIR` environment variable among the default writable roots. Defaults to `false`.</summary>
+        [JsonPropertyName("exclude_tmpdir_env_var")]
+        public bool? ExcludeTmpdirEnvVar { get; set; }
+        /// <summary>When set to `true`, outbound network access is allowed. `false` by default.</summary>
+        [JsonPropertyName("network_access")]
+        public bool? NetworkAccess { get; set; }
+        /// <summary>Additional folders (beyond cwd and possibly TMPDIR) that should be writable from within the sandbox.</summary>
+        [JsonPropertyName("writable_roots")]
+        public List<AbsolutePathBuf>? WritableRoots { get; set; }
+    }
 
 }

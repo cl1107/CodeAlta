@@ -6,11 +6,12 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record TurnError(
-    [property: JsonPropertyName("message")]
-    string Message,
-    [property: JsonPropertyName("additionalDetails")]
-    string? AdditionalDetails,
-    [property: JsonPropertyName("codexErrorInfo")]
-    CodexErrorInfo? CodexErrorInfo
-);
+public sealed partial record TurnError
+{
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = string.Empty;
+    [JsonPropertyName("additionalDetails")]
+    public string? AdditionalDetails { get; set; }
+    [JsonPropertyName("codexErrorInfo")]
+    public CodexErrorInfo? CodexErrorInfo { get; set; }
+}

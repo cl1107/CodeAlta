@@ -6,19 +6,20 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record Profile(
-    [property: JsonPropertyName("approvalPolicy")]
-    AskForApproval? ApprovalPolicy,
-    [property: JsonPropertyName("chatgptBaseUrl")]
-    string? ChatgptBaseUrl,
-    [property: JsonPropertyName("model")]
-    string? Model,
-    [property: JsonPropertyName("modelProvider")]
-    string? ModelProvider,
-    [property: JsonPropertyName("modelReasoningEffort")]
-    ReasoningEffort? ModelReasoningEffort,
-    [property: JsonPropertyName("modelReasoningSummary")]
-    ReasoningSummary? ModelReasoningSummary,
-    [property: JsonPropertyName("modelVerbosity")]
-    Verbosity? ModelVerbosity
-);
+public sealed partial record Profile
+{
+    [JsonPropertyName("approvalPolicy")]
+    public AskForApproval? ApprovalPolicy { get; set; }
+    [JsonPropertyName("chatgptBaseUrl")]
+    public string? ChatgptBaseUrl { get; set; }
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
+    [JsonPropertyName("modelProvider")]
+    public string? ModelProvider { get; set; }
+    [JsonPropertyName("modelReasoningEffort")]
+    public ReasoningEffort? ModelReasoningEffort { get; set; }
+    [JsonPropertyName("modelReasoningSummary")]
+    public ReasoningSummary? ModelReasoningSummary { get; set; }
+    [JsonPropertyName("modelVerbosity")]
+    public Verbosity? ModelVerbosity { get; set; }
+}

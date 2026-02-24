@@ -6,10 +6,11 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public readonly partial record struct GitSha(
-    string Value)
+public partial record struct GitSha
 {
-    public static implicit operator GitSha(string value) => new(value);
+    public GitSha() { }
+    public string Value { get; set; } = string.Empty;
+    public static implicit operator GitSha(string value) => new() { Value = value };
     public static implicit operator string(GitSha wrapper) => wrapper.Value;
     public override string ToString() => Value?.ToString() ?? "";
 }

@@ -9,7 +9,8 @@ namespace CodeNoesis.CodexSdk.V2;
 /// <summary>
 /// EXPERIMENTAL - collaboration mode presets response.
 /// </summary>
-public sealed partial record CollaborationModeListResponse(
-    [property: JsonPropertyName("data")]
-    IReadOnlyList<CollaborationMode> Data
-);
+public sealed partial record CollaborationModeListResponse
+{
+    [JsonPropertyName("data")]
+    public List<CollaborationMode> Data { get; set; } = [];
+}

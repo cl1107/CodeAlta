@@ -9,13 +9,14 @@ namespace CodeNoesis.CodexSdk;
 /// <summary>
 /// Details of a ghost commit created from a repository state.
 /// </summary>
-public sealed partial record GhostCommit(
-    [property: JsonPropertyName("id")]
-    string Id,
-    [property: JsonPropertyName("preexisting_untracked_dirs")]
-    IReadOnlyList<string> PreexistingUntrackedDirs,
-    [property: JsonPropertyName("preexisting_untracked_files")]
-    IReadOnlyList<string> PreexistingUntrackedFiles,
-    [property: JsonPropertyName("parent")]
-    string? Parent
-);
+public sealed partial record GhostCommit
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+    [JsonPropertyName("preexisting_untracked_dirs")]
+    public List<string> PreexistingUntrackedDirs { get; set; } = [];
+    [JsonPropertyName("preexisting_untracked_files")]
+    public List<string> PreexistingUntrackedFiles { get; set; } = [];
+    [JsonPropertyName("parent")]
+    public string? Parent { get; set; }
+}

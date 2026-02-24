@@ -16,37 +16,42 @@ namespace CodeNoesis.CodexSdk;
 [JsonDerivedType(typeof(SkillUserInput), typeDiscriminator: "skill")]
 public abstract partial record UserInput
 {
-    public sealed partial record TextUserInput(
-        [property: JsonPropertyName("text")]
-        string Text,
-        [property: JsonPropertyName("text_elements")]
-        IReadOnlyList<TextElement>? TextElements
-    ) : UserInput;
+    public sealed partial record TextUserInput : UserInput
+    {
+        [JsonPropertyName("text")]
+        public string Text { get; set; } = string.Empty;
+        /// <summary>UI-defined spans within `text` that should be treated as special elements. These are byte ranges into the UTF-8 `text` buffer and are used to render or persist rich input markers (e.g., image placeholders) across history and resume without mutating the literal text.</summary>
+        [JsonPropertyName("text_elements")]
+        public List<TextElement>? TextElements { get; set; }
+    }
 
     /// <summary>
     /// Pre‑encoded data: URI image.
     /// </summary>
-    public sealed partial record ImageUserInput(
-        [property: JsonPropertyName("image_url")]
-        string ImageUrl
-    ) : UserInput;
+    public sealed partial record ImageUserInput : UserInput
+    {
+        [JsonPropertyName("image_url")]
+        public string ImageUrl { get; set; } = string.Empty;
+    }
 
     /// <summary>
     /// Local image path provided by the user.  This will be converted to an `Image` variant (base64 data URL) during request serialization.
     /// </summary>
-    public sealed partial record LocalImageUserInput(
-        [property: JsonPropertyName("path")]
-        string Path
-    ) : UserInput;
+    public sealed partial record LocalImageUserInput : UserInput
+    {
+        [JsonPropertyName("path")]
+        public string Path { get; set; } = string.Empty;
+    }
 
     /// <summary>
     /// Skill selected by the user (name + path to SKILL.md).
     /// </summary>
-    public sealed partial record SkillUserInput(
-        [property: JsonPropertyName("name")]
-        string Name,
-        [property: JsonPropertyName("path")]
-        string Path
-    ) : UserInput;
+    public sealed partial record SkillUserInput : UserInput
+    {
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = string.Empty;
+        [JsonPropertyName("path")]
+        public string Path { get; set; } = string.Empty;
+    }
 
 }

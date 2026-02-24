@@ -6,15 +6,16 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record Turn(
-    [property: JsonPropertyName("id")]
-    string Id,
+public sealed partial record Turn
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
     /// <summary>Only populated on a `thread/resume` or `thread/fork` response. For all other responses and notifications returning a Turn, the items field will be an empty list.</summary>
-    [property: JsonPropertyName("items")]
-    IReadOnlyList<ThreadItem> Items,
-    [property: JsonPropertyName("status")]
-    TurnStatus Status,
+    [JsonPropertyName("items")]
+    public List<ThreadItem> Items { get; set; } = [];
+    [JsonPropertyName("status")]
+    public TurnStatus Status { get; set; } = default!;
     /// <summary>Only populated when the Turn's status is failed.</summary>
-    [property: JsonPropertyName("error")]
-    TurnError? Error
-);
+    [JsonPropertyName("error")]
+    public TurnError? Error { get; set; }
+}

@@ -6,12 +6,13 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record ConfigBatchWriteParams(
-    [property: JsonPropertyName("edits")]
-    IReadOnlyList<ConfigEdit> Edits,
-    [property: JsonPropertyName("expectedVersion")]
-    string? ExpectedVersion,
+public sealed partial record ConfigBatchWriteParams
+{
+    [JsonPropertyName("edits")]
+    public List<ConfigEdit> Edits { get; set; } = [];
+    [JsonPropertyName("expectedVersion")]
+    public string? ExpectedVersion { get; set; }
     /// <summary>Path to the config file to write; defaults to the user's `config.toml` when omitted.</summary>
-    [property: JsonPropertyName("filePath")]
-    string? FilePath
-);
+    [JsonPropertyName("filePath")]
+    public string? FilePath { get; set; }
+}

@@ -6,17 +6,18 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record FileChangeRequestApprovalParams(
-    [property: JsonPropertyName("itemId")]
-    string ItemId,
-    [property: JsonPropertyName("threadId")]
-    string ThreadId,
-    [property: JsonPropertyName("turnId")]
-    string TurnId,
+public sealed partial record FileChangeRequestApprovalParams
+{
+    [JsonPropertyName("itemId")]
+    public string ItemId { get; set; } = string.Empty;
+    [JsonPropertyName("threadId")]
+    public string ThreadId { get; set; } = string.Empty;
+    [JsonPropertyName("turnId")]
+    public string TurnId { get; set; } = string.Empty;
     /// <summary>[UNSTABLE] When set, the agent is asking the user to allow writes under this root for the remainder of the session (unclear if this is honored today).</summary>
-    [property: JsonPropertyName("grantRoot")]
-    string? GrantRoot,
+    [JsonPropertyName("grantRoot")]
+    public string? GrantRoot { get; set; }
     /// <summary>Optional explanatory reason (e.g. request for extra write access).</summary>
-    [property: JsonPropertyName("reason")]
-    string? Reason
-);
+    [JsonPropertyName("reason")]
+    public string? Reason { get; set; }
+}

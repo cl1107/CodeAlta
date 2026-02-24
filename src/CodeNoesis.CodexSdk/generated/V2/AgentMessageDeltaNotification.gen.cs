@@ -6,13 +6,14 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record AgentMessageDeltaNotification(
-    [property: JsonPropertyName("delta")]
-    string Delta,
-    [property: JsonPropertyName("itemId")]
-    string ItemId,
-    [property: JsonPropertyName("threadId")]
-    string ThreadId,
-    [property: JsonPropertyName("turnId")]
-    string TurnId
-);
+public sealed partial record AgentMessageDeltaNotification
+{
+    [JsonPropertyName("delta")]
+    public string Delta { get; set; } = string.Empty;
+    [JsonPropertyName("itemId")]
+    public string ItemId { get; set; } = string.Empty;
+    [JsonPropertyName("threadId")]
+    public string ThreadId { get; set; } = string.Empty;
+    [JsonPropertyName("turnId")]
+    public string TurnId { get; set; } = string.Empty;
+}

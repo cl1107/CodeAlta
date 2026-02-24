@@ -6,24 +6,25 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record SendUserTurnParams(
-    [property: JsonPropertyName("approvalPolicy")]
-    AskForApproval ApprovalPolicy,
-    [property: JsonPropertyName("conversationId")]
-    ThreadId ConversationId,
-    [property: JsonPropertyName("cwd")]
-    string Cwd,
-    [property: JsonPropertyName("items")]
-    IReadOnlyList<InputItem> Items,
-    [property: JsonPropertyName("model")]
-    string Model,
-    [property: JsonPropertyName("sandboxPolicy")]
-    SandboxPolicy SandboxPolicy,
-    [property: JsonPropertyName("summary")]
-    ReasoningSummary Summary,
-    [property: JsonPropertyName("effort")]
-    ReasoningEffort? Effort,
+public sealed partial record SendUserTurnParams
+{
+    [JsonPropertyName("approvalPolicy")]
+    public AskForApproval ApprovalPolicy { get; set; } = default!;
+    [JsonPropertyName("conversationId")]
+    public ThreadId ConversationId { get; set; } = default!;
+    [JsonPropertyName("cwd")]
+    public string Cwd { get; set; } = string.Empty;
+    [JsonPropertyName("items")]
+    public List<InputItem> Items { get; set; } = [];
+    [JsonPropertyName("model")]
+    public string Model { get; set; } = string.Empty;
+    [JsonPropertyName("sandboxPolicy")]
+    public SandboxPolicy SandboxPolicy { get; set; } = default!;
+    [JsonPropertyName("summary")]
+    public ReasoningSummary Summary { get; set; } = default!;
+    [JsonPropertyName("effort")]
+    public ReasoningEffort? Effort { get; set; }
     /// <summary>Optional JSON Schema used to constrain the final assistant message for this turn.</summary>
-    [property: JsonPropertyName("outputSchema")]
-    JsonElement? OutputSchema
-);
+    [JsonPropertyName("outputSchema")]
+    public JsonElement? OutputSchema { get; set; }
+}

@@ -13,34 +13,38 @@ namespace CodeNoesis.CodexSdk.V2;
 [JsonDerivedType(typeof(UnknownCommandAction), typeDiscriminator: "unknown")]
 public abstract partial record CommandAction
 {
-    public sealed partial record ReadCommandAction(
-        [property: JsonPropertyName("command")]
-        string Command,
-        [property: JsonPropertyName("name")]
-        string Name,
-        [property: JsonPropertyName("path")]
-        string Path
-    ) : CommandAction;
+    public sealed partial record ReadCommandAction : CommandAction
+    {
+        [JsonPropertyName("command")]
+        public string Command { get; set; } = string.Empty;
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = string.Empty;
+        [JsonPropertyName("path")]
+        public string Path { get; set; } = string.Empty;
+    }
 
-    public sealed partial record ListFilesCommandAction(
-        [property: JsonPropertyName("command")]
-        string Command,
-        [property: JsonPropertyName("path")]
-        string? Path
-    ) : CommandAction;
+    public sealed partial record ListFilesCommandAction : CommandAction
+    {
+        [JsonPropertyName("command")]
+        public string Command { get; set; } = string.Empty;
+        [JsonPropertyName("path")]
+        public string? Path { get; set; }
+    }
 
-    public sealed partial record SearchCommandAction(
-        [property: JsonPropertyName("command")]
-        string Command,
-        [property: JsonPropertyName("path")]
-        string? Path,
-        [property: JsonPropertyName("query")]
-        string? Query
-    ) : CommandAction;
+    public sealed partial record SearchCommandAction : CommandAction
+    {
+        [JsonPropertyName("command")]
+        public string Command { get; set; } = string.Empty;
+        [JsonPropertyName("path")]
+        public string? Path { get; set; }
+        [JsonPropertyName("query")]
+        public string? Query { get; set; }
+    }
 
-    public sealed partial record UnknownCommandAction(
-        [property: JsonPropertyName("command")]
-        string Command
-    ) : CommandAction;
+    public sealed partial record UnknownCommandAction : CommandAction
+    {
+        [JsonPropertyName("command")]
+        public string Command { get; set; } = string.Empty;
+    }
 
 }

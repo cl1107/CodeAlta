@@ -6,10 +6,11 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record ReviewStartResponse(
+public sealed partial record ReviewStartResponse
+{
     /// <summary>Identifies the thread where the review runs.  For inline reviews, this is the original thread id. For detached reviews, this is the id of the new review thread.</summary>
-    [property: JsonPropertyName("reviewThreadId")]
-    string ReviewThreadId,
-    [property: JsonPropertyName("turn")]
-    Turn Turn
-);
+    [JsonPropertyName("reviewThreadId")]
+    public string ReviewThreadId { get; set; } = string.Empty;
+    [JsonPropertyName("turn")]
+    public Turn Turn { get; set; } = default!;
+}

@@ -9,17 +9,18 @@ namespace CodeNoesis.CodexSdk.V2;
 /// <summary>
 /// Definition for a tool the client can call.
 /// </summary>
-public sealed partial record Tool(
-    [property: JsonPropertyName("inputSchema")]
-    ToolInputSchema InputSchema,
-    [property: JsonPropertyName("name")]
-    string Name,
-    [property: JsonPropertyName("annotations")]
-    ToolAnnotations? Annotations,
-    [property: JsonPropertyName("description")]
-    string? Description,
-    [property: JsonPropertyName("outputSchema")]
-    ToolOutputSchema? OutputSchema,
-    [property: JsonPropertyName("title")]
-    string? Title
-);
+public sealed partial record Tool
+{
+    [JsonPropertyName("inputSchema")]
+    public ToolInputSchema InputSchema { get; set; } = default!;
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+    [JsonPropertyName("annotations")]
+    public ToolAnnotations? Annotations { get; set; }
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+    [JsonPropertyName("outputSchema")]
+    public ToolOutputSchema? OutputSchema { get; set; }
+    [JsonPropertyName("title")]
+    public string? Title { get; set; }
+}

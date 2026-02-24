@@ -6,7 +6,7 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public readonly partial struct SubAgentSource
+public partial struct SubAgentSource
 {
-    public JsonElement Value { get; init; }
+    public JsonElement Value { get; set; }
 }

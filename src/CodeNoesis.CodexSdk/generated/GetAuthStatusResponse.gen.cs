@@ -6,11 +6,12 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record GetAuthStatusResponse(
-    [property: JsonPropertyName("authMethod")]
-    AuthMode? AuthMethod,
-    [property: JsonPropertyName("authToken")]
-    string? AuthToken,
-    [property: JsonPropertyName("requiresOpenaiAuth")]
-    bool? RequiresOpenaiAuth
-);
+public sealed partial record GetAuthStatusResponse
+{
+    [JsonPropertyName("authMethod")]
+    public AuthMode? AuthMethod { get; set; }
+    [JsonPropertyName("authToken")]
+    public string? AuthToken { get; set; }
+    [JsonPropertyName("requiresOpenaiAuth")]
+    public bool? RequiresOpenaiAuth { get; set; }
+}

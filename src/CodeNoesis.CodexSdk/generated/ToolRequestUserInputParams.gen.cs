@@ -9,13 +9,14 @@ namespace CodeNoesis.CodexSdk;
 /// <summary>
 /// EXPERIMENTAL. Params sent with a request_user_input event.
 /// </summary>
-public sealed partial record ToolRequestUserInputParams(
-    [property: JsonPropertyName("itemId")]
-    string ItemId,
-    [property: JsonPropertyName("questions")]
-    IReadOnlyList<ToolRequestUserInputQuestion> Questions,
-    [property: JsonPropertyName("threadId")]
-    string ThreadId,
-    [property: JsonPropertyName("turnId")]
-    string TurnId
-);
+public sealed partial record ToolRequestUserInputParams
+{
+    [JsonPropertyName("itemId")]
+    public string ItemId { get; set; } = string.Empty;
+    [JsonPropertyName("questions")]
+    public List<ToolRequestUserInputQuestion> Questions { get; set; } = [];
+    [JsonPropertyName("threadId")]
+    public string ThreadId { get; set; } = string.Empty;
+    [JsonPropertyName("turnId")]
+    public string TurnId { get; set; } = string.Empty;
+}

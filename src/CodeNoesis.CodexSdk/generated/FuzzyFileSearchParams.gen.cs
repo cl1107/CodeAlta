@@ -6,11 +6,12 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record FuzzyFileSearchParams(
-    [property: JsonPropertyName("query")]
-    string Query,
-    [property: JsonPropertyName("roots")]
-    IReadOnlyList<string> Roots,
-    [property: JsonPropertyName("cancellationToken")]
-    string? CancellationToken
-);
+public sealed partial record FuzzyFileSearchParams
+{
+    [JsonPropertyName("query")]
+    public string Query { get; set; } = string.Empty;
+    [JsonPropertyName("roots")]
+    public List<string> Roots { get; set; } = [];
+    [JsonPropertyName("cancellationToken")]
+    public string? CancellationToken { get; set; }
+}

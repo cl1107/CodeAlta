@@ -6,11 +6,12 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record SkillsListEntry(
-    [property: JsonPropertyName("cwd")]
-    string Cwd,
-    [property: JsonPropertyName("errors")]
-    IReadOnlyList<SkillErrorInfo> Errors,
-    [property: JsonPropertyName("skills")]
-    IReadOnlyList<SkillMetadata> Skills
-);
+public sealed partial record SkillsListEntry
+{
+    [JsonPropertyName("cwd")]
+    public string Cwd { get; set; } = string.Empty;
+    [JsonPropertyName("errors")]
+    public List<SkillErrorInfo> Errors { get; set; } = [];
+    [JsonPropertyName("skills")]
+    public List<SkillMetadata> Skills { get; set; } = [];
+}

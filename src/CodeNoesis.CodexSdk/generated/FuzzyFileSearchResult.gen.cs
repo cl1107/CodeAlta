@@ -9,15 +9,16 @@ namespace CodeNoesis.CodexSdk;
 /// <summary>
 /// Superset of [`codex_file_search::FileMatch`]
 /// </summary>
-public sealed partial record FuzzyFileSearchResult(
-    [property: JsonPropertyName("file_name")]
-    string FileName,
-    [property: JsonPropertyName("path")]
-    string Path,
-    [property: JsonPropertyName("root")]
-    string Root,
-    [property: JsonPropertyName("score")]
-    uint Score,
-    [property: JsonPropertyName("indices")]
-    IReadOnlyList<JsonElement>? Indices
-);
+public sealed partial record FuzzyFileSearchResult
+{
+    [JsonPropertyName("file_name")]
+    public string FileName { get; set; } = string.Empty;
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+    [JsonPropertyName("root")]
+    public string Root { get; set; } = string.Empty;
+    [JsonPropertyName("score")]
+    public uint Score { get; set; }
+    [JsonPropertyName("indices")]
+    public List<JsonElement>? Indices { get; set; }
+}

@@ -11,10 +11,11 @@ namespace CodeNoesis.CodexSdk.V2;
 /// 
 /// IMPORTANT: When deserializing an `AbsolutePathBuf`, a base path must be set using [AbsolutePathBufGuard::new]. If no base path is set, the deserialization will fail unless the path being deserialized is already absolute.
 /// </summary>
-public readonly partial record struct AbsolutePathBuf(
-    string Value)
+public partial record struct AbsolutePathBuf
 {
-    public static implicit operator AbsolutePathBuf(string value) => new(value);
+    public AbsolutePathBuf() { }
+    public string Value { get; set; } = string.Empty;
+    public static implicit operator AbsolutePathBuf(string value) => new() { Value = value };
     public static implicit operator string(AbsolutePathBuf wrapper) => wrapper.Value;
     public override string ToString() => Value?.ToString() ?? "";
 }

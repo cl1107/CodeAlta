@@ -6,11 +6,12 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record CreditsSnapshot(
-    [property: JsonPropertyName("hasCredits")]
-    bool HasCredits,
-    [property: JsonPropertyName("unlimited")]
-    bool Unlimited,
-    [property: JsonPropertyName("balance")]
-    string? Balance
-);
+public sealed partial record CreditsSnapshot
+{
+    [JsonPropertyName("hasCredits")]
+    public bool HasCredits { get; set; }
+    [JsonPropertyName("unlimited")]
+    public bool Unlimited { get; set; }
+    [JsonPropertyName("balance")]
+    public string? Balance { get; set; }
+}

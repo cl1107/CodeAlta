@@ -6,11 +6,12 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk.V2;
 
-public sealed partial record ModelListParams(
+public sealed partial record ModelListParams
+{
     /// <summary>Opaque pagination cursor returned by a previous call.</summary>
-    [property: JsonPropertyName("cursor")]
-    string? Cursor,
+    [JsonPropertyName("cursor")]
+    public string? Cursor { get; set; }
     /// <summary>Optional page size; defaults to a reasonable server-side value.</summary>
-    [property: JsonPropertyName("limit")]
-    uint? Limit
-);
+    [JsonPropertyName("limit")]
+    public uint? Limit { get; set; }
+}

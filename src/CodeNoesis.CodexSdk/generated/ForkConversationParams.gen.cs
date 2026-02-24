@@ -6,11 +6,12 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record ForkConversationParams(
-    [property: JsonPropertyName("conversationId")]
-    ThreadId? ConversationId,
-    [property: JsonPropertyName("overrides")]
-    NewConversationParams? Overrides,
-    [property: JsonPropertyName("path")]
-    string? Path
-);
+public sealed partial record ForkConversationParams
+{
+    [JsonPropertyName("conversationId")]
+    public ThreadId? ConversationId { get; set; }
+    [JsonPropertyName("overrides")]
+    public NewConversationParams? Overrides { get; set; }
+    [JsonPropertyName("path")]
+    public string? Path { get; set; }
+}

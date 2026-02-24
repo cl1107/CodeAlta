@@ -6,14 +6,15 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record RateLimitWindow(
+public sealed partial record RateLimitWindow
+{
     /// <summary>Percentage (0-100) of the window that has been consumed.</summary>
-    [property: JsonPropertyName("used_percent")]
-    double UsedPercent,
+    [JsonPropertyName("used_percent")]
+    public double UsedPercent { get; set; }
     /// <summary>Unix timestamp (seconds since epoch) when the window resets.</summary>
-    [property: JsonPropertyName("resets_at")]
-    long? ResetsAt,
+    [JsonPropertyName("resets_at")]
+    public long? ResetsAt { get; set; }
     /// <summary>Rolling window duration, in minutes.</summary>
-    [property: JsonPropertyName("window_minutes")]
-    long? WindowMinutes
-);
+    [JsonPropertyName("window_minutes")]
+    public long? WindowMinutes { get; set; }
+}

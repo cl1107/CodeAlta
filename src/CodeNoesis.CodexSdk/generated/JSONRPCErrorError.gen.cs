@@ -6,11 +6,12 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public sealed partial record JSONRPCErrorError(
-    [property: JsonPropertyName("code")]
-    long Code,
-    [property: JsonPropertyName("message")]
-    string Message,
-    [property: JsonPropertyName("data")]
-    JsonElement? Data
-);
+public sealed partial record JSONRPCErrorError
+{
+    [JsonPropertyName("code")]
+    public long Code { get; set; }
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = string.Empty;
+    [JsonPropertyName("data")]
+    public JsonElement? Data { get; set; }
+}
