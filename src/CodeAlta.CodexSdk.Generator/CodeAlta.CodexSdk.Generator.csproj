@@ -11,4 +11,12 @@
     <PackageReference Include="NJsonSchema" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="CodeAlta.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\CodeAlta.CodexSdk\CodexProcessHelper.cs" Link="CodexProcessHelper.cs" />
+  </ItemGroup>
+
 </Project>

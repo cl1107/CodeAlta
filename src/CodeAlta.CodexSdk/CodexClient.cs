@@ -37,7 +37,7 @@ namespace CodeAlta.CodexSdk;
 /// </code>
 /// </para>
 /// </remarks>
-public sealed class CodexClient : IAsyncDisposable
+public sealed partial class CodexClient : IAsyncDisposable
 {
     private readonly CodexProcess _process;
     private readonly JsonRpcTransport _transport;

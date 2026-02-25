@@ -59,8 +59,7 @@ public sealed class CodexProcess : IAsyncDisposable
         options ??= new CodexProcessOptions();
 
         var exePath = options.CodexPath
-                      ?? FindExecutable("codex")
-                      ?? (options.TryFnmLookup ? FindExecutableViaFnm("codex") : null)
+                      ?? CodexProcessHelper.ResolveCodexExecutable(options.TryFnmLookup)
                       ?? throw new FileNotFoundException(
                           "Could not find the 'codex' executable on PATH. " +
                           "Ensure codex is installed (e.g., via npm) and available in your PATH, " +
@@ -71,14 +70,13 @@ public sealed class CodexProcess : IAsyncDisposable
             logger.Debug($"Starting codex process with executable: {exePath}");
         }
 
-        var psi = new ProcessStartInfo(exePath, "app-server --listen stdio://")
-        {
-            RedirectStandardInput = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true
-        };
+        var psi = CodexProcessHelper.CreateCommandProcessStartInfo(
+            exePath,
+            "app-server --listen stdio://",
+            redirectStandardInput: true,
+            redirectStandardOutput: true,
+            redirectStandardError: true,
+            createNoWindow: true);
 
         var process = Process.Start(psi)
                       ?? throw new InvalidOperationException($"Failed to start codex process: {exePath}");
@@ -142,8 +140,7 @@ public sealed class CodexProcess : IAsyncDisposable
     /// <returns>The full path to the executable, or <see langword="null"/> if not found.</returns>
     internal static string? FindExecutable(string name)
     {
-        var pathVar = Environment.GetEnvironmentVariable("PATH") ?? "";
-        return FindExecutableInDirectories(name, pathVar.Split(Path.PathSeparator));
+        return CodexProcessHelper.FindExecutable(name);
     }
 
     /// <summary>
@@ -159,53 +156,7 @@ public sealed class CodexProcess : IAsyncDisposable
     /// </remarks>
     internal static string? FindExecutableViaFnm(string name)
     {
-        var fnmPath = FindExecutable("fnm");
-        if (fnmPath is null)
-            return null;
-
-        var multishellDir = GetFnmMultishellPath(fnmPath);
-        if (multishellDir is null)
-            return null;
-
-        return FindExecutableInDirectories(name, [multishellDir]);
-    }
-
-    /// <summary>
-    /// Runs <c>fnm env --shell cmd</c> and extracts <c>FNM_MULTISHELL_PATH</c>.
-    /// </summary>
-    /// <returns>The directory path, or <see langword="null"/> on failure.</returns>
-    private static string? GetFnmMultishellPath(string fnmPath)
-    {
-        var psi = new ProcessStartInfo(fnmPath, "env --shell cmd")
-        {
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true
-        };
-
-        Process? proc;
-        try
-        {
-            proc = Process.Start(psi);
-        }
-        catch (Exception)
-        {
-            return null;
-        }
-
-        if (proc is null)
-            return null;
-
-        using (proc)
-        {
-            var output = proc.StandardOutput.ReadToEnd();
-            proc.WaitForExit();
-            if (proc.ExitCode != 0)
-                return null;
-
-            return ParseFnmMultishellPath(output);
-        }
+        return CodexProcessHelper.FindExecutableViaFnm(name);
     }
 
     /// <summary>
@@ -214,43 +165,6 @@ public sealed class CodexProcess : IAsyncDisposable
     /// </summary>
     internal static string? ParseFnmMultishellPath(string fnmEnvOutput)
     {
-        const string prefix = "SET FNM_MULTISHELL_PATH=";
-        foreach (var line in fnmEnvOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            if (line.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                return line[prefix.Length..];
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// Searches the given directories for an executable by name, respecting
-    /// platform-specific shim extensions on Windows.
-    /// </summary>
-    private static string? FindExecutableInDirectories(string name, ReadOnlySpan<string> directories)
-    {
-        var extensions = OperatingSystem.IsWindows()
-            ? new[] { ".exe", ".cmd", ".bat" }
-            : Array.Empty<string>();
-
-        foreach (var dir in directories)
-        {
-            foreach (var ext in extensions)
-            {
-                var withExt = Path.Combine(dir, name + ext);
-                if (File.Exists(withExt))
-                    return withExt;
-            }
-
-            if (!OperatingSystem.IsWindows())
-            {
-                var candidate = Path.Combine(dir, name);
-                if (File.Exists(candidate))
-                    return candidate;
-            }
-        }
-
-        return null;
+        return CodexProcessHelper.ParseFnmMultishellPath(fnmEnvOutput);
     }
 }

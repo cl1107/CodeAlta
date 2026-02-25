@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Text;
+using CodeAlta.CodexSdk;
 using CodeAlta.CodexSdk.Generator;
 
 const string schemaFolderName = "codex_app-server_schema";
@@ -28,6 +30,8 @@ for (var i = 0; i < args.Length; i++)
 // Default schema location: next to the running executable
 var exeDir = AppContext.BaseDirectory;
 var schemaDir = Path.Combine(exeDir, schemaFolderName);
+var codexPath = CodexProcessHelper.ResolveCodexExecutable(tryFnmLookup: true);
+var codexVersionInfo = await CodexVersionDetector.DetectAsync(codexPath).ConfigureAwait(false);
 
 if (schemaFile is null)
 {
@@ -41,37 +45,25 @@ if (schemaFile is null)
 
         // Resolve the codex executable. On Windows it may be a .ps1/.cmd shim
         // installed via fnm/npm, so fall back to invoking through the shell.
-        var codexPath = FindExecutable("codex");
         ProcessStartInfo psi;
         if (codexPath != null)
         {
-            psi = new ProcessStartInfo(codexPath, $"app-server generate-json-schema --out \"{schemaDir}\"")
-            {
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false
-            };
+            psi = CodexProcessHelper.CreateCommandProcessStartInfo(
+                codexPath,
+                $"app-server generate-json-schema --out \"{schemaDir}\"");
         }
         else if (OperatingSystem.IsWindows())
         {
             // Use pwsh to resolve PATH shims (.ps1 / .cmd wrappers)
-            psi = new ProcessStartInfo("pwsh",
-                $"-NoProfile -NonInteractive -Command \"codex app-server generate-json-schema --out '{schemaDir}'\"")
-            {
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false
-            };
+            psi = CodexProcessHelper.CreateCommandProcessStartInfo(
+                "pwsh",
+                $"-NoProfile -NonInteractive -Command \"codex app-server generate-json-schema --out '{schemaDir}'\"");
         }
         else
         {
-            psi = new ProcessStartInfo("/bin/sh",
-                $"-c \"codex app-server generate-json-schema --out '{schemaDir}'\"")
-            {
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false
-            };
+            psi = CodexProcessHelper.CreateCommandProcessStartInfo(
+                "/bin/sh",
+                $"-c \"codex app-server generate-json-schema --out '{schemaDir}'\"");
         }
 
         using var proc = Process.Start(psi)
@@ -102,6 +94,9 @@ outputDir ??= Path.GetFullPath(
 Console.WriteLine($"Schema:    {schemaFile}");
 Console.WriteLine($"Output:    {outputDir}");
 Console.WriteLine($"Namespace: {rootNamespace}");
+Console.WriteLine(
+    $"Codex:     {(codexVersionInfo.IsDetected ? codexVersionInfo.Version.ToString() : "unknown")} " +
+    $"(raw: {codexVersionInfo.RawOutput})");
 Console.WriteLine();
 
 // Load all definitions
@@ -146,6 +141,12 @@ var contextPath = Path.Combine(outputDir, "CodexJsonSerializerContext.gen.cs");
 await File.WriteAllTextAsync(contextPath, contextCode).ConfigureAwait(false);
 totalFiles++;
 
+// Generate CodexClient partial metadata
+var codexClientCode = EmitCodexClientVersionPartial(rootNamespace, codexVersionInfo);
+var codexClientPath = Path.Combine(outputDir, "CodexClient.gen.cs");
+await File.WriteAllTextAsync(codexClientPath, codexClientCode).ConfigureAwait(false);
+totalFiles++;
+
 Console.WriteLine($"  (includes serializer context with {totalFiles - 1} type registrations)");
 
 // Print warnings about types that fell back to JsonElement
@@ -161,32 +162,44 @@ if (emitter.Warnings.Count > 0)
 
 return 0;
 
-static string? FindExecutable(string name)
+static string EmitCodexClientVersionPartial(string rootNamespace, CodexVersionInfo versionInfo)
 {
-    var pathVar = Environment.GetEnvironmentVariable("PATH") ?? "";
-    var extensions = OperatingSystem.IsWindows()
-        ? new[] { ".exe", ".cmd", ".bat" }
-        : Array.Empty<string>();
+    ArgumentNullException.ThrowIfNull(rootNamespace);
 
-    foreach (var dir in pathVar.Split(Path.PathSeparator))
-    {
-        // Try known executable extensions first (avoids matching Unix shell
-        // scripts on Windows that share the same base name).
-        foreach (var ext in extensions)
-        {
-            var withExt = Path.Combine(dir, name + ext);
-            if (File.Exists(withExt))
-                return withExt;
-        }
+    var escapedRawOutput = EscapeStringLiteral(versionInfo.RawOutput);
+    var version = versionInfo.Version;
+    var versionCtor = version.Revision >= 0
+        ? $"new Version({version.Major}, {version.Minor}, {version.Build}, {version.Revision})"
+        : $"new Version({version.Major}, {version.Minor}, {version.Build})";
 
-        // Direct match (Linux binary without extension)
-        if (!OperatingSystem.IsWindows())
-        {
-            var candidate = Path.Combine(dir, name);
-            if (File.Exists(candidate))
-                return candidate;
-        }
-    }
+    var builder = new StringBuilder();
+    builder.AppendLine("// <auto-generated/>");
+    builder.AppendLine("#nullable enable");
+    builder.AppendLine();
+    builder.AppendLine("using System;");
+    builder.AppendLine();
+    builder.AppendLine($"namespace {rootNamespace};");
+    builder.AppendLine();
+    builder.AppendLine("public sealed partial class CodexClient");
+    builder.AppendLine("{");
+    builder.AppendLine("    /// <summary>");
+    builder.AppendLine("    /// Gets the Codex CLI version used when generating this SDK.");
+    builder.AppendLine("    /// </summary>");
+    builder.AppendLine($"    public static Version CompiledAgainstVersion {{ get; }} = {versionCtor};");
+    builder.AppendLine();
+    builder.AppendLine("    /// <summary>");
+    builder.AppendLine("    /// Gets the raw output reported by <c>codex --version</c> during generation.");
+    builder.AppendLine("    /// </summary>");
+    builder.AppendLine($"    public const string CompiledAgainstVersionRaw = \"{escapedRawOutput}\";");
+    builder.AppendLine("}");
+    return builder.ToString();
+}
 
-    return null;
+static string EscapeStringLiteral(string value)
+{
+    return value
+        .Replace("\\", "\\\\", StringComparison.Ordinal)
+        .Replace("\"", "\\\"", StringComparison.Ordinal)
+        .Replace("\r", "\\r", StringComparison.Ordinal)
+        .Replace("\n", "\\n", StringComparison.Ordinal);
 }
