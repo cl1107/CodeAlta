@@ -6,7 +6,18 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public partial record struct LocalShellAction
+public sealed partial record LocalShellAction
 {
-    public JsonElement Value { get; set; }
+    [JsonPropertyName("command")]
+    public List<string> Command { get; set; } = [];
+    [JsonPropertyName("type")]
+    public string Type { get; set; } = string.Empty;
+    [JsonPropertyName("env")]
+    public Dictionary<string, string>? Env { get; set; }
+    [JsonPropertyName("timeout_ms")]
+    public ulong? TimeoutMs { get; set; }
+    [JsonPropertyName("user")]
+    public string? User { get; set; }
+    [JsonPropertyName("working_directory")]
+    public string? WorkingDirectory { get; set; }
 }

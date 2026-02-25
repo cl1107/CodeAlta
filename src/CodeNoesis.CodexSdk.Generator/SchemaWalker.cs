@@ -223,15 +223,18 @@ public static class SchemaWalker
     }
 
     /// <summary>
-    /// Resolve through references and allOf wrappers to get the actual schema.
+    /// Resolve through references, single-element allOf/oneOf wrappers to get the actual schema.
     /// </summary>
     public static JsonSchema Resolve(JsonSchema schema)
     {
         if (schema.HasReference)
             return Resolve(schema.Reference!);
-        // allOf with single $ref → unwrap
+        // allOf with single element → unwrap
         if (schema.AllOf.Count == 1 && schema.Type == JsonObjectType.None)
             return Resolve(schema.AllOf.First());
+        // oneOf with single element → unwrap (Rust serde single-variant enums)
+        if (schema.OneOf.Count == 1 && schema.Type == JsonObjectType.None)
+            return Resolve(schema.OneOf.First());
         return schema;
     }
 

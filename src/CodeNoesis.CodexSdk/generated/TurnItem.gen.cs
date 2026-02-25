@@ -31,7 +31,7 @@ public abstract partial record TurnItem
     public sealed partial record AgentMessageTurnItem : TurnItem
     {
         [JsonPropertyName("content")]
-        public List<AgentMessageContent> Content { get; set; } = [];
+        public List<JsonElement> Content { get; set; } = [];
         [JsonPropertyName("id")]
         public string Id { get; set; } = string.Empty;
         /// <summary>Optional phase metadata carried through from `ResponseItem::Message`.  This is currently used by TUI rendering to distinguish mid-turn commentary from a final answer and avoid status-indicator jitter.</summary>

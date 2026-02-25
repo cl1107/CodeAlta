@@ -6,7 +6,12 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public partial record struct ChatgptAuthTokensRefreshReason
+/// <summary>
+/// Codex attempted a backend request and received `401 Unauthorized`.
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter<ChatgptAuthTokensRefreshReason>))]
+public enum ChatgptAuthTokensRefreshReason
 {
-    public JsonElement Value { get; set; }
+    [JsonStringEnumMemberName("unauthorized")]
+    Unauthorized
 }
