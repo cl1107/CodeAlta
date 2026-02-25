@@ -1,4 +1,4 @@
-# CodeNoesis — Codex Agent Instructions
+# CodeAlta — Codex Agent Instructions
 
 An agentic AI coding CLI assistant developed in .NET.
 
@@ -8,10 +8,10 @@ Paths/commands below are relative to this directory.
 
 ## Orientation
 
-- Library: `src/CodeNoesis/`
-- Library: `src/CodeNoesis.CodexSdk/` (Codex app-server API client)
-- Executable: `src/CodeNoesis.CodexSdk.Generator/` (CLI tool for generating Codex SDK C# .NET API)
-- Tests: `src/CodeNoesis.Tests/` (MSTest)
+- Library: `src/CodeAlta/`
+- Library: `src/CodeAlta.CodexSdk/` (Codex app-server API client)
+- Executable: `src/CodeAlta.CodexSdk.Generator/` (CLI tool for generating Codex SDK C# .NET API)
+- Tests: `src/CodeAlta.Tests/` (MSTest)
 - Docs to keep in sync with behavior: `readme.md` and the docs under `doc/` (e.g., `doc/**/*.md`)
 
 ## Build & Test

@@ -1,7 +1,7 @@
 # configuration file for dotnet-releaser
 # Disable default packs - It will only publish NuGet and the Changelog
 [msbuild]
-project = "CodeNoesis.slnx"
+project = "CodeAlta.slnx"
 [github]
 user = "xoofx"
-repo = "CodeNoesis"
+repo = "CodeAlta"

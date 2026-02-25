@@ -1,6 +1,6 @@
-# CodeNoesis [![ci](https://github.com/xoofx/CodeNoesis/actions/workflows/ci.yml/badge.svg)](https://github.com/xoofx/CodeNoesis/actions/workflows/ci.yml) [![NuGet](https://img.shields.io/nuget/v/CodeNoesis.svg)](https://www.nuget.org/packages/CodeNoesis/)
+# CodeAlta [![ci](https://github.com/xoofx/CodeAlta/actions/workflows/ci.yml/badge.svg)](https://github.com/xoofx/CodeAlta/actions/workflows/ci.yml) [![NuGet](https://img.shields.io/nuget/v/CodeAlta.svg)](https://www.nuget.org/packages/CodeAlta/)
 
-<img align="right" width="160px" height="160px" src="https://raw.githubusercontent.com/xoofx/CodeNoesis/main/img/CodeNoesis.png">
+<img align="right" width="160px" height="160px" src="https://raw.githubusercontent.com/xoofx/CodeAlta/main/img/CodeAlta.png">
 
 An agentic AI coding CLI assistant developed in .NET.
 
@@ -10,7 +10,7 @@ An agentic AI coding CLI assistant developed in .NET.
 
 ## 📖 User Guide
 
-For more details on how to use CodeNoesis, please visit the [user guide](https://github.com/xoofx/CodeNoesis/blob/main/doc/readme.md).
+For more details on how to use CodeAlta, please visit the [user guide](https://github.com/xoofx/CodeAlta/blob/main/doc/readme.md).
 
 ## 🪪 License
 
