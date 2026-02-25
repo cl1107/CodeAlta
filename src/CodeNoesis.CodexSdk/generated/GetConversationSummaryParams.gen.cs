@@ -6,7 +6,69 @@ using System.Text.Json.Serialization;
 
 namespace CodeNoesis.CodexSdk;
 
-public partial struct GetConversationSummaryParams
+internal sealed class GetConversationSummaryParamsJsonConverter : JsonConverter<GetConversationSummaryParams>
 {
-    public JsonElement Value { get; set; }
+    public override GetConversationSummaryParams Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.String)
+        {
+            var s = reader.GetString();
+            return s switch
+            {
+                _ => throw new JsonException($"Unknown GetConversationSummaryParams string variant: '{s}'.")
+            };
+        }
+
+        if (reader.TokenType == JsonTokenType.StartObject)
+        {
+            using var doc = JsonDocument.ParseValue(ref reader);
+            var obj = doc.RootElement;
+            if (obj.TryGetProperty("rolloutPath", out var rolloutpathElem))
+                return new GetConversationSummaryParams.RolloutPath { Value = JsonSerializer.Deserialize<string>(rolloutpathElem, options)! };
+            if (obj.TryGetProperty("conversationId", out var conversationidElem))
+                return new GetConversationSummaryParams.ConversationId { Value = JsonSerializer.Deserialize<ThreadId>(conversationidElem, options)! };
+            throw new JsonException($"Unknown GetConversationSummaryParams object variant. Properties: {string.Join(", ", EnumeratePropertyNames(obj))}");
+        }
+
+        throw new JsonException($"Unexpected token {reader.TokenType} for GetConversationSummaryParams.");
+    }
+
+    private static IEnumerable<string> EnumeratePropertyNames(JsonElement element)
+    {
+        foreach (var p in element.EnumerateObject()) yield return p.Name;
+    }
+
+    public override void Write(Utf8JsonWriter writer, GetConversationSummaryParams value, JsonSerializerOptions options)
+    {
+        switch (value)
+        {
+            case GetConversationSummaryParams.RolloutPath v:
+                writer.WriteStartObject();
+                writer.WritePropertyName("rolloutPath");
+                JsonSerializer.Serialize(writer, v.Value, options);
+                writer.WriteEndObject();
+                break;
+            case GetConversationSummaryParams.ConversationId v:
+                writer.WriteStartObject();
+                writer.WritePropertyName("conversationId");
+                JsonSerializer.Serialize(writer, v.Value, options);
+                writer.WriteEndObject();
+                break;
+            default:
+                throw new JsonException($"Unknown GetConversationSummaryParams variant: {value.GetType().Name}");
+        }
+    }
+}
+
+[JsonConverter(typeof(GetConversationSummaryParamsJsonConverter))]
+public abstract partial record GetConversationSummaryParams
+{
+    public sealed partial record RolloutPath : GetConversationSummaryParams
+    {
+        public string Value { get; set; } = string.Empty;
+    }
+    public sealed partial record ConversationId : GetConversationSummaryParams
+    {
+        public ThreadId Value { get; set; } = default!;
+    }
 }

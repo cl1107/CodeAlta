@@ -232,6 +232,8 @@ namespace CodeNoesis.CodexSdk;
 [JsonSerializable(typeof(GetAuthStatusParams))]
 [JsonSerializable(typeof(GetAuthStatusResponse))]
 [JsonSerializable(typeof(GetConversationSummaryParams))]
+[JsonSerializable(typeof(GetConversationSummaryParams.ConversationId))]
+[JsonSerializable(typeof(GetConversationSummaryParams.RolloutPath))]
 [JsonSerializable(typeof(GetConversationSummaryResponse))]
 [JsonSerializable(typeof(GetUserAgentResponse))]
 [JsonSerializable(typeof(GetUserSavedConfigResponse))]

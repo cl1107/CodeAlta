@@ -276,7 +276,7 @@ public class CSharpEmitter
         WriteDescription(sb, schema.Description);
 
         // Check if it's a Rust-style key-discriminated enum (like AgentStatus, Result<T,E>)
-        var keyVariants = DetectKeyDiscriminated(schema);
+        var keyVariants = DetectKeyDiscriminated(schema.OneOf);
         if (keyVariants != null)
             return EmitKeyDiscriminatedUnion(def, schema, keyVariants);
 
@@ -298,12 +298,12 @@ public class CSharpEmitter
     }
 
     private List<(string key, JsonSchema valueSchema, bool isString)>?
-        DetectKeyDiscriminated(JsonSchema schema)
+        DetectKeyDiscriminated(ICollection<JsonSchema> variants)
     {
         // Pattern: each variant is either a string enum or an object with
         // exactly one property and additionalProperties: false
         var results = new List<(string, JsonSchema, bool)>();
-        foreach (var variant in schema.OneOf)
+        foreach (var variant in variants)
         {
             var v = SchemaWalker.Resolve(variant);
             if (v.Type == JsonObjectType.String && v.Enumeration?.Count >= 1)
@@ -465,6 +465,11 @@ public class CSharpEmitter
             sb.AppendLine($"public abstract partial record {def.Name};");
             return sb.ToString();
         }
+
+        // Check if it's a key-discriminated enum (serde untagged with distinct keys)
+        var keyVariants = DetectKeyDiscriminated(schema.AnyOf);
+        if (keyVariants != null)
+            return EmitKeyDiscriminatedUnion(def, schema, keyVariants);
 
         // Fallback
         var variantSummary = string.Join(", ", schema.AnyOf.Select(v =>
