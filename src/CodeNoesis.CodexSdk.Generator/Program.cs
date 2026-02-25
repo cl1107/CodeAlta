@@ -147,6 +147,18 @@ await File.WriteAllTextAsync(contextPath, contextCode).ConfigureAwait(false);
 totalFiles++;
 
 Console.WriteLine($"  (includes serializer context with {totalFiles - 1} type registrations)");
+
+// Print warnings about types that fell back to JsonElement
+if (emitter.Warnings.Count > 0)
+{
+    Console.WriteLine();
+    Console.ForegroundColor = ConsoleColor.Yellow;
+    Console.WriteLine($"Warnings ({emitter.Warnings.Count}):");
+    foreach (var warning in emitter.Warnings)
+        Console.WriteLine($"  WARN: {warning}");
+    Console.ResetColor();
+}
+
 return 0;
 
 static string? FindExecutable(string name)

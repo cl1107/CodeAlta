@@ -20,6 +20,10 @@ public class CSharpEmitter
     private readonly List<string> _serializableTypes = [];
     private readonly HashSet<string> _collectionTypes = new(StringComparer.Ordinal);
     private readonly HashSet<string> _valueTypes = new(StringComparer.Ordinal);
+    private readonly List<string> _warnings = [];
+
+    /// <summary>Warnings collected during code generation.</summary>
+    public IReadOnlyList<string> Warnings => _warnings;
 
     public CSharpEmitter(IReadOnlyList<TypeDef> allDefs, string rootNamespace)
     {
@@ -40,6 +44,7 @@ public class CSharpEmitter
         _serializableTypes.Clear();
         _collectionTypes.Clear();
         _valueTypes.Clear();
+        _warnings.Clear();
 
         foreach (var def in defs)
         {
@@ -174,7 +179,8 @@ public class CSharpEmitter
         foreach (var v in disc.Variants)
         {
             var variantTypeName = SanitizeVariantTitle(v.Title, def.Name);
-            var props = GetVariantProperties(v.Schema, disc.PropertyName, def.CsNamespace);
+            var props = GetVariantProperties(v.Schema, disc.PropertyName, def.CsNamespace,
+                $"{def.Name}.{variantTypeName}");
             props = FixPropertyNameCollisions(props, variantTypeName);
 
             var desc = v.Schema.Description;
@@ -231,7 +237,8 @@ public class CSharpEmitter
     }
 
     private List<PropertyInfo> GetVariantProperties(
-        JsonSchema variant, string discriminatorProp, string contextNs)
+        JsonSchema variant, string discriminatorProp, string contextNs,
+        string? ownerTypeName = null)
     {
         var props = new List<PropertyInfo>();
         var required = variant.RequiredProperties.ToHashSet(StringComparer.Ordinal);
@@ -250,6 +257,9 @@ public class CSharpEmitter
             var csName = ToCsPropertyName(name);
             props.Add(new PropertyInfo(name, csName, csType, isRequired,
                 propSchema.Description));
+
+            if (ownerTypeName != null && csType.Contains("JsonElement"))
+                WarnJsonElementProperty(ownerTypeName, contextNs, name, csType, propSchema);
         }
         return props;
     }
@@ -271,6 +281,15 @@ public class CSharpEmitter
             return EmitKeyDiscriminatedUnion(def, schema, keyVariants);
 
         // Fallback: JsonElement wrapper — no custom converter, deserialize manually
+        var variantSummary = string.Join(", ", schema.OneOf.Select(v =>
+        {
+            var r = SchemaWalker.Resolve(v);
+            if (r.Type != JsonObjectType.None) return r.Type.ToString();
+            if (r.Properties.Count > 0) return "{" + string.Join(",", r.Properties.Keys) + "}";
+            return r.Title ?? "?";
+        }));
+        _warnings.Add($"oneOf without discriminator: {def.CsNamespace}.{def.Name} — emitted as JsonElement wrapper. Variants: [{variantSummary}]");
+
         sb.AppendLine($"public partial struct {def.Name}");
         sb.AppendLine("{");
         sb.AppendLine($"    public JsonElement Value {{ get; set; }}");
@@ -448,6 +467,14 @@ public class CSharpEmitter
         }
 
         // Fallback
+        var variantSummary = string.Join(", ", schema.AnyOf.Select(v =>
+        {
+            var r = SchemaWalker.Resolve(v);
+            if (r.Type != JsonObjectType.None) return r.Type.ToString();
+            return r.Title ?? "?";
+        }));
+        _warnings.Add($"anyOf without $ref variants: {def.CsNamespace}.{def.Name} — emitted as JsonElement wrapper. Variants: [{variantSummary}]");
+
         sb.AppendLine($"public partial struct {def.Name}");
         sb.AppendLine("{");
         sb.AppendLine($"    public JsonElement Value {{ get; set; }}");
@@ -465,7 +492,7 @@ public class CSharpEmitter
         WriteFileHeader(sb, def.CsNamespace);
         WriteDescription(sb, schema.Description);
 
-        var props = GetObjectProperties(schema, def.CsNamespace);
+        var props = GetObjectProperties(schema, def.CsNamespace, def.Name);
         props = FixPropertyNameCollisions(props, def.Name);
         var hasAdditionalProps = schema.AdditionalPropertiesSchema != null &&
                                   schema.AdditionalPropertiesSchema.Type != JsonObjectType.None;
@@ -501,7 +528,7 @@ public class CSharpEmitter
     }
 
     private List<PropertyInfo> GetObjectProperties(
-        JsonSchema schema, string contextNamespace)
+        JsonSchema schema, string contextNamespace, string? ownerTypeName = null)
     {
         var props = new List<PropertyInfo>();
         var required = schema.RequiredProperties.ToHashSet(StringComparer.Ordinal);
@@ -513,6 +540,9 @@ public class CSharpEmitter
             var csName = ToCsPropertyName(name);
             props.Add(new PropertyInfo(name, csName, csType, isRequired,
                 propSchema.Description));
+
+            if (ownerTypeName != null && csType.Contains("JsonElement"))
+                WarnJsonElementProperty(ownerTypeName, contextNamespace, name, csType, propSchema);
         }
 
         // Sort: required first, then optional
@@ -520,6 +550,28 @@ public class CSharpEmitter
             .OrderByDescending(p => p.IsRequired)
             .ThenBy(p => p.CsName)
             .ToList();
+    }
+
+    private void WarnJsonElementProperty(
+        string ownerType, string ns, string jsonPropName, string csType, JsonSchema propSchema)
+    {
+        var resolved = SchemaWalker.Resolve(propSchema);
+        var reason = resolved switch
+        {
+            _ when resolved.Type.HasFlag(JsonObjectType.Object) && resolved.Properties.Count == 0
+                && resolved.AdditionalPropertiesSchema is null
+                => "anonymous object (no properties)",
+            _ when resolved.Type.HasFlag(JsonObjectType.Array) && resolved.Item is null
+                => "array without items schema",
+            { Type: JsonObjectType.None } when resolved.OneOf.Count == 0
+                && resolved.AnyOf.Count == 0 && resolved.AllOf.Count == 0
+                && !resolved.HasReference
+                => "true/empty schema (accepts any JSON)",
+            _ when resolved.OneOf.Count > 0 => "inline oneOf",
+            _ when resolved.AnyOf.Count > 0 => "inline anyOf",
+            _ => "unresolved schema"
+        };
+        _warnings.Add($"  {ns}.{ownerType}.{jsonPropName} ({csType}): {reason}");
     }
 
     /// <summary>
@@ -583,6 +635,18 @@ public class CSharpEmitter
         var sb = new StringBuilder();
         WriteFileHeader(sb, def.CsNamespace);
         WriteDescription(sb, schema.Description);
+
+        var reason = schema.Type switch
+        {
+            _ when schema.OneOf.Count > 0 => "unresolved oneOf",
+            _ when schema.AnyOf.Count > 0 => "unresolved anyOf",
+            _ when schema.AllOf.Count > 0 => "unresolved allOf",
+            var t when t.HasFlag(JsonObjectType.Object) => "untyped object",
+            JsonObjectType.None => "empty/true schema",
+            _ => $"unsupported type: {schema.Type}"
+        };
+        _warnings.Add($"JsonElement wrapper: {def.CsNamespace}.{def.Name} — {reason}");
+
         sb.AppendLine($"public partial record struct {def.Name}");
         sb.AppendLine("{");
         sb.AppendLine($"    public JsonElement Value {{ get; set; }}");

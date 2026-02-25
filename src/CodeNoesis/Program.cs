@@ -68,7 +68,7 @@ LogManager.Initialize(new LogManagerConfig()
 {
     RootLogger =
     {
-        MinimumLevel = LogLevel.Trace,
+        MinimumLevel = LogLevel.Info,
         Writers =
         {
             new TerminalLogWriter()
@@ -114,6 +114,16 @@ experimentalList.Data.ForEach(feature =>
     Console.WriteLine($"Experimental feature: {feature}");
 });
 
+
+var skillList = await codexClient.SkillsListAsync(new());
+skillList.Data.ForEach(skill =>
+{
+    Console.WriteLine($"Skill:");
+    foreach (var skillMeta in skill.Skills)
+    {
+        Console.WriteLine($"  {skillMeta}");
+    }
+});
 
 return;
 var accountRead = await codexClient.AccountReadAsync(new GetAccountParams());
