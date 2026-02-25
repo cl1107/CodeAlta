@@ -28,8 +28,8 @@ internal sealed class SessionSourceJsonConverter : JsonConverter<SessionSource>
         {
             using var doc = JsonDocument.ParseValue(ref reader);
             var obj = doc.RootElement;
-            if (obj.TryGetProperty("subagent", out var subagentElem))
-                return new SessionSource.Subagent { Value = JsonSerializer.Deserialize<SubAgentSource>(subagentElem, options)! };
+            if (obj.TryGetProperty("subagent", out var __SubagentElem))
+                return new SessionSource.Subagent { Value = JsonSerializer.Deserialize<SubAgentSource>(__SubagentElem, options)! };
             throw new JsonException($"Unknown SessionSource object variant. Properties: {string.Join(", ", EnumeratePropertyNames(obj))}");
         }
 

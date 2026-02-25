@@ -23,10 +23,10 @@ internal sealed class GetConversationSummaryParamsJsonConverter : JsonConverter<
         {
             using var doc = JsonDocument.ParseValue(ref reader);
             var obj = doc.RootElement;
-            if (obj.TryGetProperty("rolloutPath", out var rolloutpathElem))
-                return new GetConversationSummaryParams.RolloutPath { Value = JsonSerializer.Deserialize<string>(rolloutpathElem, options)! };
-            if (obj.TryGetProperty("conversationId", out var conversationidElem))
-                return new GetConversationSummaryParams.ConversationId { Value = JsonSerializer.Deserialize<ThreadId>(conversationidElem, options)! };
+            if (obj.TryGetProperty("rolloutPath", out var __RolloutPathElem))
+                return new GetConversationSummaryParams.RolloutPath { Value = JsonSerializer.Deserialize<string>(__RolloutPathElem, options)! };
+            if (obj.TryGetProperty("conversationId", out var __ConversationIdElem))
+                return new GetConversationSummaryParams.ConversationId { Value = JsonSerializer.Deserialize<ThreadId>(__ConversationIdElem, options)! };
             throw new JsonException($"Unknown GetConversationSummaryParams object variant. Properties: {string.Join(", ", EnumeratePropertyNames(obj))}");
         }
 

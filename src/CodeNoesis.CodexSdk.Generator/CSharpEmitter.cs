@@ -280,6 +280,11 @@ public class CSharpEmitter
         if (keyVariants != null)
             return EmitKeyDiscriminatedUnion(def, schema, keyVariants);
 
+        // Check if all variants have distinct JSON token types
+        var tokenVariants = DetectTokenDiscriminated(schema.OneOf, def.CsNamespace);
+        if (tokenVariants != null)
+            return EmitTokenDiscriminatedUnion(def, schema, tokenVariants);
+
         // Fallback: JsonElement wrapper — no custom converter, deserialize manually
         var variantSummary = string.Join(", ", schema.OneOf.Select(v =>
         {
@@ -325,6 +330,53 @@ public class CSharpEmitter
         return results.Count > 0 ? results : null;
     }
 
+    /// <summary>
+    /// Detects an anyOf/oneOf where every variant has a distinct JSON token type
+    /// (String vs Number vs Boolean vs Array vs Object), enabling discrimination
+    /// by <see cref="JsonTokenType"/> at read time.
+    /// </summary>
+    private List<(string variantName, JsonObjectType tokenCategory, string csType)>?
+        DetectTokenDiscriminated(ICollection<JsonSchema> variants, string contextNs)
+    {
+        var results = new List<(string, JsonObjectType, string)>();
+        var seenTokenTypes = new HashSet<JsonObjectType>();
+
+        foreach (var variant in variants)
+        {
+            var v = SchemaWalker.Resolve(variant);
+            var baseType = v.Type & ~JsonObjectType.Null;
+            if (baseType == JsonObjectType.None) return null;
+
+            // Integer and Number both map to JsonTokenType.Number, so they
+            // share the same token category and cannot coexist.
+            JsonObjectType tokenCategory;
+            if (baseType == JsonObjectType.String) tokenCategory = JsonObjectType.String;
+            else if (baseType is JsonObjectType.Integer or JsonObjectType.Number) tokenCategory = JsonObjectType.Number;
+            else if (baseType == JsonObjectType.Boolean) tokenCategory = JsonObjectType.Boolean;
+            else if (baseType.HasFlag(JsonObjectType.Array)) tokenCategory = JsonObjectType.Array;
+            else if (baseType.HasFlag(JsonObjectType.Object)) tokenCategory = JsonObjectType.Object;
+            else return null;
+
+            if (!seenTokenTypes.Add(tokenCategory)) return null; // duplicate token type
+
+            var csType = MapType(v, contextNs);
+            var variantName = tokenCategory switch
+            {
+                JsonObjectType.String => "StringValue",
+                JsonObjectType.Number when baseType == JsonObjectType.Integer => "IntegerValue",
+                JsonObjectType.Number => "NumberValue",
+                JsonObjectType.Boolean => "BooleanValue",
+                JsonObjectType.Array => "ArrayValue",
+                JsonObjectType.Object => "ObjectValue",
+                _ => "Value"
+            };
+
+            results.Add((variantName, tokenCategory, csType));
+        }
+
+        return results.Count >= 2 ? results : null;
+    }
+
     private string EmitKeyDiscriminatedUnion(TypeDef def, JsonSchema schema,
         List<(string key, JsonSchema valueSchema, bool isString)> variants)
     {
@@ -332,20 +384,33 @@ public class CSharpEmitter
         WriteFileHeader(sb, def.CsNamespace);
         WriteDescription(sb, schema.Description);
 
-        // Build variant metadata for converter generation
-        var variantMeta = new List<(string key, string variantName, string? innerType, bool isString)>();
+        // Build variant metadata for converter generation.
+        // When the inner value type would be "JsonElement" but the resolved
+        // schema has properties, we expand those properties directly onto the
+        // variant record instead of emitting a single Value property.
+        var variantMeta = new List<(string key, string variantName, string? innerType,
+            bool isString, List<PropertyInfo>? inlineProps)>();
+
         foreach (var (key, valSchema, isString) in variants)
         {
             var variantName = SchemaWalker.ToPascalCase(key);
             if (variantName == def.Name) variantName += "Value";
 
             string? innerType = null;
+            List<PropertyInfo>? inlineProps = null;
             if (!isString)
             {
                 var resolved = SchemaWalker.Resolve(valSchema);
                 innerType = MapType(resolved, def.CsNamespace);
+
+                if (innerType == "JsonElement" && resolved.Properties.Count > 0)
+                {
+                    inlineProps = GetObjectProperties(
+                        resolved, def.CsNamespace, $"{def.Name}.{variantName}");
+                    innerType = null;
+                }
             }
-            variantMeta.Add((key, variantName, innerType, isString));
+            variantMeta.Add((key, variantName, innerType, isString, inlineProps));
         }
 
         // Emit converter class
@@ -358,7 +423,7 @@ public class CSharpEmitter
         sb.AppendLine("            var s = reader.GetString();");
         sb.AppendLine("            return s switch");
         sb.AppendLine("            {");
-        foreach (var (key, variantName, _, isString) in variantMeta)
+        foreach (var (key, variantName, _, isString, _) in variantMeta)
         {
             if (isString)
                 sb.AppendLine($"                \"{key}\" => new {def.Name}.{variantName}(),");
@@ -372,12 +437,31 @@ public class CSharpEmitter
         sb.AppendLine("            using var doc = JsonDocument.ParseValue(ref reader);");
         sb.AppendLine("            var obj = doc.RootElement;");
         // For each object variant, check if its key property exists
-        foreach (var (key, variantName, innerType, isString) in variantMeta)
+        foreach (var (key, variantName, innerType, isString, inlineProps) in variantMeta)
         {
-            if (!isString)
+            if (isString) continue;
+
+            var elemVar = $"__{variantName}Elem";
+            sb.AppendLine($"            if (obj.TryGetProperty(\"{key}\", out var {elemVar}))");
+
+            if (inlineProps != null)
             {
-                sb.AppendLine($"            if (obj.TryGetProperty(\"{key}\", out var {variantName.ToLowerInvariant()}Elem))");
-                sb.AppendLine($"                return new {def.Name}.{variantName} {{ Value = JsonSerializer.Deserialize<{innerType}>({variantName.ToLowerInvariant()}Elem, options)! }};");
+                // Inline object: read each property from the inner element.
+                sb.AppendLine("            {");
+                sb.AppendLine($"                var __result = new {def.Name}.{variantName}();");
+                foreach (var p in inlineProps)
+                {
+                    // Append null-forgiving operator for non-nullable reference types.
+                    var bang = p.CsType.EndsWith("?") || GetDefaultValue(p.CsType) is null ? "" : "!";
+                    sb.AppendLine($"                if ({elemVar}.TryGetProperty(\"{p.JsonName}\", out var __{p.CsName}Prop))");
+                    sb.AppendLine($"                    __result.{p.CsName} = JsonSerializer.Deserialize<{p.CsType}>(__{p.CsName}Prop, options){bang};");
+                }
+                sb.AppendLine("                return __result;");
+                sb.AppendLine("            }");
+            }
+            else
+            {
+                sb.AppendLine($"                return new {def.Name}.{variantName} {{ Value = JsonSerializer.Deserialize<{innerType}>({elemVar}, options)! }};");
             }
         }
         sb.AppendLine($"            throw new JsonException($\"Unknown {def.Name} object variant. Properties: {{string.Join(\", \", EnumeratePropertyNames(obj))}}\");");
@@ -395,12 +479,38 @@ public class CSharpEmitter
         sb.AppendLine("    {");
         sb.AppendLine("        switch (value)");
         sb.AppendLine("        {");
-        foreach (var (key, variantName, innerType, isString) in variantMeta)
+        foreach (var (key, variantName, innerType, isString, inlineProps) in variantMeta)
         {
             if (isString)
             {
                 sb.AppendLine($"            case {def.Name}.{variantName}:");
                 sb.AppendLine($"                writer.WriteStringValue(\"{key}\");");
+                sb.AppendLine($"                break;");
+            }
+            else if (inlineProps != null)
+            {
+                sb.AppendLine($"            case {def.Name}.{variantName} v:");
+                sb.AppendLine($"                writer.WriteStartObject();");
+                sb.AppendLine($"                writer.WritePropertyName(\"{key}\");");
+                sb.AppendLine($"                writer.WriteStartObject();");
+                foreach (var p in inlineProps)
+                {
+                    if (p.CsType.EndsWith("?"))
+                    {
+                        sb.AppendLine($"                if (v.{p.CsName} is not null)");
+                        sb.AppendLine($"                {{");
+                        sb.AppendLine($"                    writer.WritePropertyName(\"{p.JsonName}\");");
+                        sb.AppendLine($"                    JsonSerializer.Serialize(writer, v.{p.CsName}, options);");
+                        sb.AppendLine($"                }}");
+                    }
+                    else
+                    {
+                        sb.AppendLine($"                writer.WritePropertyName(\"{p.JsonName}\");");
+                        sb.AppendLine($"                JsonSerializer.Serialize(writer, v.{p.CsName}, options);");
+                    }
+                }
+                sb.AppendLine($"                writer.WriteEndObject();");
+                sb.AppendLine($"                writer.WriteEndObject();");
                 sb.AppendLine($"                break;");
             }
             else
@@ -425,11 +535,18 @@ public class CSharpEmitter
         sb.AppendLine($"public abstract partial record {def.Name}");
         sb.AppendLine("{");
 
-        foreach (var (key, variantName, innerType, isString) in variantMeta)
+        foreach (var (key, variantName, innerType, isString, inlineProps) in variantMeta)
         {
             if (isString)
             {
                 sb.AppendLine($"    public sealed partial record {variantName} : {def.Name};");
+            }
+            else if (inlineProps != null)
+            {
+                sb.AppendLine($"    public sealed partial record {variantName} : {def.Name}");
+                sb.AppendLine("    {");
+                WriteProperties(sb, inlineProps, "        ");
+                sb.AppendLine("    }");
             }
             else
             {
@@ -440,6 +557,133 @@ public class CSharpEmitter
                 sb.AppendLine($"        public {innerType} Value {{ get; set; }}{defaultSuffix}");
                 sb.AppendLine($"    }}");
             }
+
+            _serializableTypes.Add($"{def.CsNamespace}.{def.Name}.{variantName}");
+        }
+
+        sb.AppendLine("}");
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Emits a union type whose variants are discriminated by JSON token type
+    /// (e.g. string | integer, string | array). Generates a custom
+    /// <see cref="JsonConverter{T}"/> that switches on
+    /// <see cref="JsonTokenType"/> at read time.
+    /// </summary>
+    private string EmitTokenDiscriminatedUnion(TypeDef def, JsonSchema schema,
+        List<(string variantName, JsonObjectType tokenCategory, string csType)> variants)
+    {
+        var sb = new StringBuilder();
+        WriteFileHeader(sb, def.CsNamespace);
+        WriteDescription(sb, schema.Description);
+
+        var converterName = $"{def.Name}JsonConverter";
+
+        // --- Converter ---
+        sb.AppendLine($"internal sealed class {converterName} : JsonConverter<{def.Name}>");
+        sb.AppendLine("{");
+
+        // Read
+        sb.AppendLine($"    public override {def.Name} Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)");
+        sb.AppendLine("    {");
+        sb.AppendLine("        return reader.TokenType switch");
+        sb.AppendLine("        {");
+
+        foreach (var (variantName, tokenCategory, csType) in variants)
+        {
+            var readExpr = (tokenCategory, csType) switch
+            {
+                (JsonObjectType.String, _) =>
+                    $"new {def.Name}.{variantName} {{ Value = reader.GetString()! }}",
+                (JsonObjectType.Number, "long") =>
+                    $"new {def.Name}.{variantName} {{ Value = reader.GetInt64() }}",
+                (JsonObjectType.Number, "int") =>
+                    $"new {def.Name}.{variantName} {{ Value = reader.GetInt32() }}",
+                (JsonObjectType.Number, "uint") =>
+                    $"new {def.Name}.{variantName} {{ Value = reader.GetUInt32() }}",
+                (JsonObjectType.Number, "ulong") =>
+                    $"new {def.Name}.{variantName} {{ Value = reader.GetUInt64() }}",
+                (JsonObjectType.Number, "ushort") =>
+                    $"new {def.Name}.{variantName} {{ Value = (ushort)reader.GetInt32() }}",
+                (JsonObjectType.Number, "float") =>
+                    $"new {def.Name}.{variantName} {{ Value = (float)reader.GetDouble() }}",
+                (JsonObjectType.Number, "double") =>
+                    $"new {def.Name}.{variantName} {{ Value = reader.GetDouble() }}",
+                (JsonObjectType.Boolean, _) =>
+                    $"new {def.Name}.{variantName} {{ Value = reader.GetBoolean() }}",
+                (JsonObjectType.Array or JsonObjectType.Object, _) =>
+                    $"new {def.Name}.{variantName} {{ Value = JsonSerializer.Deserialize<{csType}>(ref reader, options)! }}",
+                _ => throw new InvalidOperationException(
+                    $"Unsupported token category {tokenCategory} / C# type {csType}")
+            };
+
+            // Boolean has two token types (True, False); all others have one.
+            if (tokenCategory == JsonObjectType.Boolean)
+            {
+                sb.AppendLine($"            JsonTokenType.True or JsonTokenType.False => {readExpr},");
+            }
+            else
+            {
+                var tokenTypeName = tokenCategory switch
+                {
+                    JsonObjectType.String => "JsonTokenType.String",
+                    JsonObjectType.Number => "JsonTokenType.Number",
+                    JsonObjectType.Array => "JsonTokenType.StartArray",
+                    JsonObjectType.Object => "JsonTokenType.StartObject",
+                    _ => throw new InvalidOperationException()
+                };
+                sb.AppendLine($"            {tokenTypeName} => {readExpr},");
+            }
+        }
+
+        sb.AppendLine($"            _ => throw new JsonException($\"Unexpected token {{reader.TokenType}} for {def.Name}.\")");
+        sb.AppendLine("        };");
+        sb.AppendLine("    }");
+        sb.AppendLine();
+
+        // Write
+        sb.AppendLine($"    public override void Write(Utf8JsonWriter writer, {def.Name} value, JsonSerializerOptions options)");
+        sb.AppendLine("    {");
+        sb.AppendLine("        switch (value)");
+        sb.AppendLine("        {");
+
+        foreach (var (variantName, tokenCategory, csType) in variants)
+        {
+            sb.AppendLine($"            case {def.Name}.{variantName} v:");
+            var writeStmt = tokenCategory switch
+            {
+                JsonObjectType.String => "writer.WriteStringValue(v.Value);",
+                JsonObjectType.Number => "writer.WriteNumberValue(v.Value);",
+                JsonObjectType.Boolean => "writer.WriteBooleanValue(v.Value);",
+                JsonObjectType.Array or JsonObjectType.Object =>
+                    $"JsonSerializer.Serialize(writer, v.Value, options);",
+                _ => throw new InvalidOperationException()
+            };
+            sb.AppendLine($"                {writeStmt}");
+            sb.AppendLine("                break;");
+        }
+
+        sb.AppendLine($"            default:");
+        sb.AppendLine($"                throw new JsonException($\"Unknown {def.Name} variant: {{value.GetType().Name}}\");");
+        sb.AppendLine("        }");
+        sb.AppendLine("    }");
+        sb.AppendLine("}");
+        sb.AppendLine();
+
+        // --- Type hierarchy ---
+        sb.AppendLine($"[JsonConverter(typeof({converterName}))]");
+        sb.AppendLine($"public abstract partial record {def.Name}");
+        sb.AppendLine("{");
+
+        foreach (var (variantName, _, csType) in variants)
+        {
+            var defaultVal = GetDefaultValue(csType);
+            var defaultSuffix = defaultVal != null ? $" = {defaultVal};" : "";
+            sb.AppendLine($"    public sealed partial record {variantName} : {def.Name}");
+            sb.AppendLine("    {");
+            sb.AppendLine($"        public {csType} Value {{ get; set; }}{defaultSuffix}");
+            sb.AppendLine("    }");
 
             _serializableTypes.Add($"{def.CsNamespace}.{def.Name}.{variantName}");
         }
@@ -470,6 +714,11 @@ public class CSharpEmitter
         var keyVariants = DetectKeyDiscriminated(schema.AnyOf);
         if (keyVariants != null)
             return EmitKeyDiscriminatedUnion(def, schema, keyVariants);
+
+        // Check if all variants have distinct JSON token types (string vs number vs array etc.)
+        var tokenVariants = DetectTokenDiscriminated(schema.AnyOf, def.CsNamespace);
+        if (tokenVariants != null)
+            return EmitTokenDiscriminatedUnion(def, schema, tokenVariants);
 
         // Fallback
         var variantSummary = string.Join(", ", schema.AnyOf.Select(v =>

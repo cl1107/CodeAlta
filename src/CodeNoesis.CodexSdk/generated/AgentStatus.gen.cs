@@ -30,10 +30,10 @@ internal sealed class AgentStatusJsonConverter : JsonConverter<AgentStatus>
         {
             using var doc = JsonDocument.ParseValue(ref reader);
             var obj = doc.RootElement;
-            if (obj.TryGetProperty("completed", out var completedElem))
-                return new AgentStatus.Completed { Value = JsonSerializer.Deserialize<string?>(completedElem, options)! };
-            if (obj.TryGetProperty("errored", out var erroredElem))
-                return new AgentStatus.Errored { Value = JsonSerializer.Deserialize<string>(erroredElem, options)! };
+            if (obj.TryGetProperty("completed", out var __CompletedElem))
+                return new AgentStatus.Completed { Value = JsonSerializer.Deserialize<string?>(__CompletedElem, options)! };
+            if (obj.TryGetProperty("errored", out var __ErroredElem))
+                return new AgentStatus.Errored { Value = JsonSerializer.Deserialize<string>(__ErroredElem, options)! };
             throw new JsonException($"Unknown AgentStatus object variant. Properties: {string.Join(", ", EnumeratePropertyNames(obj))}");
         }
 

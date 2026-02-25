@@ -26,10 +26,17 @@ internal sealed class SubAgentSourceJsonConverter : JsonConverter<SubAgentSource
         {
             using var doc = JsonDocument.ParseValue(ref reader);
             var obj = doc.RootElement;
-            if (obj.TryGetProperty("thread_spawn", out var threadspawnElem))
-                return new SubAgentSource.ThreadSpawn { Value = JsonSerializer.Deserialize<JsonElement>(threadspawnElem, options)! };
-            if (obj.TryGetProperty("other", out var otherElem))
-                return new SubAgentSource.Other { Value = JsonSerializer.Deserialize<string>(otherElem, options)! };
+            if (obj.TryGetProperty("thread_spawn", out var __ThreadSpawnElem))
+            {
+                var __result = new SubAgentSource.ThreadSpawn();
+                if (__ThreadSpawnElem.TryGetProperty("depth", out var __DepthProp))
+                    __result.Depth = JsonSerializer.Deserialize<int>(__DepthProp, options);
+                if (__ThreadSpawnElem.TryGetProperty("parent_thread_id", out var __ParentThreadIdProp))
+                    __result.ParentThreadId = JsonSerializer.Deserialize<ThreadId>(__ParentThreadIdProp, options)!;
+                return __result;
+            }
+            if (obj.TryGetProperty("other", out var __OtherElem))
+                return new SubAgentSource.Other { Value = JsonSerializer.Deserialize<string>(__OtherElem, options)! };
             throw new JsonException($"Unknown SubAgentSource object variant. Properties: {string.Join(", ", EnumeratePropertyNames(obj))}");
         }
 
@@ -57,7 +64,12 @@ internal sealed class SubAgentSourceJsonConverter : JsonConverter<SubAgentSource
             case SubAgentSource.ThreadSpawn v:
                 writer.WriteStartObject();
                 writer.WritePropertyName("thread_spawn");
-                JsonSerializer.Serialize(writer, v.Value, options);
+                writer.WriteStartObject();
+                writer.WritePropertyName("depth");
+                JsonSerializer.Serialize(writer, v.Depth, options);
+                writer.WritePropertyName("parent_thread_id");
+                JsonSerializer.Serialize(writer, v.ParentThreadId, options);
+                writer.WriteEndObject();
                 writer.WriteEndObject();
                 break;
             case SubAgentSource.Other v:
@@ -80,7 +92,10 @@ public abstract partial record SubAgentSource
     public sealed partial record MemoryConsolidation : SubAgentSource;
     public sealed partial record ThreadSpawn : SubAgentSource
     {
-        public JsonElement Value { get; set; }
+        [JsonPropertyName("depth")]
+        public int Depth { get; set; }
+        [JsonPropertyName("parent_thread_id")]
+        public ThreadId ParentThreadId { get; set; } = default!;
     }
     public sealed partial record Other : SubAgentSource
     {

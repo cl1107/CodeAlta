@@ -23,10 +23,10 @@ internal sealed class Result_of_CallToolResult_or_StringJsonConverter : JsonConv
         {
             using var doc = JsonDocument.ParseValue(ref reader);
             var obj = doc.RootElement;
-            if (obj.TryGetProperty("Ok", out var okElem))
-                return new Result_of_CallToolResult_or_String.Ok { Value = JsonSerializer.Deserialize<CallToolResult>(okElem, options)! };
-            if (obj.TryGetProperty("Err", out var errElem))
-                return new Result_of_CallToolResult_or_String.Err { Value = JsonSerializer.Deserialize<string>(errElem, options)! };
+            if (obj.TryGetProperty("Ok", out var __OkElem))
+                return new Result_of_CallToolResult_or_String.Ok { Value = JsonSerializer.Deserialize<CallToolResult>(__OkElem, options)! };
+            if (obj.TryGetProperty("Err", out var __ErrElem))
+                return new Result_of_CallToolResult_or_String.Err { Value = JsonSerializer.Deserialize<string>(__ErrElem, options)! };
             throw new JsonException($"Unknown Result_of_CallToolResult_or_String object variant. Properties: {string.Join(", ", EnumeratePropertyNames(obj))}");
         }
 

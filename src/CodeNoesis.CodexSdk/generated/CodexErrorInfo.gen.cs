@@ -35,14 +35,34 @@ internal sealed class CodexErrorInfoJsonConverter : JsonConverter<CodexErrorInfo
         {
             using var doc = JsonDocument.ParseValue(ref reader);
             var obj = doc.RootElement;
-            if (obj.TryGetProperty("http_connection_failed", out var httpconnectionfailedElem))
-                return new CodexErrorInfo.HttpConnectionFailed { Value = JsonSerializer.Deserialize<JsonElement>(httpconnectionfailedElem, options)! };
-            if (obj.TryGetProperty("response_stream_connection_failed", out var responsestreamconnectionfailedElem))
-                return new CodexErrorInfo.ResponseStreamConnectionFailed { Value = JsonSerializer.Deserialize<JsonElement>(responsestreamconnectionfailedElem, options)! };
-            if (obj.TryGetProperty("response_stream_disconnected", out var responsestreamdisconnectedElem))
-                return new CodexErrorInfo.ResponseStreamDisconnected { Value = JsonSerializer.Deserialize<JsonElement>(responsestreamdisconnectedElem, options)! };
-            if (obj.TryGetProperty("response_too_many_failed_attempts", out var responsetoomanyfailedattemptsElem))
-                return new CodexErrorInfo.ResponseTooManyFailedAttempts { Value = JsonSerializer.Deserialize<JsonElement>(responsetoomanyfailedattemptsElem, options)! };
+            if (obj.TryGetProperty("http_connection_failed", out var __HttpConnectionFailedElem))
+            {
+                var __result = new CodexErrorInfo.HttpConnectionFailed();
+                if (__HttpConnectionFailedElem.TryGetProperty("http_status_code", out var __HttpStatusCodeProp))
+                    __result.HttpStatusCode = JsonSerializer.Deserialize<ushort?>(__HttpStatusCodeProp, options);
+                return __result;
+            }
+            if (obj.TryGetProperty("response_stream_connection_failed", out var __ResponseStreamConnectionFailedElem))
+            {
+                var __result = new CodexErrorInfo.ResponseStreamConnectionFailed();
+                if (__ResponseStreamConnectionFailedElem.TryGetProperty("http_status_code", out var __HttpStatusCodeProp))
+                    __result.HttpStatusCode = JsonSerializer.Deserialize<ushort?>(__HttpStatusCodeProp, options);
+                return __result;
+            }
+            if (obj.TryGetProperty("response_stream_disconnected", out var __ResponseStreamDisconnectedElem))
+            {
+                var __result = new CodexErrorInfo.ResponseStreamDisconnected();
+                if (__ResponseStreamDisconnectedElem.TryGetProperty("http_status_code", out var __HttpStatusCodeProp))
+                    __result.HttpStatusCode = JsonSerializer.Deserialize<ushort?>(__HttpStatusCodeProp, options);
+                return __result;
+            }
+            if (obj.TryGetProperty("response_too_many_failed_attempts", out var __ResponseTooManyFailedAttemptsElem))
+            {
+                var __result = new CodexErrorInfo.ResponseTooManyFailedAttempts();
+                if (__ResponseTooManyFailedAttemptsElem.TryGetProperty("http_status_code", out var __HttpStatusCodeProp))
+                    __result.HttpStatusCode = JsonSerializer.Deserialize<ushort?>(__HttpStatusCodeProp, options);
+                return __result;
+            }
             throw new JsonException($"Unknown CodexErrorInfo object variant. Properties: {string.Join(", ", EnumeratePropertyNames(obj))}");
         }
 
@@ -88,25 +108,49 @@ internal sealed class CodexErrorInfoJsonConverter : JsonConverter<CodexErrorInfo
             case CodexErrorInfo.HttpConnectionFailed v:
                 writer.WriteStartObject();
                 writer.WritePropertyName("http_connection_failed");
-                JsonSerializer.Serialize(writer, v.Value, options);
+                writer.WriteStartObject();
+                if (v.HttpStatusCode is not null)
+                {
+                    writer.WritePropertyName("http_status_code");
+                    JsonSerializer.Serialize(writer, v.HttpStatusCode, options);
+                }
+                writer.WriteEndObject();
                 writer.WriteEndObject();
                 break;
             case CodexErrorInfo.ResponseStreamConnectionFailed v:
                 writer.WriteStartObject();
                 writer.WritePropertyName("response_stream_connection_failed");
-                JsonSerializer.Serialize(writer, v.Value, options);
+                writer.WriteStartObject();
+                if (v.HttpStatusCode is not null)
+                {
+                    writer.WritePropertyName("http_status_code");
+                    JsonSerializer.Serialize(writer, v.HttpStatusCode, options);
+                }
+                writer.WriteEndObject();
                 writer.WriteEndObject();
                 break;
             case CodexErrorInfo.ResponseStreamDisconnected v:
                 writer.WriteStartObject();
                 writer.WritePropertyName("response_stream_disconnected");
-                JsonSerializer.Serialize(writer, v.Value, options);
+                writer.WriteStartObject();
+                if (v.HttpStatusCode is not null)
+                {
+                    writer.WritePropertyName("http_status_code");
+                    JsonSerializer.Serialize(writer, v.HttpStatusCode, options);
+                }
+                writer.WriteEndObject();
                 writer.WriteEndObject();
                 break;
             case CodexErrorInfo.ResponseTooManyFailedAttempts v:
                 writer.WriteStartObject();
                 writer.WritePropertyName("response_too_many_failed_attempts");
-                JsonSerializer.Serialize(writer, v.Value, options);
+                writer.WriteStartObject();
+                if (v.HttpStatusCode is not null)
+                {
+                    writer.WritePropertyName("http_status_code");
+                    JsonSerializer.Serialize(writer, v.HttpStatusCode, options);
+                }
+                writer.WriteEndObject();
                 writer.WriteEndObject();
                 break;
             default:
@@ -129,18 +173,22 @@ public abstract partial record CodexErrorInfo
     public sealed partial record Other : CodexErrorInfo;
     public sealed partial record HttpConnectionFailed : CodexErrorInfo
     {
-        public JsonElement Value { get; set; }
+        [JsonPropertyName("http_status_code")]
+        public ushort? HttpStatusCode { get; set; }
     }
     public sealed partial record ResponseStreamConnectionFailed : CodexErrorInfo
     {
-        public JsonElement Value { get; set; }
+        [JsonPropertyName("http_status_code")]
+        public ushort? HttpStatusCode { get; set; }
     }
     public sealed partial record ResponseStreamDisconnected : CodexErrorInfo
     {
-        public JsonElement Value { get; set; }
+        [JsonPropertyName("http_status_code")]
+        public ushort? HttpStatusCode { get; set; }
     }
     public sealed partial record ResponseTooManyFailedAttempts : CodexErrorInfo
     {
-        public JsonElement Value { get; set; }
+        [JsonPropertyName("http_status_code")]
+        public ushort? HttpStatusCode { get; set; }
     }
 }

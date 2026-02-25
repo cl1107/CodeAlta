@@ -27,8 +27,13 @@ internal sealed class CommandExecutionApprovalDecisionJsonConverter : JsonConver
         {
             using var doc = JsonDocument.ParseValue(ref reader);
             var obj = doc.RootElement;
-            if (obj.TryGetProperty("acceptWithExecpolicyAmendment", out var acceptwithexecpolicyamendmentElem))
-                return new CommandExecutionApprovalDecision.AcceptWithExecpolicyAmendment { Value = JsonSerializer.Deserialize<JsonElement>(acceptwithexecpolicyamendmentElem, options)! };
+            if (obj.TryGetProperty("acceptWithExecpolicyAmendment", out var __AcceptWithExecpolicyAmendmentElem))
+            {
+                var __result = new CommandExecutionApprovalDecision.AcceptWithExecpolicyAmendment();
+                if (__AcceptWithExecpolicyAmendmentElem.TryGetProperty("execpolicy_amendment", out var __ExecpolicyAmendmentProp))
+                    __result.ExecpolicyAmendment = JsonSerializer.Deserialize<List<string>>(__ExecpolicyAmendmentProp, options)!;
+                return __result;
+            }
             throw new JsonException($"Unknown CommandExecutionApprovalDecision object variant. Properties: {string.Join(", ", EnumeratePropertyNames(obj))}");
         }
 
@@ -53,7 +58,10 @@ internal sealed class CommandExecutionApprovalDecisionJsonConverter : JsonConver
             case CommandExecutionApprovalDecision.AcceptWithExecpolicyAmendment v:
                 writer.WriteStartObject();
                 writer.WritePropertyName("acceptWithExecpolicyAmendment");
-                JsonSerializer.Serialize(writer, v.Value, options);
+                writer.WriteStartObject();
+                writer.WritePropertyName("execpolicy_amendment");
+                JsonSerializer.Serialize(writer, v.ExecpolicyAmendment, options);
+                writer.WriteEndObject();
                 writer.WriteEndObject();
                 break;
             case CommandExecutionApprovalDecision.Decline:
@@ -75,7 +83,8 @@ public abstract partial record CommandExecutionApprovalDecision
     public sealed partial record AcceptForSession : CommandExecutionApprovalDecision;
     public sealed partial record AcceptWithExecpolicyAmendment : CommandExecutionApprovalDecision
     {
-        public JsonElement Value { get; set; }
+        [JsonPropertyName("execpolicy_amendment")]
+        public List<string> ExecpolicyAmendment { get; set; } = [];
     }
     public sealed partial record Decline : CommandExecutionApprovalDecision;
     public sealed partial record Cancel : CommandExecutionApprovalDecision;

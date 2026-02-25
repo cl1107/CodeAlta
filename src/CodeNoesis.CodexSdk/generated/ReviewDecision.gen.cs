@@ -30,8 +30,13 @@ internal sealed class ReviewDecisionJsonConverter : JsonConverter<ReviewDecision
         {
             using var doc = JsonDocument.ParseValue(ref reader);
             var obj = doc.RootElement;
-            if (obj.TryGetProperty("approved_execpolicy_amendment", out var approvedexecpolicyamendmentElem))
-                return new ReviewDecision.ApprovedExecpolicyAmendment { Value = JsonSerializer.Deserialize<JsonElement>(approvedexecpolicyamendmentElem, options)! };
+            if (obj.TryGetProperty("approved_execpolicy_amendment", out var __ApprovedExecpolicyAmendmentElem))
+            {
+                var __result = new ReviewDecision.ApprovedExecpolicyAmendment();
+                if (__ApprovedExecpolicyAmendmentElem.TryGetProperty("proposed_execpolicy_amendment", out var __ProposedExecpolicyAmendmentProp))
+                    __result.ProposedExecpolicyAmendment = JsonSerializer.Deserialize<List<string>>(__ProposedExecpolicyAmendmentProp, options)!;
+                return __result;
+            }
             throw new JsonException($"Unknown ReviewDecision object variant. Properties: {string.Join(", ", EnumeratePropertyNames(obj))}");
         }
 
@@ -53,7 +58,10 @@ internal sealed class ReviewDecisionJsonConverter : JsonConverter<ReviewDecision
             case ReviewDecision.ApprovedExecpolicyAmendment v:
                 writer.WriteStartObject();
                 writer.WritePropertyName("approved_execpolicy_amendment");
-                JsonSerializer.Serialize(writer, v.Value, options);
+                writer.WriteStartObject();
+                writer.WritePropertyName("proposed_execpolicy_amendment");
+                JsonSerializer.Serialize(writer, v.ProposedExecpolicyAmendment, options);
+                writer.WriteEndObject();
                 writer.WriteEndObject();
                 break;
             case ReviewDecision.ApprovedForSession:
@@ -77,7 +85,8 @@ public abstract partial record ReviewDecision
     public sealed partial record Approved : ReviewDecision;
     public sealed partial record ApprovedExecpolicyAmendment : ReviewDecision
     {
-        public JsonElement Value { get; set; }
+        [JsonPropertyName("proposed_execpolicy_amendment")]
+        public List<string> ProposedExecpolicyAmendment { get; set; } = [];
     }
     public sealed partial record ApprovedForSession : ReviewDecision;
     public sealed partial record Denied : ReviewDecision;
