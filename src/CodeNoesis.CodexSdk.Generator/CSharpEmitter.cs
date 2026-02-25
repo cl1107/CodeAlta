@@ -608,12 +608,15 @@ public class CSharpEmitter
             return innerType + "?";
         }
 
-        // Handle nullable type array: ["string", "null"]
+        // Handle nullable type array: ["string", "null"], ["array", "null"], etc.
+        // Use MapType so that arrays with $ref items resolve to the correct
+        // element type instead of falling back to List<JsonElement>.
         if (IsNullableTypeArray(propSchema))
         {
-            var nonNullType = propSchema.Type & ~JsonObjectType.Null;
-            var baseType = MapJsonObjectType(nonNullType, propSchema);
-            return baseType + "?";
+            var baseType = MapType(propSchema, contextNs);
+            if (!baseType.EndsWith("?"))
+                baseType += "?";
+            return baseType;
         }
 
         // allOf with single ref → just the ref type

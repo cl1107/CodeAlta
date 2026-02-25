@@ -22,5 +22,5 @@ public sealed partial record ToolRequestUserInputQuestion
     [JsonPropertyName("isSecret")]
     public bool? IsSecret { get; set; }
     [JsonPropertyName("options")]
-    public List<JsonElement>? Options { get; set; }
+    public List<ToolRequestUserInputOption>? Options { get; set; }
 }

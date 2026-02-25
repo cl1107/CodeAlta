@@ -9,7 +9,7 @@ namespace CodeNoesis.CodexSdk.V2;
 public sealed partial record AppMetadata
 {
     [JsonPropertyName("categories")]
-    public List<JsonElement>? Categories { get; set; }
+    public List<string>? Categories { get; set; }
     [JsonPropertyName("developer")]
     public string? Developer { get; set; }
     [JsonPropertyName("firstPartyRequiresInstall")]
@@ -19,13 +19,13 @@ public sealed partial record AppMetadata
     [JsonPropertyName("review")]
     public AppReview? Review { get; set; }
     [JsonPropertyName("screenshots")]
-    public List<JsonElement>? Screenshots { get; set; }
+    public List<AppScreenshot>? Screenshots { get; set; }
     [JsonPropertyName("seoDescription")]
     public string? SeoDescription { get; set; }
     [JsonPropertyName("showInComposerWhenUnlinked")]
     public bool? ShowInComposerWhenUnlinked { get; set; }
     [JsonPropertyName("subCategories")]
-    public List<JsonElement>? SubCategories { get; set; }
+    public List<string>? SubCategories { get; set; }
     [JsonPropertyName("version")]
     public string? Version { get; set; }
     [JsonPropertyName("versionId")]

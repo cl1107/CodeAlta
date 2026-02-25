@@ -80,7 +80,10 @@ var options = CodexClient.CreateJsonSerializerOptions();
 
 var test = new ThreadStartParams()
 {
-    Config = JsonSerializer.SerializeToElement("test", options)
+    Config = new Dictionary<string, JsonElement>
+    {
+        ["test"] = JsonSerializer.SerializeToElement("value", options)
+    }
 };
 
 var result = JsonSerializer.Serialize(test, options);

@@ -9,11 +9,11 @@ namespace CodeNoesis.CodexSdk.V2;
 public sealed partial record ConfigRequirements
 {
     [JsonPropertyName("allowedApprovalPolicies")]
-    public List<JsonElement>? AllowedApprovalPolicies { get; set; }
+    public List<AskForApproval>? AllowedApprovalPolicies { get; set; }
     [JsonPropertyName("allowedSandboxModes")]
-    public List<JsonElement>? AllowedSandboxModes { get; set; }
+    public List<SandboxMode>? AllowedSandboxModes { get; set; }
     [JsonPropertyName("allowedWebSearchModes")]
-    public List<JsonElement>? AllowedWebSearchModes { get; set; }
+    public List<WebSearchMode>? AllowedWebSearchModes { get; set; }
     [JsonPropertyName("enforceResidency")]
     public ResidencyRequirement? EnforceResidency { get; set; }
 }

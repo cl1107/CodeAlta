@@ -16,5 +16,5 @@ public sealed partial record InitializeCapabilities
     public bool? ExperimentalApi { get; set; }
     /// <summary>Exact notification method names that should be suppressed for this connection (for example `codex/event/session_configured`).</summary>
     [JsonPropertyName("optOutNotificationMethods")]
-    public List<JsonElement>? OptOutNotificationMethods { get; set; }
+    public List<string>? OptOutNotificationMethods { get; set; }
 }

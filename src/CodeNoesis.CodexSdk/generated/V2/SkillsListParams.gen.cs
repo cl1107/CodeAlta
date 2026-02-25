@@ -16,5 +16,5 @@ public sealed partial record SkillsListParams
     public bool? ForceReload { get; set; }
     /// <summary>Optional per-cwd extra roots to scan as user-scoped skills.</summary>
     [JsonPropertyName("perCwdExtraUserRoots")]
-    public List<JsonElement>? PerCwdExtraUserRoots { get; set; }
+    public List<SkillsListExtraRootsForCwd>? PerCwdExtraUserRoots { get; set; }
 }

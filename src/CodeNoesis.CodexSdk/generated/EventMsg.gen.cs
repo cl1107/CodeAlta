@@ -182,7 +182,7 @@ public abstract partial record EventMsg
     {
         /// <summary>Image URLs sourced from `UserInput::Image`. These are safe to replay in legacy UI history events and correspond to images sent to the model.</summary>
         [JsonPropertyName("images")]
-        public List<JsonElement>? Images { get; set; }
+        public List<string>? Images { get; set; }
         /// <summary>Local file paths sourced from `UserInput::LocalImage`. These are kept so the UI can reattach images when editing history, and should not be sent to the model or treated as API-ready URLs.</summary>
         [JsonPropertyName("local_images")]
         public List<string>? LocalImages { get; set; }
@@ -270,7 +270,7 @@ public abstract partial record EventMsg
         public ulong HistoryLogId { get; set; }
         /// <summary>Optional initial messages (as events) for resumed sessions. When present, UIs can use these to seed the history.</summary>
         [JsonPropertyName("initial_messages")]
-        public List<JsonElement>? InitialMessages { get; set; }
+        public List<EventMsg>? InitialMessages { get; set; }
         /// <summary>Tell the client what model is being queried.</summary>
         [JsonPropertyName("model")]
         public string Model { get; set; } = string.Empty;
@@ -515,7 +515,7 @@ public abstract partial record EventMsg
         public List<ParsedCommand> ParsedCmd { get; set; } = [];
         /// <summary>Proposed execpolicy amendment that can be applied to allow future runs.</summary>
         [JsonPropertyName("proposed_execpolicy_amendment")]
-        public List<JsonElement>? ProposedExecpolicyAmendment { get; set; }
+        public List<string>? ProposedExecpolicyAmendment { get; set; }
         /// <summary>Optional human-readable reason for the approval (e.g. retry without sandbox).</summary>
         [JsonPropertyName("reason")]
         public string? Reason { get; set; }

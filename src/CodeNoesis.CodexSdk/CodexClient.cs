@@ -872,8 +872,7 @@ public sealed class CodexClient : IAsyncDisposable
                 ? new InitializeCapabilities
                 {
                     ExperimentalApi = experimentalApi ? true : null,
-                    OptOutNotificationMethods = optOutNotificationMethods?.Select(s =>
-                        JsonSerializer.SerializeToElement(s, _jsonOptions)).ToList()
+                    OptOutNotificationMethods = optOutNotificationMethods?.ToList()
                 }
                 : null
         };

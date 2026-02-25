@@ -11,7 +11,7 @@ public sealed partial record McpServerOauthLoginParams
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
     [JsonPropertyName("scopes")]
-    public List<JsonElement>? Scopes { get; set; }
+    public List<string>? Scopes { get; set; }
     [JsonPropertyName("timeoutSecs")]
     public long? TimeoutSecs { get; set; }
 }

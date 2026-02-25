@@ -20,5 +20,5 @@ public sealed partial record FuzzyFileSearchResult
     [JsonPropertyName("score")]
     public uint Score { get; set; }
     [JsonPropertyName("indices")]
-    public List<JsonElement>? Indices { get; set; }
+    public List<uint>? Indices { get; set; }
 }

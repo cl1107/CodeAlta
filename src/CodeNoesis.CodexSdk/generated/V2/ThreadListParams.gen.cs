@@ -22,11 +22,11 @@ public sealed partial record ThreadListParams
     public uint? Limit { get; set; }
     /// <summary>Optional provider filter; when set, only sessions recorded under these providers are returned. When present but empty, includes all providers.</summary>
     [JsonPropertyName("modelProviders")]
-    public List<JsonElement>? ModelProviders { get; set; }
+    public List<string>? ModelProviders { get; set; }
     /// <summary>Optional sort key; defaults to created_at.</summary>
     [JsonPropertyName("sortKey")]
     public ThreadSortKey? SortKey { get; set; }
     /// <summary>Optional source filter; when set, only sessions from these source kinds are returned. When omitted or empty, defaults to interactive sources.</summary>
     [JsonPropertyName("sourceKinds")]
-    public List<JsonElement>? SourceKinds { get; set; }
+    public List<ThreadSourceKind>? SourceKinds { get; set; }
 }

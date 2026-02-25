@@ -13,5 +13,5 @@ public sealed partial record ConfigReadResponse
     [JsonPropertyName("origins")]
     public Dictionary<string, ConfigLayerMetadata> Origins { get; set; } = [];
     [JsonPropertyName("layers")]
-    public List<JsonElement>? Layers { get; set; }
+    public List<ConfigLayer>? Layers { get; set; }
 }

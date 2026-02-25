@@ -47,7 +47,6 @@ internal sealed class JsonRpcTransport : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(inputStream);
         ArgumentNullException.ThrowIfNull(outputStream);
         ArgumentNullException.ThrowIfNull(jsonOptions);
-        ArgumentNullException.ThrowIfNull(logger);
 
         _inputStream = inputStream;
         _outputStream = outputStream;
@@ -278,7 +277,7 @@ internal sealed class JsonRpcTransport : IAsyncDisposable
             JsonSerializer.Serialize(writer, result, _jsonOptions);
             writer.WriteEndObject();
         }
-        
+
         if (_logger is not null && _logger.IsEnabled(LogLevel.Trace))
         {
             var json = Encoding.UTF8.GetString(bufferWriter.WrittenMemory.Span);

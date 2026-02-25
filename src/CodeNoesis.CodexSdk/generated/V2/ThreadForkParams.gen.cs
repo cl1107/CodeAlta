@@ -22,7 +22,7 @@ public sealed partial record ThreadForkParams
     [JsonPropertyName("baseInstructions")]
     public string? BaseInstructions { get; set; }
     [JsonPropertyName("config")]
-    public JsonElement? Config { get; set; }
+    public Dictionary<string, JsonElement>? Config { get; set; }
     [JsonPropertyName("cwd")]
     public string? Cwd { get; set; }
     [JsonPropertyName("developerInstructions")]

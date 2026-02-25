@@ -19,7 +19,7 @@ public sealed partial record SessionConfiguredNotification
     [JsonPropertyName("sessionId")]
     public ThreadId SessionId { get; set; } = default!;
     [JsonPropertyName("initialMessages")]
-    public List<JsonElement>? InitialMessages { get; set; }
+    public List<EventMsg>? InitialMessages { get; set; }
     [JsonPropertyName("reasoningEffort")]
     public ReasoningEffort? ReasoningEffort { get; set; }
 }

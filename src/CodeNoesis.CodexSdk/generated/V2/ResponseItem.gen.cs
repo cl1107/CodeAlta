@@ -37,7 +37,7 @@ public abstract partial record ResponseItem
     public sealed partial record ReasoningResponseItem : ResponseItem
     {
         [JsonPropertyName("content")]
-        public List<JsonElement>? Content { get; set; }
+        public List<ReasoningItemContent>? Content { get; set; }
         [JsonPropertyName("encrypted_content")]
         public string? EncryptedContent { get; set; }
         [JsonPropertyName("id")]

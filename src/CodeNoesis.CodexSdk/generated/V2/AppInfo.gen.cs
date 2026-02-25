@@ -31,7 +31,7 @@ public sealed partial record AppInfo
     [JsonPropertyName("isEnabled")]
     public bool? IsEnabled { get; set; }
     [JsonPropertyName("labels")]
-    public JsonElement? Labels { get; set; }
+    public Dictionary<string, string>? Labels { get; set; }
     [JsonPropertyName("logoUrl")]
     public string? LogoUrl { get; set; }
     [JsonPropertyName("logoUrlDark")]

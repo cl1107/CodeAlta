@@ -22,13 +22,13 @@ public sealed partial record CommandExecutionRequestApprovalParams
     public string? Command { get; set; }
     /// <summary>Best-effort parsed command actions for friendly display.</summary>
     [JsonPropertyName("commandActions")]
-    public List<JsonElement>? CommandActions { get; set; }
+    public List<CodeNoesis.CodexSdk.V2.CommandAction>? CommandActions { get; set; }
     /// <summary>The command's working directory.</summary>
     [JsonPropertyName("cwd")]
     public string? Cwd { get; set; }
     /// <summary>Optional proposed execpolicy amendment to allow similar commands without prompting.</summary>
     [JsonPropertyName("proposedExecpolicyAmendment")]
-    public List<JsonElement>? ProposedExecpolicyAmendment { get; set; }
+    public List<string>? ProposedExecpolicyAmendment { get; set; }
     /// <summary>Optional explanatory reason (e.g. request for network access).</summary>
     [JsonPropertyName("reason")]
     public string? Reason { get; set; }

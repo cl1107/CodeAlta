@@ -11,7 +11,7 @@ public sealed partial record ResumeConversationParams
     [JsonPropertyName("conversationId")]
     public ThreadId? ConversationId { get; set; }
     [JsonPropertyName("history")]
-    public List<JsonElement>? History { get; set; }
+    public List<ResponseItem>? History { get; set; }
     [JsonPropertyName("overrides")]
     public NewConversationParams? Overrides { get; set; }
     [JsonPropertyName("path")]

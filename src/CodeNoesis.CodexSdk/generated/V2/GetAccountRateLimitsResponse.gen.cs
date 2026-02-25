@@ -13,5 +13,5 @@ public sealed partial record GetAccountRateLimitsResponse
     public RateLimitSnapshot RateLimits { get; set; } = default!;
     /// <summary>Multi-bucket view keyed by metered `limit_id` (for example, `codex`).</summary>
     [JsonPropertyName("rateLimitsByLimitId")]
-    public JsonElement? RateLimitsByLimitId { get; set; }
+    public Dictionary<string, RateLimitSnapshot>? RateLimitsByLimitId { get; set; }
 }

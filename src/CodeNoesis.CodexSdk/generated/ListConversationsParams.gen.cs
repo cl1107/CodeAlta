@@ -11,7 +11,7 @@ public sealed partial record ListConversationsParams
     [JsonPropertyName("cursor")]
     public string? Cursor { get; set; }
     [JsonPropertyName("modelProviders")]
-    public List<JsonElement>? ModelProviders { get; set; }
+    public List<string>? ModelProviders { get; set; }
     [JsonPropertyName("pageSize")]
     public uint? PageSize { get; set; }
 }

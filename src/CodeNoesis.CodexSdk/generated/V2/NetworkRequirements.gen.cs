@@ -9,11 +9,11 @@ namespace CodeNoesis.CodexSdk.V2;
 public sealed partial record NetworkRequirements
 {
     [JsonPropertyName("allowedDomains")]
-    public List<JsonElement>? AllowedDomains { get; set; }
+    public List<string>? AllowedDomains { get; set; }
     [JsonPropertyName("allowLocalBinding")]
     public bool? AllowLocalBinding { get; set; }
     [JsonPropertyName("allowUnixSockets")]
-    public List<JsonElement>? AllowUnixSockets { get; set; }
+    public List<string>? AllowUnixSockets { get; set; }
     [JsonPropertyName("allowUpstreamProxy")]
     public bool? AllowUpstreamProxy { get; set; }
     [JsonPropertyName("dangerouslyAllowNonLoopbackAdmin")]
@@ -21,7 +21,7 @@ public sealed partial record NetworkRequirements
     [JsonPropertyName("dangerouslyAllowNonLoopbackProxy")]
     public bool? DangerouslyAllowNonLoopbackProxy { get; set; }
     [JsonPropertyName("deniedDomains")]
-    public List<JsonElement>? DeniedDomains { get; set; }
+    public List<string>? DeniedDomains { get; set; }
     [JsonPropertyName("enabled")]
     public bool? Enabled { get; set; }
     [JsonPropertyName("httpPort")]

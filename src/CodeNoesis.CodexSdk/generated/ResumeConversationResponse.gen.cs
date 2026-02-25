@@ -15,5 +15,5 @@ public sealed partial record ResumeConversationResponse
     [JsonPropertyName("rolloutPath")]
     public string RolloutPath { get; set; } = string.Empty;
     [JsonPropertyName("initialMessages")]
-    public List<JsonElement>? InitialMessages { get; set; }
+    public List<EventMsg>? InitialMessages { get; set; }
 }
