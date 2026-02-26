@@ -92,7 +92,6 @@ public sealed class CodexAgentBackend : ICodexAgentBackend
                     new ModelListParams
                     {
                         Cursor = cursor,
-                        IncludeHidden = true,
                         Limit = 100
                     },
                     cancellationToken)
