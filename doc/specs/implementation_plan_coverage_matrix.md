@@ -23,7 +23,7 @@ Scope:
 | MCP server: in-process using C# MCP SDK (`ModelContextProtocol`) | Done | `src/CodeAlta.Mcp/CodeAltaMcpServerFactory.cs`, `src/CodeAlta.Mcp/InProcessMcpConnection.cs` | `src/CodeAlta.Mcp.Tests/McpInfrastructureTests.cs` (`Mcp_InProcess_CanListTools`) |
 | Embeddings: LLamaSharp | Partial | `src/CodeAlta.Search/LlamaSharpEmbedder.cs` exists; default wiring uses `HashEmbedder` in `src/CodeAlta.Search/EmbeddingModelManager.cs` | No unit test exercises LLamaSharp embedder; runtime default does not require LLamaSharp model on disk |
 | Database: SQLite via `Microsoft.Data.Sqlite` | Done | `src/CodeAlta.Persistence/CodeAltaDb.cs` | `src/CodeAlta.Persistence.Tests/PersistenceInfrastructureTests.cs` (`CodeAltaDb_InitializeAsync_CreatesCoreSchema`) |
-| Vector search: `sqlite-vec` native extension for similarity | Partial | Extension loading is supported by `src/CodeAlta.Persistence/CodeAltaDb.cs` + `src/CodeAlta.Persistence/CodeAltaDbOptions.cs` | Current embedding storage is `document_embeddings.embedding_blob` and similarity is computed in-process (`src/CodeAlta.Search/SearchService.cs`); no `sqlite-vec` table/query is used |
+| Vector search: `sqlite-vec` native extension for similarity | Partial | Extension loading is supported by `src/CodeAlta.Persistence/CodeAltaDb.cs` + `src/CodeAlta.Persistence/CodeAltaDbOptions.cs`; vec0-backed KNN rerank is implemented in `src/CodeAlta.Search/DocumentIndexStore.cs` and used by `src/CodeAlta.Search/SearchService.cs` when available | Unit tests include an opt-in sqlite-vec smoke test (`CODEALTA_SQLITE_VEC_EXTENSION_PATH`) in `src/CodeAlta.Search.Tests/SearchInfrastructureTests.cs`; default test runs use in-process cosine fallback |
 | Full-text search: SQLite FTS5 | Done | `documents_fts` virtual table created in `src/CodeAlta.Persistence/CodeAltaDb.cs`; query in `src/CodeAlta.Search/DocumentIndexStore.cs` | `src/CodeAlta.Search.Tests/SearchInfrastructureTests.cs` (`Indexer_ProcessNextAsync_IndexesDocuments`) |
 | Markdown: Markdig | Done | `src/CodeAlta.Persistence/ArtifactStore.cs` (markdown plain-text extraction) | `src/CodeAlta.Persistence.Tests/PersistenceInfrastructureTests.cs` (`ArtifactStore_WriteReadAndExtractPlainText_RoundTrips`) |
 | YAML: SharpYaml (frontmatter) | Done | `src/CodeAlta.Persistence/ArtifactStore.cs`, `src/CodeAlta.Workspaces/WorkspaceYamlSerializer.cs` | Persistence + Workspaces tests exercise YAML parsing/round-trips |
@@ -94,7 +94,7 @@ Tool-surface gaps versus `implementation_plan_mcp_server.md`:
 | --- | --- | --- | --- |
 | Create `CodeAlta.Search` | Done | `src/CodeAlta.Search/*` | Search tests |
 | Implement FTS5 indexing + embedding storage | Done | `src/CodeAlta.Search/DocumentIndexStore.cs` + `documents_fts` + `document_embeddings` | `Indexer_ProcessNextAsync_IndexesDocuments` |
-| sqlite-vec embedding storage + vector similarity queries | Partial | sqlite-vec extension loading support exists in `CodeAltaDb`; no vec virtual table or vec query exists | Hybrid rerank uses in-process cosine similarity, not sqlite-vec |
+| sqlite-vec embedding storage + vector similarity queries | Partial | vec0 virtual table `document_embeddings_vec` is created lazily when sqlite-vec is available and populated during indexing (`src/CodeAlta.Search/DocumentIndexStore.cs`) | Opt-in test exists; default CI/unit runs do not load sqlite-vec |
 | Hybrid search (FTS prefilter + vector rerank) | Done | `src/CodeAlta.Search/SearchService.cs` | `SearchService_QueryHybridAsync_ReranksAndReturnsSourceLinks` |
 
 ### Milestone 4 — Agent orchestration (headless)
