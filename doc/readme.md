@@ -72,3 +72,21 @@ Current orchestration infrastructure (`CodeAlta.Orchestration`) includes:
   - persisted `plan.output` markdown artifacts.
 - `BuilderService` for task completion and persisted `builder.verification` artifacts.
 - `AgentHub` runtime for backend-agnostic agent registration, session lifecycle, and run event emission.
+
+## .NET First-class Services
+
+Current `.NET` infrastructure (`CodeAlta.DotNet`) includes:
+
+- `DotNetWorkspaceService` for discovering `.sln`/`.slnx` and project files (`.csproj`, `.fsproj`, `.vbproj`).
+- `SymbolIndexService` using Roslyn syntax trees to index:
+  - namespaces
+  - types
+  - members (methods, properties, fields) with file line ranges.
+- `DotNetContextProvider` for compact symbol/file snippets with stable source links (`file://...#Lx`).
+- `DotNetDiagnosticsService` for `dotnet build` execution with persisted diagnostics artifacts and search indexing.
+- `DotNetIndexService` for refreshing project-graph and symbol knowledge artifacts and indexing them.
+- Fixture-backed MSTest coverage for:
+  - tiny solution discovery
+  - symbol lookup path/range validation
+  - symbol context source-link generation
+  - refresh-index and diagnostics artifact persistence.
