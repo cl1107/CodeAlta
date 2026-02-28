@@ -39,7 +39,7 @@ Scope:
 | 3) Indexing + search (FTS5 + embeddings + hybrid retrieval) | Partial | `src/CodeAlta.Search/*` | Search tests cover FTS + hybrid rerank; `sqlite-vec` is not used for similarity (see above) |
 | 4) Agent orchestration (roles/scopes/context packs) | Partial | `src/CodeAlta.Orchestration/*`, role profiles in `src/CodeAlta.Workspaces/Roles/*` | `src/CodeAlta.Orchestration.Tests/OrchestrationInfrastructureTests.cs` covers role parsing, context budget, and a minimal planner/builder loop |
 | 5) .NET-first services (Roslyn-backed) | Done | `src/CodeAlta.DotNet/*` | `src/CodeAlta.DotNet.Tests/DotNetInfrastructureTests.cs` |
-| 6) Terminal UI (TUI host) | Not Started | `src/CodeAlta/Program.cs` is a console menu host, not a TUI | Spec calls out a responsive TUI with job views/scope selection UX; not implemented |
+| 6) Terminal UI (TUI host) | Partial | `src/CodeAlta/Program.cs`, `src/CodeAlta/TerminalUi/CodeAltaTerminalUi.cs` | Minimal fullscreen TUI exists (navigation + jobs + basic scope selection), but UX is not yet the “stable” final UI described in the plan |
 
 Notes on “each slice should produce tests”:
 - The plan text mentions tests under `src/CodeAlta.Tests/`, but the implementation uses per-assembly MSTest projects (`CodeAlta.*.Tests`). This is functionally equivalent but not a literal match to the plan’s suggested folder.
@@ -119,5 +119,5 @@ Tool-surface gaps versus `implementation_plan_mcp_server.md`:
 
 | Milestone Item | Status | Implementation Evidence | Test Evidence / Notes |
 | --- | --- | --- | --- |
-| Replace `Program.cs` playground with real TUI host | Not Started | `src/CodeAlta/Program.cs` is still a console menu | No TUI host exists |
-| Responsive UI loops, background job views, scope selection UX | Not Started | N/A | N/A |
+| Replace `Program.cs` playground with real TUI host | Done | `src/CodeAlta/Program.cs`, `src/CodeAlta/TerminalUi/CodeAltaTerminalUi.cs` | No automated UI tests |
+| Responsive UI loops, background job views, scope selection UX | Partial | `src/CodeAlta/TerminalUi/CodeAltaTerminalUi.cs` | Includes basic Jobs screen and workspace scope selector; does not yet include richer UX (task drill-down, background job list beyond indexing, etc.) |
