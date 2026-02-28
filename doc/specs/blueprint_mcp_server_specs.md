@@ -142,6 +142,13 @@ SQLite stores:
 
 ## 5. Semantic search service
 
+Search should support both:
+
+- **Full-text search (SQLite FTS5)** for exact/keyword queries across all indexed documents
+- **Semantic search (embeddings)** for similarity-based retrieval with citations
+
+In practice, most queries should use a **hybrid** approach (FTS5 prefilter + embeddings rerank).
+
 ### 5.1 Indexable sources (first-class)
 
 - file chunks (path + line range + hash)
@@ -163,13 +170,15 @@ This avoids “orphan knowledge” and enables reconstruction.
 
 ### 5.3 Suggested tools
 
-- `search.query(text, scope, limit?, filters?) -> results[]`
+- `search.query_text(query, scope, limit?, filters?) -> results[]` (FTS5)
+- `search.query(text, scope, limit?, filters?) -> results[]` (hybrid: FTS5 + embeddings)
 - `search.query_vector(embedding, scope, limit?, filters?) -> results[]`
 - `search.reindex(scope, mode)` (manual rebuild)
 - `search.status(scope) -> indexingStatus`
 
 Implementation note:
 
+- use SQLite **FTS5** virtual tables to index all textual content (file chunks, artifacts, task comments, decision records)
 - start with FTS5 + embeddings stored as BLOB
 - add a SQLite vector extension later (sqlite-vec/sqlite-vss) once packaging is proven cross-platform
 

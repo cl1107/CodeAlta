@@ -321,8 +321,26 @@ At minimum, store:
 - Symbols (Roslyn, where applicable)
 - Git metadata (status/diff/log/blame; commit history as retrievable knowledge)
 - Agent conversations and task logs
+- Agent artifacts (plans/summaries/decisions) stored under `.codealta/` and `$HOME/.codealta/`
 
-### 10.3 Semantic retrieval
+### 10.3 Full-text search (SQLite FTS5)
+
+In addition to semantic retrieval, we should support **fast exact/keyword search** across all indexed documents using SQLite’s **FTS5** module.
+
+Rationale:
+
+- Developers often need exact identifier matching (symbols, file names, error messages)
+- FTS5 is a strong prefilter for embeddings (reduce candidate sets)
+- Full-text search is easier to audit than purely semantic retrieval
+
+What should be searchable:
+
+- agent artifacts (plans/summaries/decisions) from `.codealta/` and `$HOME/.codealta/`
+- file chunks and extracted symbol text (where available)
+- task comments and decision records
+- conversation anchors (when indexed)
+
+### 10.4 Semantic retrieval
 
 Use embeddings to retrieve relevant knowledge records:
 
@@ -331,7 +349,7 @@ Use embeddings to retrieve relevant knowledge records:
   - start: brute-force cosine over a filtered candidate set (FTS5 prefilter)
   - later: add a SQLite vector extension (e.g. sqlite-vec or sqlite-vss) when packaging is proven
 
-### 10.4 Keeping it fresh
+### 10.5 Keeping it fresh
 
 We need explicit invalidation strategies:
 

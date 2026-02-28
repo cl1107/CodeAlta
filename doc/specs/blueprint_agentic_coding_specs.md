@@ -312,6 +312,7 @@ Repo-local structure (example):
 Artifact format:
 
 - prefer Markdown with YAML frontmatter for stable machine parsing (ids, scope, timestamps, tags)
+- ensure artifact contents are indexed into SQLite **FTS5** so we can do full-text search across all documents (with or without embeddings)
 
 SQLite should store:
 
