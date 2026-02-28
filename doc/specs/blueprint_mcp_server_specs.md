@@ -152,7 +152,7 @@ In practice, most queries should use a **hybrid** approach (FTS5 prefilter + emb
 ### 5.1 Indexable sources (first-class)
 
 - file chunks (path + line range + hash)
-- symbols (Roslyn)
+- symbols (Roslyn for .NET in v1.0; later: other language services)
 - git artifacts (commit messages, diffs, blame snippets)
 - task comments and decision records
 - conversation anchors (sessionId/messageId) when valuable

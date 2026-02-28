@@ -211,7 +211,7 @@ Builder agents are the “doers”. The blueprint assumes three hard requirement
 
 ### 5.1 Verification loop (example)
 
-For a C# project, the default loop is:
+For a .NET project (first-class in v1.0), the default loop is:
 
 1. Edit (patch) files
 2. Run `dotnet build` (or targeted build)
@@ -220,6 +220,12 @@ For a C# project, the default loop is:
 5. Mark task done only when green
 
 Where possible, integrate a Roslyn host for faster semantic feedback.
+
+For other languages, CodeAlta should remain language-agnostic:
+
+- run configured build/test commands for the project
+- rely on generic retrieval (FTS5 + embeddings) and repo-local artifacts
+- later: add language-specific “live servers” (LSP equivalents) where valuable
 
 ### 5.2 Handling limited backend capabilities
 
