@@ -1,7 +1,7 @@
 # Spec Coverage Matrix: `doc/specs/implementation_plan.md`
 
 As of: 2026-02-28  
-Code state: `e70a1ddd4b74c7adedb02c707268088009aa317c`
+Code state: `1ac8e192927a21c1ecf8c2b1b3bb0fbccba6689f`
 
 Legend:
 - Done: implemented and covered by tests (or trivially verified)
