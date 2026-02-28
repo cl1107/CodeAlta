@@ -1,166 +1,353 @@
-# 🧠 Blueprint for a Next-Generation Agentic Coding Assistant
+# CodeAlta Blueprint (Draft)
 
-Based on your existing foundation and ideas, here's a structured vision organized into core capability groups. Each group builds on the others to create a system that's more than the sum of its parts.
+Last updated: **2026-02-28**
 
----
+This document is the high-level blueprint for **CodeAlta**: a local-first, multi-backend, multi-agent coding assistant intended to work on real projects (multiple folders, multiple repositories, long-lived sessions) despite limited model context windows (typically **200K–400K tokens**).
 
-## 1. 🗂️ Multi-Workspace Orchestration
+This is a “why/what” blueprint, not a full protocol spec. Detailed designs live in the companion documents:
 
-**Problem:** Developers rarely work in a single folder. Monorepos, multi-service architectures, and library+consumer workflows demand cross-project awareness.
-
-**Breakthrough Ideas:**
-
-- **Unified Virtual Workspace Graph:** Model all open folders as nodes in a dependency graph (detected via project references, `package.json`, `Directory.Build.props`, etc.). Agents reason across the *graph*, not individual folders.
-- **Cross-Project Refactoring:** An agent proposes a change in library A and *automatically* propagates breaking changes to consumers B and C — validated by the live compiler (see §4).
-- **Workspace Profiles:** Let users define named workspace configurations (e.g., "backend + shared-lib + integration-tests") that can be activated instantly, restoring agent context and file watchers.
+- `doc/specs/agent_api_specs.md` (shared backend/session API for Codex + Copilot)
+- `doc/specs/blueprint_agentic_coding_specs.md` (agent hierarchy, orchestration, memory/context strategy)
+- `doc/specs/blueprint_mcp_server_specs.md` (built-in MCP server: agent registry, tasks DB, semantic search, skills)
 
 ---
 
-## 2. 💬 Conversation Memory & Semantic Retrieval
+## Table of contents
 
-**Problem:** Context is lost between sessions. Past decisions, rejected approaches, and design rationale vanish.
-
-**Breakthrough Ideas:**
-
-- **Conversation Knowledge Base:** Every conversation is chunked, embedded (via LlamaSharp), and stored in SQLite with FTS5 + vector columns. Agents query *past you* as a knowledge source.
-- **Linkable Conversation Anchors:** Any message or decision can be given a stable URI (`conv://project-auth-redesign/msg-42`). Agents and users can reference these in prompts, code comments, or commit messages.
-- **Automatic Decision Journal:** The system detects *decisions* in conversations (e.g., "let's use MediatR instead") and indexes them as first-class entities with tags, timestamps, and linked files. Agents consult this before proposing alternatives you've already rejected.
-- **Cross-Conversation Reasoning:** When a user asks a question, the agent silently retrieves the top-N semantically related past exchanges and injects them as context — the user gets continuity without manually recapping.
-
----
-
-## 3. 🗄️ Structured Project Intelligence Store (SQLite)
-
-**Problem:** File contents, symbols, embeddings, build state, and conversation history are all useful — but only if queryable together.
-
-**Breakthrough Ideas:**
-
-- **Unified Schema:** One SQLite database per workspace with tables for:
-  - `files` (path, hash, last_modified, language)
-  - `symbols` (name, kind, file_id, span, signature — fed by Roslyn)
-  - `embeddings` (entity_id, entity_type, vector — for files, symbols, conversations)
-  - `conversations` (id, timestamp, summary, linked_files)
-  - `decisions` (id, conversation_id, description, status)
-  - `tasks` (id, agent_id, status, parent_task_id)
-- **Incremental Indexing:** File watchers trigger re-embedding and re-analysis only for changed files. Roslyn provides incremental compilation deltas.
-- **Agent-Queryable SQL Interface:** Agents can issue structured queries ("find all public methods in namespace X that were discussed in the last 3 conversations") — bridging code intelligence and conversation memory.
+1. [Problem statement](#1-problem-statement)
+2. [Goals and non-goals](#2-goals-and-non-goals)
+3. [Design principles](#3-design-principles)
+4. [Core concepts](#4-core-concepts)
+5. [High-level architecture](#5-high-level-architecture)
+6. [Multi-workspace model](#6-multi-workspace-model)
+7. [Memory window strategy](#7-memory-window-strategy)
+8. [Agent hierarchy](#8-agent-hierarchy)
+9. [Built-in MCP server](#9-built-in-mcp-server)
+10. [Storage, indexing, semantic search](#10-storage-indexing-semantic-search)
+11. [Skills integration](#11-skills-integration)
+12. [Roadmap (suggested)](#12-roadmap-suggested)
+13. [Open questions](#13-open-questions)
 
 ---
 
-## 4. 🔬 Live Roslyn Compiler Integration (C#)
+## 1. Problem statement
 
-**Problem:** Agents hallucinate APIs, miss type errors, and can't reason about code semantics without a real compiler.
+Agentic coding systems fail in predictable ways:
 
-**Breakthrough Ideas:**
+- **Context limits**: a single session cannot hold a whole multi-project codebase + history + decisions.
+- **Lack of grounding**: without compilers/indexers, agents hallucinate APIs and miss cross-project breakage.
+- **Lack of continuity**: decisions and rejected approaches are forgotten between runs.
+- **Single-thread bottleneck**: one agent doing planning + searching + building is slow and brittle.
 
-- **Persistent Compilation Host:** A long-running Roslyn `AdhocWorkspace` (or `MSBuildWorkspace`) that maintains live `Compilation` objects. Agents query it via a tool interface, never by guessing.
-- **Agent Tool Surface:**
-  - `GetDiagnostics(file)` — real-time errors/warnings
-  - `FindSymbol(name)` — exact symbol resolution with overloads
-  - `GetCallGraph(method)` — who calls what, and what calls whom
-  - `GetTypeHierarchy(type)` — inheritance chain
-  - `ApplyEdit(change) → Diagnostic[]` — *speculative edits*: the agent proposes a change, Roslyn evaluates it **without writing to disk**, and returns whether it compiles
-- **Speculative Edit Loop:** The agent generates code → Roslyn validates → agent fixes diagnostics → loop until clean. The user only sees the final, compiling result. This alone eliminates the most common failure mode of AI-generated code.
-- **Semantic Embedding from Roslyn:** Use Roslyn's semantic model to generate richer embeddings (e.g., embed a method's signature + doc comment + body + callers) rather than raw text.
+CodeAlta’s direction is to make these failures *system problems* solved by architecture:
 
----
-
-## 5. 🤖 Multi-Agent Task Dispatch & Role System
-
-**Problem:** A single agent with a single context window can't handle complex, multi-step tasks that span files, projects, and concerns.
-
-**Breakthrough Ideas:**
-
-- **Role-Based Agent Pool:**
-  - **Architect** — plans changes across the workspace graph, breaks tasks into subtasks
-  - **Coder** — implements a single, scoped change in one file/module
-  - **Reviewer** — validates changes against style, tests, and Roslyn diagnostics
-  - **Researcher** — queries conversation history, docs, and the web for context
-  - **Tester** — generates and runs tests, reports coverage delta
-- **Hierarchical Task Decomposition:** User says "add caching to the user service." Architect breaks it into: (1) Research past caching conversations, (2) Identify affected methods via Roslyn call graph, (3) Implement cache layer, (4) Update DI registration, (5) Add tests, (6) Review. Each subtask is dispatched to the appropriate role.
-- **Agent Handoff Protocol:** Agents pass structured context (not raw chat) to the next agent: `{ task, relevant_files, symbols, prior_decisions, constraints }`. This prevents context dilution.
-- **Conflict Resolution:** If two Coder agents propose conflicting edits, the Reviewer agent detects it (via Roslyn diagnostics on the merged result) and escalates to the user with a clear diff.
+- Multiple workspaces + persistent knowledge store + semantic retrieval.
+- Multiple specialized agents coordinated by shared state (tasks/plans).
+- A built-in MCP server exposing stable services/tools to all agents.
 
 ---
 
-## 6. 🪟 Intelligent Context Window Management
+## 2. Goals and non-goals
 
-**Problem:** LLM context windows are finite. Naive approaches waste tokens on irrelevant context or lose critical information.
+### Goals (what we want)
 
-**Breakthrough Ideas:**
+- **Multiple workspaces** with a global registry (the app knows them all).
+- **Workspace switching** without losing running sessions, task state, or high-level context.
+- **Hierarchical agents**:
+  - global agent (user entry point)
+  - knowledge/planner/builder agents at global/workspace/project scopes
+- **Shared task/plan tracking** stored in SQLite and accessible via MCP services.
+- **Semantic search** over files, symbols, git history, agent discussions, tasks/decisions.
+- **Skills integration** (Agent Skills format) with progressive disclosure to avoid bloating context windows.
 
-- **Session Pool Architecture:** Maintain N concurrent LLM sessions (context windows), each dedicated to a role or subtask. The orchestrator routes work to the session with the most relevant pre-loaded context, minimizing re-prompting.
-- **Context Budget Allocator:** Each session has a token budget. The orchestrator dynamically allocates sections:
-  - **Pinned** (system prompt, tool definitions — always present)
-  - **Active** (current task, relevant files — high priority)
-  - **Recalled** (semantically retrieved past context — medium priority)
-  - **Ephemeral** (intermediate reasoning — evicted first)
-- **Lazy Context Materialization:** Don't inject full file contents upfront. Instead, give the agent a *file manifest* with summaries (from Roslyn: signature + doc comment). The agent requests full content only for files it needs — dramatically reducing waste.
-- **Session Recycling:** When a session finishes a task, its context is summarized, embedded, and stored. The session is then re-used for the next task with a warm summary rather than cold start.
-- **Transparent Multi-Session Fusion:** The user sees one conversation. Behind the scenes, the Architect session coordinates, Coder sessions work in parallel, and the Reviewer session synthesizes. Results are merged and presented as a single coherent response.
+### Non-goals (first cut)
+
+- Perfect 1:1 feature parity between Copilot and Codex backends.
+- Distributed multi-user collaboration (can be added later; design should not block it).
+- Indexing “the entire internet”; we focus on workspace-local and repo-local knowledge.
 
 ---
 
-## 7. 🔗 Synergy Map — How These Connect
+## 3. Design principles
+
+- **Local-first, auditable**: store state on disk (SQLite + files), keep an audit trail of agent actions.
+- **Memory-aware by default**: everything should support progressive disclosure and context budgets.
+- **Grounded outputs**: prefer compiler/indexer facts and citations over free-form guesses.
+- **Scope-first**: every operation is scoped (global/workspace/project/file) to reduce mistakes.
+- **Extensible backends**: Codex/Copilot are backends; everything else is CodeAlta-owned logic.
+- **Safe execution**: file changes and command execution go through explicit approval policies.
+
+---
+
+## 4. Core concepts
+
+### 4.1 Workspace
+
+A workspace is a named collection of projects plus settings.
+
+Key constraints:
+
+- A **project cannot belong to more than one workspace at a time**.
+- Users can switch workspaces without losing current context (sessions/tasks remain).
+
+Suggested identity:
+
+- `workspaceId` (GUID)
+- `name`
+- `projects[]` (list of project roots and metadata)
+- `settings` (backend preferences, indexing options, skill directories, etc.)
+
+### 4.2 Project
+
+A project is a folder root with detected type(s) and optional graph edges:
+
+- `dotnet` solution/project graph
+- `node` package graph
+- `git` repo metadata
+
+Projects are the unit for:
+
+- indexing boundaries (file watchers, symbol extraction)
+- permission boundaries (allowed roots)
+
+### 4.3 Agent
+
+An agent is a long-lived unit of work with an identity and scope.
+
+- `agentId` (GUID)
+- `role` (knowledge / planner / builder / reviewer / …)
+- `scope` (global / workspace / project)
+- `backend` (Codex/Copilot) + backend session/thread id
+- `capabilities[]` (declared services/tools it can provide)
+
+### 4.4 Task and plan
+
+Tasks are first-class, durable coordination primitives:
+
+- hierarchical (parent/child)
+- assignable to agents
+- scoped to workspace/project/file
+- status tracked (`pending`, `in_progress`, `blocked`, `done`, …)
+
+Tasks live in SQLite (via MCP service), not in an agent’s ephemeral memory.
+
+### 4.5 Knowledge record
+
+A knowledge record is an indexed unit that can be retrieved later, always with a source link:
+
+- file slice (path + line range + hash)
+- symbol (fully-qualified name + signature)
+- git commit / diff / blame snippet
+- conversation anchor (sessionId + messageId)
+- task / decision entry
+
+### 4.6 Agent artifacts (disk)
+
+Compaction-safe continuity requires that agent outputs are not only “in the chat”.
+
+For planner/knowledge (and optionally builder) outputs, store durable artifacts as plain files on disk:
+
+- Markdown summaries (workspace/project/file)
+- Plans and task breakdowns
+- Decision records
+- Retrieval snapshots (“why this was suggested”)
+- Agent run logs (what tools were called, high-level outcomes)
+
+These artifacts should live under a central root such as:
+
+- Linux/macOS: `$HOME/.codealta/`
+- Windows: `%USERPROFILE%\.codealta\`
+
+The SQLite DB stores metadata + pointers to these files (path + hash), so agents can reload them after compaction.
+
+### 4.7 Skill
+
+Skills follow the **Agent Skills** format: a directory with `SKILL.md` + optional `scripts/`, `references/`, `assets/`.
+
+Skills must be integrated with **progressive disclosure**:
+
+- load only metadata (name + description) globally
+- load full instructions only when activated
+
+---
+
+## 5. High-level architecture
+
+At a high level:
 
 ```
-User Prompt
-     │
-     ▼
-┌──────────────────────────────────────────────────────┐
-│  Orchestrator (Architect Agent)                      │
-│  - Queries Conversation KB (§2) for past context     │
-│  - Queries Workspace Graph (§1) for project topology │
-│  - Decomposes into subtasks (§5)                     │
-│  - Allocates context windows (§6)                    │
-└──────┬──────────┬──────────┬──────────┬──────────────┘
-       │          │          │          │
-       ▼          ▼          ▼          ▼
-   Researcher   Coder A   Coder B   Tester
-   (queries     (edits     (edits     (generates
-    Conv KB,     file in    file in    tests,
-    SQLite §3)   proj A)    proj B)    runs them)
-       │          │          │          │
-       │          ▼          ▼          │
-       │     ┌─────────────────────┐   │
-       │     │  Roslyn Host (§4)   │   │
-       │     │  - Validates edits  │   │
-       │     │  - Speculative loop │   │
-       │     └─────────────────────┘   │
-       │               │               │
-       ▼               ▼               ▼
-   ┌───────────────────────────────────────┐
-   │  Reviewer Agent                       │
-   │  - Merges results                     │
-   │  - Checks cross-project consistency   │
-   │  - Presents unified response to user  │
-   └───────────────────────────────────────┘
+User (CLI/TUI/IDE)
+   │
+   ▼
+Global Orchestrator (CodeAlta)
+   │   ├─ Agent backends (Codex, Copilot) via CodeAlta.Agent API
+   │   ├─ Built-in MCP server (tools/services)
+   │   ├─ Workspace registry + switcher
+   │   └─ Knowledge store (SQLite) + indexers (Roslyn, Git, embeddings)
+   ▼
+Workspace/Project Agents (knowledge/planner/builder)
 ```
 
----
+The key idea is **separating concerns**:
 
-## 8. 💡 High-Leverage "Sleeper" Ideas
-
-These are smaller but disproportionately impactful:
-
-| Idea | Why It Matters |
-|---|---|
-| **Git-aware context** — agents see the current diff, branch, and recent commits | Grounds suggestions in *what you're actually doing*, not just what's on disk |
-| **Undo as a first-class concept** — every agent action is a reversible transaction | Eliminates fear of letting agents act autonomously |
-| **Progressive disclosure in responses** — summary first, expandable detail | Respects developer attention; avoids wall-of-text syndrome |
-| **Token cost dashboard** — show real-time token usage per session/task | Builds trust and lets users tune the budget/quality tradeoff |
-| **"Teach me" mode** — agent explains *why* it made each choice, linked to Roslyn evidence and past decisions | Turns the assistant into a mentoring tool, not just a code generator |
+- backends provide chat/session execution
+- CodeAlta provides memory, orchestration, persistence, and tooling
 
 ---
 
-## Prioritization Suggestion
+## 6. Multi-workspace model
 
-If you're building iteratively, the highest-impact path is:
+Requirements:
 
-1. **Roslyn Host + Speculative Edit Loop** (§4) — this is your moat; no other terminal-based assistant does this
-2. **SQLite Intelligence Store** (§3) — the connective tissue everything else depends on
-3. **Conversation Memory + Semantic Retrieval** (§2) — makes the agent feel like it *knows* your project
-4. **Multi-Agent Dispatch** (§5) + **Context Window Management** (§6) — unlocks complex tasks
-5. **Multi-Workspace** (§1) — natural extension once the graph model exists
+- The app maintains a **global registry** of workspaces (`workspaceId`, `name`, `projects`, settings).
+- Switching workspaces:
+  - does not delete/lose sessions or tasks
+  - changes the “active scope” for commands and prompts
+- Projects:
+  - are unique-membership (one workspace only)
+  - can be added/removed (with indexing updates)
 
-The speculative Roslyn loop alone — where the agent *guarantees* its output compiles before showing it to you — would be a breakthrough feature that no mainstream coding assistant currently offers in a terminal environment.
+Recommended approach:
+
+- Store the workspace registry in a global config file + global SQLite table.
+- Each workspace has its own SQLite DB (or a workspace namespace in a single DB).
+- The global agent routes user requests to the right workspace agent(s).
+
+---
+
+## 7. Memory window strategy
+
+The system must treat the context window as a scarce resource.
+
+Core tactics:
+
+- **Hierarchical summaries** (global → workspace → project → file/symbol).
+- **Retrieval-first**: fetch only what is relevant (semantic + keyword + graph-based).
+- **Pinned context**: users/agents can pin notes/files into the “always include” set.
+- **Lazy materialization**: prefer manifests and symbol summaries over full file contents.
+- **Session compaction**: summarize and store durable outcomes (decisions/tasks/anchors) after each run.
+
+Implementation details are in `doc/specs/blueprint_agentic_coding_specs.md`.
+
+---
+
+## 8. Agent hierarchy
+
+We want a consistent hierarchy across scopes:
+
+- **Global agent**: user entry point, routes work, maintains cross-workspace awareness.
+- **Knowledge agents**: answer questions with the right abstraction level.
+  - global: knows all workspaces (structure + summaries)
+  - workspace: knows projects and their shape
+  - project: knows files/symbols and local decisions
+- **Planner agents**: create/maintain plans and tasks.
+  - global: multi-workspace plans
+  - workspace: multi-project plans
+  - project: file-level plans
+- **Builder agents**: execute tasks (code changes, tests, refactors) within their scope.
+
+Coordination primitives:
+
+- tasks/plans in SQLite (shared state)
+- MCP services for queries and actions
+- event stream for progress updates (tasks, indexing, agent status)
+
+---
+
+## 9. Built-in MCP server
+
+CodeAlta should embed an MCP server to provide a shared services layer.
+
+Key responsibilities:
+
+- **Agent registry**: agents register with id/name/description/capabilities; parent/child relationships.
+- **Inter-agent communication**: request/response + publish/subscribe (task updates, indexing progress).
+- **Task/plan service** backed by SQLite.
+- **Semantic search service** backed by SQLite + embeddings.
+- **Skills service** (discover, activate, validate skills).
+
+Detailed tool/API surface is in `doc/specs/blueprint_mcp_server_specs.md`.
+
+---
+
+## 10. Storage, indexing, semantic search
+
+### 10.1 Storage
+
+Primary store: **SQLite** (local, portable, transactional).
+
+In addition, use a **disk artifact store** for human-readable, compaction-safe documents (Markdown).
+The DB links to artifacts rather than duplicating large derived text blobs.
+
+At minimum, store:
+
+- workspaces, projects, files
+- agent sessions (metadata), conversation anchors
+- tasks/plans and their history
+- indexed knowledge records (with citations)
+- embeddings vectors + search indexes
+- artifact pointers (paths + hashes) for plans/summaries/decision records
+
+### 10.2 Indexing sources
+
+- Files (chunked + hashed)
+- Symbols (Roslyn, where applicable)
+- Git metadata (status/diff/log/blame; commit history as retrievable knowledge)
+- Agent conversations and task logs
+
+### 10.3 Semantic retrieval
+
+Use embeddings to retrieve relevant knowledge records:
+
+- small local embedding model via **LlamaSharp** (download + cache + integrity check)
+- vector storage in SQLite (BLOB) plus a query strategy:
+  - start: brute-force cosine over a filtered candidate set (FTS5 prefilter)
+  - later: add a SQLite vector extension (e.g. sqlite-vec or sqlite-vss) when packaging is proven
+
+### 10.4 Keeping it fresh
+
+We need explicit invalidation strategies:
+
+- file watchers re-index on change
+- git branch/checkout detection triggers targeted re-indexing
+- background jobs with rate limits (avoid thrashing on large repos)
+
+---
+
+## 11. Skills integration
+
+We should integrate the Agent Skills format as a first-class concept:
+
+- configure one or more skill directories per workspace
+- load only `(name, description, path)` metadata into agent context
+- activation loads full `SKILL.md` + referenced resources on demand
+
+A dedicated **Skiller agent** can:
+
+- manage skills discovery/validation
+- decide which skills to activate (reducing load on other agents)
+- keep a “skills index” in SQLite for fast matching
+
+---
+
+## 12. Roadmap (suggested)
+
+A pragmatic, value-first order:
+
+1. **Workspace registry + switching** (no semantic search yet).
+2. **Tasks DB + MCP task service** (make plans durable and queryable).
+3. **Indexing v1**: file hashes + FTS5 + basic chunks (keyword retrieval).
+4. **Embeddings + semantic search v1**: small model + retrieval with citations.
+5. **Agent hierarchy** (knowledge/planner/builder) backed by tasks/search.
+6. **Roslyn host + speculative edit loop** for “always compiles” guarantees (for C#).
+7. Skills integration + Skiller agent (progressive disclosure).
+
+---
+
+## 13. Open questions
+
+- One SQLite DB per workspace vs a single DB with workspace namespaces?
+- How do we represent cross-workspace tasks safely (explicit user opt-in)?
+- Which SQLite vector strategy is shippable on Windows/macOS/Linux without pain?
+- What is the minimal viable set of MCP tools to unblock multi-agent work?
+- How do we persist “user intent” and “coding standards” per workspace/project?
