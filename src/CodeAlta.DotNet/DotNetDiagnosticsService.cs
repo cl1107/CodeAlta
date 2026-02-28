@@ -92,10 +92,13 @@ public sealed class DotNetDiagnosticsService
             "\n",
             new[] { output, errors }.Where(static x => !string.IsNullOrWhiteSpace(x)));
 
+        var artifactRoot = ResolveArtifactRoot(workingDirectory);
+        Directory.CreateDirectory(artifactRoot);
+
         var artifactId = ArtifactId.NewVersion7();
         var now = DateTimeOffset.UtcNow;
         var artifactPath = Path.Combine(
-            _options.ArtifactRoot,
+            artifactRoot,
             "diagnostics",
             $"{now:yyyyMMddTHHmmssfffZ}_{artifactId}.md");
         var markdown =
@@ -170,5 +173,19 @@ public sealed class DotNetDiagnosticsService
             ArtifactId = artifactId,
             ArtifactPath = Path.GetFullPath(artifactPath),
         };
+    }
+
+    private string ResolveArtifactRoot(string repoRoot)
+    {
+        if (!string.IsNullOrWhiteSpace(_options.ArtifactRoot))
+        {
+            return Path.GetFullPath(_options.ArtifactRoot);
+        }
+
+        return Path.Combine(
+            Path.GetFullPath(repoRoot),
+            ".codealta",
+            "knowledge",
+            "dotnet");
     }
 }

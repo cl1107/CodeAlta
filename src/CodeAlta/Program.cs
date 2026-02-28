@@ -88,7 +88,7 @@ internal sealed class TerminalHost : IAsyncDisposable
         var dotNetContextProvider = new DotNetContextProvider(dotNetWorkspaceService, symbolIndexService);
         var dotNetOptions = new DotNetOptions
         {
-            ArtifactRoot = Path.Combine(homeRoot, "knowledge", "dotnet"),
+            ArtifactRoot = string.Empty,
         };
         var dotNetIndexService = new DotNetIndexService(
             dotNetWorkspaceService,

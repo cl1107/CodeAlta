@@ -62,13 +62,16 @@ public sealed class DotNetIndexService
         string? projectId = null,
         CancellationToken cancellationToken = default)
     {
+        var artifactRoot = ResolveArtifactRoot(repoRoot);
+        Directory.CreateDirectory(artifactRoot);
+
         var snapshot = await _workspaceService.LoadAsync(repoRoot, cancellationToken).ConfigureAwait(false);
         var symbols = await _symbolIndexService.BuildIndexAsync(snapshot, cancellationToken).ConfigureAwait(false);
         var now = DateTimeOffset.UtcNow;
 
         var graphArtifactId = ArtifactId.NewVersion7();
         var graphPath = Path.Combine(
-            _options.ArtifactRoot,
+            artifactRoot,
             "project-graph.md");
         var graphMarkdown = BuildProjectGraphMarkdown(snapshot);
 
@@ -120,7 +123,7 @@ public sealed class DotNetIndexService
         {
             var symbolId = ArtifactId.NewVersion7();
             var symbolPath = Path.Combine(
-                _options.ArtifactRoot,
+                artifactRoot,
                 "symbols",
                 $"{SanitizeFileName(symbol.FullyQualifiedName)}_{symbolId}.md");
             var symbolMarkdown =
@@ -192,6 +195,20 @@ public sealed class DotNetIndexService
             SymbolCount = symbols.Count,
             IndexedDocumentCount = documents.Count,
         };
+    }
+
+    private string ResolveArtifactRoot(string repoRoot)
+    {
+        if (!string.IsNullOrWhiteSpace(_options.ArtifactRoot))
+        {
+            return Path.GetFullPath(_options.ArtifactRoot);
+        }
+
+        return Path.Combine(
+            Path.GetFullPath(repoRoot),
+            ".codealta",
+            "knowledge",
+            "dotnet");
     }
 
     private static string BuildProjectGraphMarkdown(DotNetWorkspaceSnapshot snapshot)
