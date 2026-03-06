@@ -115,3 +115,11 @@ Current terminal host capabilities:
   - run `dotnet build` diagnostics with persisted artifacts.
 - MCP operations:
   - in-process MCP health check by listing registered `codealta.*` tools.
+
+## Live Backend Smoke Tests
+
+`src/CodeAlta.Tests` also contains opt-in live backend smoke tests for the local Codex and Copilot CLIs.
+
+- Set `CODEALTA_RUN_LIVE_CODEX_TESTS=1` to run the Codex live prompt test.
+- Set `CODEALTA_RUN_LIVE_COPILOT_TESTS=1` to run the Copilot live prompt test.
+- Without those environment variables, the live tests are skipped as inconclusive during `dotnet test`.

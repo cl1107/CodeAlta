@@ -168,4 +168,33 @@ public sealed class CopilotAgentMapperTests
         var raw = (AgentRawEvent)mappedUnknown;
         Assert.AreEqual("session.info", raw.BackendEventType);
     }
+
+    [TestMethod]
+    public void ToAgentEvent_FallsBackWhenCopilotSdkCannotSerializeRawEvent()
+    {
+        var timestamp = DateTimeOffset.Parse("2026-02-25T12:00:00+00:00");
+        using var quotaSnapshot = JsonDocument.Parse("""{"remaining":1}""");
+        var usageEvent = new AssistantUsageEvent
+        {
+            Timestamp = timestamp,
+            Data = new AssistantUsageData
+            {
+                Model = "gpt-5",
+                QuotaSnapshots = new Dictionary<string, object>
+                {
+                    ["sample"] = quotaSnapshot.RootElement.Clone()
+                }
+            }
+        };
+
+        var mapped = CopilotAgentMapper.ToAgentEvent("session-1", usageEvent);
+
+        Assert.IsInstanceOfType<AgentRawEvent>(mapped);
+        var raw = (AgentRawEvent)mapped;
+        Assert.AreEqual("assistant.usage", raw.BackendEventType);
+        Assert.AreEqual("assistant.usage", raw.Raw.GetProperty("type").GetString());
+        Assert.AreEqual(typeof(AssistantUsageEvent).FullName, raw.Raw.GetProperty("eventClass").GetString());
+        Assert.IsTrue(raw.Raw.TryGetProperty("serializationError", out var serializationError));
+        Assert.IsFalse(string.IsNullOrWhiteSpace(serializationError.GetString()));
+    }
 }

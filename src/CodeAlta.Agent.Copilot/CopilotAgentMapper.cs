@@ -478,8 +478,33 @@ internal static class CopilotAgentMapper
 
     private static JsonElement ToRawElement(SessionEvent sessionEvent)
     {
-        var json = sessionEvent.ToJson();
-        using var document = JsonDocument.Parse(json);
+        ArgumentNullException.ThrowIfNull(sessionEvent);
+
+        try
+        {
+            var json = sessionEvent.ToJson();
+            using var document = JsonDocument.Parse(json);
+            return document.RootElement.Clone();
+        }
+        catch (Exception ex) when (ex is JsonException or NotSupportedException)
+        {
+            return CreateRawFallback(sessionEvent, ex.Message);
+        }
+    }
+
+    private static JsonElement CreateRawFallback(SessionEvent sessionEvent, string serializationError)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("type", sessionEvent.Type);
+            writer.WriteString("eventClass", sessionEvent.GetType().FullName);
+            writer.WriteString("serializationError", serializationError);
+            writer.WriteEndObject();
+        }
+
+        using var document = JsonDocument.Parse(stream.ToArray());
         return document.RootElement.Clone();
     }
 
