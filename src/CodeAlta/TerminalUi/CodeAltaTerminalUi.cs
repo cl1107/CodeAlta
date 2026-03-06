@@ -457,7 +457,7 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
             return;
         }
 
-        _chatBackendId = backendOptions[newIndex].BackendId;
+        _chatBackendId = ResolveChatBackendSelection(_chatBackendId, backendOptions[newIndex].BackendId, adoptRequestedBackend: true);
         RefreshChatSelectors();
         RefreshChatBackendStatusMarkup();
         _ = EnsureSelectedChatBackendReadyAsync();
@@ -625,6 +625,12 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
 
         return options;
     }
+
+    internal static AgentBackendId ResolveChatBackendSelection(
+        AgentBackendId currentSelection,
+        AgentBackendId requestedBackend,
+        bool adoptRequestedBackend)
+        => adoptRequestedBackend ? requestedBackend : currentSelection;
 
     internal static string BuildChatBackendStatusMarkup(
         IEnumerable<ChatBackendState> backendStates,
@@ -1268,7 +1274,6 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
 
     private async Task<AgentId> EnsureChatSessionAsync(AgentBackendId backendId, bool updateStatus = true)
     {
-        _chatBackendId = backendId;
         var backendState = _chatBackendStates[backendId.Value];
         if (backendState.Availability is ChatBackendAvailability.Unsupported or ChatBackendAvailability.Failed)
         {

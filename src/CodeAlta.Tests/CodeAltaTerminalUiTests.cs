@@ -162,4 +162,15 @@ public sealed class CodeAltaTerminalUiTests
         StringAssert.Contains(markup, "Copilot");
         StringAssert.Contains(markup, "CLI not found");
     }
+
+    [TestMethod]
+    public void ResolveChatBackendSelection_CanPreserveCurrentSelection()
+    {
+        var selected = CodeAltaTerminalUi.ResolveChatBackendSelection(
+            AgentBackendIds.Copilot,
+            AgentBackendIds.Codex,
+            adoptRequestedBackend: false);
+
+        Assert.AreEqual(AgentBackendIds.Copilot, selected);
+    }
 }
