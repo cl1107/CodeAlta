@@ -168,13 +168,13 @@ public sealed class CodexAgentSession : ICodexAgentSession
 
         switch (eventData)
         {
-            case AgentSessionIdleEvent:
+            case AgentSessionUpdateEvent { Kind: AgentSessionUpdateKind.Idle }:
                 lock (_handlerLock)
                 {
                     _activeRunId = null;
                 }
                 break;
-            case AgentAssistantMessageDeltaEvent delta when delta.RunId is not null:
+            case AgentContentDeltaEvent { Kind: AgentContentKind.Assistant } delta when delta.RunId is not null:
                 lock (_handlerLock)
                 {
                     _activeRunId = delta.RunId;

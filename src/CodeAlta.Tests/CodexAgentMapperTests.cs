@@ -98,8 +98,9 @@ public sealed class CodexAgentMapperTests
             });
 
         var deltaEvent = CodexAgentMapper.ToAgentEvent("thread-1", deltaNotification, timestamp);
-        Assert.IsInstanceOfType<AgentAssistantMessageDeltaEvent>(deltaEvent);
-        var mappedDelta = (AgentAssistantMessageDeltaEvent)deltaEvent;
+        Assert.IsInstanceOfType<AgentContentDeltaEvent>(deltaEvent);
+        var mappedDelta = (AgentContentDeltaEvent)deltaEvent;
+        Assert.AreEqual(AgentContentKind.Assistant, mappedDelta.Kind);
         Assert.AreEqual("abc", mappedDelta.Delta);
         Assert.AreEqual("turn-1", mappedDelta.RunId?.Value);
 
@@ -116,8 +117,9 @@ public sealed class CodexAgentMapperTests
             });
 
         var messageEvent = CodexAgentMapper.ToAgentEvent("thread-1", messageNotification, timestamp);
-        Assert.IsInstanceOfType<AgentAssistantMessageEvent>(messageEvent);
-        var mappedMessage = (AgentAssistantMessageEvent)messageEvent;
+        Assert.IsInstanceOfType<AgentContentCompletedEvent>(messageEvent);
+        var mappedMessage = (AgentContentCompletedEvent)messageEvent;
+        Assert.AreEqual(AgentContentKind.Assistant, mappedMessage.Kind);
         Assert.AreEqual("final answer", mappedMessage.Content);
         Assert.AreEqual("turn-2", mappedMessage.RunId?.Value);
 

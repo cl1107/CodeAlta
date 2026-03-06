@@ -1,41 +1,68 @@
 namespace CodeAlta.Agent;
 
 /// <summary>
-/// Represents a user input request (e.g. "ask user") originating from a backend.
+/// Represents a user-input request originating from a backend.
 /// </summary>
 /// <param name="BackendId">The backend identifier.</param>
 /// <param name="SessionId">The session identifier.</param>
-/// <param name="Questions">The questions to ask.</param>
+/// <param name="Timestamp">The event timestamp.</param>
+/// <param name="RunId">Optional run identifier.</param>
+/// <param name="InteractionId">Stable interaction identifier.</param>
+/// <param name="Form">The structured input form.</param>
 public sealed record AgentUserInputRequest(
     AgentBackendId BackendId,
     string SessionId,
-    IReadOnlyList<AgentUserInputQuestion> Questions);
+    DateTimeOffset Timestamp,
+    AgentRunId? RunId,
+    string InteractionId,
+    AgentUserInputForm Form)
+    : AgentEvent(BackendId, SessionId, Timestamp, RunId);
 
 /// <summary>
-/// Represents a single user input question.
+/// Structured user-input form payload.
 /// </summary>
-/// <param name="Id">Stable identifier for mapping answers.</param>
-/// <param name="Question">The question text.</param>
-/// <param name="Choices">Optional list of choices.</param>
+/// <param name="Prompts">The prompts to show to the user.</param>
+public sealed record AgentUserInputForm(
+    IReadOnlyList<AgentUserInputPrompt> Prompts);
+
+/// <summary>
+/// Structured prompt definition for user input.
+/// </summary>
+/// <param name="Id">Stable identifier used for mapping answers.</param>
+/// <param name="Question">Prompt/question text.</param>
+/// <param name="Header">Optional short header label.</param>
+/// <param name="Options">Optional predefined options.</param>
 /// <param name="AllowFreeform">Whether freeform input is allowed.</param>
-public sealed record AgentUserInputQuestion(
+/// <param name="IsSecret">Whether the answer should be treated as secret input.</param>
+public sealed record AgentUserInputPrompt(
     string Id,
     string Question,
-    IReadOnlyList<string>? Choices = null,
-    bool AllowFreeform = true);
+    string? Header = null,
+    IReadOnlyList<AgentUserInputOption>? Options = null,
+    bool AllowFreeform = true,
+    bool IsSecret = false);
 
 /// <summary>
-/// Represents a user input response.
+/// Structured option definition for user input.
 /// </summary>
-/// <param name="Answers">Answers by question identifier.</param>
-public sealed record AgentUserInputResponse(IReadOnlyDictionary<string, string> Answers);
+/// <param name="Label">Option label.</param>
+/// <param name="Description">Optional option description.</param>
+public sealed record AgentUserInputOption(
+    string Label,
+    string? Description = null);
 
 /// <summary>
-/// User input request handler delegate.
+/// Represents a user-input response.
 /// </summary>
-/// <param name="request">The request.</param>
+/// <param name="Answers">Answers by prompt identifier.</param>
+public sealed record AgentUserInputResponse(
+    IReadOnlyDictionary<string, string> Answers);
+
+/// <summary>
+/// User-input request handler delegate.
+/// </summary>
+/// <param name="request">The user-input request.</param>
 /// <param name="cancellationToken">A token to cancel the operation.</param>
 public delegate Task<AgentUserInputResponse> AgentUserInputRequestHandler(
     AgentUserInputRequest request,
     CancellationToken cancellationToken);
-

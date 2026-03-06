@@ -225,8 +225,8 @@ public sealed class OrchestrationInfrastructureTests
                 new AgentSendOptions { Input = AgentInput.Text("hello") })
             .ConfigureAwait(false);
 
-        Assert.IsTrue(received.OfType<AgentAssistantMessageEvent>().Any());
-        Assert.IsTrue(received.OfType<AgentSessionIdleEvent>().Any());
+        Assert.IsTrue(received.OfType<AgentContentCompletedEvent>().Any(x => x.Kind == AgentContentKind.Assistant));
+        Assert.IsTrue(received.OfType<AgentSessionUpdateEvent>().Any(x => x.Kind == AgentSessionUpdateKind.Idle));
     }
 
     private static async Task<CodeAltaDb> CreateDbAsync(string rootPath)
@@ -358,16 +358,22 @@ public sealed class OrchestrationInfrastructureTests
             {
                 ArgumentNullException.ThrowIfNull(options);
                 var runId = new AgentRunId($"fake-run-{Interlocked.Increment(ref _backend._runCounter)}");
-                var message = new AgentAssistantMessageEvent(
+                var message = new AgentContentCompletedEvent(
                     BackendId,
                     SessionId,
                     DateTimeOffset.UtcNow,
                     runId,
+                    AgentContentKind.Assistant,
+                    "assistant-1",
+                    runId.Value,
                     "ok");
-                var idle = new AgentSessionIdleEvent(
+                var idle = new AgentSessionUpdateEvent(
                     BackendId,
                     SessionId,
-                    DateTimeOffset.UtcNow);
+                    DateTimeOffset.UtcNow,
+                    null,
+                    AgentSessionUpdateKind.Idle,
+                    null);
 
                 _events.Add(message);
                 _events.Add(idle);

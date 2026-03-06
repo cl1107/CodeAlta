@@ -879,7 +879,7 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
         CancellationToken cancellationToken)
     {
         _ = cancellationToken;
-        var answers = request.Questions.ToDictionary(static x => x.Id, static _ => string.Empty, StringComparer.Ordinal);
+        var answers = request.Form.Prompts.ToDictionary(static x => x.Id, static _ => string.Empty, StringComparer.Ordinal);
 
         PostToUi(() =>
         {
@@ -894,13 +894,13 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
     {
         switch (@event)
         {
-            case AgentAssistantMessageDeltaEvent delta:
+            case AgentContentDeltaEvent { Kind: AgentContentKind.Assistant } delta:
                 AppendAssistantDelta(delta.Delta);
                 break;
-            case AgentAssistantMessageEvent message:
+            case AgentContentCompletedEvent { Kind: AgentContentKind.Assistant } message:
                 FinalizeAssistantMessage(message.Content);
                 break;
-            case AgentSessionIdleEvent:
+            case AgentSessionUpdateEvent { Kind: AgentSessionUpdateKind.Idle }:
                 SetStatus($"Agent idle ({_chatBackendId.Value}).");
                 _chatStreamingMarkdown = null;
                 _chatStreamingBuffer = null;

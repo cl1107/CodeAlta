@@ -53,8 +53,8 @@ public sealed class ChatAgentConnectionTests
         Assert.AreEqual(2, backend.CreateSessionAttempts);
         Assert.AreEqual(agentId, connection.CurrentAgentId!.Value);
         Assert.IsTrue(connection.IsConnected);
-        Assert.IsTrue(received.OfType<AgentAssistantMessageEvent>().Any(x => x.Content == "ok"));
-        Assert.IsTrue(received.OfType<AgentSessionIdleEvent>().Any());
+        Assert.IsTrue(received.OfType<AgentContentCompletedEvent>().Any(x => x.Kind == AgentContentKind.Assistant && x.Content == "ok"));
+        Assert.IsTrue(received.OfType<AgentSessionUpdateEvent>().Any(x => x.Kind == AgentSessionUpdateKind.Idle));
     }
 
     private static async Task<CodeAltaDb> CreateDbAsync(string rootPath)
@@ -163,16 +163,22 @@ public sealed class ChatAgentConnectionTests
                 ArgumentNullException.ThrowIfNull(options);
 
                 var runId = new AgentRunId($"fake-run-{Interlocked.Increment(ref _backend._runCounter)}");
-                Publish(new AgentAssistantMessageEvent(
+                Publish(new AgentContentCompletedEvent(
                     BackendId,
                     SessionId,
                     DateTimeOffset.UtcNow,
                     runId,
+                    AgentContentKind.Assistant,
+                    "assistant-1",
+                    runId.Value,
                     "ok"));
-                Publish(new AgentSessionIdleEvent(
+                Publish(new AgentSessionUpdateEvent(
                     BackendId,
                     SessionId,
-                    DateTimeOffset.UtcNow));
+                    DateTimeOffset.UtcNow,
+                    null,
+                    AgentSessionUpdateKind.Idle,
+                    null));
                 return Task.FromResult(runId);
             }
 

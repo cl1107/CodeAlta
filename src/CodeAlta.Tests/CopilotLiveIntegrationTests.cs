@@ -57,7 +57,7 @@ public sealed class CopilotLiveIntegrationTests
         {
             switch (@event)
             {
-                case AgentAssistantMessageEvent message when !string.IsNullOrWhiteSpace(message.Content):
+                case AgentContentCompletedEvent message when message.Kind == AgentContentKind.Assistant && !string.IsNullOrWhiteSpace(message.Content):
                     assistantContent.TrySetResult(message.Content);
                     break;
                 case AgentErrorEvent error:

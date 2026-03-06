@@ -165,8 +165,9 @@ public sealed class CopilotAgentMapperTests
         };
 
         var mappedDelta = CopilotAgentMapper.ToAgentEvent("session-1", deltaEvent);
-        Assert.IsInstanceOfType<AgentAssistantMessageDeltaEvent>(mappedDelta);
-        var normalizedDelta = (AgentAssistantMessageDeltaEvent)mappedDelta;
+        Assert.IsInstanceOfType<AgentContentDeltaEvent>(mappedDelta);
+        var normalizedDelta = (AgentContentDeltaEvent)mappedDelta;
+        Assert.AreEqual(AgentContentKind.Assistant, normalizedDelta.Kind);
         Assert.AreEqual("delta", normalizedDelta.Delta);
         Assert.AreEqual("msg-1", normalizedDelta.RunId?.Value);
 
@@ -181,8 +182,9 @@ public sealed class CopilotAgentMapperTests
         };
 
         var mappedMessage = CopilotAgentMapper.ToAgentEvent("session-1", messageEvent);
-        Assert.IsInstanceOfType<AgentAssistantMessageEvent>(mappedMessage);
-        var normalizedMessage = (AgentAssistantMessageEvent)mappedMessage;
+        Assert.IsInstanceOfType<AgentContentCompletedEvent>(mappedMessage);
+        var normalizedMessage = (AgentContentCompletedEvent)mappedMessage;
+        Assert.AreEqual(AgentContentKind.Assistant, normalizedMessage.Kind);
         Assert.AreEqual("final message", normalizedMessage.Content);
         Assert.AreEqual("msg-2", normalizedMessage.RunId?.Value);
 

@@ -195,24 +195,33 @@ internal static class CopilotAgentMapper
 
         return sessionEvent switch
         {
-            AssistantMessageDeltaEvent delta => new AgentAssistantMessageDeltaEvent(
+            AssistantMessageDeltaEvent delta => new AgentContentDeltaEvent(
                 AgentBackendIds.Copilot,
                 sessionId,
                 delta.Timestamp,
                 new AgentRunId(delta.Data.MessageId),
+                AgentContentKind.Assistant,
+                delta.Data.MessageId,
+                delta.Data.ParentToolCallId,
                 delta.Data.DeltaContent),
 
-            AssistantMessageEvent message => new AgentAssistantMessageEvent(
+            AssistantMessageEvent message => new AgentContentCompletedEvent(
                 AgentBackendIds.Copilot,
                 sessionId,
                 message.Timestamp,
                 new AgentRunId(message.Data.MessageId),
+                AgentContentKind.Assistant,
+                message.Data.MessageId,
+                message.Data.ParentToolCallId,
                 message.Data.Content),
 
-            SessionIdleEvent idle => new AgentSessionIdleEvent(
+            SessionIdleEvent idle => new AgentSessionUpdateEvent(
                 AgentBackendIds.Copilot,
                 sessionId,
-                idle.Timestamp),
+                idle.Timestamp,
+                null,
+                AgentSessionUpdateKind.Idle,
+                null),
 
             SessionErrorEvent error => new AgentErrorEvent(
                 AgentBackendIds.Copilot,
@@ -255,10 +264,22 @@ internal static class CopilotAgentMapper
 
         return async (request, invocation) =>
         {
+            var interactionId = Guid.CreateVersion7().ToString();
             var mappedRequest = new AgentUserInputRequest(
                 AgentBackendIds.Copilot,
                 invocation.SessionId,
-                [new AgentUserInputQuestion("answer", request.Question, request.Choices, request.AllowFreeform ?? true)]);
+                DateTimeOffset.UtcNow,
+                null,
+                interactionId,
+                new AgentUserInputForm(
+                    [
+                        new AgentUserInputPrompt(
+                            Id: "answer",
+                            Question: request.Question,
+                            Header: null,
+                            Options: request.Choices?.Select(static choice => new AgentUserInputOption(choice)).ToArray(),
+                            AllowFreeform: request.AllowFreeform ?? true)
+                    ]));
 
             var response = await handler(mappedRequest, CancellationToken.None).ConfigureAwait(false);
             var answer = response.Answers.TryGetValue("answer", out var value)
@@ -295,6 +316,7 @@ internal static class CopilotAgentMapper
 
     private static AgentPermissionRequest ToPermissionRequest(string sessionId, PermissionRequest request)
     {
+        var interactionId = request.ToolCallId ?? Guid.CreateVersion7().ToString();
         using var stream = new MemoryStream();
         using (var writer = new Utf8JsonWriter(stream))
         {
@@ -327,9 +349,12 @@ internal static class CopilotAgentMapper
         }
 
         using var document = JsonDocument.Parse(stream.ToArray());
-        return new AgentPermissionRequest(
+        return new AgentGenericPermissionRequest(
             AgentBackendIds.Copilot,
             sessionId,
+            DateTimeOffset.UtcNow,
+            null,
+            interactionId,
             request.Kind,
             document.RootElement.Clone());
     }

@@ -46,10 +46,10 @@ public sealed class CodexLiveIntegrationTests
         {
             switch (@event)
             {
-                case AgentAssistantMessageDeltaEvent delta when !string.IsNullOrWhiteSpace(delta.Delta):
+                case AgentContentDeltaEvent delta when delta.Kind == AgentContentKind.Assistant && !string.IsNullOrWhiteSpace(delta.Delta):
                     assistantContent.TrySetResult(delta.Delta);
                     break;
-                case AgentAssistantMessageEvent message when !string.IsNullOrWhiteSpace(message.Content):
+                case AgentContentCompletedEvent message when message.Kind == AgentContentKind.Assistant && !string.IsNullOrWhiteSpace(message.Content):
                     assistantContent.TrySetResult(message.Content);
                     break;
                 case AgentErrorEvent error:

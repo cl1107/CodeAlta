@@ -182,6 +182,12 @@ internal static class CodexAgentMapper
                     ExecpolicyAmendment = [.. amendment]
                 };
                 break;
+            case AgentPermissionDecisionKind.AllowOnce when decision.NetworkPolicyAmendment is { } networkPolicyAmendment:
+                mappedDecision = new CommandExecutionApprovalDecision.ApplyNetworkPolicyAmendment
+                {
+                    NetworkPolicyAmendment = ToNetworkPolicyAmendment(networkPolicyAmendment)
+                };
+                break;
             case AgentPermissionDecisionKind.AllowOnce:
                 mappedDecision = new CommandExecutionApprovalDecision.Accept();
                 break;
@@ -227,17 +233,23 @@ internal static class CodexAgentMapper
     {
         ArgumentNullException.ThrowIfNull(parameters);
 
-        var questions = parameters.Questions.Select(question =>
-        {
-            var choices = question.Options?.Select(option => option.Label).ToArray();
-            var allowFreeform = question.IsOther.GetValueOrDefault(true);
-            return new AgentUserInputQuestion(question.Id, question.Question, choices, allowFreeform);
-        }).ToArray();
+        var prompts = parameters.Questions.Select(question =>
+            new AgentUserInputPrompt(
+                Id: question.Id,
+                Question: question.Question,
+                Header: string.IsNullOrWhiteSpace(question.Header) ? null : question.Header,
+                Options: question.Options?.Select(static option => new AgentUserInputOption(option.Label, option.Description)).ToArray(),
+                AllowFreeform: question.IsOther.GetValueOrDefault(true),
+                IsSecret: question.IsSecret.GetValueOrDefault(false)))
+            .ToArray();
 
         return new AgentUserInputRequest(
             AgentBackendIds.Codex,
             parameters.ThreadId,
-            questions);
+            DateTimeOffset.UtcNow,
+            new AgentRunId(parameters.TurnId),
+            parameters.ItemId,
+            new AgentUserInputForm(prompts));
     }
 
     public static ToolRequestUserInputResponse ToToolRequestUserInputResponse(AgentUserInputResponse response)
@@ -318,24 +330,33 @@ internal static class CodexAgentMapper
 
         return notification switch
         {
-            CodexNotification.AgentMessageDelta delta => new AgentAssistantMessageDeltaEvent(
+            CodexNotification.AgentMessageDelta delta => new AgentContentDeltaEvent(
                 AgentBackendIds.Codex,
                 sessionId,
                 timestamp,
                 new AgentRunId(delta.Data.TurnId),
+                AgentContentKind.Assistant,
+                delta.Data.ItemId,
+                delta.Data.TurnId,
                 delta.Data.Delta),
 
-            CodexNotification.ItemCompleted itemCompleted when itemCompleted.Data.Item is ThreadItem.AgentMessageThreadItem message => new AgentAssistantMessageEvent(
+            CodexNotification.ItemCompleted itemCompleted when itemCompleted.Data.Item is ThreadItem.AgentMessageThreadItem message => new AgentContentCompletedEvent(
                 AgentBackendIds.Codex,
                 sessionId,
                 timestamp,
                 new AgentRunId(itemCompleted.Data.TurnId),
+                AgentContentKind.Assistant,
+                message.Id,
+                itemCompleted.Data.TurnId,
                 message.Text),
 
-            CodexNotification.TurnCompleted => new AgentSessionIdleEvent(
+            CodexNotification.TurnCompleted => new AgentSessionUpdateEvent(
                 AgentBackendIds.Codex,
                 sessionId,
-                timestamp),
+                timestamp,
+                null,
+                AgentSessionUpdateKind.Idle,
+                null),
 
             CodexNotification.Error error => new AgentErrorEvent(
                 AgentBackendIds.Codex,
@@ -369,21 +390,27 @@ internal static class CodexAgentMapper
             {
                 if (item is ThreadItem.AgentMessageThreadItem message)
                 {
-                    events.Add(new AgentAssistantMessageEvent(
+                    events.Add(new AgentContentCompletedEvent(
                         AgentBackendIds.Codex,
                         sessionId,
                         timestamp,
                         runId,
+                        AgentContentKind.Assistant,
+                        message.Id,
+                        turn.Id,
                         message.Text));
                 }
             }
 
             if (turn.Status is TurnStatus.Completed or TurnStatus.Failed or TurnStatus.Interrupted)
             {
-                events.Add(new AgentSessionIdleEvent(
+                events.Add(new AgentSessionUpdateEvent(
                     AgentBackendIds.Codex,
                     sessionId,
-                    timestamp));
+                    timestamp,
+                    null,
+                    AgentSessionUpdateKind.Idle,
+                    null));
             }
         }
 
@@ -447,11 +474,24 @@ internal static class CodexAgentMapper
         ArgumentNullException.ThrowIfNull(sessionId);
         ArgumentNullException.ThrowIfNull(data);
 
-        return new AgentPermissionRequest(
+        return new AgentCommandPermissionRequest(
             AgentBackendIds.Codex,
             sessionId,
-            Kind: "commandExecution",
-            Raw: CreateRawElementFromCommand(data));
+            DateTimeOffset.UtcNow,
+            new AgentRunId(data.TurnId),
+            data.ApprovalId ?? data.ItemId,
+            data.ApprovalId,
+            data.Command,
+            data.Cwd,
+            data.CommandActions?.Select(ToAgentCommandPreviewAction).ToArray(),
+            data.Reason,
+            data.NetworkApprovalContext is null
+                ? null
+                : new AgentNetworkAccessRequest(
+                    data.NetworkApprovalContext.Host,
+                    data.NetworkApprovalContext.Protocol.ToString().ToLowerInvariant()),
+            data.ProposedExecpolicyAmendment,
+            data.ProposedNetworkPolicyAmendments?.Select(ToAgentNetworkPolicyAmendment).ToArray());
     }
 
     public static AgentPermissionRequest ToPermissionRequest(
@@ -461,11 +501,14 @@ internal static class CodexAgentMapper
         ArgumentNullException.ThrowIfNull(sessionId);
         ArgumentNullException.ThrowIfNull(data);
 
-        return new AgentPermissionRequest(
+        return new AgentFileChangePermissionRequest(
             AgentBackendIds.Codex,
             sessionId,
-            Kind: "fileChange",
-            Raw: CreateRawElementFromFileChange(data));
+            DateTimeOffset.UtcNow,
+            new AgentRunId(data.TurnId),
+            data.ItemId,
+            data.GrantRoot,
+            data.Reason);
     }
 
     public static AgentRunId? TryGetTurnId(CodexNotification notification)
@@ -615,6 +658,63 @@ internal static class CodexAgentMapper
 
         using var document = JsonDocument.Parse(stream.ToArray());
         return document.RootElement.Clone();
+    }
+
+    private static AgentCommandPreviewAction ToAgentCommandPreviewAction(CommandAction action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+
+        return action switch
+        {
+            CommandAction.ReadCommandAction read => new AgentCommandPreviewAction(
+                AgentCommandPreviewKind.Read,
+                read.Command,
+                Path: read.Path,
+                Name: read.Name),
+            CommandAction.ListFilesCommandAction listFiles => new AgentCommandPreviewAction(
+                AgentCommandPreviewKind.ListFiles,
+                listFiles.Command,
+                Path: listFiles.Path),
+            CommandAction.SearchCommandAction search => new AgentCommandPreviewAction(
+                AgentCommandPreviewKind.Search,
+                search.Command,
+                Path: search.Path,
+                Query: search.Query),
+            CommandAction.UnknownCommandAction unknown => new AgentCommandPreviewAction(
+                AgentCommandPreviewKind.Unknown,
+                unknown.Command),
+            _ => throw new ArgumentOutOfRangeException(nameof(action), action, "Unsupported command action.")
+        };
+    }
+
+    private static AgentNetworkPolicyAmendment ToAgentNetworkPolicyAmendment(NetworkPolicyAmendment amendment)
+    {
+        ArgumentNullException.ThrowIfNull(amendment);
+
+        return new AgentNetworkPolicyAmendment(
+            amendment.Action switch
+            {
+                NetworkPolicyRuleAction.Allow => AgentNetworkPolicyAction.Allow,
+                NetworkPolicyRuleAction.Deny => AgentNetworkPolicyAction.Deny,
+                _ => throw new ArgumentOutOfRangeException(nameof(amendment), amendment.Action, "Unsupported network policy action.")
+            },
+            amendment.Host);
+    }
+
+    private static NetworkPolicyAmendment ToNetworkPolicyAmendment(AgentNetworkPolicyAmendment amendment)
+    {
+        ArgumentNullException.ThrowIfNull(amendment);
+
+        return new NetworkPolicyAmendment
+        {
+            Action = amendment.Action switch
+            {
+                AgentNetworkPolicyAction.Allow => NetworkPolicyRuleAction.Allow,
+                AgentNetworkPolicyAction.Deny => NetworkPolicyRuleAction.Deny,
+                _ => throw new ArgumentOutOfRangeException(nameof(amendment), amendment.Action, "Unsupported network policy action.")
+            },
+            Host = amendment.Host
+        };
     }
 
     private static AgentReasoningEffort ToAgentReasoningEffort(V2ReasoningEffort reasoningEffort)

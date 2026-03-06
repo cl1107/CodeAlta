@@ -16,6 +16,323 @@ public abstract record AgentEvent(
     AgentRunId? RunId = null);
 
 /// <summary>
+/// Identifies the content channel for a streamed or completed content event.
+/// </summary>
+public enum AgentContentKind
+{
+    /// <summary>
+    /// Assistant/user-facing response text.
+    /// </summary>
+    Assistant,
+
+    /// <summary>
+    /// Reasoning text emitted by the model.
+    /// </summary>
+    Reasoning,
+
+    /// <summary>
+    /// Reasoning summary text emitted by the backend.
+    /// </summary>
+    ReasoningSummary,
+
+    /// <summary>
+    /// Plan text emitted by the backend.
+    /// </summary>
+    Plan,
+
+    /// <summary>
+    /// Command execution output text.
+    /// </summary>
+    CommandOutput,
+
+    /// <summary>
+    /// File-change output text.
+    /// </summary>
+    FileChangeOutput,
+
+    /// <summary>
+    /// Tool output text.
+    /// </summary>
+    ToolOutput,
+
+    /// <summary>
+    /// Notice-like content that should still render in the timeline.
+    /// </summary>
+    Notice,
+}
+
+/// <summary>
+/// Identifies the activity channel for operation lifecycle events.
+/// </summary>
+public enum AgentActivityKind
+{
+    /// <summary>
+    /// A turn/run lifecycle event.
+    /// </summary>
+    Turn,
+
+    /// <summary>
+    /// A generic tool call lifecycle event.
+    /// </summary>
+    ToolCall,
+
+    /// <summary>
+    /// A command execution lifecycle event.
+    /// </summary>
+    CommandExecution,
+
+    /// <summary>
+    /// A file-change lifecycle event.
+    /// </summary>
+    FileChange,
+
+    /// <summary>
+    /// An MCP tool call lifecycle event.
+    /// </summary>
+    McpToolCall,
+
+    /// <summary>
+    /// A dynamic tool call lifecycle event.
+    /// </summary>
+    DynamicToolCall,
+
+    /// <summary>
+    /// A collaboration/sub-agent tool call lifecycle event.
+    /// </summary>
+    CollabAgentToolCall,
+
+    /// <summary>
+    /// A subagent lifecycle event.
+    /// </summary>
+    Subagent,
+
+    /// <summary>
+    /// A hook lifecycle event.
+    /// </summary>
+    Hook,
+
+    /// <summary>
+    /// A skill lifecycle event.
+    /// </summary>
+    Skill,
+
+    /// <summary>
+    /// A compaction lifecycle event.
+    /// </summary>
+    Compaction,
+
+    /// <summary>
+    /// A web search lifecycle event.
+    /// </summary>
+    WebSearch,
+
+    /// <summary>
+    /// An image generation lifecycle event.
+    /// </summary>
+    ImageGeneration,
+}
+
+/// <summary>
+/// Identifies the phase of an activity lifecycle event.
+/// </summary>
+public enum AgentActivityPhase
+{
+    /// <summary>
+    /// The activity has been requested but not yet started.
+    /// </summary>
+    Requested,
+
+    /// <summary>
+    /// The activity has started.
+    /// </summary>
+    Started,
+
+    /// <summary>
+    /// The activity emitted progress.
+    /// </summary>
+    Progressed,
+
+    /// <summary>
+    /// The activity completed successfully.
+    /// </summary>
+    Completed,
+
+    /// <summary>
+    /// The activity failed.
+    /// </summary>
+    Failed,
+
+    /// <summary>
+    /// The activity was canceled.
+    /// </summary>
+    Canceled,
+
+    /// <summary>
+    /// A selectable activity or agent was selected.
+    /// </summary>
+    Selected,
+
+    /// <summary>
+    /// A selectable activity or agent was deselected.
+    /// </summary>
+    Deselected,
+}
+
+/// <summary>
+/// Identifies the kind of a session update event.
+/// </summary>
+public enum AgentSessionUpdateKind
+{
+    /// <summary>
+    /// The session started.
+    /// </summary>
+    Started,
+
+    /// <summary>
+    /// The session resumed.
+    /// </summary>
+    Resumed,
+
+    /// <summary>
+    /// The session became idle.
+    /// </summary>
+    Idle,
+
+    /// <summary>
+    /// Informational session update.
+    /// </summary>
+    Info,
+
+    /// <summary>
+    /// Warning session update.
+    /// </summary>
+    Warning,
+
+    /// <summary>
+    /// Model changed or was rerouted.
+    /// </summary>
+    ModelChanged,
+
+    /// <summary>
+    /// Session mode changed.
+    /// </summary>
+    ModeChanged,
+
+    /// <summary>
+    /// Session title changed.
+    /// </summary>
+    TitleChanged,
+
+    /// <summary>
+    /// Session context changed.
+    /// </summary>
+    ContextChanged,
+
+    /// <summary>
+    /// Plan state changed.
+    /// </summary>
+    PlanUpdated,
+
+    /// <summary>
+    /// Usage information changed.
+    /// </summary>
+    UsageUpdated,
+
+    /// <summary>
+    /// Compaction started.
+    /// </summary>
+    CompactionStarted,
+
+    /// <summary>
+    /// Compaction completed.
+    /// </summary>
+    CompactionCompleted,
+
+    /// <summary>
+    /// Session handoff occurred.
+    /// </summary>
+    Handoff,
+
+    /// <summary>
+    /// Session truncation occurred.
+    /// </summary>
+    Truncated,
+
+    /// <summary>
+    /// Session shutdown occurred.
+    /// </summary>
+    Shutdown,
+
+    /// <summary>
+    /// A task completed.
+    /// </summary>
+    TaskCompleted,
+
+    /// <summary>
+    /// A diff or patch preview changed.
+    /// </summary>
+    DiffUpdated,
+}
+
+/// <summary>
+/// Identifies the kind of a generic interaction lifecycle event.
+/// </summary>
+public enum AgentInteractionKind
+{
+    /// <summary>
+    /// A permission request was resolved.
+    /// </summary>
+    PermissionResolved,
+
+    /// <summary>
+    /// A user-input request was resolved.
+    /// </summary>
+    UserInputResolved,
+}
+
+/// <summary>
+/// Identifies how a plan changed.
+/// </summary>
+public enum AgentPlanChangeKind
+{
+    /// <summary>
+    /// The plan was created.
+    /// </summary>
+    Created,
+
+    /// <summary>
+    /// The plan was updated.
+    /// </summary>
+    Updated,
+
+    /// <summary>
+    /// The plan was deleted.
+    /// </summary>
+    Deleted,
+}
+
+/// <summary>
+/// Identifies the status of a structured plan step.
+/// </summary>
+public enum AgentPlanStepStatus
+{
+    /// <summary>
+    /// The step is pending.
+    /// </summary>
+    Pending,
+
+    /// <summary>
+    /// The step is in progress.
+    /// </summary>
+    InProgress,
+
+    /// <summary>
+    /// The step completed.
+    /// </summary>
+    Completed,
+}
+
+/// <summary>
 /// A raw, backend-specific event emitted when no normalized mapping exists.
 /// </summary>
 /// <param name="BackendId">The backend identifier.</param>
@@ -34,48 +351,154 @@ public sealed record AgentRawEvent(
     : AgentEvent(BackendId, SessionId, Timestamp, RunId);
 
 /// <summary>
-/// Streaming delta of assistant message content.
+/// Streaming delta of normalized content.
 /// </summary>
 /// <param name="BackendId">The backend identifier.</param>
 /// <param name="SessionId">The session identifier.</param>
 /// <param name="Timestamp">Event timestamp.</param>
-/// <param name="RunId">Run identifier.</param>
+/// <param name="RunId">Optional run identifier.</param>
+/// <param name="Kind">The content channel.</param>
+/// <param name="ContentId">Stable content identifier.</param>
+/// <param name="ParentActivityId">Optional parent activity identifier.</param>
 /// <param name="Delta">Delta content.</param>
-public sealed record AgentAssistantMessageDeltaEvent(
+public sealed record AgentContentDeltaEvent(
     AgentBackendId BackendId,
     string SessionId,
     DateTimeOffset Timestamp,
     AgentRunId? RunId,
+    AgentContentKind Kind,
+    string ContentId,
+    string? ParentActivityId,
     string Delta)
     : AgentEvent(BackendId, SessionId, Timestamp, RunId);
 
 /// <summary>
-/// Final assistant message content event.
+/// Finalized normalized content.
 /// </summary>
 /// <param name="BackendId">The backend identifier.</param>
 /// <param name="SessionId">The session identifier.</param>
 /// <param name="Timestamp">Event timestamp.</param>
-/// <param name="RunId">Run identifier.</param>
-/// <param name="Content">Assistant content.</param>
-public sealed record AgentAssistantMessageEvent(
+/// <param name="RunId">Optional run identifier.</param>
+/// <param name="Kind">The content channel.</param>
+/// <param name="ContentId">Stable content identifier.</param>
+/// <param name="ParentActivityId">Optional parent activity identifier.</param>
+/// <param name="Content">The finalized content.</param>
+public sealed record AgentContentCompletedEvent(
     AgentBackendId BackendId,
     string SessionId,
     DateTimeOffset Timestamp,
     AgentRunId? RunId,
+    AgentContentKind Kind,
+    string ContentId,
+    string? ParentActivityId,
     string Content)
     : AgentEvent(BackendId, SessionId, Timestamp, RunId);
 
 /// <summary>
-/// Indicates that the session is idle (the backend finished processing).
+/// Generic activity lifecycle event.
 /// </summary>
 /// <param name="BackendId">The backend identifier.</param>
 /// <param name="SessionId">The session identifier.</param>
 /// <param name="Timestamp">Event timestamp.</param>
-public sealed record AgentSessionIdleEvent(
+/// <param name="RunId">Optional run identifier.</param>
+/// <param name="Kind">The activity channel.</param>
+/// <param name="Phase">The lifecycle phase.</param>
+/// <param name="ActivityId">Stable activity identifier.</param>
+/// <param name="ParentActivityId">Optional parent activity identifier.</param>
+/// <param name="Name">Optional activity display name.</param>
+/// <param name="Message">Optional activity message.</param>
+/// <param name="Details">Optional structured details.</param>
+public sealed record AgentActivityEvent(
     AgentBackendId BackendId,
     string SessionId,
-    DateTimeOffset Timestamp)
-    : AgentEvent(BackendId, SessionId, Timestamp);
+    DateTimeOffset Timestamp,
+    AgentRunId? RunId,
+    AgentActivityKind Kind,
+    AgentActivityPhase Phase,
+    string ActivityId,
+    string? ParentActivityId,
+    string? Name,
+    string? Message,
+    JsonElement? Details = null)
+    : AgentEvent(BackendId, SessionId, Timestamp, RunId);
+
+/// <summary>
+/// Generic session update event.
+/// </summary>
+/// <param name="BackendId">The backend identifier.</param>
+/// <param name="SessionId">The session identifier.</param>
+/// <param name="Timestamp">Event timestamp.</param>
+/// <param name="RunId">Optional run identifier.</param>
+/// <param name="Kind">The session update kind.</param>
+/// <param name="Message">Optional update message.</param>
+/// <param name="Details">Optional structured details.</param>
+public sealed record AgentSessionUpdateEvent(
+    AgentBackendId BackendId,
+    string SessionId,
+    DateTimeOffset Timestamp,
+    AgentRunId? RunId,
+    AgentSessionUpdateKind Kind,
+    string? Message,
+    JsonElement? Details = null)
+    : AgentEvent(BackendId, SessionId, Timestamp, RunId);
+
+/// <summary>
+/// Structured plan snapshot event.
+/// </summary>
+/// <param name="BackendId">The backend identifier.</param>
+/// <param name="SessionId">The session identifier.</param>
+/// <param name="Timestamp">Event timestamp.</param>
+/// <param name="RunId">Optional run identifier.</param>
+/// <param name="Snapshot">The structured plan snapshot.</param>
+public sealed record AgentPlanSnapshotEvent(
+    AgentBackendId BackendId,
+    string SessionId,
+    DateTimeOffset Timestamp,
+    AgentRunId? RunId,
+    AgentPlanSnapshot Snapshot)
+    : AgentEvent(BackendId, SessionId, Timestamp, RunId);
+
+/// <summary>
+/// Structured plan snapshot payload.
+/// </summary>
+/// <param name="ChangeKind">Optional change kind.</param>
+/// <param name="Explanation">Optional plan explanation.</param>
+/// <param name="Steps">Optional plan steps.</param>
+public sealed record AgentPlanSnapshot(
+    AgentPlanChangeKind? ChangeKind,
+    string? Explanation,
+    IReadOnlyList<AgentPlanStep>? Steps);
+
+/// <summary>
+/// Structured plan step payload.
+/// </summary>
+/// <param name="Text">The step text.</param>
+/// <param name="Status">The optional step status.</param>
+public sealed record AgentPlanStep(
+    string Text,
+    AgentPlanStepStatus? Status);
+
+/// <summary>
+/// Generic interaction lifecycle event.
+/// </summary>
+/// <param name="BackendId">The backend identifier.</param>
+/// <param name="SessionId">The session identifier.</param>
+/// <param name="Timestamp">Event timestamp.</param>
+/// <param name="RunId">Optional run identifier.</param>
+/// <param name="Kind">The interaction kind.</param>
+/// <param name="InteractionId">Stable interaction identifier.</param>
+/// <param name="Message">Optional interaction message.</param>
+/// <param name="Details">Optional structured details.</param>
+public sealed record AgentInteractionEvent(
+    AgentBackendId BackendId,
+    string SessionId,
+    DateTimeOffset Timestamp,
+    AgentRunId? RunId,
+    AgentInteractionKind Kind,
+    string InteractionId,
+    string? Message,
+    JsonElement? Details = null)
+    : AgentEvent(BackendId, SessionId, Timestamp, RunId);
 
 /// <summary>
 /// Represents an error event.
