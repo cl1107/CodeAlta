@@ -195,6 +195,166 @@ internal static class CopilotAgentMapper
 
         return sessionEvent switch
         {
+            SessionStartEvent started => CreateSessionUpdate(
+                sessionId,
+                started.Timestamp,
+                AgentSessionUpdateKind.Started,
+                started.Data.SelectedModel is { Length: > 0 } selectedModel
+                    ? $"Session started ({selectedModel})."
+                    : "Session started."),
+
+            SessionResumeEvent resumed => CreateSessionUpdate(
+                sessionId,
+                resumed.Timestamp,
+                AgentSessionUpdateKind.Resumed,
+                $"Session resumed ({resumed.Data.EventCount:0} events)."),
+
+            SessionInfoEvent info => CreateSessionUpdate(
+                sessionId,
+                info.Timestamp,
+                AgentSessionUpdateKind.Info,
+                info.Data.Message),
+
+            SessionWarningEvent warning => CreateSessionUpdate(
+                sessionId,
+                warning.Timestamp,
+                AgentSessionUpdateKind.Warning,
+                warning.Data.Message),
+
+            SessionModelChangeEvent modelChange => CreateSessionUpdate(
+                sessionId,
+                modelChange.Timestamp,
+                AgentSessionUpdateKind.ModelChanged,
+                modelChange.Data.PreviousModel is { Length: > 0 } previousModel
+                    ? $"{previousModel} → {modelChange.Data.NewModel}"
+                    : modelChange.Data.NewModel),
+
+            SessionModeChangedEvent modeChanged => CreateSessionUpdate(
+                sessionId,
+                modeChanged.Timestamp,
+                AgentSessionUpdateKind.ModeChanged,
+                $"{modeChanged.Data.PreviousMode} → {modeChanged.Data.NewMode}"),
+
+            SessionTitleChangedEvent titleChanged => CreateSessionUpdate(
+                sessionId,
+                titleChanged.Timestamp,
+                AgentSessionUpdateKind.TitleChanged,
+                titleChanged.Data.Title),
+
+            SessionContextChangedEvent contextChanged => CreateSessionUpdate(
+                sessionId,
+                contextChanged.Timestamp,
+                AgentSessionUpdateKind.ContextChanged,
+                contextChanged.Data.Cwd),
+
+            SessionUsageInfoEvent usage => CreateSessionUpdate(
+                sessionId,
+                usage.Timestamp,
+                AgentSessionUpdateKind.UsageUpdated,
+                $"{usage.Data.CurrentTokens:0}/{usage.Data.TokenLimit:0} tokens"),
+
+            SessionCompactionStartEvent compactionStart => CreateSessionUpdate(
+                sessionId,
+                compactionStart.Timestamp,
+                AgentSessionUpdateKind.CompactionStarted,
+                "Compaction started."),
+
+            SessionCompactionCompleteEvent compactionComplete => CreateSessionUpdate(
+                sessionId,
+                compactionComplete.Timestamp,
+                AgentSessionUpdateKind.CompactionCompleted,
+                compactionComplete.Data.Success
+                    ? "Compaction completed."
+                    : compactionComplete.Data.Error ?? "Compaction failed."),
+
+            SessionTaskCompleteEvent taskComplete => CreateSessionUpdate(
+                sessionId,
+                taskComplete.Timestamp,
+                AgentSessionUpdateKind.TaskCompleted,
+                taskComplete.Data.Summary),
+
+            SessionPlanChangedEvent planChanged => new AgentPlanSnapshotEvent(
+                AgentBackendIds.Copilot,
+                sessionId,
+                planChanged.Timestamp,
+                null,
+                new AgentPlanSnapshot(
+                    ToPlanChangeKind(planChanged.Data.Operation),
+                    Explanation: null,
+                    Steps: null)),
+
+            SessionHandoffEvent handoff => CreateSessionUpdate(
+                sessionId,
+                handoff.Timestamp,
+                AgentSessionUpdateKind.Handoff,
+                handoff.Data.Summary ?? handoff.Data.Context ?? "Session handoff."),
+
+            SessionTruncationEvent truncation => CreateSessionUpdate(
+                sessionId,
+                truncation.Timestamp,
+                AgentSessionUpdateKind.Truncated,
+                $"{truncation.Data.MessagesRemovedDuringTruncation:0} messages removed."),
+
+            SessionSnapshotRewindEvent rewind => CreateSessionUpdate(
+                sessionId,
+                rewind.Timestamp,
+                AgentSessionUpdateKind.Truncated,
+                $"{rewind.Data.EventsRemoved:0} events removed."),
+
+            SessionShutdownEvent shutdown => CreateSessionUpdate(
+                sessionId,
+                shutdown.Timestamp,
+                AgentSessionUpdateKind.Shutdown,
+                shutdown.Data.ErrorReason ?? shutdown.Data.ShutdownType.ToString()),
+
+            AssistantTurnStartEvent turnStart => CreateActivityEvent(
+                sessionId,
+                turnStart.Timestamp,
+                null,
+                AgentActivityKind.Turn,
+                AgentActivityPhase.Started,
+                turnStart.Data.TurnId,
+                turnStart.Data.InteractionId,
+                "assistant turn",
+                null),
+
+            AssistantTurnEndEvent turnEnd => CreateActivityEvent(
+                sessionId,
+                turnEnd.Timestamp,
+                null,
+                AgentActivityKind.Turn,
+                AgentActivityPhase.Completed,
+                turnEnd.Data.TurnId,
+                null,
+                "assistant turn",
+                null),
+
+            AssistantIntentEvent intent => CreateSessionUpdate(
+                sessionId,
+                intent.Timestamp,
+                AgentSessionUpdateKind.Info,
+                $"Intent: {intent.Data.Intent}"),
+
+            AssistantReasoningDeltaEvent reasoningDelta => new AgentContentDeltaEvent(
+                AgentBackendIds.Copilot,
+                sessionId,
+                reasoningDelta.Timestamp,
+                null,
+                AgentContentKind.Reasoning,
+                reasoningDelta.Data.ReasoningId,
+                null,
+                reasoningDelta.Data.DeltaContent),
+
+            AssistantReasoningEvent reasoning => new AgentContentCompletedEvent(
+                AgentBackendIds.Copilot,
+                sessionId,
+                reasoning.Timestamp,
+                null,
+                AgentContentKind.Reasoning,
+                reasoning.Data.ReasoningId,
+                null,
+                reasoning.Data.Content),
+
             AssistantMessageDeltaEvent delta => new AgentContentDeltaEvent(
                 AgentBackendIds.Copilot,
                 sessionId,
@@ -215,6 +375,12 @@ internal static class CopilotAgentMapper
                 message.Data.ParentToolCallId,
                 message.Data.Content),
 
+            AssistantUsageEvent assistantUsage => CreateSessionUpdate(
+                sessionId,
+                assistantUsage.Timestamp,
+                AgentSessionUpdateKind.UsageUpdated,
+                $"{assistantUsage.Data.Model}: {assistantUsage.Data.InputTokens ?? 0:0}/{assistantUsage.Data.OutputTokens ?? 0:0} tokens"),
+
             SessionIdleEvent idle => new AgentSessionUpdateEvent(
                 AgentBackendIds.Copilot,
                 sessionId,
@@ -222,6 +388,171 @@ internal static class CopilotAgentMapper
                 null,
                 AgentSessionUpdateKind.Idle,
                 null),
+
+            AbortEvent abort => CreateActivityEvent(
+                sessionId,
+                abort.Timestamp,
+                null,
+                AgentActivityKind.Turn,
+                AgentActivityPhase.Canceled,
+                "session-abort",
+                null,
+                "abort",
+                abort.Data.Reason),
+
+            ToolUserRequestedEvent toolRequested => CreateActivityEvent(
+                sessionId,
+                toolRequested.Timestamp,
+                null,
+                GetCopilotToolActivityKind(toolRequested.Data.ToolName, mcpToolName: null),
+                AgentActivityPhase.Requested,
+                toolRequested.Data.ToolCallId,
+                null,
+                toolRequested.Data.ToolName,
+                "Tool requested."),
+
+            ToolExecutionStartEvent toolStart => CreateActivityEvent(
+                sessionId,
+                toolStart.Timestamp,
+                null,
+                GetCopilotToolActivityKind(toolStart.Data.ToolName, toolStart.Data.McpToolName),
+                AgentActivityPhase.Started,
+                toolStart.Data.ToolCallId,
+                toolStart.Data.ParentToolCallId,
+                toolStart.Data.McpToolName ?? toolStart.Data.ToolName,
+                toolStart.Data.McpServerName),
+
+            ToolExecutionProgressEvent toolProgress => CreateActivityEvent(
+                sessionId,
+                toolProgress.Timestamp,
+                null,
+                AgentActivityKind.ToolCall,
+                AgentActivityPhase.Progressed,
+                toolProgress.Data.ToolCallId,
+                null,
+                null,
+                toolProgress.Data.ProgressMessage),
+
+            ToolExecutionPartialResultEvent toolPartialResult => new AgentContentDeltaEvent(
+                AgentBackendIds.Copilot,
+                sessionId,
+                toolPartialResult.Timestamp,
+                null,
+                AgentContentKind.ToolOutput,
+                toolPartialResult.Data.ToolCallId,
+                toolPartialResult.Data.ToolCallId,
+                toolPartialResult.Data.PartialOutput),
+
+            ToolExecutionCompleteEvent toolComplete => CreateActivityEvent(
+                sessionId,
+                toolComplete.Timestamp,
+                null,
+                AgentActivityKind.ToolCall,
+                toolComplete.Data.Success ? AgentActivityPhase.Completed : AgentActivityPhase.Failed,
+                toolComplete.Data.ToolCallId,
+                toolComplete.Data.ParentToolCallId,
+                null,
+                toolComplete.Data.Success
+                    ? toolComplete.Data.Result?.Content
+                    : toolComplete.Data.Error?.Message),
+
+            SkillInvokedEvent skillInvoked => CreateActivityEvent(
+                sessionId,
+                skillInvoked.Timestamp,
+                null,
+                AgentActivityKind.Skill,
+                AgentActivityPhase.Completed,
+                skillInvoked.Data.Path,
+                null,
+                skillInvoked.Data.Name,
+                skillInvoked.Data.Path),
+
+            SubagentSelectedEvent subagentSelected => CreateActivityEvent(
+                sessionId,
+                subagentSelected.Timestamp,
+                null,
+                AgentActivityKind.Subagent,
+                AgentActivityPhase.Selected,
+                subagentSelected.Data.AgentName,
+                null,
+                subagentSelected.Data.AgentDisplayName,
+                null),
+
+            SubagentStartedEvent subagentStarted => CreateActivityEvent(
+                sessionId,
+                subagentStarted.Timestamp,
+                null,
+                AgentActivityKind.Subagent,
+                AgentActivityPhase.Started,
+                subagentStarted.Data.ToolCallId,
+                null,
+                subagentStarted.Data.AgentDisplayName,
+                subagentStarted.Data.AgentDescription),
+
+            SubagentCompletedEvent subagentCompleted => CreateActivityEvent(
+                sessionId,
+                subagentCompleted.Timestamp,
+                null,
+                AgentActivityKind.Subagent,
+                AgentActivityPhase.Completed,
+                subagentCompleted.Data.ToolCallId,
+                null,
+                subagentCompleted.Data.AgentDisplayName,
+                null),
+
+            SubagentFailedEvent subagentFailed => CreateActivityEvent(
+                sessionId,
+                subagentFailed.Timestamp,
+                null,
+                AgentActivityKind.Subagent,
+                AgentActivityPhase.Failed,
+                subagentFailed.Data.ToolCallId,
+                null,
+                subagentFailed.Data.AgentDisplayName,
+                subagentFailed.Data.Error),
+
+            SubagentDeselectedEvent => CreateActivityEvent(
+                sessionId,
+                sessionEvent.Timestamp,
+                null,
+                AgentActivityKind.Subagent,
+                AgentActivityPhase.Deselected,
+                "subagent-selection",
+                null,
+                null,
+                null),
+
+            HookStartEvent hookStart => CreateActivityEvent(
+                sessionId,
+                hookStart.Timestamp,
+                null,
+                AgentActivityKind.Hook,
+                AgentActivityPhase.Started,
+                hookStart.Data.HookInvocationId,
+                null,
+                hookStart.Data.HookType,
+                null),
+
+            HookEndEvent hookEnd => CreateActivityEvent(
+                sessionId,
+                hookEnd.Timestamp,
+                null,
+                AgentActivityKind.Hook,
+                hookEnd.Data.Success ? AgentActivityPhase.Completed : AgentActivityPhase.Failed,
+                hookEnd.Data.HookInvocationId,
+                null,
+                hookEnd.Data.HookType,
+                hookEnd.Data.Error?.Message),
+
+            SystemMessageEvent systemMessage => new AgentContentCompletedEvent(
+                AgentBackendIds.Copilot,
+                sessionId,
+                systemMessage.Timestamp,
+                null,
+                AgentContentKind.Notice,
+                $"system-message:{systemMessage.Timestamp.ToUnixTimeMilliseconds()}",
+                null,
+                systemMessage.Data.Content),
 
             SessionErrorEvent error => new AgentErrorEvent(
                 AgentBackendIds.Copilot,
@@ -383,6 +714,69 @@ internal static class CopilotAgentMapper
             Mode = SystemMessageMode.Append,
             Content = contentBuilder.ToString()
         };
+    }
+
+    private static AgentSessionUpdateEvent CreateSessionUpdate(
+        string sessionId,
+        DateTimeOffset timestamp,
+        AgentSessionUpdateKind kind,
+        string? message,
+        AgentRunId? runId = null)
+    {
+        return new AgentSessionUpdateEvent(
+            AgentBackendIds.Copilot,
+            sessionId,
+            timestamp,
+            runId,
+            kind,
+            message);
+    }
+
+    private static AgentActivityEvent CreateActivityEvent(
+        string sessionId,
+        DateTimeOffset timestamp,
+        AgentRunId? runId,
+        AgentActivityKind kind,
+        AgentActivityPhase phase,
+        string activityId,
+        string? parentActivityId,
+        string? name,
+        string? message)
+    {
+        return new AgentActivityEvent(
+            AgentBackendIds.Copilot,
+            sessionId,
+            timestamp,
+            runId,
+            kind,
+            phase,
+            activityId,
+            parentActivityId,
+            name,
+            message);
+    }
+
+    private static AgentPlanChangeKind ToPlanChangeKind(SessionPlanChangedDataOperation operation)
+    {
+        return operation switch
+        {
+            SessionPlanChangedDataOperation.Create => AgentPlanChangeKind.Created,
+            SessionPlanChangedDataOperation.Update => AgentPlanChangeKind.Updated,
+            SessionPlanChangedDataOperation.Delete => AgentPlanChangeKind.Deleted,
+            _ => throw new ArgumentOutOfRangeException(nameof(operation), operation, "Unsupported plan operation."),
+        };
+    }
+
+    private static AgentActivityKind GetCopilotToolActivityKind(string toolName, string? mcpToolName)
+    {
+        if (!string.IsNullOrWhiteSpace(mcpToolName))
+        {
+            return AgentActivityKind.McpToolCall;
+        }
+
+        return string.Equals(toolName, "task", StringComparison.OrdinalIgnoreCase)
+            ? AgentActivityKind.Subagent
+            : AgentActivityKind.ToolCall;
     }
 
     private static ICollection<AIFunction>? ToCopilotTools(IReadOnlyList<AgentToolDefinition>? tools)

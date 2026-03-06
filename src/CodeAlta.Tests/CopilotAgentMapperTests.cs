@@ -151,7 +151,7 @@ public sealed class CopilotAgentMapperTests
     }
 
     [TestMethod]
-    public void ToAgentEvent_MapsKnownAndUnknownSessionEvents()
+    public void ToAgentEvent_MapsKnownAndRawSessionEvents()
     {
         var timestamp = DateTimeOffset.Parse("2026-02-25T12:00:00+00:00");
         var deltaEvent = new AssistantMessageDeltaEvent
@@ -188,24 +188,20 @@ public sealed class CopilotAgentMapperTests
         Assert.AreEqual("final message", normalizedMessage.Content);
         Assert.AreEqual("msg-2", normalizedMessage.RunId?.Value);
 
-        var unknownEvent = new SessionInfoEvent
+        var unknownEvent = new PendingMessagesModifiedEvent
         {
             Timestamp = timestamp,
-            Data = new SessionInfoData
-            {
-                InfoType = "note",
-                Message = "raw event"
-            }
+            Data = new PendingMessagesModifiedData()
         };
 
         var mappedUnknown = CopilotAgentMapper.ToAgentEvent("session-1", unknownEvent);
         Assert.IsInstanceOfType<AgentRawEvent>(mappedUnknown);
         var raw = (AgentRawEvent)mappedUnknown;
-        Assert.AreEqual("session.info", raw.BackendEventType);
+        Assert.AreEqual("pending_messages.modified", raw.BackendEventType);
     }
 
     [TestMethod]
-    public void ToAgentEvent_FallsBackWhenCopilotSdkCannotSerializeRawEvent()
+    public void ToAgentEvent_MapsUsageEventToSessionUpdate()
     {
         var timestamp = DateTimeOffset.Parse("2026-02-25T12:00:00+00:00");
         using var quotaSnapshot = JsonDocument.Parse("""{"remaining":1}""");
@@ -224,12 +220,85 @@ public sealed class CopilotAgentMapperTests
 
         var mapped = CopilotAgentMapper.ToAgentEvent("session-1", usageEvent);
 
-        Assert.IsInstanceOfType<AgentRawEvent>(mapped);
-        var raw = (AgentRawEvent)mapped;
-        Assert.AreEqual("assistant.usage", raw.BackendEventType);
-        Assert.AreEqual("assistant.usage", raw.Raw.GetProperty("type").GetString());
-        Assert.AreEqual(typeof(AssistantUsageEvent).FullName, raw.Raw.GetProperty("eventClass").GetString());
-        Assert.IsTrue(raw.Raw.TryGetProperty("serializationError", out var serializationError));
-        Assert.IsFalse(string.IsNullOrWhiteSpace(serializationError.GetString()));
+        Assert.IsInstanceOfType<AgentSessionUpdateEvent>(mapped);
+        var usage = (AgentSessionUpdateEvent)mapped;
+        Assert.AreEqual(AgentSessionUpdateKind.UsageUpdated, usage.Kind);
+        Assert.IsTrue(usage.Message!.Contains("gpt-5", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void ToAgentEvent_MapsReasoningPlanAndToolLifecycleEvents()
+    {
+        var timestamp = DateTimeOffset.Parse("2026-02-25T12:00:00+00:00");
+
+        var reasoningDeltaEvent = new AssistantReasoningDeltaEvent
+        {
+            Timestamp = timestamp,
+            Data = new AssistantReasoningDeltaData
+            {
+                ReasoningId = "reasoning-1",
+                DeltaContent = "think"
+            }
+        };
+
+        var mappedReasoning = CopilotAgentMapper.ToAgentEvent("session-1", reasoningDeltaEvent);
+        Assert.IsInstanceOfType<AgentContentDeltaEvent>(mappedReasoning);
+        var reasoning = (AgentContentDeltaEvent)mappedReasoning;
+        Assert.AreEqual(AgentContentKind.Reasoning, reasoning.Kind);
+        Assert.AreEqual("reasoning-1", reasoning.ContentId);
+        Assert.AreEqual("think", reasoning.Delta);
+
+        var planChangedEvent = new SessionPlanChangedEvent
+        {
+            Timestamp = timestamp,
+            Data = new SessionPlanChangedData
+            {
+                Operation = SessionPlanChangedDataOperation.Update
+            }
+        };
+
+        var mappedPlan = CopilotAgentMapper.ToAgentEvent("session-1", planChangedEvent);
+        Assert.IsInstanceOfType<AgentPlanSnapshotEvent>(mappedPlan);
+        var plan = (AgentPlanSnapshotEvent)mappedPlan;
+        Assert.AreEqual(AgentPlanChangeKind.Updated, plan.Snapshot.ChangeKind);
+        Assert.IsNull(plan.Snapshot.Steps);
+
+        var toolProgressEvent = new ToolExecutionProgressEvent
+        {
+            Timestamp = timestamp,
+            Data = new ToolExecutionProgressData
+            {
+                ToolCallId = "tool-1",
+                ProgressMessage = "running"
+            }
+        };
+
+        var mappedToolProgress = CopilotAgentMapper.ToAgentEvent("session-1", toolProgressEvent);
+        Assert.IsInstanceOfType<AgentActivityEvent>(mappedToolProgress);
+        var toolProgress = (AgentActivityEvent)mappedToolProgress;
+        Assert.AreEqual(AgentActivityKind.ToolCall, toolProgress.Kind);
+        Assert.AreEqual(AgentActivityPhase.Progressed, toolProgress.Phase);
+        Assert.AreEqual("tool-1", toolProgress.ActivityId);
+        Assert.AreEqual("running", toolProgress.Message);
+
+        var subagentStartedEvent = new SubagentStartedEvent
+        {
+            Timestamp = timestamp,
+            Data = new SubagentStartedData
+            {
+                ToolCallId = "tool-2",
+                AgentName = "worker",
+                AgentDisplayName = "Worker",
+                AgentDescription = "Executes the task"
+            }
+        };
+
+        var mappedSubagent = CopilotAgentMapper.ToAgentEvent("session-1", subagentStartedEvent);
+        Assert.IsInstanceOfType<AgentActivityEvent>(mappedSubagent);
+        var subagent = (AgentActivityEvent)mappedSubagent;
+        Assert.AreEqual(AgentActivityKind.Subagent, subagent.Kind);
+        Assert.AreEqual(AgentActivityPhase.Started, subagent.Phase);
+        Assert.AreEqual("tool-2", subagent.ActivityId);
+        Assert.AreEqual("Worker", subagent.Name);
     }
 }
