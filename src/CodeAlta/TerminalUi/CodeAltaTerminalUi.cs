@@ -1347,11 +1347,18 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
         CancellationToken cancellationToken)
     {
         _ = cancellationToken;
-        RecordChatUserInputRequest(request);
+        RecordChatUserInputRequest(request, _chatAutoApproveState.Value);
+
+        var response = CreateChatUserInputResponse(request, _chatAutoApproveState.Value);
+        var hasMeaningfulAnswer = response.Answers.Values.Any(static value => !string.IsNullOrWhiteSpace(value));
         SetStatus(
-            "Interactive question received. Auto-Approve only applies to permission requests; terminal question prompts are not implemented yet.",
+            _chatAutoApproveState.Value
+                ? hasMeaningfulAnswer
+                    ? "Interactive question received. Auto-Approve selected a default answer so the run can continue."
+                    : "Interactive question received. Auto-Approve could not infer a safe answer, so CodeAlta returned an empty response."
+                : "Interactive question received. Auto-Approve is off, so CodeAlta returned an empty response because terminal question prompts are not implemented yet.",
             showSpinner: true);
-        return Task.FromResult(CreateEmptyChatUserInputResponse(request));
+        return Task.FromResult(response);
     }
 
     private void HandleChatAgentEvent(AgentEvent @event)
@@ -1380,9 +1387,11 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
                 SetStatus($"Permission requested ({permissionRequest.Kind}).", showSpinner: true);
                 break;
             case AgentUserInputRequest userInputRequest:
-                RecordChatUserInputRequest(userInputRequest);
+                RecordChatUserInputRequest(userInputRequest, _chatAutoApproveState.Value);
                 SetStatus(
-                    "Interactive question received. Terminal question prompts are not implemented yet.",
+                    _chatAutoApproveState.Value
+                        ? "Interactive question received. Auto-Approve is selecting a default answer."
+                        : "Interactive question received. Terminal question prompts are not implemented yet.",
                     showSpinner: true);
                 break;
             case AgentInteractionEvent interaction:
@@ -1586,7 +1595,7 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
             ChatTimelineTone.Interaction);
     }
 
-    private void RecordChatUserInputRequest(AgentUserInputRequest request)
+    private void RecordChatUserInputRequest(AgentUserInputRequest request, bool autoApprove)
     {
         ArgumentNullException.ThrowIfNull(request);
 
@@ -1597,7 +1606,7 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
 
         UpsertChatInteraction(
             request.InteractionId,
-            FormatChatUserInputRequestMarkdown(request),
+            FormatChatUserInputRequestMarkdown(request, autoApprove),
             null,
             ChatTimelineTone.Interaction);
     }
@@ -1985,13 +1994,19 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
     }
 
     internal static string FormatChatUserInputRequestMarkdown(AgentUserInputRequest request)
+        => FormatChatUserInputRequestMarkdown(request, autoApprove: false);
+
+    internal static string FormatChatUserInputRequestMarkdown(AgentUserInputRequest request, bool autoApprove)
     {
         ArgumentNullException.ThrowIfNull(request);
 
         var builder = new StringBuilder("**Action Required · User Input Request** · 󰞋");
         builder.AppendLine()
             .AppendLine()
-            .Append("_The agent asked a question. Terminal question prompts are not implemented yet, so CodeAlta returns empty answers for now._");
+            .Append(
+                autoApprove
+                    ? "_The agent asked a question. Auto-Approve will pick the first available choice or a neutral fallback answer so the run can continue._"
+                    : "_The agent asked a question. Terminal question prompts are not implemented yet, so CodeAlta returns empty answers for now._");
 
         for (var index = 0; index < request.Form.Prompts.Count; index++)
         {
@@ -2240,12 +2255,40 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
         return false;
     }
 
-    private static AgentUserInputResponse CreateEmptyChatUserInputResponse(AgentUserInputRequest request)
+    internal static AgentUserInputResponse CreateChatUserInputResponse(AgentUserInputRequest request, bool autoApprove)
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var answers = request.Form.Prompts.ToDictionary(static x => x.Id, static _ => string.Empty, StringComparer.Ordinal);
+        var answers = request.Form.Prompts.ToDictionary(
+            static x => x.Id,
+            prompt => ResolveChatPromptAnswer(prompt, autoApprove),
+            StringComparer.Ordinal);
+
         return new AgentUserInputResponse(answers);
+    }
+
+    private static string ResolveChatPromptAnswer(AgentUserInputPrompt prompt, bool autoApprove)
+    {
+        ArgumentNullException.ThrowIfNull(prompt);
+
+        if (!autoApprove)
+        {
+            return string.Empty;
+        }
+
+        if (prompt.Options is { Count: > 0 } options)
+        {
+            return options[0].Label;
+        }
+
+        if (prompt.IsSecret)
+        {
+            return string.Empty;
+        }
+
+        return prompt.AllowFreeform
+            ? "No preference. Use your best judgment and continue."
+            : string.Empty;
     }
 
     private static string BuildChatInteractionResolutionDetailsMarkdown(AgentInteractionEvent interaction)

@@ -143,6 +143,86 @@ public sealed class CodeAltaTerminalUiTests
     }
 
     [TestMethod]
+    public void FormatChatUserInputRequestMarkdown_WhenAutoApproveEnabled_DescribesAutoAnswering()
+    {
+        var markdown = CodeAltaTerminalUi.FormatChatUserInputRequestMarkdown(
+            new AgentUserInputRequest(
+                AgentBackendIds.Copilot,
+                "session-1",
+                DateTimeOffset.UtcNow,
+                null,
+                "interaction-1",
+                new AgentUserInputForm(
+                    [
+                        new AgentUserInputPrompt(
+                            Id: "answer",
+                            Question: "Pick one",
+                            Options: [new AgentUserInputOption("choice-a"), new AgentUserInputOption("choice-b")],
+                            AllowFreeform: false)
+                    ])),
+            autoApprove: true);
+
+        StringAssert.Contains(markdown, "Auto-Approve will pick the first available choice");
+    }
+
+    [TestMethod]
+    public void CreateChatUserInputResponse_WhenAutoApproveEnabled_SelectsDefaultAnswers()
+    {
+        var response = CodeAltaTerminalUi.CreateChatUserInputResponse(
+            new AgentUserInputRequest(
+                AgentBackendIds.Copilot,
+                "session-1",
+                DateTimeOffset.UtcNow,
+                null,
+                "interaction-1",
+                new AgentUserInputForm(
+                    [
+                        new AgentUserInputPrompt(
+                            Id: "choice",
+                            Question: "Pick one",
+                            Options: [new AgentUserInputOption("choice-a"), new AgentUserInputOption("choice-b")],
+                            AllowFreeform: false),
+                        new AgentUserInputPrompt(
+                            Id: "freeform",
+                            Question: "Anything else?",
+                            AllowFreeform: true),
+                        new AgentUserInputPrompt(
+                            Id: "secret",
+                            Question: "Provide a secret",
+                            AllowFreeform: true,
+                            IsSecret: true),
+                    ])),
+            autoApprove: true);
+
+        Assert.AreEqual("choice-a", response.Answers["choice"]);
+        Assert.AreEqual("No preference. Use your best judgment and continue.", response.Answers["freeform"]);
+        Assert.AreEqual(string.Empty, response.Answers["secret"]);
+    }
+
+    [TestMethod]
+    public void CreateChatUserInputResponse_WhenAutoApproveDisabled_ReturnsEmptyAnswers()
+    {
+        var response = CodeAltaTerminalUi.CreateChatUserInputResponse(
+            new AgentUserInputRequest(
+                AgentBackendIds.Copilot,
+                "session-1",
+                DateTimeOffset.UtcNow,
+                null,
+                "interaction-1",
+                new AgentUserInputForm(
+                    [
+                        new AgentUserInputPrompt(
+                            Id: "choice",
+                            Question: "Pick one",
+                            Options: [new AgentUserInputOption("choice-a"), new AgentUserInputOption("choice-b")],
+                            AllowFreeform: false)
+                    ])),
+            autoApprove: false);
+
+        Assert.AreEqual(string.Empty, response.Answers["choice"]);
+    }
+
+    [TestMethod]
     public void FormatChatInteractionResolutionMarkdown_CanProduceFooter()
     {
         using var detailsJson = JsonDocument.Parse("""{"decisionKind":"AllowOnce"}""");
