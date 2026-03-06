@@ -184,4 +184,157 @@ public sealed class CodexAgentMapperTests
         Assert.IsTrue(result);
         Assert.AreEqual("thread-1", threadId);
     }
+
+    [TestMethod]
+    public void ToAgentEvent_MapsReasoningPlanAndCommandLifecycle()
+    {
+        var timestamp = DateTimeOffset.Parse("2026-02-25T10:00:00+00:00");
+
+        var reasoningNotification = new CodexNotification.ReasoningTextDelta(
+            new ReasoningTextDeltaNotification
+            {
+                ThreadId = "thread-1",
+                TurnId = "turn-1",
+                ItemId = "reasoning-1",
+                ContentIndex = 0,
+                Delta = "thinking"
+            });
+
+        var reasoningEvent = CodexAgentMapper.ToAgentEvent("thread-1", reasoningNotification, timestamp);
+        Assert.IsInstanceOfType<AgentContentDeltaEvent>(reasoningEvent);
+        var reasoning = (AgentContentDeltaEvent)reasoningEvent;
+        Assert.AreEqual(AgentContentKind.Reasoning, reasoning.Kind);
+        Assert.AreEqual("reasoning-1", reasoning.ContentId);
+        Assert.AreEqual("thinking", reasoning.Delta);
+
+        var planNotification = new CodexNotification.TurnPlanUpdated(
+            new TurnPlanUpdatedNotification
+            {
+                ThreadId = "thread-1",
+                TurnId = "turn-2",
+                Explanation = "Plan explanation",
+                Plan =
+                [
+                    new TurnPlanStep { Step = "Inspect files", Status = TurnPlanStepStatus.InProgress },
+                    new TurnPlanStep { Step = "Write tests", Status = TurnPlanStepStatus.Pending }
+                ]
+            });
+
+        var planEvent = CodexAgentMapper.ToAgentEvent("thread-1", planNotification, timestamp);
+        Assert.IsInstanceOfType<AgentPlanSnapshotEvent>(planEvent);
+        var plan = (AgentPlanSnapshotEvent)planEvent;
+        Assert.AreEqual(AgentPlanChangeKind.Updated, plan.Snapshot.ChangeKind);
+        Assert.AreEqual("Plan explanation", plan.Snapshot.Explanation);
+        Assert.AreEqual(2, plan.Snapshot.Steps!.Count);
+        Assert.AreEqual(AgentPlanStepStatus.InProgress, plan.Snapshot.Steps[0].Status);
+
+        var itemStartedNotification = new CodexNotification.ItemStarted(
+            new ItemStartedNotification
+            {
+                ThreadId = "thread-1",
+                TurnId = "turn-3",
+                Item = new ThreadItem.CommandExecutionThreadItem
+                {
+                    Id = "cmd-1",
+                    Command = "dotnet test",
+                    Cwd = @"C:\repo",
+                    Status = CommandExecutionStatus.InProgress
+                }
+            });
+
+        var commandEvent = CodexAgentMapper.ToAgentEvent("thread-1", itemStartedNotification, timestamp);
+        Assert.IsInstanceOfType<AgentActivityEvent>(commandEvent);
+        var activity = (AgentActivityEvent)commandEvent;
+        Assert.AreEqual(AgentActivityKind.CommandExecution, activity.Kind);
+        Assert.AreEqual(AgentActivityPhase.Started, activity.Phase);
+        Assert.AreEqual("cmd-1", activity.ActivityId);
+        Assert.AreEqual("dotnet test", activity.Name);
+    }
+
+    [TestMethod]
+    public void ToAgentUserInputRequest_PreservesHeadersDescriptionsAndSecretFlags()
+    {
+        var request = new ToolRequestUserInputParams
+        {
+            ThreadId = "thread-1",
+            TurnId = "turn-1",
+            ItemId = "item-1",
+            Questions =
+            [
+                new ToolRequestUserInputQuestion
+                {
+                    Id = "q1",
+                    Header = "Choose",
+                    Question = "Pick one",
+                    IsOther = false,
+                    IsSecret = true,
+                    Options =
+                    [
+                        new ToolRequestUserInputOption { Label = "A", Description = "Option A" }
+                    ]
+                }
+            ]
+        };
+
+        var mapped = CodexAgentMapper.ToAgentUserInputRequest(request);
+
+        Assert.AreEqual("item-1", mapped.InteractionId);
+        Assert.AreEqual(1, mapped.Form.Prompts.Count);
+        var prompt = mapped.Form.Prompts[0];
+        Assert.AreEqual("Choose", prompt.Header);
+        Assert.IsTrue(prompt.IsSecret);
+        Assert.IsFalse(prompt.AllowFreeform);
+        Assert.AreEqual("A", prompt.Options![0].Label);
+        Assert.AreEqual("Option A", prompt.Options[0].Description);
+    }
+
+    [TestMethod]
+    public void ToPermissionRequest_MapsCommandApprovalDetails()
+    {
+        var request = new CommandExecutionRequestApprovalParams
+        {
+            ItemId = "item-1",
+            ThreadId = "thread-1",
+            TurnId = "turn-1",
+            ApprovalId = "approval-1",
+            Command = "rg TODO",
+            Cwd = @"C:\repo",
+            Reason = "Needs search access",
+            CommandActions =
+            [
+                new CommandAction.SearchCommandAction
+                {
+                    Command = "rg TODO",
+                    Path = @"C:\repo",
+                    Query = "TODO"
+                }
+            ],
+            NetworkApprovalContext = new NetworkApprovalContext
+            {
+                Host = "api.example.com",
+                Protocol = NetworkApprovalProtocol.Https
+            },
+            ProposedExecpolicyAmendment = ["rg"],
+            ProposedNetworkPolicyAmendments =
+            [
+                new NetworkPolicyAmendment
+                {
+                    Action = NetworkPolicyRuleAction.Allow,
+                    Host = "api.example.com"
+                }
+            ]
+        };
+
+        var mapped = CodexAgentMapper.ToPermissionRequest("thread-1", request);
+
+        Assert.IsInstanceOfType<AgentCommandPermissionRequest>(mapped);
+        var command = (AgentCommandPermissionRequest)mapped;
+        Assert.AreEqual("approval-1", command.InteractionId);
+        Assert.AreEqual("rg TODO", command.Command);
+        Assert.AreEqual(@"C:\repo", command.WorkingDirectory);
+        Assert.AreEqual("Needs search access", command.Reason);
+        Assert.AreEqual("api.example.com", command.Network!.Host);
+        Assert.AreEqual(AgentNetworkPolicyAction.Allow, command.ProposedNetworkPolicyAmendments![0].Action);
+        Assert.AreEqual(AgentCommandPreviewKind.Search, command.Actions![0].Kind);
+    }
 }

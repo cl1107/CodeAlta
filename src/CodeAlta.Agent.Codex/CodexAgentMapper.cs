@@ -330,6 +330,41 @@ internal static class CodexAgentMapper
 
         return notification switch
         {
+            CodexNotification.ThreadStarted => CreateSessionUpdate(
+                sessionId,
+                timestamp,
+                AgentSessionUpdateKind.Started,
+                "Thread started."),
+
+            CodexNotification.ThreadNameUpdated nameUpdated => CreateSessionUpdate(
+                sessionId,
+                timestamp,
+                AgentSessionUpdateKind.TitleChanged,
+                nameUpdated.Data.ThreadName),
+
+            CodexNotification.ThreadStatusChanged statusChanged => CreateSessionUpdate(
+                sessionId,
+                timestamp,
+                AgentSessionUpdateKind.Info,
+                $"Thread status: {statusChanged.Data.Status}."),
+
+            CodexNotification.ThreadClosed => CreateSessionUpdate(
+                sessionId,
+                timestamp,
+                AgentSessionUpdateKind.Shutdown,
+                "Thread closed."),
+
+            CodexNotification.TurnStarted turnStarted => CreateActivity(
+                sessionId,
+                timestamp,
+                new AgentRunId(turnStarted.Data.Turn.Id),
+                AgentActivityKind.Turn,
+                AgentActivityPhase.Started,
+                turnStarted.Data.Turn.Id,
+                null,
+                "turn",
+                null),
+
             CodexNotification.AgentMessageDelta delta => new AgentContentDeltaEvent(
                 AgentBackendIds.Codex,
                 sessionId,
@@ -340,23 +375,149 @@ internal static class CodexAgentMapper
                 delta.Data.TurnId,
                 delta.Data.Delta),
 
-            CodexNotification.ItemCompleted itemCompleted when itemCompleted.Data.Item is ThreadItem.AgentMessageThreadItem message => new AgentContentCompletedEvent(
+            CodexNotification.ReasoningTextDelta reasoning => new AgentContentDeltaEvent(
                 AgentBackendIds.Codex,
                 sessionId,
                 timestamp,
-                new AgentRunId(itemCompleted.Data.TurnId),
-                AgentContentKind.Assistant,
-                message.Id,
-                itemCompleted.Data.TurnId,
-                message.Text),
+                new AgentRunId(reasoning.Data.TurnId),
+                AgentContentKind.Reasoning,
+                reasoning.Data.ItemId,
+                reasoning.Data.TurnId,
+                reasoning.Data.Delta),
 
-            CodexNotification.TurnCompleted => new AgentSessionUpdateEvent(
+            CodexNotification.ReasoningSummaryTextDelta reasoningSummary => new AgentContentDeltaEvent(
+                AgentBackendIds.Codex,
+                sessionId,
+                timestamp,
+                new AgentRunId(reasoningSummary.Data.TurnId),
+                AgentContentKind.ReasoningSummary,
+                reasoningSummary.Data.ItemId,
+                reasoningSummary.Data.TurnId,
+                reasoningSummary.Data.Delta),
+
+            CodexNotification.PlanDelta planDelta => new AgentContentDeltaEvent(
+                AgentBackendIds.Codex,
+                sessionId,
+                timestamp,
+                new AgentRunId(planDelta.Data.TurnId),
+                AgentContentKind.Plan,
+                planDelta.Data.ItemId,
+                planDelta.Data.TurnId,
+                planDelta.Data.Delta),
+
+            CodexNotification.CommandExecutionOutputDelta commandOutput => new AgentContentDeltaEvent(
+                AgentBackendIds.Codex,
+                sessionId,
+                timestamp,
+                new AgentRunId(commandOutput.Data.TurnId),
+                AgentContentKind.CommandOutput,
+                commandOutput.Data.ItemId,
+                commandOutput.Data.TurnId,
+                commandOutput.Data.Delta),
+
+            CodexNotification.FileChangeOutputDelta fileChangeOutput => new AgentContentDeltaEvent(
+                AgentBackendIds.Codex,
+                sessionId,
+                timestamp,
+                new AgentRunId(fileChangeOutput.Data.TurnId),
+                AgentContentKind.FileChangeOutput,
+                fileChangeOutput.Data.ItemId,
+                fileChangeOutput.Data.TurnId,
+                fileChangeOutput.Data.Delta),
+
+            CodexNotification.McpToolCallProgress mcpToolProgress => CreateActivity(
+                sessionId,
+                timestamp,
+                new AgentRunId(mcpToolProgress.Data.TurnId),
+                AgentActivityKind.McpToolCall,
+                AgentActivityPhase.Progressed,
+                mcpToolProgress.Data.ItemId,
+                mcpToolProgress.Data.TurnId,
+                "MCP tool call",
+                mcpToolProgress.Data.Message),
+
+            CodexNotification.CommandExecutionTerminalInteraction terminalInteraction => CreateActivity(
+                sessionId,
+                timestamp,
+                new AgentRunId(terminalInteraction.Data.TurnId),
+                AgentActivityKind.CommandExecution,
+                AgentActivityPhase.Progressed,
+                terminalInteraction.Data.ItemId,
+                terminalInteraction.Data.TurnId,
+                "terminal interaction",
+                terminalInteraction.Data.Stdin),
+
+            CodexNotification.TurnPlanUpdated planUpdated => new AgentPlanSnapshotEvent(
+                AgentBackendIds.Codex,
+                sessionId,
+                timestamp,
+                new AgentRunId(planUpdated.Data.TurnId),
+                new AgentPlanSnapshot(
+                    ChangeKind: AgentPlanChangeKind.Updated,
+                    Explanation: planUpdated.Data.Explanation,
+                    Steps: planUpdated.Data.Plan.Select(static step => new AgentPlanStep(
+                        step.Step,
+                        step.Status switch
+                        {
+                            TurnPlanStepStatus.Pending => AgentPlanStepStatus.Pending,
+                            TurnPlanStepStatus.InProgress => AgentPlanStepStatus.InProgress,
+                            TurnPlanStepStatus.Completed => AgentPlanStepStatus.Completed,
+                            _ => null
+                        })).ToArray())),
+
+            CodexNotification.ItemStarted itemStarted => ToItemStartedEvent(sessionId, itemStarted.Data, timestamp),
+
+            CodexNotification.ItemCompleted itemCompleted => ToItemCompletedEvent(sessionId, itemCompleted.Data, timestamp),
+
+            CodexNotification.TurnCompleted turnCompleted => new AgentSessionUpdateEvent(
+                AgentBackendIds.Codex,
+                sessionId,
+                timestamp,
+                new AgentRunId(turnCompleted.Data.Turn.Id),
+                AgentSessionUpdateKind.Idle,
+                null),
+
+            CodexNotification.ThreadTokenUsageUpdated tokenUsage => CreateSessionUpdate(
+                sessionId,
+                timestamp,
+                AgentSessionUpdateKind.UsageUpdated,
+                $"Token usage updated for turn {tokenUsage.Data.TurnId}.",
+                new AgentRunId(tokenUsage.Data.TurnId)),
+
+            CodexNotification.ThreadCompacted threadCompacted => CreateSessionUpdate(
+                sessionId,
+                timestamp,
+                AgentSessionUpdateKind.CompactionCompleted,
+                "Thread compacted.",
+                new AgentRunId(threadCompacted.Data.TurnId)),
+
+            CodexNotification.ConfigWarning configWarning => CreateSessionUpdate(
+                sessionId,
+                timestamp,
+                AgentSessionUpdateKind.Warning,
+                configWarning.Data.Summary),
+
+            CodexNotification.DeprecationNotice deprecationNotice => CreateSessionUpdate(
+                sessionId,
+                timestamp,
+                AgentSessionUpdateKind.Warning,
+                deprecationNotice.Data.Summary),
+
+            CodexNotification.ModelRerouted modelRerouted => CreateSessionUpdate(
+                sessionId,
+                timestamp,
+                AgentSessionUpdateKind.ModelChanged,
+                $"{modelRerouted.Data.FromModel} → {modelRerouted.Data.ToModel}",
+                new AgentRunId(modelRerouted.Data.TurnId)),
+
+            CodexNotification.ServerRequestResolved resolved => new AgentInteractionEvent(
                 AgentBackendIds.Codex,
                 sessionId,
                 timestamp,
                 null,
-                AgentSessionUpdateKind.Idle,
-                null),
+                AgentInteractionKind.PermissionResolved,
+                resolved.Data.RequestId.ToString(),
+                "Server request resolved."),
 
             CodexNotification.Error error => new AgentErrorEvent(
                 AgentBackendIds.Codex,
@@ -388,18 +549,15 @@ internal static class CodexAgentMapper
             var runId = new AgentRunId(turn.Id);
             foreach (var item in turn.Items)
             {
-                if (item is ThreadItem.AgentMessageThreadItem message)
-                {
-                    events.Add(new AgentContentCompletedEvent(
-                        AgentBackendIds.Codex,
-                        sessionId,
-                        timestamp,
-                        runId,
-                        AgentContentKind.Assistant,
-                        message.Id,
-                        turn.Id,
-                        message.Text));
-                }
+                events.Add(ToItemCompletedEvent(
+                    sessionId,
+                    new ItemCompletedNotification
+                    {
+                        ThreadId = sessionId,
+                        TurnId = turn.Id,
+                        Item = item
+                    },
+                    timestamp));
             }
 
             if (turn.Status is TurnStatus.Completed or TurnStatus.Failed or TurnStatus.Interrupted)
@@ -408,13 +566,290 @@ internal static class CodexAgentMapper
                     AgentBackendIds.Codex,
                     sessionId,
                     timestamp,
-                    null,
+                    runId,
                     AgentSessionUpdateKind.Idle,
                     null));
             }
         }
 
         return events;
+    }
+
+    private static AgentSessionUpdateEvent CreateSessionUpdate(
+        string sessionId,
+        DateTimeOffset timestamp,
+        AgentSessionUpdateKind kind,
+        string? message,
+        AgentRunId? runId = null)
+    {
+        return new AgentSessionUpdateEvent(
+            AgentBackendIds.Codex,
+            sessionId,
+            timestamp,
+            runId,
+            kind,
+            message);
+    }
+
+    private static AgentActivityEvent CreateActivity(
+        string sessionId,
+        DateTimeOffset timestamp,
+        AgentRunId? runId,
+        AgentActivityKind kind,
+        AgentActivityPhase phase,
+        string activityId,
+        string? parentActivityId,
+        string? name,
+        string? message)
+    {
+        return new AgentActivityEvent(
+            AgentBackendIds.Codex,
+            sessionId,
+            timestamp,
+            runId,
+            kind,
+            phase,
+            activityId,
+            parentActivityId,
+            name,
+            message);
+    }
+
+    private static AgentEvent ToItemStartedEvent(
+        string sessionId,
+        ItemStartedNotification notification,
+        DateTimeOffset timestamp)
+    {
+        var runId = new AgentRunId(notification.TurnId);
+        return notification.Item switch
+        {
+            ThreadItem.CommandExecutionThreadItem commandExecution => CreateActivity(
+                sessionId,
+                timestamp,
+                runId,
+                AgentActivityKind.CommandExecution,
+                AgentActivityPhase.Started,
+                commandExecution.Id,
+                notification.TurnId,
+                commandExecution.Command,
+                commandExecution.Cwd),
+
+            ThreadItem.FileChangeThreadItem fileChange => CreateActivity(
+                sessionId,
+                timestamp,
+                runId,
+                AgentActivityKind.FileChange,
+                AgentActivityPhase.Started,
+                fileChange.Id,
+                notification.TurnId,
+                "file change",
+                null),
+
+            ThreadItem.McpToolCallThreadItem mcpToolCall => CreateActivity(
+                sessionId,
+                timestamp,
+                runId,
+                AgentActivityKind.McpToolCall,
+                AgentActivityPhase.Started,
+                mcpToolCall.Id,
+                notification.TurnId,
+                mcpToolCall.Tool,
+                mcpToolCall.Server),
+
+            ThreadItem.DynamicToolCallThreadItem dynamicToolCall => CreateActivity(
+                sessionId,
+                timestamp,
+                runId,
+                AgentActivityKind.DynamicToolCall,
+                AgentActivityPhase.Started,
+                dynamicToolCall.Id,
+                notification.TurnId,
+                dynamicToolCall.Tool,
+                null),
+
+            ThreadItem.CollabAgentToolCallThreadItem collabAgentToolCall => CreateActivity(
+                sessionId,
+                timestamp,
+                runId,
+                AgentActivityKind.CollabAgentToolCall,
+                AgentActivityPhase.Started,
+                collabAgentToolCall.Id,
+                notification.TurnId,
+                collabAgentToolCall.Tool.ToString(),
+                collabAgentToolCall.Prompt),
+
+            _ => new AgentRawEvent(
+                AgentBackendIds.Codex,
+                sessionId,
+                timestamp,
+                nameof(CodexNotification.ItemStarted),
+                SerializeNotification(new CodexNotification.ItemStarted(notification)),
+                runId)
+        };
+    }
+
+    private static AgentEvent ToItemCompletedEvent(
+        string sessionId,
+        ItemCompletedNotification notification,
+        DateTimeOffset timestamp)
+    {
+        var runId = new AgentRunId(notification.TurnId);
+        return notification.Item switch
+        {
+            ThreadItem.AgentMessageThreadItem message => new AgentContentCompletedEvent(
+                AgentBackendIds.Codex,
+                sessionId,
+                timestamp,
+                runId,
+                AgentContentKind.Assistant,
+                message.Id,
+                notification.TurnId,
+                message.Text),
+
+            ThreadItem.ReasoningThreadItem reasoning => new AgentContentCompletedEvent(
+                AgentBackendIds.Codex,
+                sessionId,
+                timestamp,
+                runId,
+                AgentContentKind.Reasoning,
+                reasoning.Id,
+                notification.TurnId,
+                reasoning.Content is { Count: > 0 } content
+                    ? string.Join(Environment.NewLine, content)
+                    : string.Join(Environment.NewLine, reasoning.Summary ?? [])),
+
+            ThreadItem.PlanThreadItem plan => new AgentContentCompletedEvent(
+                AgentBackendIds.Codex,
+                sessionId,
+                timestamp,
+                runId,
+                AgentContentKind.Plan,
+                plan.Id,
+                notification.TurnId,
+                plan.Text),
+
+            ThreadItem.CommandExecutionThreadItem commandExecution => CreateActivity(
+                sessionId,
+                timestamp,
+                runId,
+                AgentActivityKind.CommandExecution,
+                ToActivityPhase(commandExecution.Status),
+                commandExecution.Id,
+                notification.TurnId,
+                commandExecution.Command,
+                commandExecution.AggregatedOutput),
+
+            ThreadItem.FileChangeThreadItem fileChange => CreateActivity(
+                sessionId,
+                timestamp,
+                runId,
+                AgentActivityKind.FileChange,
+                ToActivityPhase(fileChange.Status),
+                fileChange.Id,
+                notification.TurnId,
+                "file change",
+                fileChange.Changes.Count == 0 ? null : $"{fileChange.Changes.Count} change(s)"),
+
+            ThreadItem.McpToolCallThreadItem mcpToolCall => CreateActivity(
+                sessionId,
+                timestamp,
+                runId,
+                AgentActivityKind.McpToolCall,
+                ToActivityPhase(mcpToolCall.Status),
+                mcpToolCall.Id,
+                notification.TurnId,
+                mcpToolCall.Tool,
+                mcpToolCall.Error?.Message),
+
+            ThreadItem.DynamicToolCallThreadItem dynamicToolCall => CreateActivity(
+                sessionId,
+                timestamp,
+                runId,
+                AgentActivityKind.DynamicToolCall,
+                ToActivityPhase(dynamicToolCall.Status),
+                dynamicToolCall.Id,
+                notification.TurnId,
+                dynamicToolCall.Tool,
+                dynamicToolCall.Success is { } success
+                    ? success ? "Dynamic tool call succeeded." : "Dynamic tool call failed."
+                    : null),
+
+            ThreadItem.CollabAgentToolCallThreadItem collabAgentToolCall => CreateActivity(
+                sessionId,
+                timestamp,
+                runId,
+                AgentActivityKind.CollabAgentToolCall,
+                ToActivityPhase(collabAgentToolCall.Status),
+                collabAgentToolCall.Id,
+                notification.TurnId,
+                collabAgentToolCall.Tool.ToString(),
+                collabAgentToolCall.Prompt),
+
+            _ => new AgentRawEvent(
+                AgentBackendIds.Codex,
+                sessionId,
+                timestamp,
+                nameof(CodexNotification.ItemCompleted),
+                SerializeNotification(new CodexNotification.ItemCompleted(notification)),
+                runId)
+        };
+    }
+
+    private static AgentActivityPhase ToActivityPhase(CommandExecutionStatus status)
+    {
+        return status switch
+        {
+            CommandExecutionStatus.InProgress => AgentActivityPhase.Progressed,
+            CommandExecutionStatus.Completed => AgentActivityPhase.Completed,
+            CommandExecutionStatus.Failed => AgentActivityPhase.Failed,
+            CommandExecutionStatus.Declined => AgentActivityPhase.Canceled,
+            _ => throw new ArgumentOutOfRangeException(nameof(status), status, "Unsupported command execution status.")
+        };
+    }
+
+    private static AgentActivityPhase ToActivityPhase(PatchApplyStatus status)
+    {
+        return status switch
+        {
+            PatchApplyStatus.InProgress => AgentActivityPhase.Progressed,
+            PatchApplyStatus.Completed => AgentActivityPhase.Completed,
+            PatchApplyStatus.Failed => AgentActivityPhase.Failed,
+            PatchApplyStatus.Declined => AgentActivityPhase.Canceled,
+            _ => throw new ArgumentOutOfRangeException(nameof(status), status, "Unsupported file change status.")
+        };
+    }
+
+    private static AgentActivityPhase ToActivityPhase(McpToolCallStatus status)
+    {
+        return status switch
+        {
+            McpToolCallStatus.InProgress => AgentActivityPhase.Progressed,
+            McpToolCallStatus.Completed => AgentActivityPhase.Completed,
+            McpToolCallStatus.Failed => AgentActivityPhase.Failed,
+            _ => throw new ArgumentOutOfRangeException(nameof(status), status, "Unsupported MCP tool status.")
+        };
+    }
+
+    private static AgentActivityPhase ToActivityPhase(DynamicToolCallStatus status)
+    {
+        return status switch
+        {
+            DynamicToolCallStatus.InProgress => AgentActivityPhase.Progressed,
+            DynamicToolCallStatus.Completed => AgentActivityPhase.Completed,
+            DynamicToolCallStatus.Failed => AgentActivityPhase.Failed,
+            _ => throw new ArgumentOutOfRangeException(nameof(status), status, "Unsupported dynamic tool status.")
+        };
+    }
+
+    private static AgentActivityPhase ToActivityPhase(CollabAgentToolCallStatus status)
+    {
+        return status switch
+        {
+            CollabAgentToolCallStatus.InProgress => AgentActivityPhase.Progressed,
+            CollabAgentToolCallStatus.Completed => AgentActivityPhase.Completed,
+            CollabAgentToolCallStatus.Failed => AgentActivityPhase.Failed,
+            _ => throw new ArgumentOutOfRangeException(nameof(status), status, "Unsupported collaboration status.")
+        };
     }
 
     public static bool TryGetThreadId(CodexNotification notification, out string? threadId)
