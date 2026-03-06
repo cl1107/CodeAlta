@@ -52,10 +52,13 @@ internal static class CopilotAgentMapper
             WorkspacePath: null);
     }
 
-    public static SessionConfig ToSessionConfig(AgentSessionCreateOptions options)
+    public static SessionConfig ToSessionConfig(
+        AgentSessionCreateOptions options,
+        CopilotSessionCallbackBridge? callbackBridge = null)
     {
         ArgumentNullException.ThrowIfNull(options);
 
+        callbackBridge ??= new CopilotSessionCallbackBridge();
         var systemMessage = BuildSystemMessage(options.SystemMessage, options.DeveloperInstructions);
         var config = new SessionConfig
         {
@@ -63,8 +66,8 @@ internal static class CopilotAgentMapper
             WorkingDirectory = options.WorkingDirectory,
             Streaming = options.Streaming,
             ReasoningEffort = ToCopilotReasoningEffort(options.ReasoningEffort),
-            OnPermissionRequest = CreatePermissionHandler(options.OnPermissionRequest),
-            OnUserInputRequest = CreateUserInputHandler(options.OnUserInputRequest),
+            OnPermissionRequest = CreatePermissionHandler(options.OnPermissionRequest, callbackBridge),
+            OnUserInputRequest = CreateUserInputHandler(options.OnUserInputRequest, callbackBridge),
             SystemMessage = systemMessage,
             Tools = ToCopilotTools(options.Tools)
         };
@@ -72,10 +75,13 @@ internal static class CopilotAgentMapper
         return config;
     }
 
-    public static ResumeSessionConfig ToResumeSessionConfig(AgentSessionResumeOptions options)
+    public static ResumeSessionConfig ToResumeSessionConfig(
+        AgentSessionResumeOptions options,
+        CopilotSessionCallbackBridge? callbackBridge = null)
     {
         ArgumentNullException.ThrowIfNull(options);
 
+        callbackBridge ??= new CopilotSessionCallbackBridge();
         var systemMessage = BuildSystemMessage(options.SystemMessage, options.DeveloperInstructions);
         var config = new ResumeSessionConfig
         {
@@ -83,8 +89,8 @@ internal static class CopilotAgentMapper
             WorkingDirectory = options.WorkingDirectory,
             Streaming = options.Streaming,
             ReasoningEffort = ToCopilotReasoningEffort(options.ReasoningEffort),
-            OnPermissionRequest = CreatePermissionHandler(options.OnPermissionRequest),
-            OnUserInputRequest = CreateUserInputHandler(options.OnUserInputRequest),
+            OnPermissionRequest = CreatePermissionHandler(options.OnPermissionRequest, callbackBridge),
+            OnUserInputRequest = CreateUserInputHandler(options.OnUserInputRequest, callbackBridge),
             SystemMessage = systemMessage,
             Tools = ToCopilotTools(options.Tools)
         };
@@ -578,41 +584,55 @@ internal static class CopilotAgentMapper
         return events.Select(sessionEvent => ToAgentEvent(sessionId, sessionEvent)).ToArray();
     }
 
-    private static PermissionRequestHandler CreatePermissionHandler(AgentPermissionRequestHandler handler)
+    private static PermissionRequestHandler CreatePermissionHandler(
+        AgentPermissionRequestHandler handler,
+        CopilotSessionCallbackBridge callbackBridge)
     {
         return async (request, invocation) =>
         {
-            var rawRequest = ToPermissionRequest(invocation.SessionId, request);
-            var decision = await handler(rawRequest, CancellationToken.None).ConfigureAwait(false);
+            var mappedRequest = ToPermissionRequest(invocation.SessionId, request);
+            callbackBridge.Publish(mappedRequest);
+
+            AgentPermissionDecision decision;
+            try
+            {
+                decision = await handler(mappedRequest, CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                callbackBridge.Publish(CreateHandlerErrorEvent(invocation.SessionId, $"permission request: {ex.Message}", ex));
+                decision = new AgentPermissionDecision(AgentPermissionDecisionKind.Deny);
+            }
+
+            callbackBridge.Publish(CreatePermissionResolvedEvent(mappedRequest, decision));
             return ToPermissionResult(decision);
         };
     }
 
-    private static UserInputHandler? CreateUserInputHandler(AgentUserInputRequestHandler? handler)
+    private static UserInputHandler? CreateUserInputHandler(
+        AgentUserInputRequestHandler? handler,
+        CopilotSessionCallbackBridge callbackBridge)
     {
         if (handler is null)
             return null;
 
         return async (request, invocation) =>
         {
-            var interactionId = Guid.CreateVersion7().ToString();
-            var mappedRequest = new AgentUserInputRequest(
-                AgentBackendIds.Copilot,
-                invocation.SessionId,
-                DateTimeOffset.UtcNow,
-                null,
-                interactionId,
-                new AgentUserInputForm(
-                    [
-                        new AgentUserInputPrompt(
-                            Id: "answer",
-                            Question: request.Question,
-                            Header: null,
-                            Options: request.Choices?.Select(static choice => new AgentUserInputOption(choice)).ToArray(),
-                            AllowFreeform: request.AllowFreeform ?? true)
-                    ]));
+            var mappedRequest = ToUserInputRequest(invocation.SessionId, request);
+            callbackBridge.Publish(mappedRequest);
 
-            var response = await handler(mappedRequest, CancellationToken.None).ConfigureAwait(false);
+            AgentUserInputResponse response;
+            try
+            {
+                response = await handler(mappedRequest, CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                callbackBridge.Publish(CreateHandlerErrorEvent(invocation.SessionId, $"user input request: {ex.Message}", ex));
+                throw;
+            }
+
+            callbackBridge.Publish(CreateUserInputResolvedEvent(mappedRequest, response));
             var answer = response.Answers.TryGetValue("answer", out var value)
                 ? value
                 : response.Answers.Values.FirstOrDefault() ?? string.Empty;
@@ -690,6 +710,29 @@ internal static class CopilotAgentMapper
             document.RootElement.Clone());
     }
 
+    private static AgentUserInputRequest ToUserInputRequest(string sessionId, UserInputRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(sessionId);
+        ArgumentNullException.ThrowIfNull(request);
+
+        var interactionId = Guid.CreateVersion7().ToString();
+        return new AgentUserInputRequest(
+            AgentBackendIds.Copilot,
+            sessionId,
+            DateTimeOffset.UtcNow,
+            null,
+            interactionId,
+            new AgentUserInputForm(
+                [
+                    new AgentUserInputPrompt(
+                        Id: "answer",
+                        Question: request.Question,
+                        Header: null,
+                        Options: request.Choices?.Select(static choice => new AgentUserInputOption(choice)).ToArray(),
+                        AllowFreeform: request.AllowFreeform ?? true)
+                ]));
+    }
+
     private static SystemMessageConfig? BuildSystemMessage(string? systemMessage, string? developerInstructions)
     {
         if (string.IsNullOrWhiteSpace(systemMessage) && string.IsNullOrWhiteSpace(developerInstructions))
@@ -732,6 +775,46 @@ internal static class CopilotAgentMapper
             message);
     }
 
+    private static AgentInteractionEvent CreatePermissionResolvedEvent(
+        AgentPermissionRequest request,
+        AgentPermissionDecision decision)
+    {
+        return new AgentInteractionEvent(
+            request.BackendId,
+            request.SessionId,
+            DateTimeOffset.UtcNow,
+            request.RunId,
+            AgentInteractionKind.PermissionResolved,
+            request.InteractionId,
+            $"Permission resolved: {decision.Kind}.",
+            CreatePermissionResolutionDetails(decision));
+    }
+
+    private static AgentInteractionEvent CreateUserInputResolvedEvent(
+        AgentUserInputRequest request,
+        AgentUserInputResponse response)
+    {
+        return new AgentInteractionEvent(
+            request.BackendId,
+            request.SessionId,
+            DateTimeOffset.UtcNow,
+            request.RunId,
+            AgentInteractionKind.UserInputResolved,
+            request.InteractionId,
+            $"User input resolved ({response.Answers.Count} answer(s)).",
+            CreateUserInputResolutionDetails(response));
+    }
+
+    private static AgentErrorEvent CreateHandlerErrorEvent(string sessionId, string message, Exception exception)
+    {
+        return new AgentErrorEvent(
+            AgentBackendIds.Copilot,
+            sessionId,
+            DateTimeOffset.UtcNow,
+            $"Failed while handling {message}",
+            exception);
+    }
+
     private static AgentActivityEvent CreateActivityEvent(
         string sessionId,
         DateTimeOffset timestamp,
@@ -754,6 +837,64 @@ internal static class CopilotAgentMapper
             parentActivityId,
             name,
             message);
+    }
+
+    private static JsonElement CreatePermissionResolutionDetails(AgentPermissionDecision decision)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("decisionKind", decision.Kind.ToString());
+
+            if (decision.ExecPolicyAmendment is { Count: > 0 } execPolicyAmendment)
+            {
+                writer.WritePropertyName("execPolicyAmendment");
+                writer.WriteStartArray();
+                foreach (var rule in execPolicyAmendment)
+                {
+                    writer.WriteStringValue(rule);
+                }
+
+                writer.WriteEndArray();
+            }
+
+            if (decision.NetworkPolicyAmendment is { } networkPolicyAmendment)
+            {
+                writer.WritePropertyName("networkPolicyAmendment");
+                writer.WriteStartObject();
+                writer.WriteString("action", networkPolicyAmendment.Action.ToString());
+                writer.WriteString("host", networkPolicyAmendment.Host);
+                writer.WriteEndObject();
+            }
+
+            writer.WriteEndObject();
+        }
+
+        using var document = JsonDocument.Parse(stream.ToArray());
+        return document.RootElement.Clone();
+    }
+
+    private static JsonElement CreateUserInputResolutionDetails(AgentUserInputResponse response)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+        {
+            writer.WriteStartObject();
+            writer.WriteNumber("answerCount", response.Answers.Count);
+            writer.WritePropertyName("answers");
+            writer.WriteStartObject();
+            foreach (var pair in response.Answers)
+            {
+                writer.WriteString(pair.Key, pair.Value);
+            }
+
+            writer.WriteEndObject();
+            writer.WriteEndObject();
+        }
+
+        using var document = JsonDocument.Parse(stream.ToArray());
+        return document.RootElement.Clone();
     }
 
     private static AgentPlanChangeKind ToPlanChangeKind(SessionPlanChangedDataOperation operation)

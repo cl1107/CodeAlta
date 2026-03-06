@@ -115,9 +115,10 @@ public sealed class CopilotAgentBackend : ICopilotAgentBackend
         ArgumentNullException.ThrowIfNull(options);
 
         var client = await EnsureStartedAsync(cancellationToken).ConfigureAwait(false);
-        var config = CopilotAgentMapper.ToSessionConfig(options);
+        var callbackBridge = new CopilotSessionCallbackBridge();
+        var config = CopilotAgentMapper.ToSessionConfig(options, callbackBridge);
         var session = await client.CreateSessionAsync(config, cancellationToken).ConfigureAwait(false);
-        return await RegisterSessionAsync(session).ConfigureAwait(false);
+        return await RegisterSessionAsync(session, callbackBridge).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -130,9 +131,10 @@ public sealed class CopilotAgentBackend : ICopilotAgentBackend
         ArgumentNullException.ThrowIfNull(options);
 
         var client = await EnsureStartedAsync(cancellationToken).ConfigureAwait(false);
-        var config = CopilotAgentMapper.ToResumeSessionConfig(options);
+        var callbackBridge = new CopilotSessionCallbackBridge();
+        var config = CopilotAgentMapper.ToResumeSessionConfig(options, callbackBridge);
         var session = await client.ResumeSessionAsync(sessionId, config, cancellationToken).ConfigureAwait(false);
-        return await RegisterSessionAsync(session).ConfigureAwait(false);
+        return await RegisterSessionAsync(session, callbackBridge).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -155,9 +157,12 @@ public sealed class CopilotAgentBackend : ICopilotAgentBackend
         }
     }
 
-    private async Task<CopilotAgentSession> RegisterSessionAsync(CopilotSession session)
+    private async Task<CopilotAgentSession> RegisterSessionAsync(
+        CopilotSession session,
+        CopilotSessionCallbackBridge callbackBridge)
     {
         var wrappedSession = new CopilotAgentSession(this, session);
+        callbackBridge.AttachPublisher(wrappedSession.Publish);
         if (_sessions.TryAdd(session.SessionId, wrappedSession))
             return wrappedSession;
 

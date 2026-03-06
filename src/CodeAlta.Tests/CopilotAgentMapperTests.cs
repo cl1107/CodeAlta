@@ -48,6 +48,96 @@ public sealed class CopilotAgentMapperTests
     }
 
     [TestMethod]
+    public async Task ToSessionConfig_PublishesPermissionRequestAndResolutionEvents()
+    {
+        var bridge = new CopilotSessionCallbackBridge();
+        var publishedEvents = new List<AgentEvent>();
+        bridge.AttachPublisher(publishedEvents.Add);
+        var options = new AgentSessionCreateOptions
+        {
+            OnPermissionRequest = static (_, _) =>
+                Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowForSession))
+        };
+
+        var config = CopilotAgentMapper.ToSessionConfig(options, bridge);
+        var request = new PermissionRequest
+        {
+            Kind = "custom-tool",
+            ToolCallId = "tool-123",
+            ExtensionData = new Dictionary<string, object>
+            {
+                ["toolName"] = JsonDocument.Parse("\"echo_tool\"").RootElement.Clone()
+            }
+        };
+
+        var result = await config.OnPermissionRequest!(request, new PermissionInvocation { SessionId = "session-1" });
+
+        Assert.AreEqual("approved", result.Kind);
+        Assert.AreEqual(2, publishedEvents.Count);
+        Assert.IsInstanceOfType<AgentGenericPermissionRequest>(publishedEvents[0]);
+        var permissionRequest = (AgentGenericPermissionRequest)publishedEvents[0];
+        Assert.AreEqual("session-1", permissionRequest.SessionId);
+        Assert.AreEqual("tool-123", permissionRequest.InteractionId);
+        Assert.AreEqual("custom-tool", permissionRequest.Kind);
+        Assert.AreEqual("echo_tool", permissionRequest.Raw.GetProperty("toolName").GetString());
+
+        Assert.IsInstanceOfType<AgentInteractionEvent>(publishedEvents[1]);
+        var resolved = (AgentInteractionEvent)publishedEvents[1];
+        Assert.AreEqual(AgentInteractionKind.PermissionResolved, resolved.Kind);
+        Assert.AreEqual("tool-123", resolved.InteractionId);
+        Assert.IsTrue(resolved.Details.HasValue);
+        var permissionDetails = resolved.Details.Value;
+        Assert.AreEqual("AllowForSession", permissionDetails.GetProperty("decisionKind").GetString());
+    }
+
+    [TestMethod]
+    public async Task ToSessionConfig_PublishesUserInputRequestAndResolutionEvents()
+    {
+        var bridge = new CopilotSessionCallbackBridge();
+        var publishedEvents = new List<AgentEvent>();
+        bridge.AttachPublisher(publishedEvents.Add);
+        var options = new AgentSessionCreateOptions
+        {
+            OnPermissionRequest = static (_, _) =>
+                Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
+            OnUserInputRequest = static (_, _) =>
+                Task.FromResult(new AgentUserInputResponse(
+                    new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        ["answer"] = "choice-b"
+                    }))
+        };
+
+        var config = CopilotAgentMapper.ToSessionConfig(options, bridge);
+        var request = new UserInputRequest
+        {
+            Question = "Pick one",
+            Choices = new List<string> { "choice-a", "choice-b" },
+            AllowFreeform = false
+        };
+
+        var result = await config.OnUserInputRequest!(request, new UserInputInvocation { SessionId = "session-1" });
+
+        Assert.AreEqual("choice-b", result.Answer);
+        Assert.IsFalse(result.WasFreeform);
+        Assert.AreEqual(2, publishedEvents.Count);
+        Assert.IsInstanceOfType<AgentUserInputRequest>(publishedEvents[0]);
+        var inputRequest = (AgentUserInputRequest)publishedEvents[0];
+        Assert.AreEqual("session-1", inputRequest.SessionId);
+        Assert.AreEqual("Pick one", inputRequest.Form.Prompts[0].Question);
+        Assert.IsFalse(inputRequest.Form.Prompts[0].AllowFreeform);
+        CollectionAssert.AreEqual(new[] { "choice-a", "choice-b" }, inputRequest.Form.Prompts[0].Options!.Select(static option => option.Label).ToArray());
+
+        Assert.IsInstanceOfType<AgentInteractionEvent>(publishedEvents[1]);
+        var resolved = (AgentInteractionEvent)publishedEvents[1];
+        Assert.AreEqual(AgentInteractionKind.UserInputResolved, resolved.Kind);
+        Assert.IsTrue(resolved.Details.HasValue);
+        var userInputDetails = resolved.Details.Value;
+        Assert.AreEqual(1, userInputDetails.GetProperty("answerCount").GetInt32());
+        Assert.AreEqual("choice-b", userInputDetails.GetProperty("answers").GetProperty("answer").GetString());
+    }
+
+    [TestMethod]
     public void ToSessionConfig_SanitizesCopilotToolNames()
     {
         var toolSchema = JsonDocument.Parse("""{"type":"object","properties":{"value":{"type":"string"}}}""").RootElement;
