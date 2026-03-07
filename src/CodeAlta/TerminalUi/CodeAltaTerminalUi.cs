@@ -1842,6 +1842,9 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
     }
 
     private static ChatMarkdownEntry CreateChatMarkdownItem(string markdown, ChatTimelineTone tone)
+        => RunOnUiThread(static state => CreateChatMarkdownItemCore(state.markdown, state.tone), (markdown, tone));
+
+    private static ChatMarkdownEntry CreateChatMarkdownItemCore(string markdown, ChatTimelineTone tone)
     {
         var markdownControl = new MarkdownControl(markdown)
         {
@@ -2709,6 +2712,26 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
 
         return ReferenceEquals(binding.Owner, autoApproveState) &&
                string.Equals(binding.Accessor.Name, nameof(State<bool>.Value), StringComparison.Ordinal);
+    }
+
+    private static T RunOnUiThread<T>(Func<T> action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+
+        var dispatcher = Dispatcher.Current;
+        return dispatcher.CheckAccess()
+            ? action()
+            : dispatcher.InvokeAsync(action).GetAwaiter().GetResult();
+    }
+
+    private static T RunOnUiThread<TState, T>(Func<TState, T> action, TState state)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+
+        var dispatcher = Dispatcher.Current;
+        return dispatcher.CheckAccess()
+            ? action(state)
+            : dispatcher.InvokeAsync(() => action(state)).GetAwaiter().GetResult();
     }
 
     private enum TerminalScreen

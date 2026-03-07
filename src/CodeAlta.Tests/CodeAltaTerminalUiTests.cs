@@ -18,6 +18,15 @@ public sealed class CodeAltaTerminalUiTests
     }
 
     [TestMethod]
+    public async Task CreatePendingChatMessage_CanBeCreatedFromWorkerThread()
+    {
+        var pending = await Task.Run(() => CodeAltaTerminalUi.CreatePendingChatMessage("hello"));
+
+        Assert.IsInstanceOfType<MarkdownControl>(pending.StreamingMarkdown);
+        Assert.AreEqual(string.Empty, pending.StreamingMarkdown.Markdown);
+    }
+
+    [TestMethod]
     public void FormatChatContentMarkdown_PrefixesReasoningContent()
     {
         var markdown = CodeAltaTerminalUi.FormatChatContentMarkdown(AgentContentKind.Reasoning, "Inspecting the project.");
