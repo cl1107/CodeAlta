@@ -168,11 +168,6 @@ Folder-owned entities can contain:
 - one primary markdown file with YAML frontmatter
 - optional child folders for artifacts, activity logs, notes, attachments, or sub-entities
 
-Single-file entities can use an optional sidecar folder when they need owned artifacts or logs:
-
-- definition file: `agents/<agent-slug>.agent.md`
-- sidecar folder: `agents/<agent-slug>/`
-
 Examples:
 
 - `~/.codealta/workspaces/<workspace-slug>/readme.md`
@@ -254,7 +249,6 @@ Examples:
 
 - `~/.codealta/agents/<agent-slug>.agent.md`
 - `~/.codealta/agents/builtin/<agent-slug>.agent.md`
-- sidecar folder when needed: `~/.codealta/agents/<agent-slug>/`
 
 This is a major architectural rule:
 
@@ -398,18 +392,19 @@ Preferred layout:
   - `~/.codealta/workspaces/<slug>/artifacts/...`
 - project artifacts:
   - `~/.codealta/projects/<slug>/artifacts/...`
-- agent artifacts:
-  - `~/.codealta/agents/<agent-key>/artifacts/...`
 
 Use the top-level shared folder only for artifacts that have no clear owner:
 
 - `~/.codealta/artifacts/...`
 
+Rule:
+
+- artifacts produced by agents should normally be stored under the owning workspace or project, not under the agent definition itself
+
 Rationale:
 
 - ownership is obvious
 - folders remain self-contained
-- copying a workspace or agent folder brings its artifacts along
 - indexing can still flatten these locations into SQLite later
 
 ## 11. Activity Logs
@@ -420,8 +415,6 @@ Examples:
 
 - `~/.codealta/workspaces/platform/activity/2026-03.jsonl`
 - `~/.codealta/projects/tomlyn/activity/2026-03.jsonl`
-- `~/.codealta/agents/<agent-slug>/activity/2026-03.jsonl`
-  - owned by `~/.codealta/agents/<agent-slug>.agent.md`
 
 Why JSONL:
 

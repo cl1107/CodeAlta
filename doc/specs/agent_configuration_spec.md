@@ -32,15 +32,6 @@ Examples:
 - `planner.agent.md`
 - `reviewer.agent.md`
 
-Optional sidecar folder:
-
-- `security-expert/`
-  - `artifacts/`
-  - `activity/`
-  - `notes/`
-
-The sidecar folder is optional and does not define identity.
-
 ## 3. Agent identity
 
 CodeAlta should drop the notion of GUID/UUID agent ids for catalog agents.
@@ -168,7 +159,7 @@ Recommended fields:
 | `skills` | string list | No | Skill keys associated with the agent. |
 | `permission_mode` | string | No | Local execution/approval hint, mainly for Claude-style permission mapping. |
 | `hooks` | object or list | No | Optional lifecycle hooks for agent setup/teardown or other runtime integration. |
-| `notes_visibility` | string | No | UI/export hint controlling how notes or sidecar content should be surfaced. |
+| `notes_visibility` | string | No | UI/export hint controlling how agent-authored notes should be surfaced. |
 
 Why use a nested block:
 
@@ -267,4 +258,3 @@ Adopt the following:
 - `agent-key` replaces GUID/UUID identity for catalog agents
 - frontmatter is Copilot-shaped first, with CodeAlta extensions under `codealta:`
 - built-in agents use the same file model
-- sidecar folders are optional and only for artifacts/activity, not identity
