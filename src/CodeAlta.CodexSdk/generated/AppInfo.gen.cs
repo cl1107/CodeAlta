@@ -36,4 +36,6 @@ public sealed partial record AppInfo
     public string? LogoUrl { get; set; }
     [JsonPropertyName("logoUrlDark")]
     public string? LogoUrlDark { get; set; }
+    [JsonPropertyName("pluginDisplayNames")]
+    public List<string>? PluginDisplayNames { get; set; }
 }

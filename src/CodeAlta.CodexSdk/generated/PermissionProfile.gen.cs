@@ -11,7 +11,7 @@ public sealed partial record PermissionProfile
     [JsonPropertyName("file_system")]
     public FileSystemPermissions? FileSystem { get; set; }
     [JsonPropertyName("macos")]
-    public MacOsPermissions? Macos { get; set; }
+    public MacOsSeatbeltProfileExtensions? Macos { get; set; }
     [JsonPropertyName("network")]
     public NetworkPermissions? Network { get; set; }
 }
