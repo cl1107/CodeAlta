@@ -14,4 +14,14 @@ public sealed class WorkspaceCatalogOptions
     /// Gets the workspace root path under the global repository.
     /// </summary>
     public string WorkspacesRoot => Path.Combine(GlobalRepoRoot, "workspaces");
+
+    /// <summary>
+    /// Gets the project root path under the global repository.
+    /// </summary>
+    public string ProjectsRoot => Path.Combine(GlobalRepoRoot, "projects");
+
+    /// <summary>
+    /// Gets the machine configuration root path under the global repository.
+    /// </summary>
+    public string MachinesRoot => Path.Combine(GlobalRepoRoot, "machines");
 }

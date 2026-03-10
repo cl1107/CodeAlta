@@ -80,11 +80,11 @@ The list is intentionally ordered, but it is not rigid in the wrong way:
 - an implementer may add new steps when they simplify the MVP or remove ambiguity
 - an implementer should not expand scope into deferred areas unless a step is truly required for the MVP
 
-- [ ] Keep `doc/specs/readme.md` as the clear start-here document for the spec set.
-- [ ] Keep `doc/specs/implementation_plan.md` aligned with the actual MVP scope and sequence.
-- [ ] Finalize the workspace metadata model, identity rules, and loading rules.
-- [ ] Finalize project descriptors and project-to-workspace attachment rules.
-- [ ] Implement catalog loading for workspaces, projects, and agents from `~/.codealta/` and project overlays.
+- [x] Keep `doc/specs/readme.md` as the clear start-here document for the spec set.
+- [x] Keep `doc/specs/implementation_plan.md` aligned with the actual MVP scope and sequence.
+- [x] Finalize the workspace metadata model, identity rules, and loading rules.
+- [x] Finalize project descriptors and project-to-workspace attachment rules.
+- [x] Implement catalog loading for workspaces, projects, and agents from `~/.codealta/` and project overlays.
 - [ ] Introduce `WorkThread` as the primary user-facing unit.
 - [ ] Support both `Global Thread` and `Workspace Thread`.
 - [ ] Enforce workspace selection before the first prompt in a workspace thread.

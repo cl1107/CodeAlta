@@ -38,6 +38,12 @@ public sealed class WorkspaceDescriptor
     public string? Description { get; set; }
 
     /// <summary>
+    /// Gets or sets the project references declared by the workspace metadata file.
+    /// </summary>
+    [JsonPropertyName("project_refs")]
+    public List<string> ProjectRefs { get; set; } = [];
+
+    /// <summary>
     /// Gets or sets optional tags.
     /// </summary>
     [JsonPropertyName("tags")]
@@ -50,9 +56,14 @@ public sealed class WorkspaceDescriptor
     public List<ProjectDescriptor> Projects { get; set; } = [];
 
     /// <summary>
-    /// Gets the path to <c>workspace.yaml</c> when loaded from disk.
+    /// Gets the path to the source markdown file when loaded from disk.
     /// </summary>
     public string? SourcePath { get; set; }
+
+    /// <summary>
+    /// Gets or sets the markdown body loaded from disk.
+    /// </summary>
+    public string? MarkdownBody { get; set; }
 
     /// <summary>
     /// Gets the parsed identifier.
@@ -92,6 +103,18 @@ public sealed class WorkspaceDescriptor
         if (duplicateKey is not null)
         {
             throw new ArgumentException($"Workspace '{Key}' contains duplicate project key '{duplicateKey}'.", nameof(Projects));
+        }
+
+        var duplicateRef = ProjectRefs
+            .Where(static x => !string.IsNullOrWhiteSpace(x))
+            .GroupBy(static x => x, StringComparer.OrdinalIgnoreCase)
+            .Where(static x => x.Count() > 1)
+            .Select(static x => x.Key)
+            .FirstOrDefault();
+
+        if (duplicateRef is not null)
+        {
+            throw new ArgumentException($"Workspace '{Key}' contains duplicate project ref '{duplicateRef}'.", nameof(ProjectRefs));
         }
 
         foreach (var project in Projects)

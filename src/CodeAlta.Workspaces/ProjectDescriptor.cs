@@ -38,10 +38,32 @@ public sealed class ProjectDescriptor
     public string DefaultBranch { get; set; } = "main";
 
     /// <summary>
+    /// Gets or sets the optional description shown to users.
+    /// </summary>
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    /// <summary>
+    /// Gets or sets optional tags.
+    /// </summary>
+    [JsonPropertyName("tags")]
+    public List<string> Tags { get; set; } = [];
+
+    /// <summary>
     /// Gets or sets checkout settings.
     /// </summary>
     [JsonPropertyName("checkout")]
     public CheckoutRule Checkout { get; set; } = new();
+
+    /// <summary>
+    /// Gets the path to the source markdown file when loaded from disk.
+    /// </summary>
+    public string? SourcePath { get; set; }
+
+    /// <summary>
+    /// Gets or sets the markdown body loaded from disk.
+    /// </summary>
+    public string? MarkdownBody { get; set; }
 
     /// <summary>
     /// Gets the parsed identifier.
