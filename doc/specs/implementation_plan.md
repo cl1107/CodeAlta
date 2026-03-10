@@ -92,8 +92,8 @@ The list is intentionally ordered, but it is not rigid in the wrong way:
 - [x] Allow project focus to evolve only within the owning workspace.
 - [x] Persist durable thread metadata, summaries, and status.
 - [x] Restore open threads/tabs and their scope after restart.
-- [ ] Load file-based global and project-local agents.
-- [ ] Compose coordinator and general-agent instructions consistently across Copilot and Codex.
+- [x] Load file-based global and project-local agents.
+- [x] Compose coordinator and general-agent instructions consistently across Copilot and Codex.
 - [ ] Keep Copilot and Codex sessions usable as thread execution backends.
 - [ ] Give each work thread one coordinator session.
 - [ ] Implement minimal host-owned orchestration for send, steer, dispatch, and explicit thread handoff.

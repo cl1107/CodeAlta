@@ -4,6 +4,7 @@ using CodeAlta.Orchestration;
 using CodeAlta.Orchestration.Context;
 using CodeAlta.Orchestration.Runtime;
 using CodeAlta.Persistence;
+using CodeAlta.Workspaces;
 using CodeAlta.Workspaces.Roles;
 
 namespace CodeAlta.Orchestration.Tests;
@@ -12,53 +13,123 @@ namespace CodeAlta.Orchestration.Tests;
 public sealed class OrchestrationInfrastructureTests
 {
     [TestMethod]
-    public async Task RoleProfileStore_ParsesFrontmatterAndCopilotMarkdown()
+    public async Task RoleProfileStore_ParsesAgentMarkdownAndProjectOverlay()
     {
         using var temp = TempDirectory.Create();
-        var rolesRoot = Path.Combine(temp.Path, ".codealta", "roles");
-        Directory.CreateDirectory(rolesRoot);
+        var globalAgentsRoot = Path.Combine(temp.Path, ".codealta", "agents");
+        var projectRoot = Path.Combine(temp.Path, "repo-main");
+        var projectAgentsRoot = Path.Combine(projectRoot, ".codealta", "agents");
+        Directory.CreateDirectory(globalAgentsRoot);
+        Directory.CreateDirectory(projectAgentsRoot);
 
-        var frontmatterRolePath = Path.Combine(rolesRoot, "planner.workspace.md");
+        var frontmatterRolePath = Path.Combine(globalAgentsRoot, "coordinator.agent.md");
         await File.WriteAllTextAsync(
             frontmatterRolePath,
             """
             ---
-            id: planner.workspace
-            name: Workspace Planner
+            name: coordinator
             description: Plans workspace goals into durable tasks.
-            tools_allowed:
-              - codealta.tasks
-              - codealta.artifacts
-            default_backend: codex
+            tools:
+              - read
+              - grep
+            model: gpt-5.4
+            user-invocable: false
+            codealta:
+              default_backend: codex
+              scope: workspace
+              tags:
+                - planning
             ---
             Create and maintain a clear task tree with acceptance criteria.
             """
         ).ConfigureAwait(false);
 
-        var copilotRolePath = Path.Combine(rolesRoot, "reviewer.md");
+        var projectRolePath = Path.Combine(projectAgentsRoot, "reviewer.agent.md");
         await File.WriteAllTextAsync(
-            copilotRolePath,
+            projectRolePath,
             """
+            ---
+            name: reviewer
+            description: Reviews diffs for regressions and risk.
+            ---
             # Reviewer
-
-            Reviews diffs for regressions and risk.
 
             Focus on correctness, missing tests, and user-facing behavior.
             """
         ).ConfigureAwait(false);
 
         var store = new RoleProfileStore();
-        var profiles = await store.LoadAsync([rolesRoot]).ConfigureAwait(false);
+        var profiles = await store.LoadCatalogAgentsAsync(
+                Path.Combine(temp.Path, ".codealta"),
+                [projectRoot])
+            .ConfigureAwait(false);
 
         Assert.AreEqual(2, profiles.Count);
-        var planner = profiles.Single(x => x.RoleId == "planner.workspace");
-        Assert.AreEqual("Workspace Planner", planner.Name);
-        CollectionAssert.Contains(planner.ToolsPolicy.Allowed.ToArray(), "codealta.tasks");
+        var planner = profiles.Single(x => x.RoleId == "coordinator");
+        Assert.AreEqual("coordinator", planner.Name);
+        CollectionAssert.Contains(planner.ToolsPolicy.Allowed.ToArray(), "read");
         Assert.AreEqual("codex", planner.DefaultBackend);
+        Assert.AreEqual("gpt-5.4", planner.DefaultModel);
+        Assert.AreEqual("workspace", planner.Scope);
+        Assert.IsFalse(planner.UserInvocable);
 
         var reviewer = profiles.Single(x => x.RoleId == "reviewer");
-        Assert.AreEqual("Reviewer", reviewer.Name);
-        StringAssert.Contains(reviewer.Description, "Reviews");
+        Assert.AreEqual("reviewer", reviewer.Name);
+        StringAssert.Contains(reviewer.Description, "regressions");
+    }
+
+    [TestMethod]
+    public void AgentInstructionTemplateProvider_BuildsCoordinatorInstructions()
+    {
+        var provider = new AgentInstructionTemplateProvider();
+        var workspace = new WorkspaceDescriptor
+        {
+            Id = WorkspaceId.NewVersion7().ToString(),
+            Key = "wk-core",
+            DisplayName = "Core Workspace",
+            DefaultCheckoutRoot = @"C:\code",
+        };
+        var project = new ProjectDescriptor
+        {
+            Id = ProjectId.NewVersion7().ToString(),
+            Key = "repo-main",
+            DisplayName = "Main Repo",
+            RepoUrl = "https://example.com/repo-main.git",
+            DefaultBranch = "main",
+        };
+        var thread = new WorkThreadDescriptor
+        {
+            ThreadId = "thread-1",
+            Kind = WorkThreadKind.WorkspaceThread,
+            WorkspaceRef = workspace.Id,
+            ProjectRefs = [project.Id],
+            ScopeMode = WorkThreadScopeMode.SingleProject,
+            Title = "Review sqlitevec integration",
+            Status = WorkThreadStatus.Active,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+            LastActiveAt = DateTimeOffset.UtcNow,
+            StartedAt = DateTimeOffset.UtcNow,
+        };
+        var profile = new RoleProfile
+        {
+            RoleId = "coordinator",
+            Name = "coordinator",
+            Description = "Plans work.",
+            Instructions = "Emit one schedule block when you need coordination.",
+            ToolsPolicy = new RoleToolsPolicy(),
+            DefaultBackend = "codex",
+            Scope = "workspace",
+            IsBuiltIn = true,
+            SourcePath = "builtin://coordinator",
+        };
+
+        var instructions = provider.BuildCoordinatorInstructions(thread, workspace, [project], profile);
+
+        StringAssert.Contains(instructions.SystemMessage, "CodeAlta Coordinator");
+        StringAssert.Contains(instructions.DeveloperInstructions, "Review sqlitevec integration");
+        StringAssert.Contains(instructions.DeveloperInstructions, "Main Repo");
+        StringAssert.Contains(instructions.DeveloperInstructions, "codealta_schedule");
     }
 
     [TestMethod]

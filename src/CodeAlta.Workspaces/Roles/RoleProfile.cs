@@ -62,6 +62,31 @@ public sealed record RoleProfile
     public string? DefaultReasoningEffort { get; init; }
 
     /// <summary>
+    /// Gets whether the agent is directly user-invocable.
+    /// </summary>
+    public bool UserInvocable { get; init; } = true;
+
+    /// <summary>
+    /// Gets whether automatic model-driven invocation should be disabled.
+    /// </summary>
+    public bool DisableModelInvocation { get; init; }
+
+    /// <summary>
+    /// Gets the preferred CodeAlta scope for the agent.
+    /// </summary>
+    public string? Scope { get; init; }
+
+    /// <summary>
+    /// Gets the free-form classification tags.
+    /// </summary>
+    public IReadOnlyList<string> Tags { get; init; } = [];
+
+    /// <summary>
+    /// Gets a value indicating whether the profile is a built-in seed.
+    /// </summary>
+    public bool IsBuiltIn { get; init; }
+
+    /// <summary>
     /// Gets source file path.
     /// </summary>
     public required string SourcePath { get; init; }

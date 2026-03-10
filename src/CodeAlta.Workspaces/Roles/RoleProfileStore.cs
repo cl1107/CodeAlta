@@ -4,14 +4,14 @@ using SharpYaml;
 namespace CodeAlta.Workspaces.Roles;
 
 /// <summary>
-/// Loads and normalizes role profiles from markdown files.
+/// Loads and normalizes agent role profiles from markdown files.
 /// </summary>
 public sealed class RoleProfileStore
 {
     /// <summary>
     /// Lists role profiles from the provided root directories.
     /// </summary>
-    /// <param name="roots">Root directories to scan recursively for <c>*.md</c> role files.</param>
+    /// <param name="roots">Root directories to scan recursively for <c>*.agent.md</c> role files.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Discovered role profiles.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="roots"/> is <see langword="null"/>.</exception>
@@ -29,7 +29,7 @@ public sealed class RoleProfileStore
                 continue;
             }
 
-            foreach (var path in Directory.EnumerateFiles(root, "*.md", SearchOption.AllDirectories))
+            foreach (var path in Directory.EnumerateFiles(root, "*.agent.md", SearchOption.AllDirectories))
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var content = await File.ReadAllTextAsync(path, cancellationToken).ConfigureAwait(false);
@@ -51,9 +51,43 @@ public sealed class RoleProfileStore
     }
 
     /// <summary>
+    /// Loads agent role profiles from the global catalog and active project overlays.
+    /// </summary>
+    /// <param name="globalCatalogRoot">The global CodeAlta catalog root.</param>
+    /// <param name="projectRoots">Active project roots.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Discovered profiles.</returns>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="globalCatalogRoot"/> is empty.</exception>
+    public Task<IReadOnlyList<RoleProfile>> LoadCatalogAgentsAsync(
+        string globalCatalogRoot,
+        IReadOnlyList<string>? projectRoots = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(globalCatalogRoot))
+        {
+            throw new ArgumentException("Global catalog root is required.", nameof(globalCatalogRoot));
+        }
+
+        var roots = new List<string>
+        {
+            Path.Combine(globalCatalogRoot, "agents"),
+        };
+
+        if (projectRoots is not null)
+        {
+            foreach (var projectRoot in projectRoots.Where(static x => !string.IsNullOrWhiteSpace(x)))
+            {
+                roots.Add(Path.Combine(projectRoot, ".codealta", "agents"));
+            }
+        }
+
+        return LoadAsync(roots, cancellationToken);
+    }
+
+    /// <summary>
     /// Gets a profile by role id.
     /// </summary>
-    /// <param name="roots">Root directories to scan recursively for <c>*.md</c> role files.</param>
+    /// <param name="roots">Root directories to scan recursively for <c>*.agent.md</c> role files.</param>
     /// <param name="roleId">Role id.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The profile when found; otherwise <see langword="null"/>.</returns>
@@ -78,7 +112,8 @@ public sealed class RoleProfileStore
         if (TrySplitFrontmatter(content, out var frontmatterText, out var body))
         {
             var frontmatter = YamlSerializer.Deserialize<RoleFrontmatter>(frontmatterText) ?? new RoleFrontmatter();
-            var id = Coalesce(frontmatter.Id, Path.GetFileNameWithoutExtension(sourcePath));
+            var agentKey = GetAgentKeyFromPath(sourcePath);
+            var id = Coalesce(frontmatter.Name, agentKey);
             var name = Coalesce(frontmatter.Name, id);
             var description = Coalesce(frontmatter.Description, $"{name} role profile.");
             return new RoleProfile
@@ -89,12 +124,17 @@ public sealed class RoleProfileStore
                 Instructions = body.Trim(),
                 ToolsPolicy = new RoleToolsPolicy
                 {
-                    Allowed = frontmatter.AllowedTools ?? [],
+                    Allowed = frontmatter.Tools ?? frontmatter.AllowedTools ?? [],
                     Denied = frontmatter.DeniedTools ?? [],
                 },
-                DefaultBackend = frontmatter.DefaultBackend,
-                DefaultModel = frontmatter.DefaultModel,
-                DefaultReasoningEffort = frontmatter.DefaultReasoningEffort,
+                DefaultBackend = frontmatter.CodeAlta?.DefaultBackend ?? frontmatter.DefaultBackend,
+                DefaultModel = frontmatter.Model ?? frontmatter.DefaultModel,
+                DefaultReasoningEffort = frontmatter.CodeAlta?.DefaultReasoningEffort ?? frontmatter.DefaultReasoningEffort,
+                Scope = frontmatter.CodeAlta?.Scope,
+                Tags = frontmatter.CodeAlta?.Tags ?? [],
+                DisableModelInvocation = frontmatter.DisableModelInvocation ?? false,
+                UserInvocable = frontmatter.UserInvocable ?? true,
+                IsBuiltIn = frontmatter.CodeAlta?.BuiltIn ?? false,
                 SourcePath = sourcePath,
             };
         }
@@ -107,7 +147,7 @@ public sealed class RoleProfileStore
         var lines = content.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
         var heading = lines.FirstOrDefault(static x => x.StartsWith("# ", StringComparison.Ordinal));
         var name = heading is null
-            ? Path.GetFileNameWithoutExtension(sourcePath)
+            ? GetAgentKeyFromPath(sourcePath)
             : heading[2..].Trim();
         var description = lines
             .Select(static x => x.Trim())
@@ -116,7 +156,7 @@ public sealed class RoleProfileStore
 
         return new RoleProfile
         {
-            RoleId = Path.GetFileNameWithoutExtension(sourcePath),
+            RoleId = GetAgentKeyFromPath(sourcePath),
             Name = name,
             Description = description,
             Instructions = content.Trim(),
@@ -162,42 +202,33 @@ public sealed class RoleProfileStore
         [
             new RoleProfile
             {
-                RoleId = "global",
-                Name = "Global",
-                Description = "Coordinates cross-workspace planning and routing.",
-                Instructions = "Coordinate global requests and route tasks to scoped agents.",
+                RoleId = "coordinator",
+                Name = "Coordinator",
+                Description = "Coordinates work inside a thread and emits structured schedules when needed.",
+                Instructions = "Coordinate scoped requests and emit one valid codealta_schedule block when coordination is required.",
                 ToolsPolicy = new RoleToolsPolicy
                 {
-                    Allowed = ["codealta.tasks", "codealta.search", "codealta.workspaces"],
+                    Allowed = [],
                 },
                 DefaultBackend = "codex",
-                SourcePath = "builtin://global",
+                Scope = "workspace",
+                IsBuiltIn = true,
+                SourcePath = "builtin://coordinator",
             },
             new RoleProfile
             {
-                RoleId = "planner.workspace",
-                Name = "Planner Workspace",
-                Description = "Breaks goals into durable tasks.",
-                Instructions = "Create and maintain task trees with clear acceptance criteria.",
+                RoleId = "general",
+                Name = "General",
+                Description = "General coding agent for direct scoped work.",
+                Instructions = "Handle the assigned scoped coding work directly and report concrete outcomes.",
                 ToolsPolicy = new RoleToolsPolicy
                 {
-                    Allowed = ["codealta.tasks", "codealta.artifacts"],
+                    Allowed = [],
                 },
                 DefaultBackend = "codex",
-                SourcePath = "builtin://planner.workspace",
-            },
-            new RoleProfile
-            {
-                RoleId = "builder.project",
-                Name = "Builder Project",
-                Description = "Executes project-scoped tasks.",
-                Instructions = "Implement changes, validate with build/tests, and report verification.",
-                ToolsPolicy = new RoleToolsPolicy
-                {
-                    Allowed = ["codealta.tasks", "codealta.search", "codealta.artifacts"],
-                },
-                DefaultBackend = "codex",
-                SourcePath = "builtin://builder.project",
+                Scope = "project",
+                IsBuiltIn = true,
+                SourcePath = "builtin://general",
             },
         ];
     }
@@ -207,16 +238,27 @@ public sealed class RoleProfileStore
         return string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
     }
 
+    private static string GetAgentKeyFromPath(string sourcePath)
+    {
+        var fileName = Path.GetFileName(sourcePath);
+        if (fileName.EndsWith(".agent.md", StringComparison.OrdinalIgnoreCase))
+        {
+            return fileName[..^".agent.md".Length];
+        }
+
+        return Path.GetFileNameWithoutExtension(sourcePath);
+    }
+
     private sealed class RoleFrontmatter
     {
-        [JsonPropertyName("id")]
-        public string? Id { get; set; }
-
         [JsonPropertyName("name")]
         public string? Name { get; set; }
 
         [JsonPropertyName("description")]
         public string? Description { get; set; }
+
+        [JsonPropertyName("tools")]
+        public List<string>? Tools { get; set; }
 
         [JsonPropertyName("tools_allowed")]
         public List<string>? AllowedTools { get; set; }
@@ -232,6 +274,36 @@ public sealed class RoleProfileStore
 
         [JsonPropertyName("default_reasoning_effort")]
         public string? DefaultReasoningEffort { get; set; }
+
+        [JsonPropertyName("model")]
+        public string? Model { get; set; }
+
+        [JsonPropertyName("disable-model-invocation")]
+        public bool? DisableModelInvocation { get; set; }
+
+        [JsonPropertyName("user-invocable")]
+        public bool? UserInvocable { get; set; }
+
+        [JsonPropertyName("codealta")]
+        public CodeAltaFrontmatter? CodeAlta { get; set; }
+    }
+
+    private sealed class CodeAltaFrontmatter
+    {
+        [JsonPropertyName("scope")]
+        public string? Scope { get; set; }
+
+        [JsonPropertyName("default_backend")]
+        public string? DefaultBackend { get; set; }
+
+        [JsonPropertyName("default_reasoning_effort")]
+        public string? DefaultReasoningEffort { get; set; }
+
+        [JsonPropertyName("builtin")]
+        public bool? BuiltIn { get; set; }
+
+        [JsonPropertyName("tags")]
+        public List<string>? Tags { get; set; }
     }
 }
 
