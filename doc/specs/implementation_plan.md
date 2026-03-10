@@ -94,11 +94,11 @@ The list is intentionally ordered, but it is not rigid in the wrong way:
 - [x] Restore open threads/tabs and their scope after restart.
 - [x] Load file-based global and project-local agents.
 - [x] Compose coordinator and general-agent instructions consistently across Copilot and Codex.
-- [ ] Keep Copilot and Codex sessions usable as thread execution backends.
-- [ ] Give each work thread one coordinator session.
-- [ ] Implement minimal host-owned orchestration for send, steer, dispatch, and explicit thread handoff.
-- [ ] Project backend/coordinator/host activity into a curated thread timeline.
-- [ ] Hide raw schedule payloads from the normal user timeline.
+- [x] Keep Copilot and Codex sessions usable as thread execution backends.
+- [x] Give each work thread one coordinator session.
+- [x] Implement minimal host-owned orchestration for send, steer, dispatch, and explicit thread handoff.
+- [x] Project backend/coordinator/host activity into a curated thread timeline.
+- [x] Hide raw schedule payloads from the normal user timeline.
 - [ ] Implement workspace/project-first sidebar navigation with threads and activity under scope.
 - [ ] Implement thread creation UX for selecting a workspace and initial project scope.
 - [ ] Implement multi-thread UX so several concurrent threads can be continued and steered without confusion.

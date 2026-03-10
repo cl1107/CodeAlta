@@ -357,6 +357,223 @@ public sealed class OrchestrationInfrastructureTests
         Assert.AreEqual("Model B", models[1].DisplayName);
     }
 
+    [TestMethod]
+    public async Task WorkThreadRuntimeService_SendAsync_UsesCoordinatorDefaultsAndSanitizesSchedule()
+    {
+        using var temp = TempDirectory.Create();
+        var options = new WorkspaceCatalogOptions { GlobalRepoRoot = temp.Path };
+        var workspaceCatalog = new WorkspaceCatalog(options);
+        var threadCatalog = new WorkThreadCatalog(workspaceCatalog, options);
+        var roleStore = new RoleProfileStore();
+        var instructionProvider = new AgentInstructionTemplateProvider();
+
+        var project = new ProjectDescriptor
+        {
+            Id = ProjectId.NewVersion7().ToString(),
+            Key = "repo-main",
+            DisplayName = "Main Repo",
+            RepoUrl = "https://example.com/repo-main.git",
+            DefaultBranch = "main",
+            Checkout = new CheckoutRule { PathTemplate = @"{workspaceKey}\{projectKey}" },
+        };
+        await workspaceCatalog.SaveProjectAsync(project).ConfigureAwait(false);
+
+        var workspace = new WorkspaceDescriptor
+        {
+            Id = WorkspaceId.NewVersion7().ToString(),
+            Key = "wk-core",
+            DisplayName = "Core Workspace",
+            DefaultCheckoutRoot = @"C:\code",
+            ProjectRefs = [project.Id],
+        };
+        await workspaceCatalog.SaveWorkspaceAsync(workspace).ConfigureAwait(false);
+
+        var agentsRoot = Path.Combine(temp.Path, "agents");
+        Directory.CreateDirectory(agentsRoot);
+        await File.WriteAllTextAsync(
+            Path.Combine(agentsRoot, "coordinator.agent.md"),
+            """
+            ---
+            name: coordinator
+            description: Coordinates thread work.
+            model: gpt-5.4
+            codealta:
+              default_backend: fake
+              default_reasoning_effort: high
+            ---
+            Emit a schedule when coordination is required.
+            """).ConfigureAwait(false);
+
+        var backendFactory = new AgentBackendFactory();
+        var fakeBackend = new FakeBackend(sendEventFactory: (backendId, sessionId, runId) =>
+        [
+            new AgentContentCompletedEvent(
+                backendId,
+                sessionId,
+                DateTimeOffset.UtcNow,
+                runId,
+                AgentContentKind.Assistant,
+                "assistant-1",
+                null,
+                """
+                I’m going to coordinate this.
+
+                ```codealta_schedule
+                version: 1
+                dispatches: []
+                ```
+                """),
+            new AgentSessionUpdateEvent(
+                backendId,
+                sessionId,
+                DateTimeOffset.UtcNow,
+                runId,
+                AgentSessionUpdateKind.Idle,
+                "idle"),
+        ]);
+        backendFactory.Register("fake", () => fakeBackend);
+
+        var db = await CreateDbAsync(temp.Path).ConfigureAwait(false);
+        var repository = new AgentRepository(db);
+        await using var hub = new AgentHub(backendFactory, repository);
+        await using var runtime = new WorkThreadRuntimeService(
+            hub,
+            workspaceCatalog,
+            threadCatalog,
+            roleStore,
+            instructionProvider,
+            options);
+
+        var thread = new WorkThreadDescriptor
+        {
+            ThreadId = "platform-search-review",
+            Kind = WorkThreadKind.WorkspaceThread,
+            WorkspaceRef = workspace.Id,
+            ProjectRefs = [project.Id],
+            ScopeMode = WorkThreadScopeMode.SingleProject,
+            Title = "Review sqlitevec integration",
+            Status = WorkThreadStatus.Draft,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+            LastActiveAt = DateTimeOffset.UtcNow,
+        };
+        await threadCatalog.SaveAsync(thread).ConfigureAwait(false);
+
+        var executionOptions = new WorkThreadExecutionOptions
+        {
+            BackendId = new AgentBackendId("fake"),
+            WorkingDirectory = temp.Path,
+            OnPermissionRequest = static (_, _) =>
+                Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
+        };
+
+        _ = await runtime.SendAsync(
+                thread,
+                executionOptions,
+                new AgentSendOptions { Input = AgentInput.Text("review the project") })
+            .ConfigureAwait(false);
+
+        Assert.IsNotNull(fakeBackend.LastCreateOptions);
+        Assert.AreEqual("gpt-5.4", fakeBackend.LastCreateOptions.Model);
+        Assert.AreEqual(AgentReasoningEffort.High, fakeBackend.LastCreateOptions.ReasoningEffort);
+        StringAssert.Contains(fakeBackend.LastCreateOptions.SystemMessage, "CodeAlta Coordinator");
+        StringAssert.Contains(fakeBackend.LastCreateOptions.DeveloperInstructions, "Main Repo");
+
+        var history = await runtime.GetHistoryAsync(thread.ThreadId).ConfigureAwait(false);
+        var assistant = history.OfType<AgentContentCompletedEvent>().Single();
+        StringAssert.Contains(assistant.Content, "I’m going to coordinate this.");
+        Assert.IsFalse(assistant.Content.Contains("codealta_schedule", StringComparison.OrdinalIgnoreCase));
+
+        var persisted = await threadCatalog.GetByIdAsync(thread.ThreadId).ConfigureAwait(false);
+        Assert.IsNotNull(persisted);
+        Assert.IsTrue(persisted.IsWorkspaceLocked);
+    }
+
+    [TestMethod]
+    public async Task WorkThreadRuntimeService_HandoffAsync_EmitsHostEvents()
+    {
+        using var temp = TempDirectory.Create();
+        var options = new WorkspaceCatalogOptions { GlobalRepoRoot = temp.Path };
+        var workspaceCatalog = new WorkspaceCatalog(options);
+        var threadCatalog = new WorkThreadCatalog(workspaceCatalog, options);
+        var roleStore = new RoleProfileStore();
+        var instructionProvider = new AgentInstructionTemplateProvider();
+
+        var project = new ProjectDescriptor
+        {
+            Id = ProjectId.NewVersion7().ToString(),
+            Key = "repo-main",
+            DisplayName = "Main Repo",
+            RepoUrl = "https://example.com/repo-main.git",
+            DefaultBranch = "main",
+        };
+        await workspaceCatalog.SaveProjectAsync(project).ConfigureAwait(false);
+
+        var workspace = new WorkspaceDescriptor
+        {
+            Id = WorkspaceId.NewVersion7().ToString(),
+            Key = "wk-core",
+            DisplayName = "Core Workspace",
+            DefaultCheckoutRoot = @"C:\code",
+            ProjectRefs = [project.Id],
+        };
+        await workspaceCatalog.SaveWorkspaceAsync(workspace).ConfigureAwait(false);
+
+        var agentsRoot = Path.Combine(temp.Path, "agents");
+        Directory.CreateDirectory(agentsRoot);
+        await File.WriteAllTextAsync(
+            Path.Combine(agentsRoot, "coordinator.agent.md"),
+            """
+            ---
+            name: coordinator
+            description: Coordinates thread work.
+            ---
+            Emit a schedule when coordination is required.
+            """).ConfigureAwait(false);
+
+        var backendFactory = new AgentBackendFactory();
+        backendFactory.Register("fake", static () => new FakeBackend());
+
+        var db = await CreateDbAsync(temp.Path).ConfigureAwait(false);
+        var repository = new AgentRepository(db);
+        await using var hub = new AgentHub(backendFactory, repository);
+        await using var runtime = new WorkThreadRuntimeService(
+            hub,
+            workspaceCatalog,
+            threadCatalog,
+            roleStore,
+            instructionProvider,
+            options);
+
+        var source = CreateThread("source-thread", workspace.Id, project.Id, "Source Thread");
+        var target = CreateThread("target-thread", workspace.Id, project.Id, "Target Thread");
+        await threadCatalog.SaveAsync(source).ConfigureAwait(false);
+        await threadCatalog.SaveAsync(target).ConfigureAwait(false);
+
+        var executionOptions = new WorkThreadExecutionOptions
+        {
+            BackendId = new AgentBackendId("fake"),
+            WorkingDirectory = temp.Path,
+            OnPermissionRequest = static (_, _) =>
+                Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
+        };
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var enumerator = runtime.StreamEventsAsync(cts.Token).GetAsyncEnumerator(cts.Token);
+
+        _ = await runtime.HandoffAsync(source, target, executionOptions, "Continue the review work.").ConfigureAwait(false);
+
+        var received = new List<WorkThreadRuntimeEvent>();
+        while (received.Count < 2 && await enumerator.MoveNextAsync().ConfigureAwait(false))
+        {
+            received.Add(enumerator.Current);
+        }
+
+        Assert.AreEqual(2, received.Count);
+        Assert.IsTrue(received.OfType<WorkThreadHostEvent>().Any(x => x.ThreadId == source.ThreadId));
+        Assert.IsTrue(received.OfType<WorkThreadHostEvent>().Any(x => x.ThreadId == target.ThreadId));
+    }
+
     private static async Task<CodeAltaDb> CreateDbAsync(string rootPath)
     {
         var dbPath = Path.Combine(rootPath, "state", "db", "codealta.db");
@@ -387,15 +604,21 @@ public sealed class OrchestrationInfrastructureTests
     {
         private int _runCounter;
         private readonly IReadOnlyList<AgentModelInfo> _models;
+        private readonly Func<AgentBackendId, string, AgentRunId, IReadOnlyList<AgentEvent>>? _sendEventFactory;
 
-        public FakeBackend(IReadOnlyList<AgentModelInfo>? models = null)
+        public FakeBackend(
+            IReadOnlyList<AgentModelInfo>? models = null,
+            Func<AgentBackendId, string, AgentRunId, IReadOnlyList<AgentEvent>>? sendEventFactory = null)
         {
             _models = models ?? [];
+            _sendEventFactory = sendEventFactory;
         }
 
         public AgentBackendId BackendId => new("fake");
 
         public string DisplayName => "Fake";
+
+        public AgentSessionCreateOptions? LastCreateOptions { get; private set; }
 
         public ValueTask DisposeAsync()
         {
@@ -423,6 +646,7 @@ public sealed class OrchestrationInfrastructureTests
             CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(options);
+            LastCreateOptions = options;
             return Task.FromResult<IAgentSession>(new FakeSession(this));
         }
 
@@ -492,28 +716,15 @@ public sealed class OrchestrationInfrastructureTests
             {
                 ArgumentNullException.ThrowIfNull(options);
                 var runId = new AgentRunId($"fake-run-{Interlocked.Increment(ref _backend._runCounter)}");
-                var message = new AgentContentCompletedEvent(
-                    BackendId,
-                    SessionId,
-                    DateTimeOffset.UtcNow,
-                    runId,
-                    AgentContentKind.Assistant,
-                    "assistant-1",
-                    runId.Value,
-                    "ok");
-                var idle = new AgentSessionUpdateEvent(
-                    BackendId,
-                    SessionId,
-                    DateTimeOffset.UtcNow,
-                    null,
-                    AgentSessionUpdateKind.Idle,
-                    null);
+                var events = _backend._sendEventFactory?.Invoke(BackendId, SessionId, runId)
+                    ?? DefaultSendEvents(BackendId, SessionId, runId);
 
-                _events.Add(message);
-                _events.Add(idle);
+                foreach (var @event in events)
+                {
+                    _events.Add(@event);
+                    Publish(@event);
+                }
 
-                Publish(message);
-                Publish(idle);
                 return Task.FromResult(runId);
             }
 
@@ -546,7 +757,51 @@ public sealed class OrchestrationInfrastructureTests
             {
                 return Task.FromResult<IReadOnlyList<AgentEvent>>(_events.ToArray());
             }
+
+            private static IReadOnlyList<AgentEvent> DefaultSendEvents(
+                AgentBackendId backendId,
+                string sessionId,
+                AgentRunId runId)
+            {
+                return
+                [
+                    new AgentContentCompletedEvent(
+                        backendId,
+                        sessionId,
+                        DateTimeOffset.UtcNow,
+                        runId,
+                        AgentContentKind.Assistant,
+                        "assistant-1",
+                        runId.Value,
+                        "ok"),
+                    new AgentSessionUpdateEvent(
+                        backendId,
+                        sessionId,
+                        DateTimeOffset.UtcNow,
+                        null,
+                        AgentSessionUpdateKind.Idle,
+                        null),
+                ];
+            }
         }
+    }
+
+    private static WorkThreadDescriptor CreateThread(string threadId, string workspaceId, string projectId, string title)
+    {
+        var timestamp = DateTimeOffset.UtcNow;
+        return new WorkThreadDescriptor
+        {
+            ThreadId = threadId,
+            Kind = WorkThreadKind.WorkspaceThread,
+            WorkspaceRef = workspaceId,
+            ProjectRefs = [projectId],
+            ScopeMode = WorkThreadScopeMode.SingleProject,
+            Title = title,
+            Status = WorkThreadStatus.Draft,
+            CreatedAt = timestamp,
+            UpdatedAt = timestamp,
+            LastActiveAt = timestamp,
+        };
     }
 
     private sealed class DisposableAction : IDisposable
