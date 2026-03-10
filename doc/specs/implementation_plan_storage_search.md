@@ -1,11 +1,15 @@
 # Implementation Plan: Storage, Indexing, and Search (Draft)
 
-This document details how CodeAlta will implement durable storage (files + SQLite), full-text search (FTS5), and vector search (sqlite-vec + LLamaSharp embeddings).
+Status note: this document is now subordinate to `doc/specs/implementation_plan_adaptive_orchestration.md`. Search and specialization remain important, but they are no longer the primary near-term driver of the architecture.
+
+This document details how CodeAlta will implement durable storage (files + SQLite), full-text search (FTS5), and vector search using SQLite plus the Semantic Kernel SQLite vector connector.
 
 Related specs:
 - `doc/specs/blueprint_codealta_specs.md` (section “Storage, indexing, semantic search”)
 - `doc/specs/blueprint_agentic_coding_specs.md` (compaction-safe storage)
 - `doc/specs/blueprint_mcp_server_specs.md` (task/artifact/search services)
+- `doc/specs/codealta_adaptive_orchestration_architecture.md`
+- `doc/specs/implementation_plan_adaptive_orchestration.md`
 
 ## 1. Storage roots (disk)
 
@@ -39,8 +43,15 @@ Proposed subfolders:
 - `.codealta/knowledge/` (markdown knowledge artifacts)
 - `.codealta/plans/` (planner outputs)
 - `.codealta/tasks/` (optional exported task snapshots)
-- `.codealta/roles/` (role profiles, markdown + frontmatter)
-- `.codealta/skills/` (optional pointer/manifest to skill repos)
+- `.codealta/agents/` (project-specific agent definitions, markdown + frontmatter)
+- `.codealta/skills/` (project-specific skills / pointers / manifests)
+
+Runtime interpretation:
+
+- `~/.codealta/` is the global root CodeAlta uses to discover and navigate workspaces/projects
+- `{projectPath}/.codealta/agents/` and `{projectPath}/.codealta/skills/` are project-local overlays
+- global agents/skills under `~/.codealta/` are cross-workspace/cross-project assets
+- project-local agents/skills under `{projectPath}/.codealta/` are repository-specific specializations
 
 ### 1.3 Workspace-level storage
 
@@ -251,26 +262,41 @@ Plan:
 - `SearchService.QueryFtsAsync(query, filters, limit)`
 - returns `document_id` + snippet + score
 
-### 5.2 Vector search (sqlite-vec)
+### 5.2 Vector search (Semantic Kernel + sqlite-vec)
 
 Vector search supports:
 - semantic similarity based on embeddings
 
 Plan:
-- `SearchService.QueryVectorAsync(embedding, filters, k)`
-- returns `document_id` + distance/score
+- prefer `Microsoft.SemanticKernel.Connectors.SqliteVec` as the vector-store integration layer
+- use its SQLite/sqlite-vec collection mapping instead of hand-rolling low-level vector-table plumbing where possible
+- keep `SearchService.QueryVectorAsync(embedding, filters, k)` as the CodeAlta-facing abstraction
+- return `document_id` + distance/score
+
+Important caveats from the current preview connector notes:
+
+- preview package (`1.73.0-preview`)
+- no built-in hybrid search
+- no built-in full-text search indexing
+- limited filter support
+
+So CodeAlta should still combine:
+
+- ordinary SQLite tables + FTS5 for keyword retrieval
+- Semantic Kernel SqliteVec storage/query for vector retrieval
+- host-owned hybrid composition above both
 
 ### 5.3 Hybrid retrieval (recommended default)
 
 In v1 we implement a pragmatic hybrid:
 1) Run FTS5 to prefilter candidates (fast, narrows the set).
 2) Compute embedding for query.
-3) Vector-rerank the top N candidates (or union with pure vector top K).
+3) Use the Semantic Kernel SqliteVec connector to query/rerank vector candidates.
 4) Return results with:
    - stable links back to artifacts/files/tasks
    - enough snippet context to be useful
 
-This avoids needing a full ANN index strategy beyond sqlite-vec’s capabilities.
+This avoids needing a bespoke vector-store implementation while still keeping hybrid retrieval under CodeAlta control.
 
 ### 5.4 Result linking contract
 
@@ -281,7 +307,7 @@ Every search result must be linkable back to source:
 
 SQLite rows store this in `documents.source_kind/source_id`, plus optional structured metadata JSON.
 
-## 6. Embeddings via LLamaSharp
+## 6. Embeddings and vector-store integration
 
 ### 6.1 Model lifecycle
 
@@ -290,6 +316,11 @@ SQLite rows store this in `documents.source_kind/source_id`, plus optional struc
 - download model if missing (optional in v1; can be manual path first)
 - load weights once and keep them alive
 - expose embedder as a shared service
+
+The embedder and the vector store should be decoupled:
+
+- embeddings can come from whichever local or remote model CodeAlta standardizes on
+- vector persistence/query should prefer `Microsoft.SemanticKernel.Connectors.SqliteVec` when it fits
 
 ### 6.2 Performance considerations
 
@@ -306,7 +337,7 @@ We need a controlled way to load sqlite-vec:
   - `EnableExtensions(true)`
   - `LoadExtension(pathToSqliteVec)`
 
-This is likely the part that requires manual integration work and platform testing.
+If the Semantic Kernel connector fully covers this on the supported platforms, CodeAlta should prefer that path and keep any manual extension loading as a fallback or platform-specific escape hatch.
 
 ## 8. Tests (minimum)
 

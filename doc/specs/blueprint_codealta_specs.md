@@ -60,7 +60,7 @@ CodeAlta’s direction is to make these failures *system problems* solved by arc
   - knowledge/planner/builder agents at global/workspace/project scopes
 - **Shared task/plan tracking** stored in SQLite and accessible via MCP services.
 - **Semantic search** over files, symbols, git history, agent discussions, tasks/decisions.
-- **First-class .NET support in v1.0**: Roslyn/MSBuild-based indexing + `dotnet build/test` workflows, while remaining language-agnostic for other repos.
+- **Keep the core language-agnostic first**: preserve existing .NET support code, but do not let .NET specialization drive the near-term architecture before orchestration, portability, and adaptive memory are solid.
 - **Skills integration** (Agent Skills format) with progressive disclosure to avoid bloating context windows.
 
 ### Non-goals (first cut)
@@ -78,7 +78,7 @@ CodeAlta’s direction is to make these failures *system problems* solved by arc
 - **Memory-aware by default**: everything should support progressive disclosure and context budgets.
 - **Grounded outputs**: prefer compiler/indexer facts and citations over free-form guesses.
 - **Scope-first**: every operation is scoped (global/workspace/project/file) to reduce mistakes.
-- **Language-agnostic core, .NET-first language services**: orchestration/storage do not assume a language; v1.0 ships a first-class .NET language service.
+- **Language-agnostic core**: orchestration/storage do not assume a language. Language-specific intelligence remains pluggable and should not dominate the near-term architecture.
 - **Extensible backends**: Codex/Copilot are backends; everything else is CodeAlta-owned logic.
 - **Safe execution**: file changes and command execution go through explicit approval policies.
 
@@ -245,7 +245,7 @@ Workspace/Project Agents (knowledge/planner/builder)
 The key idea is **separating concerns**:
 
 - backends provide chat/session execution
-- CodeAlta provides memory, orchestration, persistence, and tooling
+- CodeAlta provides memory, orchestration, persistence, tooling, and adaptive behavior
 
 ---
 

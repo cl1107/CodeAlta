@@ -11,7 +11,7 @@ Related specs:
 - Provide a stable “tool surface” for:
   - tasks/plans
   - artifact store
-  - search (FTS5 + embeddings)
+  - search (FTS5 + embeddings / vector retrieval)
   - workspaces/projects + bootstrap helpers
   - skills and role profiles
   - agent registry and coordination primitives
@@ -171,6 +171,11 @@ Tools:
 - `codealta.search.index` (enqueue indexing jobs; progress reporting)
 - `codealta.search.status` (queue depth, last run times)
 
+Implementation note:
+
+- the vector-retrieval side should prefer the `Microsoft.SemanticKernel.Connectors.SqliteVec` integration when practical
+- MCP should expose the search service; MCP should not own the vector-store implementation details
+
 ### 5.4 Workspaces (`codealta.workspaces.*`)
 
 Backed by `CodeAlta.Workspaces` + bootstrap service.
@@ -223,4 +228,3 @@ Add MSTest tests under `src/CodeAlta.Tests/`:
 - `Mcp_Search_Query_ReturnsLinkedArtifacts` (once search exists)
 
 Use in-memory pipes for transport and use a temp directory for the SQLite DB + artifact store root.
-

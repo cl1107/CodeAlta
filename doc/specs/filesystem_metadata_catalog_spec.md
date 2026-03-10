@@ -5,6 +5,7 @@ Audience: implementers of `CodeAlta.Workspaces`, `CodeAlta.Persistence`, `CodeAl
 
 Related specs:
 - `doc/specs/agent_configuration_spec.md`
+- `doc/specs/codealta_adaptive_orchestration_architecture.md`
 
 ## 1. Problem
 
@@ -47,6 +48,7 @@ Durable metadata lives as files on disk, not in SQLite:
 - projects
 - agents
 - skills
+- user profile and adaptive memory summaries
 - durable artifacts metadata
 - append-only activity logs
 
@@ -118,6 +120,7 @@ Proposed structure:
   - `projects/`
   - `agents/`
   - `skills/`
+  - `profiles/`
   - `artifacts/` (global/orphan/shared artifacts only)
   - `readme.md`
   - `.gitignore`
@@ -151,6 +154,33 @@ Recommended initial `.gitignore`:
 /machine/
 ```
 
+## 6.1 Runtime root behavior
+
+When CodeAlta starts, `~/.codealta/` is the global root from which it discovers and navigates:
+
+- workspaces
+- projects
+- global agents
+- global skills
+- user profile and adaptive memory
+
+This root is the global management surface for all workspaces and projects.
+
+Project repositories may also contain a local overlay under:
+
+- `{projectPath}/.codealta/`
+
+This project-local root should support at least:
+
+- `{projectPath}/.codealta/agents/`
+- `{projectPath}/.codealta/skills/`
+
+Rationale:
+
+- agents/skills under `~/.codealta/` are global and can manage multiple workspaces/projects
+- agents/skills under `{projectPath}/.codealta/` are repository-specific overrides or additions
+- this mirrors the distinction between global durable catalog behavior and project-local specialization
+
 ## 7. Entity Storage Model
 
 ## 7.1 General rules
@@ -174,6 +204,7 @@ Examples:
 - `~/.codealta/projects/<project-slug>/readme.md`
 - `~/.codealta/agents/<agent-slug>.agent.md`
 - `~/.codealta/skills/<skill-slug>/SKILL.md`
+- `~/.codealta/profiles/self/readme.md`
 
 The markdown body is free text intended for humans.
 The YAML frontmatter is stable structured metadata intended for CodeAlta.
@@ -258,6 +289,11 @@ This is a major architectural rule:
 
 This is the foundation for CodeAlta creating its own configurable “team”.
 
+Additional rule:
+
+- the loader should merge agent definitions from the global catalog and the active project overlay
+- project-local agents should be able to add new agents or override matching global agent keys for that project scope only
+
 Identity rule:
 
 - agents do **not** use GUIDs or UUIDs as their canonical identifier
@@ -286,6 +322,38 @@ The catalog entry can point to:
 - a checked out skill repository
 - a repo-local skill definition
 
+Additional rule:
+
+- skill resolution should consider project-local `{projectPath}/.codealta/skills/` before or alongside global skills, depending on scope resolution policy
+
+## 7.6 User profile
+
+CodeAlta should add a first-class durable user profile entry.
+
+Example:
+
+- `~/.codealta/profiles/self/readme.md`
+- `~/.codealta/profiles/self/activity/2026-03.jsonl`
+
+The user profile is where CodeAlta stores durable, human-visible information about:
+
+- confirmed working preferences
+- recent focus areas
+- preferred workflows
+- accepted or rejected suggestions
+- recurring conventions that are about the developer rather than a specific workspace
+
+This profile is required for adaptive behaviors such as:
+
+- suggesting recent unfinished work
+- asking whether to continue yesterday's task
+- learning review habits and preferred agents
+
+Important rule:
+
+- the profile should separate **observations**, **inferred patterns**, and **confirmed preferences**
+- not every observed behavior should become a durable preference automatically
+
 ## 8. File Format
 
 ## 8.1 Primary format
@@ -304,6 +372,8 @@ kind: "workspace"
 slug: "platform"
 display_name: "Platform"
 version: 1
+checkout:
+  path_template: "{codeRoot}/{workspaceSlug}"
 project_refs:
   - "01963b36-0d70-7a11-b3c2-1f2e3d4c5b6a"
 default_agent_refs:

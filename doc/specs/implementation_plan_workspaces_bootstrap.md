@@ -1,10 +1,14 @@
 # Implementation Plan: Workspaces, Bootstrap, and Global Knowledge Repo (Draft)
 
+Status note: this document is now a narrower companion to `doc/specs/implementation_plan_adaptive_orchestration.md`, which defines the higher-priority sequencing for the current rework.
+
 This document details the implementation plan for multi-workspace support and the global git-backed metadata catalog rooted at `~/.codealta/`.
 
 Related specs:
 - `doc/specs/blueprint_codealta_specs.md` (multi-workspace + portable metadata root)
 - `doc/specs/blueprint_agentic_coding_specs.md` (workspace portability)
+- `doc/specs/codealta_adaptive_orchestration_architecture.md`
+- `doc/specs/implementation_plan_adaptive_orchestration.md`
 
 ## 1. Goals
 
