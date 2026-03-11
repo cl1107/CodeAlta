@@ -50,7 +50,7 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
     private TextBox? _newWorkspaceRootInput;
     private TextBox? _newProjectSlugInput;
     private TextBox? _newProjectNameInput;
-    private TextBox? _newProjectRepoInput;
+    private TextBox? _newProjectPathInput;
     private TextBox? _newProjectBranchInput;
     private TextBox? _newThreadTitleInput;
     private CheckBox? _allProjectsCheckBox;
@@ -242,7 +242,7 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
         _newWorkspaceRootInput ??= new TextBox { Text = @"C:\code" };
         _newProjectSlugInput ??= new TextBox { Text = string.Empty };
         _newProjectNameInput ??= new TextBox { Text = string.Empty };
-        _newProjectRepoInput ??= new TextBox { Text = string.Empty };
+        _newProjectPathInput ??= new TextBox { Text = string.Empty };
         _newProjectBranchInput ??= new TextBox { Text = "main" };
         _newThreadTitleInput ??= new TextBox { Text = string.Empty };
         _projectScopeVisual ??= CreateComputedVisual(BuildProjectScopeContent);
@@ -291,8 +291,8 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
                             _newProjectSlugInput,
                             new TextBlock("Project Name"),
                             _newProjectNameInput,
-                            new TextBlock("Repo URL"),
-                            _newProjectRepoInput,
+                            new TextBlock("Project Path"),
+                            _newProjectPathInput,
                             new TextBlock("Default Branch"),
                             _newProjectBranchInput,
                             new Button(new TextBlock("Add Project")).Click(() => _ = CreateProjectAsync()),
@@ -624,14 +624,14 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
             var draft = ReadProjectDraft();
             var slug = draft.Slug;
             var name = draft.Name;
-            var repo = draft.RepoUrl;
+            var projectPath = draft.ProjectPath;
             var branch = draft.Branch;
             if (string.IsNullOrWhiteSpace(slug) ||
                 string.IsNullOrWhiteSpace(name) ||
-                string.IsNullOrWhiteSpace(repo) ||
+                string.IsNullOrWhiteSpace(projectPath) ||
                 string.IsNullOrWhiteSpace(branch))
             {
-                SetStatus("Project slug, name, repo URL, and branch are required.");
+                SetStatus("Project slug, name, project path, and branch are required.");
                 return;
             }
 
@@ -640,7 +640,7 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
                 Id = ProjectId.NewVersion7().ToString(),
                 Slug = slug,
                 DisplayName = name,
-                RepoUrl = repo,
+                ProjectPath = projectPath,
                 DefaultBranch = branch,
                 Checkout = new CheckoutRule
                 {
@@ -2007,7 +2007,7 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
             () => new ProjectDraft(
                 _newProjectSlugInput?.Text?.Trim(),
                 _newProjectNameInput?.Text?.Trim(),
-                _newProjectRepoInput?.Text?.Trim(),
+                _newProjectPathInput?.Text?.Trim(),
                 _newProjectBranchInput?.Text?.Trim()));
     }
 
@@ -2018,7 +2018,7 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
             {
                 _newProjectSlugInput!.Text = string.Empty;
                 _newProjectNameInput!.Text = string.Empty;
-                _newProjectRepoInput!.Text = string.Empty;
+                _newProjectPathInput!.Text = string.Empty;
                 _newProjectBranchInput!.Text = "main";
                 return 0;
             });
@@ -2105,7 +2105,8 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
 
     private sealed record WorkspaceDraft(string? Slug, string? Name, string? Root);
 
-    private sealed record ProjectDraft(string? Slug, string? Name, string? RepoUrl, string? Branch);
+    private sealed record ProjectDraft(string? Slug, string? Name, string? ProjectPath, string? Branch);
 
     private sealed record ThreadDraft(IReadOnlyList<string> ProjectRefs, WorkThreadScopeMode ScopeMode, string? Title);
 }
+

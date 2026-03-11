@@ -77,7 +77,7 @@ Minimal fields:
 
 Minimal fields:
 - `uid` (UUID v7, generated via `Guid.CreateVersion7()`), `slug`, `display_name`
-- `repo_url` (git URL)
+- `path` (local project path)
 - `default_branch`
 - `checkout` rule:
   - `path_template` (e.g. `C:\\code\\{workspaceKey}\\{projectKey}`)
@@ -187,3 +187,4 @@ Implementation choices:
 - Descriptor parsing round-trips for workspace/project yaml.
 - Template resolver produces expected paths.
 - Bootstrapper plans checkouts without performing network operations (unit tests should not clone).
+

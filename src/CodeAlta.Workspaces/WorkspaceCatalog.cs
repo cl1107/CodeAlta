@@ -218,7 +218,7 @@ public sealed class WorkspaceCatalog
             Slug = project.Slug,
             DisplayName = project.DisplayName,
             Description = project.Description,
-            RepoUrl = project.RepoUrl,
+            ProjectPath = project.ProjectPath,
             DefaultBranch = project.DefaultBranch,
             Checkout = new CheckoutRule
             {

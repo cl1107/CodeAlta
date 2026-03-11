@@ -16,9 +16,9 @@ public sealed record WorkspaceCheckoutPlan
     public required string ProjectSlug { get; init; }
 
     /// <summary>
-    /// Gets the repository URL.
+    /// Gets the local project path.
     /// </summary>
-    public required string RepoUrl { get; init; }
+    public required string ProjectPath { get; init; }
 
     /// <summary>
     /// Gets the checkout path.

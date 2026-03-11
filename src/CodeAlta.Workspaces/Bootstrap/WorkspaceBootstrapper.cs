@@ -55,7 +55,7 @@ public sealed class WorkspaceBootstrapper
                 {
                     case CheckoutAction.Clone:
                         Directory.CreateDirectory(Path.GetDirectoryName(checkoutPath) ?? ".");
-                        var clone = await _git.CloneAsync(plan.RepoUrl, checkoutPath, progress, cancellationToken)
+                        var clone = await _git.CloneAsync(plan.ProjectPath, checkoutPath, progress, cancellationToken)
                             .ConfigureAwait(false);
                         success = clone.Success;
                         message = clone.CombinedOutput;

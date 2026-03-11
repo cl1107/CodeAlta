@@ -94,7 +94,7 @@ public sealed class OrchestrationInfrastructureTests
             Id = ProjectId.NewVersion7().ToString(),
             Slug = "repo-main",
             DisplayName = "Main Repo",
-            RepoUrl = "https://example.com/repo-main.git",
+            ProjectPath = "C:\\code\\repo-main",
             DefaultBranch = "main",
         };
         var thread = new WorkThreadDescriptor
@@ -372,7 +372,7 @@ public sealed class OrchestrationInfrastructureTests
             Id = ProjectId.NewVersion7().ToString(),
             Slug = "repo-main",
             DisplayName = "Main Repo",
-            RepoUrl = "https://example.com/repo-main.git",
+            ProjectPath = "C:\\code\\repo-main",
             DefaultBranch = "main",
             Checkout = new CheckoutRule { PathTemplate = @"{workspaceSlug}\{projectSlug}" },
         };
@@ -504,7 +504,7 @@ public sealed class OrchestrationInfrastructureTests
             Id = ProjectId.NewVersion7().ToString(),
             Slug = "repo-main",
             DisplayName = "Main Repo",
-            RepoUrl = "https://example.com/repo-main.git",
+            ProjectPath = "C:\\code\\repo-main",
             DefaultBranch = "main",
         };
         await workspaceCatalog.SaveProjectAsync(project).ConfigureAwait(false);
@@ -865,3 +865,5 @@ public sealed class OrchestrationInfrastructureTests
         }
     }
 }
+
+

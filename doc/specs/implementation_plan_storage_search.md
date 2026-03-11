@@ -128,7 +128,7 @@ We keep the first schema small, and add tables only when we have a consumer.
 - `projects`
   - `project_id TEXT PRIMARY KEY`
   - `workspace_id TEXT NOT NULL`
-  - `repo_url TEXT`
+  - `path TEXT`
   - `checkout_path TEXT` (resolved local path)
   - `git_root TEXT` (detected)
 - `agent_sessions`
@@ -350,3 +350,4 @@ Add MSTest coverage:
 - Hybrid search returns stable source links.
 
 Keep fixtures small and deterministic (no network downloads in unit tests).
+

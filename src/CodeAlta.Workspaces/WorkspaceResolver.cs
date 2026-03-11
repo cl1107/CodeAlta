@@ -168,7 +168,7 @@ public sealed class WorkspaceResolver
         {
             WorkspaceSlug = workspace.Slug,
             ProjectSlug = project.Slug,
-            RepoName = GetRepositoryName(project.RepoUrl),
+            RepoName = GetRepositoryName(project.ProjectPath),
             MachineId = profile?.MachineId ?? string.Empty,
             WorkspaceId = workspace.WorkspaceId,
             ProjectId = project.ProjectId,
@@ -178,9 +178,9 @@ public sealed class WorkspaceResolver
         return PathTemplateResolver.Resolve(pathTemplate, context);
     }
 
-    private static string GetRepositoryName(string repoUrl)
+    private static string GetRepositoryName(string projectPath)
     {
-        if (Uri.TryCreate(repoUrl, UriKind.Absolute, out var uri))
+        if (Uri.TryCreate(projectPath, UriKind.Absolute, out var uri))
         {
             var name = Path.GetFileNameWithoutExtension(uri.AbsolutePath);
             if (!string.IsNullOrWhiteSpace(name))
@@ -189,6 +189,6 @@ public sealed class WorkspaceResolver
             }
         }
 
-        return Path.GetFileNameWithoutExtension(repoUrl.TrimEnd('/', '\\'));
+        return Path.GetFileNameWithoutExtension(projectPath.TrimEnd('/', '\\'));
     }
 }

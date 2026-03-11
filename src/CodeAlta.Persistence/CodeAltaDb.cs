@@ -21,7 +21,7 @@ public sealed class CodeAltaDb
             CREATE TABLE IF NOT EXISTS projects (
                 project_id TEXT PRIMARY KEY,
                 workspace_id TEXT NOT NULL,
-                repo_url TEXT,
+                path TEXT,
                 checkout_path TEXT,
                 git_root TEXT
             );
@@ -308,3 +308,4 @@ public sealed class CodeAltaDb
 
     private sealed record DbMigration(string MigrationId, string Sql);
 }
+

@@ -47,7 +47,7 @@ public sealed class WorkspacesTools
                 projectId = project.ProjectId.ToString(),
                 key = project.Key,
                 displayName = project.DisplayName,
-                repoUrl = project.RepoUrl,
+                path = project.ProjectPath,
                 defaultBranch = project.DefaultBranch,
             }).ToArray(),
         }).ToArray());
@@ -79,7 +79,7 @@ public sealed class WorkspacesTools
                     projectId = project.ProjectId.ToString(),
                     key = project.Key,
                     displayName = project.DisplayName,
-                    repoUrl = project.RepoUrl,
+                    path = project.ProjectPath,
                     defaultBranch = project.DefaultBranch,
                 }).ToArray(),
             });
@@ -121,7 +121,7 @@ public sealed class WorkspacesTools
                 projectId = project.Project.ProjectId.ToString(),
                 key = project.Project.Key,
                 displayName = project.Project.DisplayName,
-                repoUrl = project.Project.RepoUrl,
+                path = project.Project.ProjectPath,
                 checkoutPath = project.CheckoutPath,
                 codeAltaRoot = project.CodeAltaRoot,
             }).ToArray(),
@@ -142,3 +142,4 @@ public sealed class WorkspacesTools
         };
     }
 }
+

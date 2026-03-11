@@ -415,7 +415,7 @@ public sealed class McpInfrastructureTests
                         $"id: \"{projectId}\"",
                         "key: \"repo-main\"",
                         "display_name: \"Main Repo\"",
-                        $"repo_url: '{Path.Combine(globalRepoRoot, "remote.git")}'",
+                        $"path: '{Path.Combine(globalRepoRoot, "remote.git")}'",
                         "default_branch: \"main\"",
                         "checkout:",
                         "  path_template: '{workspaceKey}\\\\{projectKey}'",
@@ -486,3 +486,4 @@ public sealed class McpInfrastructureTests
         }
     }
 }
+

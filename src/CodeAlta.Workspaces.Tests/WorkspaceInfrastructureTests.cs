@@ -82,7 +82,7 @@ public sealed class WorkspaceInfrastructureTests
             id: "01963b36-0d70-7a11-b3c2-1f2e3d4c5b6a"
             slug: "repo-main"
             display_name: "Main Repo"
-            repo_url: "https://example.com/repo-main.git"
+            path: "C:\\code\\repo-main"
             default_branch: "main"
             checkout:
               path_template: '{workspaceKey}\{projectKey}'
@@ -173,7 +173,7 @@ public sealed class WorkspaceInfrastructureTests
             kind: "project"
             slug: "repo-main"
             display_name: "Main Repo"
-            repo_url: "https://example.com/repo-main.git"
+            path: "C:\\code\\repo-main"
             default_branch: "main"
             checkout:
               path_template: '{workspaceKey}\{projectKey}'
@@ -218,7 +218,7 @@ public sealed class WorkspaceInfrastructureTests
             Id = ProjectId.NewVersion7().ToString(),
             Slug = "repo-main",
             DisplayName = "Main Repo",
-            RepoUrl = "https://example.com/repo-main.git",
+            ProjectPath = "C:\\code\\repo-main",
             DefaultBranch = "main",
             Checkout = new CheckoutRule { PathTemplate = @"{workspaceKey}\{projectKey}" },
             MarkdownBody = "# Main Repo",
@@ -276,7 +276,7 @@ public sealed class WorkspaceInfrastructureTests
             Id = ProjectId.NewVersion7().ToString(),
             Slug = "repo-main",
             DisplayName = "Main Repo",
-            RepoUrl = "https://example.com/repo-main.git",
+            ProjectPath = "C:\\code\\repo-main",
             DefaultBranch = "main",
             Checkout = new CheckoutRule { PathTemplate = @"{workspaceKey}\{projectKey}" },
             MarkdownBody = "# Main Repo",
@@ -354,7 +354,7 @@ public sealed class WorkspaceInfrastructureTests
             Id = ProjectId.NewVersion7().ToString(),
             Slug = "repo-main",
             DisplayName = "Main Repo",
-            RepoUrl = "https://example.com/repo-main.git",
+            ProjectPath = "C:\\code\\repo-main",
             DefaultBranch = "main",
         };
         var projectB = new ProjectDescriptor
@@ -362,7 +362,7 @@ public sealed class WorkspaceInfrastructureTests
             Id = ProjectId.NewVersion7().ToString(),
             Slug = "repo-tools",
             DisplayName = "Tools Repo",
-            RepoUrl = "https://example.com/repo-tools.git",
+            ProjectPath = "C:\\code\\repo-tools",
             DefaultBranch = "main",
         };
 
@@ -399,7 +399,7 @@ public sealed class WorkspaceInfrastructureTests
             Id = ProjectId.NewVersion7().ToString(),
             Slug = "repo-main",
             DisplayName = "Main Repo",
-            RepoUrl = "https://example.com/repo-main.git",
+            ProjectPath = "C:\\code\\repo-main",
             DefaultBranch = "main",
         };
 
@@ -564,7 +564,7 @@ public sealed class WorkspaceInfrastructureTests
                         Id = ProjectId.NewVersion7().ToString(),
                         Slug = "repo-main",
                         DisplayName = "Main Repo",
-                        RepoUrl = remote,
+                        ProjectPath = remote,
                         DefaultBranch = "main",
                         Checkout = new CheckoutRule { PathTemplate = checkout },
                     },
@@ -599,7 +599,7 @@ public sealed class WorkspaceInfrastructureTests
                     Id = ProjectId.NewVersion7().ToString(),
                     Slug = "repo-main",
                     DisplayName = "Main Repo",
-                    RepoUrl = "https://example.com/repo-main.git",
+                    ProjectPath = "C:\\code\\repo-main",
                     DefaultBranch = "main",
                     Checkout = new CheckoutRule { PathTemplate = @"{workspaceKey}\{projectKey}" },
                 },
@@ -608,7 +608,7 @@ public sealed class WorkspaceInfrastructureTests
                     Id = ProjectId.NewVersion7().ToString(),
                     Slug = "repo-tools",
                     DisplayName = "Tools Repo",
-                    RepoUrl = "https://example.com/repo-tools.git",
+                    ProjectPath = "C:\\code\\repo-tools",
                     DefaultBranch = "main",
                     Checkout = new CheckoutRule { PathTemplate = @"{workspaceKey}\{projectKey}" },
                 },
@@ -721,3 +721,5 @@ public sealed class WorkspaceInfrastructureTests
         }
     }
 }
+
+

@@ -53,8 +53,11 @@ public sealed class WorkspaceYamlSerializer
         [JsonPropertyName("description")]
         public string? Description { get; set; }
 
+        [JsonPropertyName("path")]
+        public string? Path { get; set; }
+
         [JsonPropertyName("repo_url")]
-        public string? RepoUrl { get; set; }
+        public string? LegacyRepoUrl { get; set; }
 
         [JsonPropertyName("default_branch")]
         public string? DefaultBranch { get; set; }
@@ -180,7 +183,7 @@ public sealed class WorkspaceYamlSerializer
             Slug = frontMatter.Slug ?? string.Empty,
             DisplayName = frontMatter.DisplayName ?? string.Empty,
             Description = frontMatter.Description,
-            RepoUrl = frontMatter.RepoUrl ?? string.Empty,
+            ProjectPath = frontMatter.Path ?? frontMatter.LegacyRepoUrl ?? string.Empty,
             DefaultBranch = frontMatter.DefaultBranch ?? "main",
             Tags = frontMatter.Tags ?? [],
             Checkout = new CheckoutRule
@@ -233,7 +236,7 @@ public sealed class WorkspaceYamlSerializer
             Slug = descriptor.Slug,
             DisplayName = descriptor.DisplayName,
             Description = descriptor.Description,
-            RepoUrl = descriptor.RepoUrl,
+            Path = descriptor.ProjectPath,
             DefaultBranch = descriptor.DefaultBranch,
             Tags = descriptor.Tags,
             Checkout = string.IsNullOrWhiteSpace(descriptor.Checkout.PathTemplate)

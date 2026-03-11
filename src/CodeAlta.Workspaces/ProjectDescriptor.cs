@@ -26,10 +26,10 @@ public sealed class ProjectDescriptor
     public string DisplayName { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the repository URL.
+    /// Gets or sets the local project path.
     /// </summary>
-    [JsonPropertyName("repo_url")]
-    public string RepoUrl { get; set; } = string.Empty;
+    [JsonPropertyName("path")]
+    public string ProjectPath { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets the default branch.
@@ -89,9 +89,9 @@ public sealed class ProjectDescriptor
             throw new ArgumentException("Project display name is required.", nameof(DisplayName));
         }
 
-        if (string.IsNullOrWhiteSpace(RepoUrl))
+        if (string.IsNullOrWhiteSpace(ProjectPath))
         {
-            throw new ArgumentException("Project repo URL is required.", nameof(RepoUrl));
+            throw new ArgumentException("Project path is required.", nameof(ProjectPath));
         }
 
         if (string.IsNullOrWhiteSpace(DefaultBranch))

@@ -26,7 +26,7 @@ public sealed class WorkspaceBootstrapPlanner
             {
                 WorkspaceSlug = resolution.Workspace.Slug,
                 ProjectSlug = project.Project.Slug,
-                RepoUrl = project.Project.RepoUrl,
+                ProjectPath = project.Project.ProjectPath,
                 CheckoutPath = project.CheckoutPath,
                 Action = action,
             });
