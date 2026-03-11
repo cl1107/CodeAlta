@@ -58,6 +58,8 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
     private bool _chatBindingEventsSubscribed;
     private volatile bool _chatAutoApproveEnabled = true;
     private bool _statusBusy;
+    private int _bootstrapThreadId;
+    private bool _terminalLoopStarted;
     private bool _globalScopeSelected = true;
     private bool _sidebarSelectionSyncEnabled = true;
     private SidebarSelectionTarget? _lastSidebarSelectedTarget;
@@ -93,6 +95,7 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
     /// </summary>
     public async Task RunAsync(CancellationToken cancellationToken)
     {
+        _bootstrapThreadId = Environment.CurrentManagedThreadId;
         _dispatcher = Dispatcher.Current;
         SubscribeChatBindingEvents();
 
@@ -130,6 +133,7 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
                 root,
                 () =>
                 {
+                    _terminalLoopStarted = true;
                     TrySchedulePendingStartupThreadRestore(cancellationToken);
                     SyncSidebarSelection();
                     return TerminalLoopResult.Continue;
@@ -2183,7 +2187,35 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
 
     private void PostToUi(Action action)
     {
-        (_dispatcher ?? Dispatcher.Current).Post(action);
+        ArgumentNullException.ThrowIfNull(action);
+
+        var dispatcher = _dispatcher ?? Dispatcher.Current;
+        if (ShouldRunInlineOnCurrentThread(
+                dispatcher.CheckAccess(),
+                _terminalLoopStarted,
+                _bootstrapThreadId,
+                Environment.CurrentManagedThreadId))
+        {
+            action();
+            return;
+        }
+
+        dispatcher.Post(action);
+    }
+
+    internal static bool ShouldRunInlineOnCurrentThread(
+        bool dispatcherHasAccess,
+        bool terminalLoopStarted,
+        int bootstrapThreadId,
+        int currentThreadId)
+    {
+        if (terminalLoopStarted)
+        {
+            return dispatcherHasAccess;
+        }
+
+        return bootstrapThreadId != 0 &&
+               currentThreadId == bootstrapThreadId;
     }
 
     private T ReadUiValue<T>(Func<T> action)

@@ -172,6 +172,34 @@ public sealed class CodeAltaTerminalUiTests
     }
 
     [TestMethod]
+    public void ShouldRunInlineOnCurrentThread_AllowsBootstrapThreadBeforeTerminalStarts()
+    {
+        Assert.IsTrue(CodeAltaTerminalUi.ShouldRunInlineOnCurrentThread(
+            dispatcherHasAccess: false,
+            terminalLoopStarted: false,
+            bootstrapThreadId: 42,
+            currentThreadId: 42));
+
+        Assert.IsFalse(CodeAltaTerminalUi.ShouldRunInlineOnCurrentThread(
+            dispatcherHasAccess: false,
+            terminalLoopStarted: false,
+            bootstrapThreadId: 42,
+            currentThreadId: 7));
+
+        Assert.IsTrue(CodeAltaTerminalUi.ShouldRunInlineOnCurrentThread(
+            dispatcherHasAccess: true,
+            terminalLoopStarted: true,
+            bootstrapThreadId: 42,
+            currentThreadId: 42));
+
+        Assert.IsFalse(CodeAltaTerminalUi.ShouldRunInlineOnCurrentThread(
+            dispatcherHasAccess: false,
+            terminalLoopStarted: true,
+            bootstrapThreadId: 42,
+            currentThreadId: 42));
+    }
+
+    [TestMethod]
     public void CompactSidebarThreadTitle_TrimsLongTitlesToSingleLineLength()
     {
         var compact = CodeAltaTerminalUi.CompactSidebarThreadTitle("The lunet-build action in this repository is used like this:");
