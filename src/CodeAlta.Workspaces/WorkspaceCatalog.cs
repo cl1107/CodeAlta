@@ -1,4 +1,4 @@
-namespace CodeAlta.Workspaces;
+namespace CodeAlta.Catalog;
 
 /// <summary>
 /// Loads and saves workspace/project descriptors from the portable catalog layout.
@@ -236,3 +236,4 @@ public sealed class WorkspaceCatalog
         return segments.Any(static segment => string.Equals(segment, "threads", StringComparison.OrdinalIgnoreCase));
     }
 }
+

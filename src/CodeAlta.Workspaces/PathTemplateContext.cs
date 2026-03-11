@@ -1,4 +1,4 @@
-namespace CodeAlta.Workspaces;
+namespace CodeAlta.Catalog;
 
 /// <summary>
 /// Context values used for checkout path template expansion.
@@ -40,3 +40,4 @@ public sealed class PathTemplateContext
     /// </summary>
     public string? BaseRoot { get; set; }
 }
+

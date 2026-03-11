@@ -1,4 +1,4 @@
-namespace CodeAlta.Workspaces.Skills;
+namespace CodeAlta.Catalog.Skills;
 
 /// <summary>
 /// Represents a discovered skill descriptor.
@@ -25,4 +25,5 @@ public sealed record SkillInfo
     /// </summary>
     public required string Path { get; init; }
 }
+
 

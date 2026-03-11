@@ -412,3 +412,4 @@ The project should now optimize for:
 - a minimal but strong coding-agent UX
 
 The architectural extras remain valuable, but they should stay out of the critical path until the core experience is solid.
+

@@ -7,10 +7,10 @@ using CodeAlta.Orchestration.Mcp;
 using CodeAlta.Orchestration.Runtime;
 using CodeAlta.Persistence;
 using CodeAlta.Search;
-using CodeAlta.Workspaces;
-using CodeAlta.Workspaces.Bootstrap;
-using CodeAlta.Workspaces.Roles;
-using CodeAlta.Workspaces.Skills;
+using CodeAlta.Catalog;
+using CodeAlta.Catalog.Bootstrap;
+using CodeAlta.Catalog.Roles;
+using CodeAlta.Catalog.Skills;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CodeAlta.Tests;
@@ -719,3 +719,4 @@ public sealed class CopilotLiveIntegrationTests
         }
     }
 }
+

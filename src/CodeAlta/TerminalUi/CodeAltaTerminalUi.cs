@@ -1,7 +1,7 @@
 using System.Text;
 using CodeAlta.Agent;
 using CodeAlta.Orchestration.Runtime;
-using CodeAlta.Workspaces;
+using CodeAlta.Catalog;
 using XenoAtom.Terminal;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Controls;
@@ -2109,4 +2109,5 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
 
     private sealed record ThreadDraft(IReadOnlyList<string> ProjectRefs, WorkThreadScopeMode ScopeMode, string? Title);
 }
+
 

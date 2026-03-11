@@ -4,8 +4,8 @@ using CodeAlta.Orchestration;
 using CodeAlta.Orchestration.Context;
 using CodeAlta.Orchestration.Runtime;
 using CodeAlta.Persistence;
-using CodeAlta.Workspaces;
-using CodeAlta.Workspaces.Roles;
+using CodeAlta.Catalog;
+using CodeAlta.Catalog.Roles;
 
 namespace CodeAlta.Orchestration.Tests;
 
@@ -865,5 +865,6 @@ public sealed class OrchestrationInfrastructureTests
         }
     }
 }
+
 
 

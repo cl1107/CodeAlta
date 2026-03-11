@@ -1,4 +1,4 @@
-namespace CodeAlta.Workspaces;
+namespace CodeAlta.Catalog;
 
 /// <summary>
 /// Loads and saves durable work-thread metadata and machine-local thread restoration state.
@@ -225,3 +225,4 @@ public sealed class WorkThreadCatalog
         return Path.Combine(_options.GlobalRepoRoot, "machine", "ui-state.yaml");
     }
 }
+

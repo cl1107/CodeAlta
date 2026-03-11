@@ -1,4 +1,4 @@
-namespace CodeAlta.Workspaces;
+namespace CodeAlta.Catalog;
 
 /// <summary>
 /// Represents a fully-resolved workspace scope.
@@ -20,3 +20,4 @@ public sealed record WorkspaceResolution
     /// </summary>
     public required IReadOnlyList<string> CodeAltaRoots { get; init; }
 }
+

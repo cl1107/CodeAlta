@@ -3,8 +3,8 @@ using CodeAlta.Agent.Codex;
 using CodeAlta.Agent.Copilot;
 using CodeAlta.Orchestration.Runtime;
 using CodeAlta.Persistence;
-using CodeAlta.Workspaces;
-using CodeAlta.Workspaces.Roles;
+using CodeAlta.Catalog;
+using CodeAlta.Catalog.Roles;
 using XenoAtom.Logging;
 
 var cancellationTokenSource = new CancellationTokenSource();
@@ -127,3 +127,4 @@ internal sealed class TerminalHost : IAsyncDisposable
         }
     }
 }
+

@@ -1,4 +1,4 @@
-namespace CodeAlta.Workspaces.Bootstrap;
+namespace CodeAlta.Catalog.Bootstrap;
 
 /// <summary>
 /// Ensures the global CodeAlta repository exists on disk.
@@ -86,4 +86,5 @@ public sealed class GlobalRepoBootstrapper
         };
     }
 }
+
 

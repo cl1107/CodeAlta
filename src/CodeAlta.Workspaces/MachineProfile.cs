@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace CodeAlta.Workspaces;
+namespace CodeAlta.Catalog;
 
 /// <summary>
 /// Describes machine-specific workspace overrides.
@@ -49,3 +49,4 @@ public sealed class MachineProfile
         }
     }
 }
+

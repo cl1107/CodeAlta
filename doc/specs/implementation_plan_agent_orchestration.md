@@ -31,7 +31,7 @@ Dependencies:
 - `CodeAlta.Agent` (sessions, events, tools)
 - `CodeAlta.Persistence` (tasks, artifacts)
 - `CodeAlta.Search` (retrieval for context building)
-- `CodeAlta.Workspaces` (scope resolution)
+- `CodeAlta.Catalog` (scope resolution)
 - `CodeAlta.Mcp` (tool surface, optional but recommended for routing)
 
 ## 3. Core runtime types
@@ -206,3 +206,4 @@ Implementation note:
 - Orchestration flow:
   - planner creates tasks and plan artifact
   - builder marks tasks completed (mock backend or fake session)
+

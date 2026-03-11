@@ -492,3 +492,4 @@ That model best matches CodeAlta’s MVP goals:
 - portable
 - easy to inspect
 - easy to adopt without setup ceremony
+

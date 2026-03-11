@@ -1,9 +1,9 @@
-using CodeAlta.Workspaces;
-using CodeAlta.Workspaces.Bootstrap;
-using CodeAlta.Workspaces.Skills;
+using CodeAlta.Catalog;
+using CodeAlta.Catalog.Bootstrap;
+using CodeAlta.Catalog.Skills;
 using System.Diagnostics;
 
-namespace CodeAlta.Workspaces.Tests;
+namespace CodeAlta.Catalog.Tests;
 
 [TestClass]
 public sealed class WorkspaceInfrastructureTests
@@ -721,5 +721,6 @@ public sealed class WorkspaceInfrastructureTests
         }
     }
 }
+
 
 

@@ -106,7 +106,7 @@ Use a stable, namespaced naming scheme:
 - `codealta.tasks.*`
 - `codealta.artifacts.*`
 - `codealta.search.*`
-- `codealta.workspaces.*`
+- `CodeAlta.Catalog.*`
 - `codealta.roles.*`
 - `codealta.skills.*`
 - `codealta.agents.*`
@@ -180,18 +180,18 @@ Implementation note:
 - the vector-retrieval side should prefer the `Microsoft.SemanticKernel.Connectors.SqliteVec` integration when practical
 - MCP should expose the search service; MCP should not own the vector-store implementation details
 
-### 5.4 Workspaces (`codealta.workspaces.*`)
+### 5.4 Workspaces (`CodeAlta.Catalog.*`)
 
-Backed by `CodeAlta.Workspaces` + bootstrap service.
+Backed by `CodeAlta.Catalog` + bootstrap service.
 
 Tools:
-- `codealta.workspaces.list`
-- `codealta.workspaces.get`
-- `codealta.workspaces.resolve_scope` (turn a scope selector into concrete roots)
+- `CodeAlta.Catalog.list`
+- `CodeAlta.Catalog.get`
+- `CodeAlta.Catalog.resolve_scope` (turn a scope selector into concrete roots)
 
 ### 5.5 Bootstrap / global repo (`codealta.bootstrap.*`)
 
-Backed by `CodeAlta.Workspaces` + `GitService`.
+Backed by `CodeAlta.Catalog` + `GitService`.
 
 Tools:
 - `codealta.bootstrap.ensure_global_repo` (clone + open)
@@ -232,3 +232,4 @@ Add MSTest tests under `src/CodeAlta.Tests/`:
 - `Mcp_Search_Query_ReturnsLinkedArtifacts` (once search exists)
 
 Use in-memory pipes for transport and use a temp directory for the SQLite DB + artifact store root.
+

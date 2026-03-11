@@ -1,4 +1,4 @@
-namespace CodeAlta.Workspaces.Roles;
+namespace CodeAlta.Catalog.Roles;
 
 /// <summary>
 /// Represents tool allow/deny policy in a role profile.
@@ -91,4 +91,5 @@ public sealed record RoleProfile
     /// </summary>
     public required string SourcePath { get; init; }
 }
+
 

@@ -1,4 +1,4 @@
-namespace CodeAlta.Workspaces.Bootstrap;
+namespace CodeAlta.Catalog.Bootstrap;
 
 /// <summary>
 /// Represents the result of a <c>git</c> command execution.
@@ -41,4 +41,5 @@ public sealed record GitCommandResult
     public string CombinedOutput =>
         string.Join("\n", new[] { StandardOutput, StandardError }.Where(static x => !string.IsNullOrWhiteSpace(x)));
 }
+
 

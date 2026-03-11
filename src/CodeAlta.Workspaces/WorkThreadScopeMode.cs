@@ -1,4 +1,4 @@
-namespace CodeAlta.Workspaces;
+namespace CodeAlta.Catalog;
 
 /// <summary>
 /// Describes how a thread focuses projects within its owning workspace.
@@ -20,3 +20,4 @@ public enum WorkThreadScopeMode
     /// </summary>
     AllProjects,
 }
+

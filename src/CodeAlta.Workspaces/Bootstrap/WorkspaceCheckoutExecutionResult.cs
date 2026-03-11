@@ -1,4 +1,4 @@
-namespace CodeAlta.Workspaces.Bootstrap;
+namespace CodeAlta.Catalog.Bootstrap;
 
 /// <summary>
 /// Represents the outcome of executing a workspace checkout plan.
@@ -35,4 +35,5 @@ public sealed record WorkspaceCheckoutExecutionResult
     /// </summary>
     public string? Message { get; init; }
 }
+
 

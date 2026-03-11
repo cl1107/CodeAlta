@@ -1,4 +1,4 @@
-namespace CodeAlta.Workspaces;
+namespace CodeAlta.Catalog;
 
 /// <summary>
 /// Options used when loading workspace descriptors.
@@ -30,3 +30,4 @@ public sealed class WorkspaceCatalogOptions
     /// </summary>
     public string MachineRoot => Path.Combine(GlobalRepoRoot, "machine");
 }
+

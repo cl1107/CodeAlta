@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace CodeAlta.Workspaces;
+namespace CodeAlta.Catalog;
 
 /// <summary>
 /// Describes the machine-local UI state for restoring open work threads.
@@ -50,3 +50,4 @@ public sealed class WorkThreadViewState
         }
     }
 }
+

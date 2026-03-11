@@ -1,4 +1,4 @@
-namespace CodeAlta.Workspaces;
+namespace CodeAlta.Catalog;
 
 /// <summary>
 /// Resolves checkout path templates.
@@ -67,3 +67,4 @@ public static class PathTemplateResolver
         return normalizedPath;
     }
 }
+

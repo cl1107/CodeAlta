@@ -2,7 +2,7 @@ using System.Text;
 using System.Text.Json.Serialization;
 using SharpYaml;
 
-namespace CodeAlta.Workspaces;
+namespace CodeAlta.Catalog;
 
 /// <summary>
 /// Serializes and deserializes work-thread metadata.
@@ -243,3 +243,4 @@ public sealed class WorkThreadYamlSerializer
         return $"---\n{yaml}\n---\n\n{markdownBody}\n";
     }
 }
+

@@ -1,4 +1,4 @@
-namespace CodeAlta.Workspaces.Bootstrap;
+namespace CodeAlta.Catalog.Bootstrap;
 
 /// <summary>
 /// Represents the checkout action type.
@@ -20,3 +20,4 @@ public enum CheckoutAction
     /// </summary>
     Skip = 2,
 }
+

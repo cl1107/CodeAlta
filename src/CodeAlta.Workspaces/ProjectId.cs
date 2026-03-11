@@ -1,4 +1,4 @@
-namespace CodeAlta.Workspaces;
+namespace CodeAlta.Catalog;
 
 /// <summary>
 /// Represents a project identifier.
@@ -65,3 +65,4 @@ public readonly record struct ProjectId
     /// <inheritdoc />
     public override string ToString() => Value.ToString();
 }
+

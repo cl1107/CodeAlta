@@ -1,4 +1,4 @@
-namespace CodeAlta.Workspaces.Bootstrap;
+namespace CodeAlta.Catalog.Bootstrap;
 
 /// <summary>
 /// Represents global repository bootstrap outcome.
@@ -30,4 +30,5 @@ public sealed record GlobalRepoBootstrapResult
     /// </summary>
     public string? OriginRemoteUrl { get; init; }
 }
+
 

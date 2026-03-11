@@ -1,4 +1,4 @@
-namespace CodeAlta.Workspaces.Skills;
+namespace CodeAlta.Catalog.Skills;
 
 /// <summary>
 /// Represents a loaded skill document.
@@ -20,4 +20,5 @@ public sealed record SkillDocument
     /// </summary>
     public required string Content { get; init; }
 }
+
 

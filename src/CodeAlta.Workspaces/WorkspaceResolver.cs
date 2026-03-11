@@ -1,4 +1,4 @@
-namespace CodeAlta.Workspaces;
+namespace CodeAlta.Catalog;
 
 /// <summary>
 /// Resolves scope selectors into concrete project checkouts.
@@ -192,3 +192,4 @@ public sealed class WorkspaceResolver
         return Path.GetFileNameWithoutExtension(projectPath.TrimEnd('/', '\\'));
     }
 }
+

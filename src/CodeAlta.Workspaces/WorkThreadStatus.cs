@@ -1,4 +1,4 @@
-namespace CodeAlta.Workspaces;
+namespace CodeAlta.Catalog;
 
 /// <summary>
 /// Represents the durable status of a work thread.
@@ -40,3 +40,4 @@ public enum WorkThreadStatus
     /// </summary>
     Archived,
 }
+

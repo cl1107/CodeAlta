@@ -19,13 +19,13 @@ Related specs:
 - Allow per-machine overrides (different checkout roots on different machines).
 - Provide “setup my dev experience” automation: clone the portable `~/.codealta/` metadata repo, then clone/update workspace repos using templated rules.
 
-## 2. Project (`CodeAlta.Workspaces`)
+## 2. Project (`CodeAlta.Catalog`)
 
 Suggested namespaces:
-- `CodeAlta.Workspaces`
+- `CodeAlta.Catalog`
   - descriptors and ids
   - scope selectors and resolution
-- `CodeAlta.Workspaces.Bootstrap`
+- `CodeAlta.Catalog.Bootstrap`
   - git operations
   - checkout rules
   - machine profiles
@@ -187,4 +187,5 @@ Implementation choices:
 - Descriptor parsing round-trips for workspace/project yaml.
 - Template resolver produces expected paths.
 - Bootstrapper plans checkouts without performing network operations (unit tests should not clone).
+
 

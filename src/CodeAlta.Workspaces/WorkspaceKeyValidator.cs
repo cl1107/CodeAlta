@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace CodeAlta.Workspaces;
+namespace CodeAlta.Catalog;
 
 /// <summary>
 /// Validates workspace and project slugs.
@@ -41,3 +41,4 @@ public static partial class WorkspaceKeyValidator
     [GeneratedRegex("^[a-z0-9][a-z0-9\\-_.]{1,63}$", RegexOptions.CultureInvariant)]
     private static partial Regex KeyRegex();
 }
+

@@ -1,4 +1,4 @@
-namespace CodeAlta.Workspaces.Bootstrap;
+namespace CodeAlta.Catalog.Bootstrap;
 
 /// <summary>
 /// Represents a planned repository checkout operation.
@@ -30,3 +30,4 @@ public sealed record WorkspaceCheckoutPlan
     /// </summary>
     public required CheckoutAction Action { get; init; }
 }
+

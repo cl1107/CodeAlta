@@ -3,10 +3,10 @@ using CodeAlta.Mcp.Logging;
 using CodeAlta.Mcp.Tools;
 using CodeAlta.Persistence;
 using CodeAlta.Search;
-using CodeAlta.Workspaces;
-using CodeAlta.Workspaces.Bootstrap;
-using CodeAlta.Workspaces.Roles;
-using CodeAlta.Workspaces.Skills;
+using CodeAlta.Catalog;
+using CodeAlta.Catalog.Bootstrap;
+using CodeAlta.Catalog.Roles;
+using CodeAlta.Catalog.Skills;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Protocol;
@@ -194,3 +194,4 @@ public sealed class CodeAltaMcpServerSession : IAsyncDisposable
         }
     }
 }
+

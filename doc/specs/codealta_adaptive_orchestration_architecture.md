@@ -521,3 +521,4 @@ CodeAlta should evolve around:
 - backend-agnostic execution
 
 That is the clearest path to a practical product that users can adopt without front-loaded setup.
+

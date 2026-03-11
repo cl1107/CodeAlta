@@ -1,6 +1,6 @@
 using System.Text;
-using CodeAlta.Workspaces;
-using CodeAlta.Workspaces.Roles;
+using CodeAlta.Catalog;
+using CodeAlta.Catalog.Roles;
 
 namespace CodeAlta.Orchestration.Runtime;
 
@@ -154,3 +154,4 @@ public sealed class AgentInstructionTemplateProvider
         }
     }
 }
+

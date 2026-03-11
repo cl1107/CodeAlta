@@ -1,4 +1,4 @@
-namespace CodeAlta.Workspaces;
+namespace CodeAlta.Catalog;
 
 /// <summary>
 /// Identifies the durable thread type.
@@ -15,3 +15,4 @@ public enum WorkThreadKind
     /// </summary>
     WorkspaceThread,
 }
+

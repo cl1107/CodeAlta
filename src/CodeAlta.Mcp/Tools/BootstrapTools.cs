@@ -1,6 +1,6 @@
 using System.ComponentModel;
-using CodeAlta.Workspaces;
-using CodeAlta.Workspaces.Bootstrap;
+using CodeAlta.Catalog;
+using CodeAlta.Catalog.Bootstrap;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
 
@@ -188,3 +188,4 @@ public sealed class BootstrapTools
         };
     }
 }
+

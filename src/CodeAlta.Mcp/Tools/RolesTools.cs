@@ -1,6 +1,6 @@
 using System.ComponentModel;
-using CodeAlta.Workspaces;
-using CodeAlta.Workspaces.Roles;
+using CodeAlta.Catalog;
+using CodeAlta.Catalog.Roles;
 using ModelContextProtocol.Server;
 
 namespace CodeAlta.Mcp.Tools;
@@ -153,3 +153,4 @@ public sealed class RolesTools
         };
     }
 }
+

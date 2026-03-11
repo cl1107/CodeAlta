@@ -1,4 +1,4 @@
-namespace CodeAlta.Workspaces.Bootstrap;
+namespace CodeAlta.Catalog.Bootstrap;
 
 /// <summary>
 /// Represents a global repo sync outcome.
@@ -20,4 +20,5 @@ public sealed record GlobalRepoSyncResult
     /// </summary>
     public required bool Pushed { get; init; }
 }
+
 

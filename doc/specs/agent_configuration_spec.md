@@ -151,3 +151,4 @@ Adopt the following:
 - frontmatter is Copilot-shaped first, with CodeAlta extensions under `codealta:`
 - `codealta.scope` is `global`, `project`, or `internal`
 - built-in agents use the same file model
+

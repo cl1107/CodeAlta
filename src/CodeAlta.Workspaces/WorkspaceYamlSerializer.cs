@@ -2,7 +2,7 @@ using System.Text;
 using System.Text.Json.Serialization;
 using SharpYaml;
 
-namespace CodeAlta.Workspaces;
+namespace CodeAlta.Catalog;
 
 /// <summary>
 /// Serializes and deserializes workspace and project metadata.
@@ -281,3 +281,4 @@ public sealed class WorkspaceYamlSerializer
         return $"---\n{yaml}\n---\n\n{markdownBody}\n";
     }
 }
+

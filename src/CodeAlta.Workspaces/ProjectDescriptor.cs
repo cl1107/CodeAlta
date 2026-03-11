@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace CodeAlta.Workspaces;
+namespace CodeAlta.Catalog;
 
 /// <summary>
 /// Describes a project in a workspace.
@@ -100,3 +100,4 @@ public sealed class ProjectDescriptor
         }
     }
 }
+

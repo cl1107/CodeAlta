@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace CodeAlta.Workspaces;
+namespace CodeAlta.Catalog;
 
 /// <summary>
 /// Defines checkout behavior for a project.
@@ -25,3 +25,4 @@ public sealed class CheckoutRule
     [JsonPropertyName("submodules")]
     public bool? Submodules { get; set; }
 }
+

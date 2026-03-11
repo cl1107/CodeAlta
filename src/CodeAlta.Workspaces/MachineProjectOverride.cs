@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace CodeAlta.Workspaces;
+namespace CodeAlta.Catalog;
 
 /// <summary>
 /// Defines machine-specific project behavior.
@@ -19,3 +19,4 @@ public sealed class MachineProjectOverride
     [JsonPropertyName("checkout_path")]
     public string? CheckoutPath { get; set; }
 }
+

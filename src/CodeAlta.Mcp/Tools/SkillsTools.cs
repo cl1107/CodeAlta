@@ -1,6 +1,6 @@
 using System.ComponentModel;
-using CodeAlta.Workspaces;
-using CodeAlta.Workspaces.Skills;
+using CodeAlta.Catalog;
+using CodeAlta.Catalog.Skills;
 using ModelContextProtocol.Server;
 
 namespace CodeAlta.Mcp.Tools;
@@ -136,3 +136,4 @@ public sealed class SkillsTools
         };
     }
 }
+

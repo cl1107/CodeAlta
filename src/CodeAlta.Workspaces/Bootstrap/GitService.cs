@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace CodeAlta.Workspaces.Bootstrap;
+namespace CodeAlta.Catalog.Bootstrap;
 
 /// <summary>
 /// Shells out to the <c>git</c> CLI for repository operations.
@@ -206,4 +206,5 @@ public sealed class GitService
         return result;
     }
 }
+
 

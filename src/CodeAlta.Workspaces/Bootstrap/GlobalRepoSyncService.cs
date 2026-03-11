@@ -1,4 +1,4 @@
-namespace CodeAlta.Workspaces.Bootstrap;
+namespace CodeAlta.Catalog.Bootstrap;
 
 /// <summary>
 /// Syncs the global CodeAlta repository by pulling, committing local changes, and pushing.
@@ -63,4 +63,5 @@ public sealed class GlobalRepoSyncService
         };
     }
 }
+
 

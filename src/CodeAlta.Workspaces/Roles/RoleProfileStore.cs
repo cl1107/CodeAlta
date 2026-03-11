@@ -1,7 +1,7 @@
 using System.Text.Json.Serialization;
 using SharpYaml;
 
-namespace CodeAlta.Workspaces.Roles;
+namespace CodeAlta.Catalog.Roles;
 
 /// <summary>
 /// Loads and normalizes agent role profiles from markdown files.
@@ -306,4 +306,5 @@ public sealed class RoleProfileStore
         public List<string>? Tags { get; set; }
     }
 }
+
 

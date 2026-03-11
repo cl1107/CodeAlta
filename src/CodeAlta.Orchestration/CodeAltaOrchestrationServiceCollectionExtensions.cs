@@ -1,6 +1,6 @@
 using CodeAlta.Orchestration.Context;
 using CodeAlta.Orchestration.Runtime;
-using CodeAlta.Workspaces.Roles;
+using CodeAlta.Catalog.Roles;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CodeAlta.Orchestration;
@@ -44,3 +44,4 @@ public static class CodeAltaOrchestrationServiceCollectionExtensions
         return services;
     }
 }
+

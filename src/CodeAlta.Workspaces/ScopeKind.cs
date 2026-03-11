@@ -1,4 +1,4 @@
-namespace CodeAlta.Workspaces;
+namespace CodeAlta.Catalog;
 
 /// <summary>
 /// Represents supported scope kinds for workspace resolution.
@@ -20,3 +20,4 @@ public enum ScopeKind
     /// </summary>
     Project = 2,
 }
+

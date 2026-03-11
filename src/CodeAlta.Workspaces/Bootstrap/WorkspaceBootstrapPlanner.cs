@@ -1,4 +1,4 @@
-namespace CodeAlta.Workspaces.Bootstrap;
+namespace CodeAlta.Catalog.Bootstrap;
 
 /// <summary>
 /// Plans workspace checkout operations without network side effects.
@@ -35,3 +35,4 @@ public sealed class WorkspaceBootstrapPlanner
         return plans;
     }
 }
+

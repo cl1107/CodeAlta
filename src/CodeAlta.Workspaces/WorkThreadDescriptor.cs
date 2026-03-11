@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace CodeAlta.Workspaces;
+namespace CodeAlta.Catalog;
 
 /// <summary>
 /// Describes a durable work thread.
@@ -187,3 +187,4 @@ public sealed class WorkThreadDescriptor
         }
     }
 }
+

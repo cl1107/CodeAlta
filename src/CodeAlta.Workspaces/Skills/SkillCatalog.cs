@@ -1,4 +1,4 @@
-namespace CodeAlta.Workspaces.Skills;
+namespace CodeAlta.Catalog.Skills;
 
 /// <summary>
 /// Discovers and reads skills stored on disk.
@@ -205,4 +205,5 @@ public sealed class SkillCatalog
         return (title, description);
     }
 }
+
 

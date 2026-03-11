@@ -1,4 +1,4 @@
-namespace CodeAlta.Workspaces;
+namespace CodeAlta.Catalog;
 
 /// <summary>
 /// Represents a project resolved to a concrete checkout path.
@@ -20,3 +20,4 @@ public sealed record ResolvedProject
     /// </summary>
     public required string CodeAltaRoot { get; init; }
 }
+

@@ -1,4 +1,4 @@
-namespace CodeAlta.Workspaces;
+namespace CodeAlta.Catalog;
 
 /// <summary>
 /// Represents a user-facing scope selector.
@@ -50,3 +50,4 @@ public sealed record ScopeSelector
         return new ScopeSelector { Kind = ScopeKind.Project, ProjectSlug = projectSlug };
     }
 }
+

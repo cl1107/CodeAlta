@@ -26,9 +26,9 @@ Scope:
 | Vector search: `sqlite-vec` native extension for similarity | Partial | Extension loading is supported by `src/CodeAlta.Persistence/CodeAltaDb.cs` + `src/CodeAlta.Persistence/CodeAltaDbOptions.cs`; vec0-backed KNN rerank is implemented in `src/CodeAlta.Search/DocumentIndexStore.cs` and used by `src/CodeAlta.Search/SearchService.cs` when available | Unit tests include an opt-in sqlite-vec smoke test (`CODEALTA_SQLITE_VEC_EXTENSION_PATH`) in `src/CodeAlta.Search.Tests/SearchInfrastructureTests.cs`; default test runs use in-process cosine fallback |
 | Full-text search: SQLite FTS5 | Done | `documents_fts` virtual table created in `src/CodeAlta.Persistence/CodeAltaDb.cs`; query in `src/CodeAlta.Search/DocumentIndexStore.cs` | `src/CodeAlta.Search.Tests/SearchInfrastructureTests.cs` (`Indexer_ProcessNextAsync_IndexesDocuments`) |
 | Markdown: Markdig | Done | `src/CodeAlta.Persistence/ArtifactStore.cs` (markdown plain-text extraction) | `src/CodeAlta.Persistence.Tests/PersistenceInfrastructureTests.cs` (`ArtifactStore_WriteReadAndExtractPlainText_RoundTrips`) |
-| YAML: SharpYaml (frontmatter) | Done | `src/CodeAlta.Persistence/ArtifactStore.cs`, `src/CodeAlta.Workspaces/WorkspaceYamlSerializer.cs` | Persistence + Workspaces tests exercise YAML parsing/round-trips |
+| YAML: SharpYaml (frontmatter) | Done | `src/CodeAlta.Persistence/ArtifactStore.cs`, `src/CodeAlta.Catalog/WorkspaceYamlSerializer.cs` | Persistence + Workspaces tests exercise YAML parsing/round-trips |
 | Logging: XenoAtom.Logging + bridge to `Microsoft.Extensions.Logging` | Done | `src/CodeAlta.Mcp/Logging/XenoAtomLoggerProvider.cs` wired in `src/CodeAlta.Mcp/CodeAltaMcpServerFactory.cs` | Indirectly exercised by MCP server creation tests; no dedicated logger bridge unit test |
-| Identifiers: generated GUIDs are UUID v7 (`Guid.CreateVersion7()`) | Done | `src/CodeAlta.Persistence/*Id.cs`, `src/CodeAlta.Workspaces/*Id.cs`, `src/CodeAlta.Mcp/McpSessionRegistry.cs` | Covered by inspection + usages; persistence tests create entities using `*Id.NewVersion7()` |
+| Identifiers: generated GUIDs are UUID v7 (`Guid.CreateVersion7()`) | Done | `src/CodeAlta.Persistence/*Id.cs`, `src/CodeAlta.Catalog/*Id.cs`, `src/CodeAlta.Mcp/McpSessionRegistry.cs` | Covered by inspection + usages; persistence tests create entities using `*Id.NewVersion7()` |
 
 ## 2. Delivery strategy (vertical slices)
 
@@ -37,7 +37,7 @@ Scope:
 | 1) Durable state + artifacts (SQLite + file store) | Done | `src/CodeAlta.Persistence/*` | `src/CodeAlta.Persistence.Tests/PersistenceInfrastructureTests.cs` |
 | 2) In-process MCP surface exposing that state | Done | `src/CodeAlta.Mcp/*`, `src/CodeAlta.Mcp/Tools/*` | `src/CodeAlta.Mcp.Tests/McpInfrastructureTests.cs` |
 | 3) Indexing + search (FTS5 + embeddings + hybrid retrieval) | Partial | `src/CodeAlta.Search/*` | Search tests cover FTS + hybrid rerank; `sqlite-vec` is not used for similarity (see above) |
-| 4) Agent orchestration (roles/scopes/context packs) | Partial | `src/CodeAlta.Orchestration/*`, role profiles in `src/CodeAlta.Workspaces/Roles/*` | `src/CodeAlta.Orchestration.Tests/OrchestrationInfrastructureTests.cs` covers role parsing, context budget, and a minimal planner/builder loop |
+| 4) Agent orchestration (roles/scopes/context packs) | Partial | `src/CodeAlta.Orchestration/*`, role profiles in `src/CodeAlta.Catalog/Roles/*` | `src/CodeAlta.Orchestration.Tests/OrchestrationInfrastructureTests.cs` covers role parsing, context budget, and a minimal planner/builder loop |
 | 5) .NET-first services (Roslyn-backed) | Done | `src/CodeAlta.DotNet/*` | `src/CodeAlta.DotNet.Tests/DotNetInfrastructureTests.cs` |
 | 6) Terminal UI (TUI host) | Partial | `src/CodeAlta/Program.cs`, `src/CodeAlta/TerminalUi/CodeAltaTerminalUi.cs` | Minimal fullscreen TUI exists (navigation + jobs + basic scope selection), but UX is not yet the “stable” final UI described in the plan |
 
@@ -48,7 +48,7 @@ Notes on “each slice should produce tests”:
 
 | Project (from plan) | Status | Implementation Evidence | Notes |
 | --- | --- | --- | --- |
-| `CodeAlta.Workspaces` | Done | `src/CodeAlta.Workspaces/CodeAlta.Workspaces.csproj` | Includes descriptors, resolver, YAML serializer, and bootstrap helpers |
+| `CodeAlta.Catalog` | Done | `src/CodeAlta.Catalog/CodeAlta.Catalog.csproj` | Includes descriptors, resolver, YAML serializer, and bootstrap helpers |
 | `CodeAlta.Persistence` | Done | `src/CodeAlta.Persistence/CodeAlta.Persistence.csproj` | SQLite + repositories + artifact store |
 | `CodeAlta.Search` | Done | `src/CodeAlta.Search/CodeAlta.Search.csproj` | FTS + embeddings + indexing queue + hybrid search |
 | `CodeAlta.Mcp` | Done | `src/CodeAlta.Mcp/CodeAlta.Mcp.csproj` | In-process server + tool types; DI wiring |
@@ -71,7 +71,7 @@ Notes on “each slice should produce tests”:
 
 | Milestone Item | Status | Implementation Evidence | Test Evidence / Notes |
 | --- | --- | --- | --- |
-| Create `CodeAlta.Workspaces` and `CodeAlta.Persistence` | Done | `src/CodeAlta.Workspaces/*`, `src/CodeAlta.Persistence/*` | Workspaces + Persistence test projects |
+| Create `CodeAlta.Catalog` and `CodeAlta.Persistence` | Done | `src/CodeAlta.Catalog/*`, `src/CodeAlta.Persistence/*` | Workspaces + Persistence test projects |
 | Define on-disk locations (`~/.codealta/...` and repo `.codealta/...`) | Partial | `src/CodeAlta/Program.cs` uses `~/.codealta/state/db/codealta.db` and `~/.codealta/repo` | Repo-local `.codealta/...` structure is used by some features (skills discovery, dotnet artifacts), but not consistently as “the” default artifact root |
 | YAML frontmatter conventions for artifacts | Done | `src/CodeAlta.Persistence/ArtifactFrontmatter.cs`, `src/CodeAlta.Persistence/ArtifactStore.cs` | `ArtifactStore_WriteReadAndExtractPlainText_RoundTrips` |
 | SQLite migrations + repositories + artifact store | Done | `src/CodeAlta.Persistence/CodeAltaDb.cs`, `*Repository.cs`, `ArtifactStore.cs` | `PersistenceInfrastructureTests` |
@@ -102,8 +102,8 @@ Tool-surface gaps versus `implementation_plan_mcp_server.md`:
 | Milestone Item | Status | Implementation Evidence | Test Evidence / Notes |
 | --- | --- | --- | --- |
 | Create `CodeAlta.Orchestration` | Done | `src/CodeAlta.Orchestration/*` | Orchestration tests |
-| Implement role profiles | Done | Role parsing/storage in `src/CodeAlta.Workspaces/Roles/*` | `RoleProfileStore_ParsesFrontmatterAndCopilotMarkdown` |
-| Implement scope resolution + context pack builder | Done | `src/CodeAlta.Workspaces/WorkspaceResolver.cs`, `src/CodeAlta.Orchestration/Context/ContextPackBuilder.cs` | `ContextPackBuilder_EnforcesBudgetAndPreservesSourceLinks` |
+| Implement role profiles | Done | Role parsing/storage in `src/CodeAlta.Catalog/Roles/*` | `RoleProfileStore_ParsesFrontmatterAndCopilotMarkdown` |
+| Implement scope resolution + context pack builder | Done | `src/CodeAlta.Catalog/WorkspaceResolver.cs`, `src/CodeAlta.Orchestration/Context/ContextPackBuilder.cs` | `ContextPackBuilder_EnforcesBudgetAndPreservesSourceLinks` |
 | Integrate with `CodeAlta.Agent` backends and route tool calls | Partial | `src/CodeAlta.Orchestration/Runtime/AgentHub.cs`; MCP tool bridge `src/CodeAlta.Orchestration/Mcp/McpToolBridge.cs` is used by the terminal host Chat screen (`src/CodeAlta/TerminalUi/CodeAltaTerminalUi.cs`) to expose `codealta.*` MCP tools to Copilot backends | `src/CodeAlta.Orchestration.Tests/McpToolBridgeTests.cs` verifies MCP tools can be invoked through the bridge; Codex tool registration remains limited (no dynamic tool registration support in `CodeAlta.CodexSdk` thread start params) |
 | Persist planner/knowledge outputs to artifacts | Partial | Planner/builder persist artifacts; knowledge agent artifact flows are minimal | `OrchestrationFlow_PlannerCreatesAndBuilderCompletesTasks` covers planner + builder artifacts |
 
@@ -121,3 +121,4 @@ Tool-surface gaps versus `implementation_plan_mcp_server.md`:
 | --- | --- | --- | --- |
 | Replace `Program.cs` playground with real TUI host | Done | `src/CodeAlta/Program.cs`, `src/CodeAlta/TerminalUi/CodeAltaTerminalUi.cs` | No automated UI tests |
 | Responsive UI loops, background job views, scope selection UX | Partial | `src/CodeAlta/TerminalUi/CodeAltaTerminalUi.cs` | Includes Jobs screen, scope selector, and a Chat screen using `PromptEditor` + `DocumentFlow` + markdown rendering, wired to `AgentHub` sessions; still missing richer UX (task drill-down, background job list beyond indexing, etc.) |
+

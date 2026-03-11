@@ -1,6 +1,6 @@
 using System.Text.Json;
 using CodeAlta.Agent;
-using CodeAlta.Workspaces;
+using CodeAlta.Catalog;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Controls;
 
@@ -553,3 +553,4 @@ public sealed class CodeAltaTerminalUiTests
         Assert.AreEqual("CodeAlta · 2 Projects", summary);
     }
 }
+

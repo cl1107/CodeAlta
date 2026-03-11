@@ -1,5 +1,5 @@
 using System.ComponentModel;
-using CodeAlta.Workspaces;
+using CodeAlta.Catalog;
 using ModelContextProtocol.Server;
 
 namespace CodeAlta.Mcp.Tools;
@@ -31,7 +31,7 @@ public sealed class WorkspacesTools
     /// <summary>
     /// Lists known workspaces.
     /// </summary>
-    [McpServerTool(Name = "codealta.workspaces.list"), Description("Lists all known workspaces.")]
+    [McpServerTool(Name = "CodeAlta.Catalog.list"), Description("Lists all known workspaces.")]
     public async Task<string> ListAsync(CancellationToken cancellationToken = default)
     {
         var workspaces = await _catalog.LoadAsync(cancellationToken).ConfigureAwait(false);
@@ -56,7 +56,7 @@ public sealed class WorkspacesTools
     /// <summary>
     /// Gets a workspace by key.
     /// </summary>
-    [McpServerTool(Name = "codealta.workspaces.get"), Description("Gets a workspace descriptor by key.")]
+    [McpServerTool(Name = "CodeAlta.Catalog.get"), Description("Gets a workspace descriptor by key.")]
     public async Task<string> GetAsync(
         [Description("Workspace key.")] string workspaceKey,
         CancellationToken cancellationToken = default)
@@ -88,7 +88,7 @@ public sealed class WorkspacesTools
     /// <summary>
     /// Resolves a scope selector into concrete checkout and .codealta roots.
     /// </summary>
-    [McpServerTool(Name = "codealta.workspaces.resolve_scope"), Description("Resolves a scope selector into concrete workspace/project roots.")]
+    [McpServerTool(Name = "CodeAlta.Catalog.resolve_scope"), Description("Resolves a scope selector into concrete workspace/project roots.")]
     public async Task<string> ResolveScopeAsync(
         [Description("Scope kind: global|workspace|project.")] string kind,
         [Description("Workspace key for workspace scope.")] string? workspaceKey = null,
@@ -142,4 +142,5 @@ public sealed class WorkspacesTools
         };
     }
 }
+
 

@@ -7,7 +7,7 @@
   <ItemGroup>
     <ProjectReference Include="..\CodeAlta.Agent\CodeAlta.Agent.csproj" />
     <ProjectReference Include="..\CodeAlta.Persistence\CodeAlta.Persistence.csproj" />
-    <ProjectReference Include="..\CodeAlta.Workspaces\CodeAlta.Workspaces.csproj" />
+    <ProjectReference Include="..\CodeAlta.Workspaces\CodeAlta.Catalog.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -17,3 +17,4 @@
   </ItemGroup>
 
 </Project>
+

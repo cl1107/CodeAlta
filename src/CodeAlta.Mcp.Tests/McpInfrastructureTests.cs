@@ -3,10 +3,10 @@ using CodeAlta.DotNet;
 using CodeAlta.Mcp;
 using CodeAlta.Persistence;
 using CodeAlta.Search;
-using CodeAlta.Workspaces;
-using CodeAlta.Workspaces.Bootstrap;
-using CodeAlta.Workspaces.Roles;
-using CodeAlta.Workspaces.Skills;
+using CodeAlta.Catalog;
+using CodeAlta.Catalog.Bootstrap;
+using CodeAlta.Catalog.Roles;
+using CodeAlta.Catalog.Skills;
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Protocol;
 
@@ -26,7 +26,7 @@ public sealed class McpInfrastructureTests
         CollectionAssert.Contains(names, "codealta.tasks.get");
         CollectionAssert.Contains(names, "codealta.artifacts.write_markdown");
         CollectionAssert.Contains(names, "codealta.search.query");
-        CollectionAssert.Contains(names, "codealta.workspaces.resolve_scope");
+        CollectionAssert.Contains(names, "CodeAlta.Catalog.resolve_scope");
         CollectionAssert.Contains(names, "codealta.agents.register");
         CollectionAssert.Contains(names, "codealta.roles.list");
         CollectionAssert.Contains(names, "codealta.skills.list");
@@ -486,4 +486,5 @@ public sealed class McpInfrastructureTests
         }
     }
 }
+
 

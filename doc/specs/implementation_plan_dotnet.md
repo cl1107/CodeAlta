@@ -37,7 +37,7 @@ Suggested namespaces:
 
 Dependencies:
 - Roslyn: `Microsoft.CodeAnalysis.*`, `Microsoft.CodeAnalysis.Workspaces.MSBuild`
-- `CodeAlta.Workspaces` (scope resolution)
+- `CodeAlta.Catalog` (scope resolution)
 - `CodeAlta.Persistence` (artifacts)
 - `CodeAlta.Search` (indexing)
 
@@ -139,3 +139,4 @@ Use small fixture projects under `src/CodeAlta.Tests/Fixtures/`:
 - load a tiny solution
 - build symbol index
 - verify symbol lookups return correct file paths and line ranges
+

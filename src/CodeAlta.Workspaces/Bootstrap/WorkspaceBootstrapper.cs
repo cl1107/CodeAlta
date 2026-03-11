@@ -1,4 +1,4 @@
-namespace CodeAlta.Workspaces.Bootstrap;
+namespace CodeAlta.Catalog.Bootstrap;
 
 /// <summary>
 /// Applies workspace checkout plans to ensure repositories exist on disk.
@@ -100,4 +100,5 @@ public sealed class WorkspaceBootstrapper
         return results;
     }
 }
+
 

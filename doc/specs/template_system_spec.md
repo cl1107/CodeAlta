@@ -139,3 +139,4 @@ Adopt this model:
   - optional agent-assisted enrichment
 - user-defined templates are supported in global and project-local roots
 - the template system follows the project-first catalog model
+
