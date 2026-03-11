@@ -72,7 +72,16 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
 
         foreach (var backendId in new[] { AgentBackendIds.Codex, AgentBackendIds.Copilot })
         {
-            var sessions = await _agentHub.ListSessionsAsync(backendId, cancellationToken: cancellationToken).ConfigureAwait(false);
+            IReadOnlyList<AgentSessionMetadata> sessions;
+            try
+            {
+                sessions = await _agentHub.ListSessionsAsync(backendId, cancellationToken: cancellationToken).ConfigureAwait(false);
+            }
+            catch (KeyNotFoundException)
+            {
+                continue;
+            }
+
             foreach (var session in sessions)
             {
                 var thread = TryCreateRecoverableThread(backendId, session, projects);
@@ -150,6 +159,59 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
         };
 
         await EnsureCoordinatorSessionAsync(thread, options, cancellationToken).ConfigureAwait(false);
+        return thread;
+    }
+
+    /// <summary>
+    /// Creates a host-owned internal child thread for delegated work.
+    /// </summary>
+    public async Task<WorkThreadDescriptor> CreateInternalThreadAsync(
+        WorkThreadDescriptor parentThread,
+        ProjectDescriptor? project,
+        WorkThreadExecutionOptions options,
+        string? title,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(parentThread);
+        ArgumentNullException.ThrowIfNull(options);
+
+        var now = DateTimeOffset.UtcNow;
+        var targetProjectId = project?.Id ?? parentThread.ProjectRef;
+        var displayTitle = string.IsNullOrWhiteSpace(title)
+            ? $"Internal · {parentThread.Title}"
+            : title.Trim();
+
+        var thread = new WorkThreadDescriptor
+        {
+            ThreadId = string.Empty,
+            Kind = WorkThreadKind.InternalThread,
+            BackendId = options.BackendId.Value,
+            BackendSessionId = string.Empty,
+            ProjectRef = targetProjectId,
+            ParentThreadId = parentThread.ThreadId,
+            WorkingDirectory = options.WorkingDirectory,
+            Title = displayTitle,
+            Status = WorkThreadStatus.Draft,
+            CreatedAt = now,
+            UpdatedAt = now,
+            LastActiveAt = now,
+            LatestSummary = $"Delegated from '{parentThread.Title}'.",
+        };
+
+        await EnsureCoordinatorSessionAsync(thread, options, cancellationToken).ConfigureAwait(false);
+        await _threadCatalog.SaveInternalAsync(thread, cancellationToken).ConfigureAwait(false);
+
+        _events.Writer.TryWrite(new WorkThreadHostEvent(
+            parentThread.ThreadId,
+            now,
+            AgentSessionUpdateKind.Handoff,
+            $"Delegated work to internal thread '{thread.Title}'."));
+        _events.Writer.TryWrite(new WorkThreadHostEvent(
+            thread.ThreadId,
+            now,
+            AgentSessionUpdateKind.Handoff,
+            $"Created internal thread from '{parentThread.Title}'."));
+
         return thread;
     }
 

@@ -152,6 +152,58 @@ public sealed partial class ProjectCatalog
         return descriptor;
     }
 
+    /// <summary>
+    /// Imports known project folders from external working-directory history.
+    /// </summary>
+    /// <param name="workingDirectories">Candidate working directories.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The projects that were resolved or imported.</returns>
+    public async Task<IReadOnlyList<ProjectDescriptor>> ImportWorkingDirectoriesAsync(
+        IEnumerable<string?> workingDirectories,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(workingDirectories);
+
+        var results = new List<ProjectDescriptor>();
+        var knownProjects = (await LoadAsync(cancellationToken).ConfigureAwait(false)).ToList();
+        var globalRoot = NormalizePath(_options.GlobalRoot);
+        var uniquePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var rawPath in workingDirectories)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (string.IsNullOrWhiteSpace(rawPath))
+            {
+                continue;
+            }
+
+            var normalizedPath = NormalizePath(rawPath);
+            if (!uniquePaths.Add(normalizedPath))
+            {
+                continue;
+            }
+
+            if (IsInsideGlobalRoot(normalizedPath, globalRoot) || !Directory.Exists(normalizedPath))
+            {
+                continue;
+            }
+
+            var existing = knownProjects.FirstOrDefault(project =>
+                string.Equals(NormalizePath(project.ProjectPath), normalizedPath, StringComparison.OrdinalIgnoreCase));
+            if (existing is not null)
+            {
+                results.Add(existing);
+                continue;
+            }
+
+            var imported = await UpsertFromPathAsync(normalizedPath, cancellationToken).ConfigureAwait(false);
+            knownProjects.Add(imported);
+            results.Add(imported);
+        }
+
+        return results;
+    }
+
     private static string EnsureUniqueSlug(string baseSlug, IReadOnlyList<ProjectDescriptor> projects)
     {
         var candidate = baseSlug;
@@ -170,6 +222,17 @@ public sealed partial class ProjectCatalog
     private static string NormalizePath(string path)
     {
         return Path.GetFullPath(path.Trim()).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+    }
+
+    private static bool IsInsideGlobalRoot(string path, string globalRoot)
+    {
+        if (string.Equals(path, globalRoot, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var prefix = globalRoot + Path.DirectorySeparatorChar;
+        return path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string Slugify(string value)

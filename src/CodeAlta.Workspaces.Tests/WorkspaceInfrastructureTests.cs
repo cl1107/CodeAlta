@@ -42,6 +42,39 @@ public sealed class WorkspaceInfrastructureTests
     }
 
     [TestMethod]
+    public async Task ProjectCatalog_ImportWorkingDirectoriesAsync_ImportsDistinctProjectsAndSkipsGlobalRoot()
+    {
+        using var root = TempDirectory.Create();
+        var catalogRoot = Path.Combine(root.Path, ".codealta");
+        var projectA = Path.Combine(root.Path, "Tomlyn");
+        var projectB = Path.Combine(root.Path, "XenoAtom.Terminal");
+        var internalThreadRoot = Path.Combine(catalogRoot, "threads", "internal", "child-1");
+        Directory.CreateDirectory(catalogRoot);
+        Directory.CreateDirectory(projectA);
+        Directory.CreateDirectory(projectB);
+        Directory.CreateDirectory(internalThreadRoot);
+
+        var catalog = new ProjectCatalog(new CatalogOptions { GlobalRoot = catalogRoot });
+        var imported = await catalog.ImportWorkingDirectoriesAsync(
+            [
+                projectA,
+                projectB,
+                projectA,
+                catalogRoot,
+                internalThreadRoot,
+                Path.Combine(catalogRoot, "missing"),
+            ]).ConfigureAwait(false);
+
+        Assert.AreEqual(2, imported.Count);
+        CollectionAssert.AreEquivalent(
+            new[] { projectA, projectB },
+            imported.Select(static project => project.ProjectPath).ToArray());
+
+        var reloaded = await catalog.LoadAsync().ConfigureAwait(false);
+        Assert.AreEqual(2, reloaded.Count);
+    }
+
+    [TestMethod]
     public void WorkspaceYamlSerializer_RoundTrip_Works()
     {
         var serializer = new WorkspaceYamlSerializer();

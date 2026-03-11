@@ -80,38 +80,38 @@ The list is intentionally ordered, but it is not rigid in the wrong way:
 - an implementer may add steps when that simplifies the MVP
 - an implementer should not expand into deferred areas unless the step is clearly required for the MVP
 
-- [ ] Keep `doc/specs/readme.md` as the clear start-here document for the active spec set.
-- [ ] Keep `doc/specs/implementation_plan.md` aligned with the actual MVP scope and sequence.
-- [ ] Remove workspace ownership from the active MVP model.
-- [ ] Finalize the project descriptor model, identity rules, and loading rules.
-- [ ] Implement durable loading of known projects from `~/.codealta/projects/`.
-- [ ] Implement automatic project upsert when CodeAlta starts inside an unknown project folder.
-- [ ] Implement optional discovery/import of previously used backend sessions into the known-project list.
-- [ ] Introduce tags/labels as project metadata, but keep tag management out of the MVP UI.
-- [ ] Introduce `WorkThread` as the primary user-facing unit.
-- [ ] Support multiple `GlobalThread` instances.
-- [ ] Support `ProjectThread` scoped to exactly one project.
-- [ ] Support internal host-owned child threads for delegated work.
-- [ ] Keep internal child threads inspectable without making them the primary visible unit of work.
-- [ ] Keep each thread bound to a single backend for its lifetime.
-- [ ] Use `~/.codealta/` as the backend working directory for global threads so they can be restored from backend session history.
-- [ ] Recover project/global threads directly from backend session listings plus cwd.
-- [ ] Persist CodeAlta-owned thread records only for internal delegated linkage or UI state that the backend does not own.
-- [ ] Restore open threads/tabs after restart.
-- [ ] Reopen an existing project/global thread as the full backend-owned conversation, not as a summary-only reconstruction.
-- [ ] Load file-based global and project-local agents.
-- [ ] Compose coordinator and general-agent instructions consistently across Copilot and Codex.
-- [ ] Keep Copilot and Codex sessions usable as thread execution backends.
-- [ ] Give each user-facing thread one coordinator session.
-- [ ] Implement minimal host-owned orchestration for send, steer, dispatch, and explicit thread handoff.
-- [ ] Project backend/coordinator/host activity into a curated thread timeline.
-- [ ] Hide raw schedule payloads from the normal user timeline.
-- [ ] Implement project-first sidebar navigation with known projects and their threads.
-- [ ] Implement thread creation UX for project threads and global threads without requiring manual project creation.
-- [ ] Implement multi-thread UX so several concurrent threads can be continued and steered without confusion.
-- [ ] Make each open thread appear in its own closable tab without deleting the underlying thread when the tab closes.
-- [ ] Make global threads the cross-project overview and delegation surface.
-- [ ] Add regression coverage for project discovery, thread restoration, and orchestration basics before expanding scope.
+- [x] Keep `doc/specs/readme.md` as the clear start-here document for the active spec set.
+- [x] Keep `doc/specs/implementation_plan.md` aligned with the actual MVP scope and sequence.
+- [x] Remove workspace ownership from the active MVP model.
+- [x] Finalize the project descriptor model, identity rules, and loading rules.
+- [x] Implement durable loading of known projects from `~/.codealta/projects/`.
+- [x] Implement automatic project upsert when CodeAlta starts inside an unknown project folder.
+- [x] Implement optional discovery/import of previously used backend sessions into the known-project list.
+- [x] Introduce tags/labels as project metadata, but keep tag management out of the MVP UI.
+- [x] Introduce `WorkThread` as the primary user-facing unit.
+- [x] Support multiple `GlobalThread` instances.
+- [x] Support `ProjectThread` scoped to exactly one project.
+- [x] Support internal host-owned child threads for delegated work.
+- [x] Keep internal child threads inspectable without making them the primary visible unit of work.
+- [x] Keep each thread bound to a single backend for its lifetime.
+- [x] Use `~/.codealta/` as the backend working directory for global threads so they can be restored from backend session history.
+- [x] Recover project/global threads directly from backend session listings plus cwd.
+- [x] Persist CodeAlta-owned thread records only for internal delegated linkage or UI state that the backend does not own.
+- [x] Restore open threads/tabs after restart.
+- [x] Reopen an existing project/global thread as the full backend-owned conversation, not as a summary-only reconstruction.
+- [x] Load file-based global and project-local agents.
+- [x] Compose coordinator and general-agent instructions consistently across Copilot and Codex.
+- [x] Keep Copilot and Codex sessions usable as thread execution backends.
+- [x] Give each user-facing thread one coordinator session.
+- [x] Implement minimal host-owned orchestration for send, steer, dispatch, and explicit thread handoff.
+- [x] Project backend/coordinator/host activity into a curated thread timeline.
+- [x] Hide raw schedule payloads from the normal user timeline.
+- [x] Implement project-first sidebar navigation with known projects and their threads.
+- [x] Implement thread creation UX for project threads and global threads without requiring manual project creation.
+- [x] Implement multi-thread UX so several concurrent threads can be continued and steered without confusion.
+- [x] Make each open thread appear in its own closable tab without deleting the underlying thread when the tab closes.
+- [x] Make global threads the cross-project overview and delegation surface.
+- [x] Add regression coverage for project discovery, thread restoration, and orchestration basics before expanding scope.
 
 ## 5. Implementation slices
 

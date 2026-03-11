@@ -380,6 +380,7 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
             [
                 new Button(new TextBlock("Send")).Click(() => _ = SendSelectedThreadPromptAsync(steer: false)),
                 new Button(new TextBlock("Steer")).Click(() => _ = SendSelectedThreadPromptAsync(steer: true)),
+                new Button(new TextBlock("Delegate")).Click(() => _ = DelegateSelectedThreadAsync()),
                 new Button(new TextBlock("Abort")).Click(() => _ = AbortSelectedThreadAsync()),
                 new Button(new TextBlock("Close Tab")).Click(() => _ = CloseSelectedThreadAsync()),
             ])
@@ -696,6 +697,101 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
         {
             RenderThreadFailure(tab, $"Failed to send prompt: {ex.Message}");
             SetStatus($"Failed to send prompt: {ex.Message}");
+        }
+    }
+
+    private async Task DelegateSelectedThreadAsync()
+    {
+        var thread = GetSelectedThread();
+        if (thread is null)
+        {
+            SetStatus("Open a thread before delegating work.");
+            return;
+        }
+
+        var tab = EnsureThreadTab(thread);
+        var prompt = ReadUiValue(() => _threadInput?.Text?.Trim());
+        if (string.IsNullOrWhiteSpace(prompt))
+        {
+            SetStatus("Enter delegation instructions before creating an internal thread.");
+            return;
+        }
+
+        var targetProject = GetProjectById(thread.ProjectRef ?? _selectedProjectId);
+        if (targetProject is null)
+        {
+            SetStatus("Select a project before delegating internal work.");
+            return;
+        }
+
+        try
+        {
+            SetStatus($"Delegating internal work from '{thread.Title}'...", showSpinner: true);
+            var executionOptions = new WorkThreadExecutionOptions
+            {
+                BackendId = tab.BackendId,
+                WorkingDirectory = targetProject.ProjectPath,
+                ProjectRoots = [targetProject.ProjectPath],
+                Model = tab.ModelId,
+                ReasoningEffort = tab.ReasoningEffort,
+                OnPermissionRequest = (request, cancellationToken) => HandleThreadPermissionRequestAsync(CreateTransientThreadKey(tab.BackendId, targetProject.ProjectPath), request, cancellationToken),
+                OnUserInputRequest = (request, cancellationToken) => HandleThreadUserInputRequestAsync(CreateTransientThreadKey(tab.BackendId, targetProject.ProjectPath), request, cancellationToken),
+            };
+
+            var child = await _runtimeService.CreateInternalThreadAsync(
+                thread,
+                targetProject,
+                executionOptions,
+                title: SummarizeThreadContent(prompt),
+                cancellationToken: CancellationToken.None).ConfigureAwait(false);
+
+            _threads = _threads
+                .Where(existing => !string.Equals(existing.ThreadId, child.ThreadId, StringComparison.OrdinalIgnoreCase))
+                .Append(child)
+                .OrderByDescending(static item => item.LastActiveAt)
+                .ToArray();
+
+            EnsureThreadTab(child);
+            if (!_viewState.OpenThreadIds.Contains(child.ThreadId, StringComparer.OrdinalIgnoreCase))
+            {
+                _viewState.OpenThreadIds.Add(child.ThreadId);
+                _viewState.UpdatedAt = DateTimeOffset.UtcNow;
+            }
+
+            var childTab = EnsureThreadTab(child);
+            childTab.BackendId = tab.BackendId;
+            childTab.ModelId = tab.ModelId;
+            childTab.ReasoningEffort = tab.ReasoningEffort;
+
+            _ = await _runtimeService.SendAsync(
+                    child,
+                    new WorkThreadExecutionOptions
+                    {
+                        BackendId = tab.BackendId,
+                        WorkingDirectory = targetProject.ProjectPath,
+                        ProjectRoots = [targetProject.ProjectPath],
+                        Model = tab.ModelId,
+                        ReasoningEffort = tab.ReasoningEffort,
+                        OnPermissionRequest = (request, cancellationToken) => HandleThreadPermissionRequestAsync(child.ThreadId, request, cancellationToken),
+                        OnUserInputRequest = (request, cancellationToken) => HandleThreadUserInputRequestAsync(child.ThreadId, request, cancellationToken),
+                    },
+                    new AgentSendOptions
+                    {
+                        Input = AgentInput.Text(
+                            $"Delegated from thread '{thread.Title}' ({thread.ThreadId}): {prompt}")
+                    },
+                    CancellationToken.None)
+                .ConfigureAwait(false);
+
+            ClearThreadInput();
+            SetStatus($"Delegated internal thread '{child.Title}'.");
+            await PersistViewStateAsync().ConfigureAwait(false);
+            RefreshView();
+        }
+        catch (Exception ex)
+        {
+            UiLogger.Error(ex, "Failed to delegate internal thread.");
+            SetStatus($"Failed to delegate internal thread: {ex.Message}");
         }
     }
 

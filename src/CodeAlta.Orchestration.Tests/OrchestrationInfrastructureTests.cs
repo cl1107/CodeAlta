@@ -414,6 +414,76 @@ public sealed class OrchestrationInfrastructureTests
         Assert.IsTrue(received.OfType<WorkThreadHostEvent>().Any(x => x.ThreadId == target.ThreadId));
     }
 
+    [TestMethod]
+    public async Task WorkThreadRuntimeService_CreateInternalThreadAsync_PersistsRecoverableChildThread()
+    {
+        using var temp = TempDirectory.Create();
+        var catalogOptions = new CatalogOptions { GlobalRoot = temp.Path };
+        var projectCatalog = new ProjectCatalog(catalogOptions);
+        var threadCatalog = new WorkThreadCatalog(catalogOptions);
+        var roleStore = new RoleProfileStore();
+        var instructionProvider = new AgentInstructionTemplateProvider();
+
+        var project = new ProjectDescriptor
+        {
+            Id = ProjectId.NewVersion7().ToString(),
+            Slug = "repo-main",
+            DisplayName = "Main Repo",
+            ProjectPath = Path.Combine(temp.Path, "repo-main"),
+            DefaultBranch = "main",
+        };
+        Directory.CreateDirectory(project.ProjectPath);
+        await projectCatalog.SaveAsync(project).ConfigureAwait(false);
+
+        var agentsRoot = Path.Combine(temp.Path, "agents");
+        Directory.CreateDirectory(agentsRoot);
+        await File.WriteAllTextAsync(
+            Path.Combine(agentsRoot, "coordinator.agent.md"),
+            """
+            ---
+            name: coordinator
+            description: Coordinates thread work.
+            ---
+            Keep delegated work focused and concise.
+            """).ConfigureAwait(false);
+
+        var backendFactory = new AgentBackendFactory();
+        backendFactory.Register("fake", static () => new FakeBackend());
+
+        var db = await CreateDbAsync(temp.Path).ConfigureAwait(false);
+        var repository = new AgentRepository(db);
+        await using var hub = new AgentHub(backendFactory, repository);
+        await using var runtime = new WorkThreadRuntimeService(
+            hub,
+            projectCatalog,
+            threadCatalog,
+            roleStore,
+            instructionProvider,
+            catalogOptions);
+
+        var parent = await runtime.CreateProjectThreadAsync(
+            project,
+            CreateExecutionOptions(project.ProjectPath),
+            "Parent Thread").ConfigureAwait(false);
+
+        var child = await runtime.CreateInternalThreadAsync(
+            parent,
+            project,
+            CreateExecutionOptions(project.ProjectPath),
+            "Internal Reviewer").ConfigureAwait(false);
+
+        Assert.AreEqual(WorkThreadKind.InternalThread, child.Kind);
+        Assert.AreEqual(parent.ThreadId, child.ParentThreadId);
+        Assert.AreEqual(project.Id, child.ProjectRef);
+
+        var internalThreads = await threadCatalog.LoadInternalAsync().ConfigureAwait(false);
+        Assert.AreEqual(1, internalThreads.Count);
+        Assert.AreEqual(child.ThreadId, internalThreads[0].ThreadId);
+
+        var recoverable = await runtime.ListRecoverableThreadsAsync().ConfigureAwait(false);
+        Assert.IsTrue(recoverable.Any(thread => string.Equals(thread.ThreadId, child.ThreadId, StringComparison.Ordinal)));
+    }
+
     private static WorkThreadExecutionOptions CreateExecutionOptions(string workingDirectory)
     {
         return new WorkThreadExecutionOptions

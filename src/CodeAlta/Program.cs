@@ -19,6 +19,7 @@ await host.RunAsync(cancellationTokenSource.Token).ConfigureAwait(false);
 
 internal sealed class TerminalHost : IAsyncDisposable
 {
+    private static readonly Logger Logger = LogManager.GetLogger("CodeAlta.Host");
     private readonly bool _ownsLogging;
     private readonly CodeAltaDb _db;
     private readonly CatalogOptions _catalogOptions;
@@ -79,6 +80,7 @@ internal sealed class TerminalHost : IAsyncDisposable
         backendFactory.RegisterCopilot(new CopilotAgentBackendOptions());
 
         var agentHub = new AgentHub(backendFactory, agentRepository);
+        await ImportKnownProjectsFromBackendsAsync(agentHub, projectCatalog, cancellationToken).ConfigureAwait(false);
         var runtimeService = new WorkThreadRuntimeService(
             agentHub,
             projectCatalog,
@@ -95,6 +97,28 @@ internal sealed class TerminalHost : IAsyncDisposable
             threadCatalog,
             agentHub,
             runtimeService);
+    }
+
+    private static async Task ImportKnownProjectsFromBackendsAsync(
+        AgentHub agentHub,
+        ProjectCatalog projectCatalog,
+        CancellationToken cancellationToken)
+    {
+        var workingDirectories = new List<string?>();
+        foreach (var backendId in new[] { AgentBackendIds.Codex, AgentBackendIds.Copilot })
+        {
+            try
+            {
+                var sessions = await agentHub.ListSessionsAsync(backendId, cancellationToken: cancellationToken).ConfigureAwait(false);
+                workingDirectories.AddRange(sessions.Select(static session => session.Context?.Cwd ?? session.WorkspacePath));
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, $"Failed to import project history from backend '{backendId.Value}'.");
+            }
+        }
+
+        await projectCatalog.ImportWorkingDirectoriesAsync(workingDirectories, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task RunAsync(CancellationToken cancellationToken)
