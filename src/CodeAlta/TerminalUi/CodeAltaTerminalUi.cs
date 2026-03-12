@@ -1,16 +1,18 @@
 using CodeAlta.Agent;
 using CodeAlta.Catalog;
 using CodeAlta.Orchestration.Runtime;
-using XenoAtom.Logging;
 using XenoAtom.Ansi;
+using XenoAtom.Logging;
 using XenoAtom.Terminal;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Commands;
 using XenoAtom.Terminal.UI.Controls;
+using XenoAtom.Terminal.UI.Extensions.Markdown;
 using XenoAtom.Terminal.UI.Geometry;
 using XenoAtom.Terminal.UI.Input;
 using XenoAtom.Terminal.UI.Layout;
 using XenoAtom.Terminal.UI.Styling;
+using XenoAtom.Terminal.UI.Text;
 using XenoAtom.Terminal.UI.Threading;
 
 internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
@@ -2331,10 +2333,12 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
 
     private ChatPromptEditor CreatePromptEditor()
     {
+        var converter = new MarkdownMarkupConverter();
         var editor = new ChatPromptEditor(text => _ = SendSelectedThreadPromptAsync(steer: false))
             .PromptMarkup("[primary]>[/] ")
             .ContinuationPromptMarkup("[muted]·[/] ")
-            .EnableWordHints(false)
+            .EnableWordHints(true)
+            .Highlighter(HighlightMarkdown)
             .MinHeight(3)
             .Style(PromptEditorStyle.Default with
             {
@@ -2385,8 +2389,24 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
             Execute = _visual => { _ = CloseSelectedThreadAsync(); },
             CanExecute = _visual => GetSelectedThread() is not null,
         });
-
+        
         return editor;
+
+        void HighlightMarkdown(in PromptEditorHighlightRequest request, List<StyledRun> runs)
+        {
+            converter.Theme = request.Theme;
+            converter.Highlight(SnapshotToString(request.Snapshot), runs);
+        }
+
+        static string SnapshotToString(ITextSnapshot snapshot)
+        {
+            if (snapshot.Length == 0)
+            {
+                return string.Empty;
+            }
+
+            return string.Create(snapshot.Length, snapshot, static (span, s) => s.CopyTo(0, span));
+        }
     }
 
     private sealed class ThreadTabState
