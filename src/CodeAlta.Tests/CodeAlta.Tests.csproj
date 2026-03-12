@@ -12,6 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\AgentMessageDiagnosticApp\AgentMessageDiagnosticApp.csproj" />
     <ProjectReference Include="..\CodeAlta\CodeAlta.csproj" />
     <ProjectReference Include="..\CodeAlta.Agent\CodeAlta.Agent.csproj" />
     <ProjectReference Include="..\CodeAlta.Agent.Codex\CodeAlta.Agent.Codex.csproj" />

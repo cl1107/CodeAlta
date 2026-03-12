@@ -126,3 +126,11 @@ Current terminal host capabilities:
 - Set `CODEALTA_RUN_LIVE_CODEX_TESTS=1` to run the Codex live prompt test.
 - Set `CODEALTA_RUN_LIVE_COPILOT_TESTS=1` to run the Copilot live prompt test.
 - Without those environment variables, the live tests are skipped as inconclusive during `dotnet test`.
+
+## Session Diagnostics
+
+`src/AgentMessageDiagnosticApp` provides a small CLI for dumping mapped backend session history as JSONL.
+
+- `dotnet run --project src/AgentMessageDiagnosticApp/AgentMessageDiagnosticApp.csproj -- --codex <session-id>`
+- `dotnet run --project src/AgentMessageDiagnosticApp/AgentMessageDiagnosticApp.csproj -- --copilot <session-id>`
+- Add `--indented` to pretty-print each JSON payload instead of emitting compact JSONL.
