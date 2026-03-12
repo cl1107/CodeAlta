@@ -35,6 +35,11 @@ public abstract record AgentEvent(
 public enum AgentContentKind
 {
     /// <summary>
+    /// User-authored prompt text.
+    /// </summary>
+    User,
+
+    /// <summary>
     /// Assistant/user-facing response text.
     /// </summary>
     Assistant,

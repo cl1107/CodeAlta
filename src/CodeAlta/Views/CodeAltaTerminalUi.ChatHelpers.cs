@@ -329,6 +329,7 @@ internal sealed partial class CodeAltaTerminalUi
 
         return kind switch
         {
+            AgentContentKind.User => content,
             AgentContentKind.Assistant => content,
             AgentContentKind.CommandOutput or AgentContentKind.FileChangeOutput or AgentContentKind.ToolOutput => FormatChatOutputMarkdown(content),
             _ => content,
@@ -666,6 +667,7 @@ internal sealed partial class CodeAltaTerminalUi
     {
         return kind switch
         {
+            AgentContentKind.User => ChatTimelineTone.User,
             AgentContentKind.Assistant => ChatTimelineTone.Assistant,
             AgentContentKind.Reasoning or AgentContentKind.ReasoningSummary => ChatTimelineTone.Reasoning,
             AgentContentKind.Plan or AgentContentKind.Notice => ChatTimelineTone.Notice,
@@ -676,6 +678,7 @@ internal sealed partial class CodeAltaTerminalUi
     private static string? GetContentHeader(AgentContentKind kind)
         => kind switch
         {
+            AgentContentKind.User => "User Prompt",
             AgentContentKind.Assistant => null,
             AgentContentKind.Reasoning => "Reasoning",
             AgentContentKind.ReasoningSummary => "Reasoning Summary",

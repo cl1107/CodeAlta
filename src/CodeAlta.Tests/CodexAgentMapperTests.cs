@@ -526,6 +526,94 @@ public sealed class CodexAgentMapperTests
     }
 
     [TestMethod]
+    public void ToAgentEvent_MapsRawResponseAssistantMessage()
+    {
+        var timestamp = DateTimeOffset.Parse("2026-02-25T10:00:00+00:00");
+        var notification = new CodexNotification.RawResponseItemCompleted(
+            new RawResponseItemCompletedNotification
+            {
+                ThreadId = "thread-1",
+                TurnId = "turn-1",
+                Item = new ResponseItem.MessageResponseItem
+                {
+                    Id = "message-1",
+                    Role = "assistant",
+                    Content =
+                    [
+                        new ContentItem.OutputTextContentItem { Text = "Sure — here's the summary." },
+                    ]
+                }
+            });
+
+        var @event = CodexAgentMapper.ToAgentEvent("thread-1", notification, timestamp);
+
+        Assert.IsInstanceOfType<AgentContentCompletedEvent>(@event);
+        var content = (AgentContentCompletedEvent)@event;
+        Assert.AreEqual(AgentContentKind.Assistant, content.Kind);
+        Assert.AreEqual("message-1", content.ContentId);
+        Assert.AreEqual("Sure — here's the summary.", content.Content);
+    }
+
+    [TestMethod]
+    public void ToAgentEvent_MapsRawResponseEncryptedReasoningToPlaceholder()
+    {
+        var timestamp = DateTimeOffset.Parse("2026-02-25T10:00:00+00:00");
+        var notification = new CodexNotification.RawResponseItemCompleted(
+            new RawResponseItemCompletedNotification
+            {
+                ThreadId = "thread-1",
+                TurnId = "turn-1",
+                Item = new ResponseItem.ReasoningResponseItem
+                {
+                    Id = "reasoning-1",
+                    EncryptedContent = "ciphertext"
+                }
+            });
+
+        var @event = CodexAgentMapper.ToAgentEvent("thread-1", notification, timestamp);
+
+        Assert.IsInstanceOfType<AgentContentCompletedEvent>(@event);
+        var content = (AgentContentCompletedEvent)@event;
+        Assert.AreEqual(AgentContentKind.Reasoning, content.Kind);
+        StringAssert.Contains(content.Content, "encrypted");
+    }
+
+    [TestMethod]
+    public void ToHistoryEvents_MapsUserMessageItemsToUserContent()
+    {
+        var thread = new CodeAlta.CodexSdk.Thread
+        {
+            UpdatedAt = DateTimeOffset.Parse("2026-02-25T10:00:00+00:00").ToUnixTimeSeconds(),
+            Turns =
+            [
+                new Turn
+                {
+                    Id = "turn-1",
+                    Status = TurnStatus.Completed,
+                    Items =
+                    [
+                        new ThreadItem.UserMessageThreadItem
+                        {
+                            Id = "user-1",
+                            Content =
+                            [
+                                new UserInput.TextUserInput { Text = "Could you summarize the repo?" },
+                            ]
+                        }
+                    ]
+                }
+            ]
+        };
+
+        var events = CodexAgentMapper.ToHistoryEvents("thread-1", thread);
+
+        Assert.IsInstanceOfType<AgentContentCompletedEvent>(events[0]);
+        var content = (AgentContentCompletedEvent)events[0];
+        Assert.AreEqual(AgentContentKind.User, content.Kind);
+        Assert.AreEqual("Could you summarize the repo?", content.Content);
+    }
+
+    [TestMethod]
     public void ToAgentUserInputRequest_PreservesHeadersDescriptionsAndSecretFlags()
     {
         var request = new ToolRequestUserInputParams

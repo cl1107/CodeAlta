@@ -836,6 +836,16 @@ internal static class CodexAgentMapper
         var runId = new AgentRunId(notification.TurnId);
         return notification.Item switch
         {
+            ThreadItem.UserMessageThreadItem userMessage => new AgentContentCompletedEvent(
+                AgentBackendIds.Codex,
+                sessionId,
+                timestamp,
+                runId,
+                AgentContentKind.User,
+                userMessage.Id,
+                notification.TurnId,
+                ExtractUserMessageText(userMessage)),
+
             ThreadItem.AgentMessageThreadItem message => new AgentContentCompletedEvent(
                 AgentBackendIds.Codex,
                 sessionId,
@@ -854,9 +864,7 @@ internal static class CodexAgentMapper
                 AgentContentKind.Reasoning,
                 reasoning.Id,
                 notification.TurnId,
-                reasoning.Content is { Count: > 0 } content
-                    ? string.Join(Environment.NewLine, content)
-                    : string.Join(Environment.NewLine, reasoning.Summary ?? [])),
+                ExtractReasoningThreadText(reasoning)),
 
             ThreadItem.PlanThreadItem plan => new AgentContentCompletedEvent(
                 AgentBackendIds.Codex,
@@ -997,6 +1005,26 @@ internal static class CodexAgentMapper
         var runId = new AgentRunId(notification.TurnId);
         return notification.Item switch
         {
+            ResponseItem.MessageResponseItem message => new AgentContentCompletedEvent(
+                AgentBackendIds.Codex,
+                sessionId,
+                timestamp,
+                runId,
+                AgentContentKind.Assistant,
+                message.Id ?? $"message:{notification.TurnId}",
+                notification.TurnId,
+                ExtractMessageResponseText(message)),
+
+            ResponseItem.ReasoningResponseItem reasoning => new AgentContentCompletedEvent(
+                AgentBackendIds.Codex,
+                sessionId,
+                timestamp,
+                runId,
+                AgentContentKind.Reasoning,
+                reasoning.Id,
+                notification.TurnId,
+                ExtractReasoningResponseText(reasoning)),
+
             ResponseItem.LocalShellCallResponseItem localShellCall => CreateActivity(
                 sessionId,
                 timestamp,
@@ -1682,6 +1710,75 @@ internal static class CodexAgentMapper
             null => fallbackQuery ?? "web search",
             _ => fallbackQuery ?? "web search"
         };
+    }
+
+    private static string ExtractUserMessageText(ThreadItem.UserMessageThreadItem userMessage)
+    {
+        return string.Join(
+            Environment.NewLine,
+            userMessage.Content.Select(
+                static content => content switch
+                {
+                    UserInput.TextUserInput text => text.Text,
+                    UserInput.ImageUserInput image => image.Url,
+                    UserInput.LocalImageUserInput localImage => localImage.Path,
+                    UserInput.SkillUserInput skill => skill.Name,
+                    UserInput.MentionUserInput mention => mention.Name,
+                    _ => string.Empty
+                }).Where(static value => !string.IsNullOrWhiteSpace(value)));
+    }
+
+    private static string ExtractReasoningThreadText(ThreadItem.ReasoningThreadItem reasoning)
+    {
+        return reasoning.Content is { Count: > 0 } content
+            ? string.Join(Environment.NewLine, content)
+            : reasoning.Summary is { Count: > 0 } summary
+                ? string.Join(Environment.NewLine, summary)
+                : "_Reasoning content was not included in the thread payload._";
+    }
+
+    private static string ExtractMessageResponseText(ResponseItem.MessageResponseItem message)
+    {
+        return string.Join(
+            Environment.NewLine,
+            message.Content.Select(
+                static content => content switch
+                {
+                    ContentItem.OutputTextContentItem text => text.Text,
+                    ContentItem.InputTextContentItem input => input.Text,
+                    _ => string.Empty
+                }).Where(static value => !string.IsNullOrWhiteSpace(value)));
+    }
+
+    private static string ExtractReasoningResponseText(ResponseItem.ReasoningResponseItem reasoning)
+    {
+        if (reasoning.Content is { Count: > 0 } content)
+        {
+            var text = string.Join(
+                Environment.NewLine,
+                content.Select(
+                    static item => item switch
+                    {
+                        ReasoningItemContent.ReasoningTextReasoningItemContent reasoningText => reasoningText.Text,
+                        ReasoningItemContent.TextReasoningItemContent textContent => textContent.Text,
+                        _ => string.Empty
+                    }).Where(static value => !string.IsNullOrWhiteSpace(value)));
+            if (text.Length > 0)
+            {
+                return text;
+            }
+        }
+
+        if (reasoning.Summary.Count > 0)
+        {
+            return string.Join(
+                Environment.NewLine,
+                reasoning.Summary.Select(static item => item.ValueKind == JsonValueKind.String ? item.GetString()! : item.ToString()));
+        }
+
+        return !string.IsNullOrWhiteSpace(reasoning.EncryptedContent)
+            ? "_Reasoning content is encrypted and unavailable in this stream._"
+            : string.Empty;
     }
 
     private static string DescribeWebSearchAction(ResponsesApiWebSearchAction? action, string? fallbackQuery)
