@@ -555,7 +555,7 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
         _tabStripVisual ??= CreateComputedVisual(BuildOpenTabsContent);
         _threadHeaderVisual ??= CreateComputedVisual(BuildSelectedThreadHeader);
         _threadInput ??= CreatePromptEditor();
-        _threadInputView ??= _threadInput;
+        _threadInputView ??= _threadInput.Scrollable();
         _threadCommandBar ??= new CommandBar
         {
             HorizontalAlignment = Align.Stretch,
