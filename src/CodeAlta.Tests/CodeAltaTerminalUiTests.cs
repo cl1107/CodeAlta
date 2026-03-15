@@ -339,6 +339,82 @@ public sealed class CodeAltaTerminalUiTests
     }
 
     [TestMethod]
+    public void ResolveToolCommandText_UsesStructuredCodexFunctionArguments()
+    {
+        var method = typeof(CodeAltaTerminalUi).GetMethod("ResolveToolCommandText", BindingFlags.Static | BindingFlags.NonPublic);
+        Assert.IsNotNull(method);
+
+        using var detailsJson = JsonDocument.Parse(
+            """
+            {
+              "name": "shell_command",
+              "callId": "call-1",
+              "arguments": {
+                "command": "Get-Content C:\\code\\Tomlyn\\readme.md -TotalCount 250",
+                "timeout_ms": 20000
+              }
+            }
+            """);
+
+        var activity = new AgentActivityEvent(
+            AgentBackendIds.Codex,
+            "session-1",
+            DateTimeOffset.UtcNow,
+            null,
+            AgentActivityKind.ToolCall,
+            AgentActivityPhase.Requested,
+            "call-1",
+            null,
+            "shell_command",
+            null,
+            detailsJson.RootElement.Clone());
+
+        var command = (string?)method.Invoke(null, [activity]);
+
+        Assert.AreEqual(@"Get-Content C:\code\Tomlyn\readme.md -TotalCount 250", command);
+    }
+
+    [TestMethod]
+    public void ResolveToolDisplayName_UsesCodexShellCommandVerb()
+    {
+        var method = typeof(CodeAltaTerminalUi)
+            .GetMethods(BindingFlags.Static | BindingFlags.NonPublic)
+            .Single(m => m.Name == "ResolveToolDisplayName" &&
+                         m.GetParameters().Length == 1 &&
+                         m.GetParameters()[0].ParameterType == typeof(AgentActivityEvent));
+        Assert.IsNotNull(method);
+
+        using var detailsJson = JsonDocument.Parse(
+            """
+            {
+              "name": "shell_command",
+              "callId": "call-1",
+              "arguments": {
+                "command": "Get-Content C:\\code\\Tomlyn\\readme.md -TotalCount 250",
+                "timeout_ms": 20000
+              }
+            }
+            """);
+
+        var activity = new AgentActivityEvent(
+            AgentBackendIds.Codex,
+            "session-1",
+            DateTimeOffset.UtcNow,
+            null,
+            AgentActivityKind.ToolCall,
+            AgentActivityPhase.Requested,
+            "call-1",
+            null,
+            "shell_command",
+            null,
+            detailsJson.RootElement.Clone());
+
+        var displayName = (string?)method.Invoke(null, [activity]);
+
+        Assert.AreEqual("Get-Content", displayName);
+    }
+
+    [TestMethod]
     public void FormatChatCardTimestamp_UsesInvariantReadableFormat()
     {
         var timestamp = new DateTimeOffset(2026, 03, 12, 14, 5, 6, TimeSpan.FromHours(1));

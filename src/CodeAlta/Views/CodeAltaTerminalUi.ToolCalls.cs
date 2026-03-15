@@ -659,6 +659,13 @@ internal sealed partial class CodeAltaTerminalUi
             return ExtractCommandDisplayName(ResolveToolCommandText(activity)!);
         }
 
+        if (activity.Kind == AgentActivityKind.ToolCall &&
+            string.Equals(activity.Name, "shell_command", StringComparison.OrdinalIgnoreCase) &&
+            !string.IsNullOrWhiteSpace(ResolveToolCommandText(activity)))
+        {
+            return ExtractCommandDisplayName(ResolveToolCommandText(activity)!);
+        }
+
         if (activity.Kind == AgentActivityKind.FileChange)
         {
             return "file_change";
@@ -714,6 +721,23 @@ internal sealed partial class CodeAltaTerminalUi
         if (activity.Details is { } details && TryGetStringProperty(details, "command", out var command))
         {
             return command;
+        }
+
+        if (activity.Details is { ValueKind: JsonValueKind.Object } detailObject)
+        {
+            if (detailObject.TryGetProperty("arguments", out var arguments) &&
+                arguments.ValueKind == JsonValueKind.Object &&
+                TryGetStringProperty(arguments, "command", out command))
+            {
+                return command;
+            }
+
+            if (detailObject.TryGetProperty("input", out var input) &&
+                input.ValueKind == JsonValueKind.Object &&
+                TryGetStringProperty(input, "command", out command))
+            {
+                return command;
+            }
         }
 
         if (activity.Kind == AgentActivityKind.CommandExecution)
@@ -1001,12 +1025,25 @@ internal sealed partial class CodeAltaTerminalUi
             return false;
         }
 
-        foreach (var propertyName in new[] { "path", "pattern", "query", "intent", "description", "database" })
+        foreach (var propertyName in new[] { "path", "pattern", "query", "intent", "description", "database", "command" })
         {
             if (TryGetStringProperty(arguments, propertyName, out var value) &&
                 TryBuildCompactContextPreview(value, out preview))
             {
                 return true;
+            }
+        }
+
+        if (details.TryGetProperty("input", out var input) &&
+            input.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var propertyName in new[] { "path", "pattern", "query", "intent", "description", "database", "command" })
+            {
+                if (TryGetStringProperty(input, propertyName, out var value) &&
+                    TryBuildCompactContextPreview(value, out preview))
+                {
+                    return true;
+                }
             }
         }
 

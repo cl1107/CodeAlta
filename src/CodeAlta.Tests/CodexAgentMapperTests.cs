@@ -573,6 +573,37 @@ public sealed class CodexAgentMapperTests
     }
 
     [TestMethod]
+    public void ToAgentEvent_MapsRawFunctionCallArgumentsAsStructuredJson()
+    {
+        var timestamp = DateTimeOffset.Parse("2026-03-14T21:01:19+00:00");
+        var notification = new CodexNotification.RawResponseItemCompleted(
+            new RawResponseItemCompletedNotification
+            {
+                ThreadId = "thread-1",
+                TurnId = "turn-1",
+                Item = new ResponseItem.FunctionCallResponseItem
+                {
+                    CallId = "call-1",
+                    Name = "shell_command",
+                    Arguments = """{"command":"Get-Content C:\\code\\Tomlyn\\readme.md -TotalCount 250","timeout_ms":20000}"""
+                }
+            });
+
+        var @event = CodexAgentMapper.ToAgentEvent("thread-1", notification, timestamp);
+
+        Assert.IsInstanceOfType<AgentActivityEvent>(@event);
+        var activity = (AgentActivityEvent)@event;
+        Assert.AreEqual(AgentActivityKind.ToolCall, activity.Kind);
+        Assert.AreEqual(AgentActivityPhase.Requested, activity.Phase);
+        Assert.AreEqual("shell_command", activity.Name);
+        Assert.IsTrue(activity.Details.HasValue);
+        var arguments = activity.Details.Value.GetProperty("arguments");
+        Assert.AreEqual(JsonValueKind.Object, arguments.ValueKind);
+        Assert.AreEqual(@"Get-Content C:\code\Tomlyn\readme.md -TotalCount 250", arguments.GetProperty("command").GetString());
+        Assert.AreEqual(20000, arguments.GetProperty("timeout_ms").GetInt32());
+    }
+
+    [TestMethod]
     public void ToAgentEvent_MapsRawResponseEncryptedReasoningToPlaceholder()
     {
         var timestamp = DateTimeOffset.Parse("2026-02-25T10:00:00+00:00");

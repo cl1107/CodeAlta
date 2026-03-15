@@ -1614,7 +1614,8 @@ internal static class CodexAgentMapper
         {
             writer.WriteString("name", item.Name);
             writer.WriteString("callId", item.CallId);
-            writer.WriteString("arguments", item.Arguments);
+            writer.WritePropertyName("arguments");
+            WriteStringifiedJsonValue(writer, item.Arguments);
         });
     }
 
@@ -1636,7 +1637,8 @@ internal static class CodexAgentMapper
         {
             writer.WriteString("name", item.Name);
             writer.WriteString("callId", item.CallId);
-            writer.WriteString("input", item.Input);
+            writer.WritePropertyName("input");
+            WriteStringifiedJsonValue(writer, item.Input);
             if (item.Status is not null)
                 writer.WriteString("status", item.Status);
         });
@@ -1830,6 +1832,27 @@ internal static class CodexAgentMapper
 
         using var document = JsonDocument.Parse(stream.ToArray());
         return document.RootElement.Clone();
+    }
+
+    private static void WriteStringifiedJsonValue(Utf8JsonWriter writer, string? value)
+    {
+        ArgumentNullException.ThrowIfNull(writer);
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            writer.WriteStringValue(value);
+            return;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(value);
+            document.RootElement.WriteTo(writer);
+        }
+        catch (JsonException)
+        {
+            writer.WriteStringValue(value);
+        }
     }
 
     private static void WriteFunctionCallOutputPayload(Utf8JsonWriter writer, FunctionCallOutputPayload payload)
