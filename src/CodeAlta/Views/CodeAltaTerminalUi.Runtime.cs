@@ -813,6 +813,17 @@ internal sealed partial class CodeAltaTerminalUi
         ApplyChatCardTimestamp(entry.TimestampText, timestamp);
         var state = new ChatContentState(entry.Item, entry.Markdown, entry.TimestampText, entry.HeaderText, new System.Text.StringBuilder(), kind);
         tab.ContentStates[key] = state;
+        if (kind == AgentContentKind.User)
+        {
+            foreach (var item in BuildUserPromptTimelineItems(entry.Item, tab.HasSeenUserPrompt))
+            {
+                AppendThreadTimelineItem(tab, item);
+            }
+
+            tab.HasSeenUserPrompt = true;
+            return state;
+        }
+
         AppendThreadTimelineItem(tab, entry.Item);
         return state;
     }
@@ -1241,6 +1252,7 @@ internal sealed partial class CodeAltaTerminalUi
         tab.UserInputRequests.Clear();
         tab.PendingAssistant = null;
         tab.ActiveToolCallGroup = null;
+        tab.HasSeenUserPrompt = false;
     }
 
     private void AppendThreadTimelineItem(ThreadTabState tab, DocumentFlowItem item)

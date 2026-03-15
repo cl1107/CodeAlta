@@ -168,6 +168,14 @@ internal sealed partial class CodeAltaTerminalUi
             headerOverride: "User Prompt",
             maxCodeBlockHeight: 10).Item;
 
+    private static DocumentFlowItem CreateUserPromptSeparatorItem()
+        => new()
+        {
+            Content = new FlowDocument().Add(new Rule()),
+            Alignment = DocumentFlowAlignment.Stretch,
+            Padding = new Thickness(0, 1, 0, 0),
+        };
+
     private static DocumentFlowItem CreateAssistantStreamingChatItem(out MarkdownControl markdownControl, out Markup timestampText)
     {
         var entry = CreateChatMarkdownItem(string.Empty, ChatTimelineTone.Assistant);
@@ -184,6 +192,11 @@ internal sealed partial class CodeAltaTerminalUi
         var assistantItem = CreateAssistantStreamingChatItem(out var streamingMarkdown, out var timestampText);
         return new PendingChatMessage(userItem, assistantItem, streamingMarkdown, timestampText);
     }
+
+    internal static IReadOnlyList<DocumentFlowItem> BuildUserPromptTimelineItems(DocumentFlowItem userItem, bool hasSeenUserPrompt)
+        => hasSeenUserPrompt
+            ? [CreateUserPromptSeparatorItem(), userItem]
+            : [userItem];
 
     internal static string FormatChatCardTimestamp(DateTimeOffset timestamp)
         => timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);

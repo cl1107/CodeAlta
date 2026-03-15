@@ -33,6 +33,27 @@ public sealed class CodeAltaTerminalUiTests
     }
 
     [TestMethod]
+    public void BuildUserPromptTimelineItems_OmitsRuleForFirstPromptAndAddsItAfterward()
+    {
+        var pending = CodeAltaTerminalUi.CreatePendingChatMessage("hello");
+
+        var firstItems = CodeAltaTerminalUi.BuildUserPromptTimelineItems(pending.UserItem, hasSeenUserPrompt: false);
+        var laterItems = CodeAltaTerminalUi.BuildUserPromptTimelineItems(pending.UserItem, hasSeenUserPrompt: true);
+
+        Assert.AreEqual(1, firstItems.Count);
+        Assert.AreEqual(2, laterItems.Count);
+        Assert.AreSame(pending.UserItem.Content, firstItems[0].Content);
+        Assert.AreSame(pending.UserItem.Content, laterItems[1].Content);
+
+        Assert.IsInstanceOfType<FlowDocument>(laterItems[0].Content);
+        var document = (FlowDocument)laterItems[0].Content;
+        Assert.AreEqual(1, document.BlockCount);
+        Assert.IsInstanceOfType<VisualDocumentFlowBlock>(document.GetBlock(0));
+        var visual = ((VisualDocumentFlowBlock)document.GetBlock(0)).CreateVisual();
+        Assert.IsInstanceOfType<Rule>(visual);
+    }
+
+    [TestMethod]
     public void FormatChatContentMarkdown_PrefixesReasoningContent()
     {
         var markdown = CodeAltaTerminalUi.FormatChatContentMarkdown(AgentContentKind.Reasoning, "Inspecting the project.");
@@ -113,6 +134,32 @@ public sealed class CodeAltaTerminalUiTests
 
         StringAssert.Contains(markdown.ToLowerInvariant(), "output omitted");
         Assert.IsFalse(markdown.Contains("line 12", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void ToolCallDetailMarkdown_DoesNotRenderStatusDetail()
+    {
+        var method = typeof(CodeAltaTerminalUi).GetMethod("BuildToolCallDetailMarkdown", BindingFlags.Static | BindingFlags.NonPublic);
+        Assert.IsNotNull(method);
+
+        var entry = new ToolCallEntryState(
+            "call-1",
+            new Button(new TextBlock("tool")),
+            new Markup("tool"))
+        {
+            ActivityKind = AgentActivityKind.ToolCall,
+            Status = ToolCallDisplayStatus.Completed,
+            DisplayName = "view",
+            StatusMessage = "Repeated in output",
+            FirstSeenAt = DateTimeOffset.Parse("2026-03-15T10:00:00+00:00"),
+            LastUpdatedAt = DateTimeOffset.Parse("2026-03-15T10:00:02+00:00"),
+        };
+        entry.OutputBuffer.AppendLine("Repeated in output");
+
+        var markdown = (string?)method.Invoke(null, [entry]);
+
+        Assert.IsNotNull(markdown);
+        Assert.IsFalse(markdown.Contains("Status Detail", StringComparison.Ordinal));
     }
 
     [TestMethod]

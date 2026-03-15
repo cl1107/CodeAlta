@@ -615,12 +615,6 @@ internal sealed partial class CodeAltaTerminalUi
             builder.Append("- Parent: `").Append(entry.ParentToolCallId).AppendLine("`");
         }
 
-        if (!string.IsNullOrWhiteSpace(entry.StatusMessage) &&
-            !IsRedundantStatusDetail(entry.StatusMessage, entry.OutputBuffer.ToString()))
-        {
-            builder.Append("- Status Detail: ").AppendLine(AnsiMarkup.Escape(entry.StatusMessage));
-        }
-
         if (!string.IsNullOrWhiteSpace(entry.CommandText))
         {
             builder.AppendLine()

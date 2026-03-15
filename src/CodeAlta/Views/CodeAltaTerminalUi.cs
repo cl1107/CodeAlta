@@ -183,6 +183,8 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
         public Dictionary<string, AgentUserInputRequest> UserInputRequests { get; } = new(StringComparer.Ordinal);
 
         public ToolCallGroupState? ActiveToolCallGroup { get; set; }
+
+        public bool HasSeenUserPrompt { get; set; }
     }
 
     private enum SidebarSelectionKind
