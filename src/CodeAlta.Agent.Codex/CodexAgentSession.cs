@@ -1,4 +1,3 @@
-using System.IO;
 using System.Collections.Concurrent;
 using System.Threading.Channels;
 using CodeAlta.CodexSdk;
@@ -198,15 +197,9 @@ public sealed class CodexAgentSession : ICodexAgentSession
             return [];
         }
 
-        if (!string.IsNullOrWhiteSpace(response.Thread.Path) && File.Exists(response.Thread.Path))
-        {
-            var sessionLogEvents = CodexAgentMapper.ToSessionLogHistoryEvents(ThreadId, response.Thread.Path);
-            if (sessionLogEvents.Count > 0)
-            {
-                return sessionLogEvents;
-            }
-        }
-
+        // Restored history intentionally uses the backend API snapshot only.
+        // If CodeAlta later persists its own normalized event log, add replay here
+        // from that CodeAlta-owned format rather than parsing Codex session files.
         return CodexAgentMapper.ToHistoryEvents(ThreadId, response.Thread);
     }
 

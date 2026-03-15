@@ -658,6 +658,8 @@ internal static class CodexAgentMapper
         return events;
     }
 
+    // Reserved for potential replay of a CodeAlta-owned JSONL archive.
+    // Restored session history must not call this for backend-owned Codex logs.
     public static IReadOnlyList<AgentEvent> ToSessionLogHistoryEvents(string sessionId, string sessionLogPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
@@ -667,7 +669,7 @@ internal static class CodexAgentMapper
         string? activeTurnId = null;
         var messageIndex = 0;
 
-        foreach (var line in File.ReadLines(sessionLogPath))
+        foreach (var line in ReadSessionLogLines(sessionLogPath))
         {
             if (string.IsNullOrWhiteSpace(line))
             {
@@ -778,6 +780,21 @@ internal static class CodexAgentMapper
         }
 
         return events;
+    }
+
+    private static IEnumerable<string> ReadSessionLogLines(string sessionLogPath)
+    {
+        using var stream = new FileStream(
+            sessionLogPath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete);
+        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+
+        while (reader.ReadLine() is { } line)
+        {
+            yield return line;
+        }
     }
 
     private static AgentSessionUpdateEvent CreateSessionUpdate(
