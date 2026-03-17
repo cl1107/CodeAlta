@@ -276,6 +276,7 @@ internal sealed partial class CodeAltaTerminalUi
         int maxCodeBlockHeight)
     {
         var headerText = CreateChatCardHeader(tone, headerOverride, headerSecondary);
+        markdown = markdown.Trim();
         var markdownControl = new MarkdownControl(markdown.Trim())
         {
             HorizontalAlignment = Align.Stretch,
@@ -287,7 +288,7 @@ internal sealed partial class CodeAltaTerminalUi
             },
         };
 
-        var copyButton = new Button(new TextBlock($"{NerdFont.MdContentCopy} Copy"))
+        var copyButton = new Button(new TextBlock($"{NerdFont.MdContentCopy}"))
             .Click(() => markdownControl.App?.Terminal.Clipboard.TrySetText(markdown));
 
         var timestampText = new Markup(string.Empty);

@@ -8,6 +8,7 @@ using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Commands;
 using XenoAtom.Terminal.UI.Controls;
 using XenoAtom.Terminal.UI.Extensions.Markdown;
+using XenoAtom.Terminal.UI.Geometry;
 using XenoAtom.Terminal.UI.Input;
 using XenoAtom.Terminal.UI.Layout;
 using XenoAtom.Terminal.UI.Styling;
@@ -1039,6 +1040,7 @@ internal sealed partial class CodeAltaTerminalUi
             .MinHeight(3)
             .Style(PromptEditorStyle.Default with
             {
+                Padding = new Thickness(0, 0, 1, 0),
                 PlaceholderForeground = UiPalette.PromptPlaceholderColor,
             });
 

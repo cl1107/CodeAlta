@@ -21,7 +21,7 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
     private static readonly Logger UiLogger = LogManager.GetLogger("CodeAlta.UI");
     private const int MaxRecentThreadsPerProject = 3;
     private const int MaxTabTitleLength = 18;
-    private const int StatusPrefixWidth = 3;
+    private const int StatusPrefixWidth = 2;
     private const string ReadyStatusMessage = "Prompt ready";
     private const string ThinkingStatusMessage = "Thinking...";
 
