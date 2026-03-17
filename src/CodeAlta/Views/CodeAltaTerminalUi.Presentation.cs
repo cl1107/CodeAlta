@@ -19,8 +19,7 @@ internal sealed partial class CodeAltaTerminalUi
 {
     private Visual BuildThreadPane()
     {
-        _tabStripVisual ??= CreateComputedVisual(BuildOpenTabsContent);
-        _threadHeaderVisual ??= CreateComputedVisual(BuildSelectedThreadHeader);
+        _threadTabControl ??= CreateThreadTabControl();
         _threadInput ??= CreatePromptEditor();
         _threadInputView ??= _threadInput.Scrollable();
         _sendPromptButton ??= new Button(new TextBlock($"{NerdFont.MdSend} Send"))
@@ -111,14 +110,7 @@ internal sealed partial class CodeAltaTerminalUi
         };
 
         _threadPaneLayout = new DockLayout(
-            top: new VStack(
-                [
-                    _tabStripVisual,
-                    _threadHeaderVisual,
-                ])
-            {
-                Spacing = 0,
-            },
+            top: _threadTabControl,
             content: _threadBodySplitter,
             bottom: null);
 
@@ -126,9 +118,22 @@ internal sealed partial class CodeAltaTerminalUi
         return _threadPaneLayout;
     }
 
-    private Visual BuildOpenTabsContent()
+    private TabControl CreateThreadTabControl()
     {
-        var items = new List<Visual>();
+        var control = new TabControl()
+            .Style(TabControlStyle.NoBorder);
+        control.RegisterDynamicUpdate(_ => OnThreadTabControlSelectionChanged(control.SelectedIndex));
+        return control;
+    }
+
+    private void SyncThreadTabControl()
+    {
+        if (_threadTabControl is null)
+        {
+            return;
+        }
+
+        var desiredPages = new List<TabPage>();
         foreach (var threadId in _viewState.OpenThreadIds)
         {
             var thread = FindThread(threadId);
@@ -137,63 +142,140 @@ internal sealed partial class CodeAltaTerminalUi
                 continue;
             }
 
-            var isSelected = string.Equals(thread.ThreadId, _selectedThreadId, StringComparison.OrdinalIgnoreCase);
-            var tab = EnsureThreadTab(thread);
-            var title = CompactTabTitle(thread.Title);
-            var openButton = new Button(
-                new HStack(
+            desiredPages.Add(EnsureThreadTabPage(thread));
+        }
+
+        _threadTabControl.IsVisible = desiredPages.Count > 0;
+
+        var existingPages = _threadTabControl.Tabs;
+        var matches = existingPages.Count == desiredPages.Count;
+        if (matches)
+        {
+            for (var i = 0; i < desiredPages.Count; i++)
+            {
+                if (!ReferenceEquals(existingPages[i], desiredPages[i]))
+                {
+                    matches = false;
+                    break;
+                }
+            }
+        }
+
+        if (!matches)
+        {
+            for (var i = existingPages.Count - 1; i >= 0; i--)
+            {
+                _threadTabControl.TryCloseTab(existingPages[i]);
+            }
+
+            foreach (var page in desiredPages)
+            {
+                _threadTabControl.AddTab(page);
+            }
+        }
+
+        SyncThreadTabControlSelection();
+    }
+
+    private TabPage EnsureThreadTabPage(WorkThreadDescriptor thread)
+    {
+        ArgumentNullException.ThrowIfNull(thread);
+
+        var tab = EnsureThreadTab(thread);
+        if (tab.Page is not null)
+        {
+            tab.Page.Content = tab.Flow;
+            tab.Page.Data = thread.ThreadId;
+            return tab.Page;
+        }
+
+        var header = CreateComputedVisual(
+            () =>
+            {
+                var current = tab.Thread;
+                return new HStack(
                     [
                         CreateOpenTabIndicator(tab.StatusBusy, tab.StatusTone),
-                        CreateOpenTabTitle(title, isSelected),
+                        CreateOpenTabTitle(CompactTabTitle(current.Title)),
                     ])
                 {
                     Spacing = 1,
-                }).Click(() => OpenThread(thread.ThreadId));
-            items.Add(
-                new HStack(
-                    [
-                        openButton.Tooltip(thread.Title),
-                        new Button(new TextBlock($"{NerdFont.MdClose}")).Click(() => _ = CloseThreadAsync(thread.ThreadId)),
-                    ])
-                {
-                    Spacing = 0,
-                });
-        }
+                }.Tooltip(current.Title);
+            });
 
-        if (items.Count == 0)
+        var page = new TabPage(header, tab.Flow)
         {
-            return new TextBlock(_pendingStartupThreadRestoreId is null ? "No open tabs." : "Restoring tabs...");
-        }
-
-        return new WrapHStack([.. items])
-        {
-            Spacing = 1,
-            RunSpacing = 1,
+            Data = thread.ThreadId,
+            ShowCloseButton = true,
         };
+        page.RequestClosing += (_, e) =>
+        {
+            if (e.Reason != TabCloseReason.CloseButton || e.Page.Data is not string threadId)
+            {
+                return;
+            }
+
+            e.Cancel = true;
+            _ = CloseThreadAsync(threadId);
+        };
+
+        tab.Page = page;
+        return page;
     }
 
-    private Visual BuildSelectedThreadHeader()
+    private void SyncThreadTabControlSelection()
     {
-        var thread = GetSelectedThread();
-        if (thread is null)
+        if (_threadTabControl is null || _threadTabControl.Tabs.Count == 0)
         {
-            var selectedProject = GetSelectedProject();
-            return _globalScopeSelected
-                ? CreateCompactThreadHeader($"{NerdFont.MdHome} Global draft", _catalogOptions.GlobalRoot)
-                : CreateCompactThreadHeader(
-                    $"{NerdFont.FaFolderOpen} {selectedProject?.DisplayName ?? "Project draft"}",
-                    selectedProject?.ProjectPath);
+            return;
         }
 
-        var title = thread.Kind switch
+        var selectedIndex = -1;
+        for (var i = 0; i < _threadTabControl.Tabs.Count; i++)
         {
-            WorkThreadKind.GlobalThread => $"{NerdFont.PlBranch} {thread.Title}",
-            WorkThreadKind.ProjectThread => $"{NerdFont.FaTerminal} {thread.Title}",
-            WorkThreadKind.InternalThread => $"{NerdFont.CodDebug} {thread.Title}",
-            _ => thread.Title,
-        };
+            if (_threadTabControl.Tabs[i].Data is string threadId &&
+                string.Equals(threadId, _selectedThreadId, StringComparison.OrdinalIgnoreCase))
+            {
+                selectedIndex = i;
+                break;
+            }
+        }
 
-        return CreateCompactThreadHeader(title, ResolveWorkingDirectory(thread));
+        if (selectedIndex < 0 || _threadTabControl.SelectedIndex == selectedIndex)
+        {
+            return;
+        }
+
+        _syncingThreadTabSelection = true;
+        try
+        {
+            _threadTabControl.SelectedIndex = selectedIndex;
+        }
+        finally
+        {
+            _syncingThreadTabSelection = false;
+        }
+    }
+
+    private void OnThreadTabControlSelectionChanged(int selectedIndex)
+    {
+        if (_syncingThreadTabSelection || _threadTabControl is null)
+        {
+            return;
+        }
+
+        if (selectedIndex < 0 || selectedIndex >= _threadTabControl.Tabs.Count)
+        {
+            return;
+        }
+
+        if (_threadTabControl.Tabs[selectedIndex].Data is not string threadId ||
+            string.Equals(threadId, _selectedThreadId, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        OpenThread(threadId);
     }
 
     private void RefreshView()
@@ -216,6 +298,8 @@ internal sealed partial class CodeAltaTerminalUi
         {
             return;
         }
+
+        SyncThreadTabControl();
 
         var selectedThread = GetSelectedThread();
         if (selectedThread is null)
@@ -726,31 +810,12 @@ internal sealed partial class CodeAltaTerminalUi
         };
     }
 
-    private static Visual CreateOpenTabTitle(string title, bool isSelected)
+    private static Visual CreateOpenTabTitle(string title)
     {
-        var markup = isSelected
-            ? $"[bold][{UiPalette.GetStatusToneMarkup(StatusTone.Info)}]{AnsiMarkup.Escape(title)}[/][/]"
-            : AnsiMarkup.Escape(title);
-        return new Markup(markup)
+        return new Markup(AnsiMarkup.Escape(title))
         {
             Wrap = false,
         };
-    }
-
-    private static Visual CreateCompactThreadHeader(string text, string? tooltip)
-    {
-        Visual header = new TextBlock
-        {
-            Wrap = false,
-            Text = text,
-        };
-
-        if (!string.IsNullOrWhiteSpace(tooltip))
-        {
-            header = header.Tooltip(tooltip);
-        }
-
-        return header;
     }
 
     private bool IsChatBackendReady(AgentBackendId backendId)

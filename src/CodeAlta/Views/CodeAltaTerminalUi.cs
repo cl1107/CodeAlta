@@ -53,14 +53,14 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
     private Select<ChatModelOption>? _chatModelSelect;
     private Select<ChatReasoningOption>? _chatReasoningSelect;
     private TreeView? _sidebarTree;
-    private ComputedVisual? _tabStripVisual;
-    private ComputedVisual? _threadHeaderVisual;
+    private TabControl? _threadTabControl;
     private Task? _runtimeEventsTask;
     private Task? _startupRefreshTask;
     private CancellationTokenSource? _startupRefreshCts;
     private bool _chatSelectorsRefreshing;
     private bool _statusBusy;
     private StatusTone _statusTone = StatusTone.Ready;
+    private bool _syncingThreadTabSelection;
     private bool _terminalLoopStarted;
     private bool _globalScopeSelected = true;
     private bool _sidebarSelectionSyncEnabled = true;
@@ -204,6 +204,8 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
         public Dictionary<string, AgentUserInputRequest> UserInputRequests { get; } = new(StringComparer.Ordinal);
 
         public ToolCallGroupState? ActiveToolCallGroup { get; set; }
+
+        public TabPage? Page { get; set; }
 
         public bool HasSeenUserPrompt { get; set; }
 

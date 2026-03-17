@@ -381,6 +381,10 @@ internal sealed partial class CodeAltaTerminalUi
     private async Task CloseThreadAsync(string threadId)
     {
         _viewState.OpenThreadIds.RemoveAll(id => string.Equals(id, threadId, StringComparison.OrdinalIgnoreCase));
+        if (_threadTabs.TryGetValue(threadId, out var tab))
+        {
+            tab.Page = null;
+        }
         _threadTabs.Remove(threadId);
         if (string.Equals(_selectedThreadId, threadId, StringComparison.OrdinalIgnoreCase))
         {
