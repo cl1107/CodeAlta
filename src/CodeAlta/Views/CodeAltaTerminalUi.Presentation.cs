@@ -40,18 +40,28 @@ internal sealed partial class CodeAltaTerminalUi
             .SelectionChanged((_, e) => OnChatReasoningSelectionChanged(e.NewIndex))
             .MinWidth(12)
             .MaxWidth(22);
+        var statusPrefix = new Center(
+            new ComputedVisual(
+                () => _viewModel.StatusBusy
+                    ? _statusSpinner!
+                    : _statusIconVisual ??= new Markup(() => _viewModel.StatusIconMarkup)
+                    {
+                        Wrap = false,
+                    }))
+        {
+            MinWidth = StatusPrefixWidth,
+            MaxWidth = StatusPrefixWidth,
+        };
 
         var statusLine = new HStack(
             [
-                _statusSpinner!,
-                new Markup(() => _viewModel.StatusBusy ? string.Empty : _viewModel.StatusIconMarkup)
-                {
-                    Wrap = false,
-                },
+                statusPrefix,
                 new TextBlock
                 {
                     Wrap = true,
-                }.Text(() => _viewModel.StatusText),
+                    IsSelectable = false,
+                }.Text(() => _viewModel.StatusText)
+                    .Style(() => BuildStatusTextStyle(_viewModel.StatusText, _viewModel.StatusBusy, _statusTone)),
             ])
         {
             Spacing = 1,
@@ -559,20 +569,13 @@ internal sealed partial class CodeAltaTerminalUi
         ProjectDescriptor? selectedProject,
         bool globalScopeSelected)
     {
-        if (thread is not null)
-        {
-            return $"Prompt ready · {thread.Title}";
-        }
-
-        if (globalScopeSelected)
-        {
-            return "Prompt ready · Global";
-        }
-
-        return selectedProject is null
-            ? "Prompt ready."
-            : $"Prompt ready · {selectedProject.DisplayName}";
+        _ = thread;
+        _ = selectedProject;
+        _ = globalScopeSelected;
+        return ReadyStatusMessage;
     }
+
+    internal static string BuildThinkingStatusText() => ThinkingStatusMessage;
 
     internal static string BuildStatusIconMarkup(StatusTone tone)
     {
@@ -583,6 +586,29 @@ internal sealed partial class CodeAltaTerminalUi
             StatusTone.Error => $"[{UiPalette.GetStatusToneMarkup(StatusTone.Error)}]{NerdFont.MdAlertCircleOutline}[/]",
             _ => $"[{UiPalette.GetStatusToneMarkup(StatusTone.Info)}]{NerdFont.OctInfo}[/]",
         };
+    }
+
+    internal static TextBlockStyle BuildStatusTextStyle(string message, bool busy, StatusTone tone)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+
+        if (busy && string.Equals(message, ThinkingStatusMessage, StringComparison.Ordinal))
+        {
+            var phase = (float)((DateTime.UtcNow.Ticks % TimeSpan.TicksPerSecond) / (double)TimeSpan.TicksPerSecond);
+            var sweepBrush = Brush.LinearGradient(
+                new GradientPoint(-0.55f + phase, 0f),
+                new GradientPoint(0.20f + phase, 0f),
+                [
+                    new GradientStop(0f, UiPalette.GetStatusToneColor(StatusTone.Info).WithOpacity(0.55f)),
+                    new GradientStop(0.45f, Colors.White),
+                    new GradientStop(1f, UiPalette.GetStatusToneColor(StatusTone.Info).WithOpacity(0.70f)),
+                ],
+                tileMode: BrushTileMode.Mirror,
+                mixSpaceOverride: ColorMixSpace.Oklab);
+            return TextBlockStyle.Default with { ForegroundBrush = sweepBrush };
+        }
+
+        return TextBlockStyle.Default with { Foreground = UiPalette.GetStatusToneColor(tone) };
     }
 
     private static string BuildPromptPlaceholder(
@@ -680,7 +706,7 @@ internal sealed partial class CodeAltaTerminalUi
         var kind = ResolveOpenTabIndicatorKind(isBusy, tone);
         if (kind == OpenTabIndicatorKind.Running)
         {
-            var spinner = new Spinner();
+            var spinner = new Spinner().Style(SpinnerStyles.Arc);
             spinner.IsActive(() => true);
             spinner.IsVisible(() => true);
             return spinner;
@@ -800,6 +826,7 @@ internal sealed partial class CodeAltaTerminalUi
             () =>
             {
                 _statusBusy = showSpinner;
+                _statusTone = tone;
                 _viewModel.StatusText = message;
                 _viewModel.StatusBusy = showSpinner;
                 _viewModel.StatusIconMarkup = BuildStatusIconMarkup(tone);

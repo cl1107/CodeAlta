@@ -7,7 +7,7 @@ public sealed partial class CodeAltaShellViewModel
     public CodeAltaShellViewModel()
     {
         HeaderText = "CodeAlta";
-        StatusText = "Prompt ready.";
+        StatusText = "Prompt ready";
         StatusIconMarkup = string.Empty;
         PromptPlaceholder = "Start a thread...";
         BackendStatusMarkup = string.Empty;

@@ -285,7 +285,7 @@ internal sealed partial class CodeAltaTerminalUi
             var thread = await _runtimeService.CreateGlobalThreadAsync(executionOptions, title).ConfigureAwait(false);
             await RegisterCreatedThreadAsync(thread).ConfigureAwait(false);
             ClearThreadTitleDraft();
-            SetStatus($"Prompt ready · {thread.Title}", tone: StatusTone.Ready);
+            SetStatus(BuildReadyStatusText(thread, GetSelectedProject(), _globalScopeSelected), tone: StatusTone.Ready);
             return thread;
         }
         catch (Exception ex)
@@ -315,7 +315,7 @@ internal sealed partial class CodeAltaTerminalUi
             var thread = await _runtimeService.CreateProjectThreadAsync(project, executionOptions, title).ConfigureAwait(false);
             await RegisterCreatedThreadAsync(thread).ConfigureAwait(false);
             ClearThreadTitleDraft();
-            SetStatus($"Prompt ready · {thread.Title}", tone: StatusTone.Ready);
+            SetStatus(BuildReadyStatusText(thread, GetSelectedProject(), _globalScopeSelected), tone: StatusTone.Ready);
             return thread;
         }
         catch (Exception ex)
@@ -527,7 +527,7 @@ internal sealed partial class CodeAltaTerminalUi
         ClearThreadInput();
         try
         {
-            SetThreadStatus(tab, $"Running '{thread.Title}'...", showSpinner: true);
+            SetThreadStatus(tab, BuildThinkingStatusText(), showSpinner: true);
             var executionOptions = BuildExecutionOptions(thread, tab);
             if (steer)
             {

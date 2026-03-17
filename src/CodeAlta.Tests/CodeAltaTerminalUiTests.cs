@@ -282,9 +282,9 @@ public sealed class CodeAltaTerminalUiTests
             LastActiveAt = DateTimeOffset.UtcNow,
         };
 
-        Assert.AreEqual("Prompt ready · Global", CodeAltaTerminalUi.BuildReadyStatusText(null, null, globalScopeSelected: true));
-        Assert.AreEqual("Prompt ready · CodeAlta", CodeAltaTerminalUi.BuildReadyStatusText(null, project, globalScopeSelected: false));
-        Assert.AreEqual("Prompt ready · Review startup", CodeAltaTerminalUi.BuildReadyStatusText(thread, project, globalScopeSelected: false));
+        Assert.AreEqual("Prompt ready", CodeAltaTerminalUi.BuildReadyStatusText(null, null, globalScopeSelected: true));
+        Assert.AreEqual("Prompt ready", CodeAltaTerminalUi.BuildReadyStatusText(null, project, globalScopeSelected: false));
+        Assert.AreEqual("Prompt ready", CodeAltaTerminalUi.BuildReadyStatusText(thread, project, globalScopeSelected: false));
     }
 
     [TestMethod]

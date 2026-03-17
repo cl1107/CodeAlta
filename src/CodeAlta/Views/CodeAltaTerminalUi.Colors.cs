@@ -116,12 +116,17 @@ internal sealed partial class CodeAltaTerminalUi
 
         internal static string GetStatusToneMarkup(StatusTone tone)
         {
+            return GetMarkupColor(GetStatusToneColor(tone));
+        }
+
+        internal static Color GetStatusToneColor(StatusTone tone)
+        {
             return tone switch
             {
-                StatusTone.Ready => GetMarkupColor(StatusReady),
-                StatusTone.Warning => GetMarkupColor(StatusWarning),
-                StatusTone.Error => GetMarkupColor(StatusError),
-                _ => GetMarkupColor(StatusInfo),
+                StatusTone.Ready => StatusReady,
+                StatusTone.Warning => StatusWarning,
+                StatusTone.Error => StatusError,
+                _ => StatusInfo,
             };
         }
 

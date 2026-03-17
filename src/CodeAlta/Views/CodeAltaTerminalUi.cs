@@ -21,6 +21,9 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
     private static readonly Logger UiLogger = LogManager.GetLogger("CodeAlta.UI");
     private const int MaxRecentThreadsPerProject = 3;
     private const int MaxTabTitleLength = 18;
+    private const int StatusPrefixWidth = 3;
+    private const string ReadyStatusMessage = "Prompt ready";
+    private const string ThinkingStatusMessage = "Thinking...";
 
     private readonly ProjectCatalog _projectCatalog;
     private readonly WorkThreadCatalog _threadCatalog;
@@ -38,6 +41,7 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
     private WorkThreadViewState _viewState = new();
     private Dispatcher? _dispatcher;
     private Spinner? _statusSpinner;
+    private Markup? _statusIconVisual;
     private DockLayout? _threadPaneLayout;
     private Visual? _threadBottomPanel;
     private VSplitter? _threadBodySplitter;
@@ -56,6 +60,7 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
     private CancellationTokenSource? _startupRefreshCts;
     private bool _chatSelectorsRefreshing;
     private bool _statusBusy;
+    private StatusTone _statusTone = StatusTone.Ready;
     private bool _terminalLoopStarted;
     private bool _globalScopeSelected = true;
     private bool _sidebarSelectionSyncEnabled = true;
@@ -97,7 +102,7 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
         await LoadCatalogStateAsync(cancellationToken).ConfigureAwait(false);
         _viewModel.HeaderText = BuildHeaderText();
 
-        _statusSpinner = new Spinner();
+        _statusSpinner = new Spinner().Style(SpinnerStyles.Arc);
         _statusSpinner.IsActive(() => _viewModel.StatusBusy);
         _statusSpinner.IsVisible(() => _viewModel.StatusBusy);
 
