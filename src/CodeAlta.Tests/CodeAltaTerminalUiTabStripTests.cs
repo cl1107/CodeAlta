@@ -1,4 +1,5 @@
 using System.Reflection;
+using XenoAtom.Terminal.UI;
 
 namespace CodeAlta.Tests;
 
@@ -31,5 +32,23 @@ public sealed class CodeAltaTerminalUiTabStripTests
         var title = (string?)method.Invoke(null, ["Review startup"]);
 
         Assert.AreEqual("Review startup", title);
+    }
+
+    [TestMethod]
+    public void CreateThreadTabPageContentPlaceholder_ReturnsHiddenDetachedVisual()
+    {
+        var method = typeof(CodeAltaTerminalUi).GetMethod("CreateThreadTabPageContentPlaceholder", BindingFlags.Static | BindingFlags.NonPublic);
+        Assert.IsNotNull(method);
+
+        var first = (Visual?)method.Invoke(null, null);
+        var second = (Visual?)method.Invoke(null, null);
+
+        Assert.IsNotNull(first);
+        Assert.IsNotNull(second);
+        Assert.IsFalse(first.IsVisible);
+        Assert.IsFalse(second.IsVisible);
+        Assert.IsNull(first.Parent);
+        Assert.IsNull(second.Parent);
+        Assert.AreNotSame(first, second);
     }
 }

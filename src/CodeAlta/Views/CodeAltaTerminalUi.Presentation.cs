@@ -184,7 +184,6 @@ internal sealed partial class CodeAltaTerminalUi
         var tab = EnsureThreadTab(thread);
         if (tab.Page is not null)
         {
-            tab.Page.Content = tab.Flow;
             tab.Page.Data = thread.ThreadId;
             return tab.Page;
         }
@@ -203,7 +202,7 @@ internal sealed partial class CodeAltaTerminalUi
                 }.Tooltip(current.Title);
             });
 
-        var page = new TabPage(header, tab.Flow)
+        var page = new TabPage(header, CreateThreadTabPageContentPlaceholder())
         {
             Data = thread.ThreadId,
             ShowCloseButton = true,
@@ -222,6 +221,13 @@ internal sealed partial class CodeAltaTerminalUi
         tab.Page = page;
         return page;
     }
+
+    private static Visual CreateThreadTabPageContentPlaceholder()
+        // The active thread flow is hosted by the splitter, so tabs need a detached placeholder.
+        => new Placeholder
+        {
+            IsVisible = false,
+        };
 
     private void SyncThreadTabControlSelection()
     {
