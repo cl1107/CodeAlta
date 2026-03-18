@@ -8,6 +8,7 @@ using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Commands;
 using XenoAtom.Terminal.UI.Controls;
 using XenoAtom.Terminal.UI.Extensions.Markdown;
+using XenoAtom.Terminal.UI.Figlet;
 using XenoAtom.Terminal.UI.Geometry;
 using XenoAtom.Terminal.UI.Input;
 using XenoAtom.Terminal.UI.Layout;
@@ -406,10 +407,7 @@ internal sealed partial class CodeAltaTerminalUi
         {
             RefreshChatSelectorsForDraftScope();
             UpdatePromptAvailabilityUi();
-            _threadBodySplitter.First = new TextBlock(
-                _draftTabOpen
-                    ? BuildDraftTabBodyText(GetSelectedProject(), _globalScopeSelected)
-                    : "No open tabs.");
+            _threadBodySplitter.First = BuildWelcomePane(GetSelectedProject(), _globalScopeSelected);
             SetReadyStatusForCurrentSelection();
 
             return;
@@ -774,6 +772,148 @@ internal sealed partial class CodeAltaTerminalUi
         return selectedProject is null
             ? "Draft scope selected. Choose a project or send a prompt to start a thread."
             : $"Draft scope selected for '{selectedProject.DisplayName}'. Send a prompt to start a thread.";
+    }
+
+    internal static string BuildWelcomeSubtitle(ProjectDescriptor? selectedProject, bool globalScopeSelected)
+    {
+        if (globalScopeSelected)
+        {
+            return "Global workspace ready for a new thread.";
+        }
+
+        return selectedProject is null
+            ? "Project draft selected. Choose a project or start typing below."
+            : $"Next thread will start in {selectedProject.DisplayName}.";
+    }
+
+    internal static IReadOnlyList<string> BuildWelcomeGuidanceLines(
+        ProjectDescriptor? selectedProject,
+        bool globalScopeSelected)
+    {
+        if (globalScopeSelected)
+        {
+            return
+            [
+                "Use the prompt below to start a new global thread.",
+                "Pick a project in the sidebar before sending if you want repository context.",
+                "Reopen any thread tab to continue previous work.",
+            ];
+        }
+
+        if (selectedProject is null)
+        {
+            return
+            [
+                "Choose a project in the sidebar or keep typing below to prepare the next thread.",
+                "Your first prompt will create the draft once a scope is selected.",
+                "Reopen any thread tab to continue previous work.",
+            ];
+        }
+
+        return
+        [
+            $"Use the prompt below to start a new thread for {selectedProject.DisplayName}.",
+            "Switch projects in the sidebar before sending if you want a different scope.",
+            "Reopen any thread tab to continue previous work.",
+        ];
+    }
+
+    internal static Visual BuildWelcomePane(ProjectDescriptor? selectedProject, bool globalScopeSelected)
+    {
+        var guidanceLines = BuildWelcomeGuidanceLines(selectedProject, globalScopeSelected);
+        return new Center(
+            new VStack(
+                [
+                    BuildWelcomeLogo(),
+                    new TextBlock(BuildWelcomeSubtitle(selectedProject, globalScopeSelected))
+                    {
+                        Wrap = true,
+                        IsSelectable = false,
+                        TextAlignment = TextAlignment.Center,
+                        HorizontalAlignment = Align.Stretch,
+                    }
+                        .Style(TextBlockStyle.Default with
+                        {
+                            Foreground = UiPalette.WelcomeSubtitleColor,
+                            TextStyle = TextStyle.Bold,
+                        }),
+                    new TextBlock(guidanceLines[0])
+                    {
+                        Wrap = true,
+                        IsSelectable = false,
+                        TextAlignment = TextAlignment.Center,
+                        HorizontalAlignment = Align.Stretch,
+                    }
+                        .Style(TextBlockStyle.Default with
+                        {
+                            Foreground = UiPalette.WelcomeGuidanceColor,
+                        }),
+                    new TextBlock($"{NerdFont.MdArrowRightThinCircleOutline} {guidanceLines[1]}\n{NerdFont.MdTabPlus} {guidanceLines[2]}")
+                    {
+                        Wrap = true,
+                        IsSelectable = false,
+                        TextAlignment = TextAlignment.Center,
+                        HorizontalAlignment = Align.Stretch,
+                    }
+                        .Style(TextBlockStyle.Default with
+                        {
+                            Foreground = UiPalette.WelcomeGuidanceColor,
+                        }),
+                ])
+            {
+                Spacing = 1,
+                HorizontalAlignment = Align.Center,
+                VerticalAlignment = Align.Center,
+                MaxWidth = 76,
+            });
+    }
+
+    internal static FigletFont GetWelcomeFigletFont()
+        => WelcomeFigletFont.Value;
+
+    private static FigletFont LoadWelcomeFigletFont()
+    {
+        using var stream = typeof(CodeAltaTerminalUi).Assembly.GetManifestResourceStream("CodeAlta.Assets.3d.flf");
+        if (stream is null)
+        {
+            throw new InvalidOperationException("Unable to load embedded welcome FIGlet font 'CodeAlta.Assets.3d.flf'.");
+        }
+
+        using var reader = new StreamReader(stream);
+        return FigletFont.Parse(reader.ReadToEnd(), new FigletFontInfo("3-D", "Daniel Henninger"));
+    }
+
+    private static Visual BuildWelcomeLogo()
+    {
+        var font = GetWelcomeFigletFont();
+        return new Center(
+            new HStack(
+                [
+                    new TextFiglet("Code")
+                        .Font(font)
+                        .LetterSpacing(1)
+                        .TrimTrailingSpaces(true)
+                        .TextAlignment(TextAlignment.Left),
+                    new TextFiglet("Alta")
+                        .Font(font)
+                        .LetterSpacing(1)
+                        .TrimTrailingSpaces(true)
+                        .TextAlignment(TextAlignment.Left)
+                        .Style(() => BuildWelcomeAltaFigletStyle()),
+                ])
+            {
+                Spacing = 2,
+                HorizontalAlignment = Align.Center,
+            });
+    }
+
+    private static TextFigletStyle BuildWelcomeAltaFigletStyle()
+    {
+        var phase = (float)((DateTime.UtcNow.Ticks % TimeSpan.TicksPerSecond) / (double)TimeSpan.TicksPerSecond);
+        return TextFigletStyle.Default with
+        {
+            ForegroundBrush = UiPalette.BuildWelcomeAltaBrush(phase),
+        };
     }
 
     internal static string BuildReadyStatusText(

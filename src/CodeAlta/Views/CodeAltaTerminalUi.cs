@@ -9,6 +9,7 @@ using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Commands;
 using XenoAtom.Terminal.UI.Controls;
 using XenoAtom.Terminal.UI.Extensions.Markdown;
+using XenoAtom.Terminal.UI.Figlet;
 using XenoAtom.Terminal.UI.Geometry;
 using XenoAtom.Terminal.UI.Input;
 using XenoAtom.Terminal.UI.Layout;
@@ -19,6 +20,7 @@ using XenoAtom.Terminal.UI.Threading;
 internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
 {
     private static readonly Logger UiLogger = LogManager.GetLogger("CodeAlta.UI");
+    private static readonly Lazy<FigletFont> WelcomeFigletFont = new(LoadWelcomeFigletFont);
     private const int MaxRecentThreadsPerProject = 3;
     private const int MaxTabTitleLength = 18;
     private const int StatusPrefixWidth = 2;

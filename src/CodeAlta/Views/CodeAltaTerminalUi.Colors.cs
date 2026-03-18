@@ -27,6 +27,12 @@ internal sealed partial class CodeAltaTerminalUi
         private static readonly Color StatusError = Color.FromOklch(0.70f, 0.15f, 28f);
         private static readonly Color StatusInfo = Color.FromOklch(0.77f, 0.09f, 245f);
         private static readonly Color StatusMuted = Color.FromOklch(0.72f, 0.02f, 255f);
+        private static readonly Color WelcomeAccent0 = Color.Rgb(0x00, 0xD1, 0xFF);
+        private static readonly Color WelcomeAccent1 = Color.Rgb(0x4F, 0x46, 0xE5);
+        private static readonly Color WelcomeAccent2 = Color.Rgb(0xA8, 0x55, 0xF7);
+        private static readonly Color WelcomeAccentBright0 = Color.Rgb(0x7A, 0xE8, 0xFF);
+        private static readonly Color WelcomeAccentBright1 = Color.Rgb(0x7C, 0x74, 0xFF);
+        private static readonly Color WelcomeAccentBright2 = Color.Rgb(0xD8, 0xA5, 0xFF);
         private static readonly Color SidebarGlobal = Color.FromOklch(0.82f, 0.10f, 85f);
         private static readonly Color SidebarProjects = Color.FromOklch(0.79f, 0.08f, 245f);
         private static readonly Color SidebarProjectThread = Color.FromOklch(0.78f, 0.08f, 152f);
@@ -147,6 +153,30 @@ internal sealed partial class CodeAltaTerminalUi
         internal static Color PromptPlaceholderColor => PromptPlaceholder;
 
         internal static string MutedMarkup => GetMarkupColor(StatusMuted);
+
+        internal static Color WelcomeSubtitleColor => Color.Mix(StatusMuted, Colors.White, 0.28f, ColorMixSpace.Oklab);
+
+        internal static Color WelcomeGuidanceColor => Color.Mix(StatusMuted, Colors.White, 0.14f, ColorMixSpace.Oklab);
+
+        internal static Brush BuildWelcomeAltaBrush(float phase)
+        {
+            var startX = -0.45f + (phase * 1.05f);
+            var endX = 0.40f + (phase * 1.05f);
+            return Brush.LinearGradient(
+                new GradientPoint(startX, 0f),
+                new GradientPoint(endX, 1f),
+                [
+                    new GradientStop(0f, WelcomeAccent0.WithOpacity(0.72f)),
+                    new GradientStop(0.22f, WelcomeAccentBright0),
+                    new GradientStop(0.45f, WelcomeAccent1),
+                    new GradientStop(0.60f, Colors.White),
+                    new GradientStop(0.76f, WelcomeAccentBright1),
+                    new GradientStop(0.90f, WelcomeAccent2),
+                    new GradientStop(1f, WelcomeAccentBright2.WithOpacity(0.84f)),
+                ],
+                tileMode: BrushTileMode.Mirror,
+                mixSpaceOverride: ColorMixSpace.Oklab);
+        }
 
         private static string GetMarkupColor(Color color)
             => color.ToRgb().ToHexString();

@@ -8,6 +8,7 @@ using XenoAtom.Terminal;
 using XenoAtom.Terminal.Backends;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Controls;
+using XenoAtom.Terminal.UI.Figlet;
 using XenoAtom.Terminal.UI.Geometry;
 using XenoAtom.Terminal.UI.Hosting;
 
@@ -299,6 +300,73 @@ public sealed class CodeAltaTerminalUiTests
     {
         Assert.AreEqual("Send the first prompt to start a global thread.", CodeAltaTerminalUi.BuildDraftPromptMessage(globalScopeSelected: true));
         Assert.AreEqual("Send the first prompt to start a thread for the selected project.", CodeAltaTerminalUi.BuildDraftPromptMessage(globalScopeSelected: false));
+    }
+
+    [TestMethod]
+    public void BuildWelcomeSubtitle_ReflectsCurrentScope()
+    {
+        var project = new ProjectDescriptor
+        {
+            DisplayName = "CodeAlta",
+        };
+
+        Assert.AreEqual("Global workspace ready for a new thread.", CodeAltaTerminalUi.BuildWelcomeSubtitle(null, globalScopeSelected: true));
+        Assert.AreEqual("Project draft selected. Choose a project or start typing below.", CodeAltaTerminalUi.BuildWelcomeSubtitle(null, globalScopeSelected: false));
+        Assert.AreEqual("Next thread will start in CodeAlta.", CodeAltaTerminalUi.BuildWelcomeSubtitle(project, globalScopeSelected: false));
+    }
+
+    [TestMethod]
+    public void BuildWelcomeGuidanceLines_ReflectCurrentScope()
+    {
+        var project = new ProjectDescriptor
+        {
+            DisplayName = "CodeAlta",
+        };
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "Use the prompt below to start a new global thread.",
+                "Pick a project in the sidebar before sending if you want repository context.",
+                "Reopen any thread tab to continue previous work.",
+            },
+            CodeAltaTerminalUi.BuildWelcomeGuidanceLines(null, globalScopeSelected: true).ToArray());
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "Use the prompt below to start a new thread for CodeAlta.",
+                "Switch projects in the sidebar before sending if you want a different scope.",
+                "Reopen any thread tab to continue previous work.",
+            },
+            CodeAltaTerminalUi.BuildWelcomeGuidanceLines(project, globalScopeSelected: false).ToArray());
+    }
+
+    [TestMethod]
+    public void GetWelcomeFigletFont_LoadsEmbeddedAssetAndCachesInstance()
+    {
+        var first = CodeAltaTerminalUi.GetWelcomeFigletFont();
+        var second = CodeAltaTerminalUi.GetWelcomeFigletFont();
+        var lines = first.RenderLines("CodeAlta", new FigletRenderOptions { LetterSpacing = 1, TrimTrailingSpaces = true });
+
+        Assert.AreSame(first, second);
+        Assert.IsTrue(lines.Length > 0);
+        Assert.IsTrue(lines.Any(static line => !string.IsNullOrWhiteSpace(line)));
+    }
+
+    [TestMethod]
+    public void BuildWelcomePane_CreatesCenteredFigletLogo()
+    {
+        var welcome = CodeAltaTerminalUi.BuildWelcomePane(null, globalScopeSelected: true);
+
+        var center = Assert.IsInstanceOfType<Center>(welcome);
+        var stack = Assert.IsInstanceOfType<VStack>(center.Content);
+        var logoCenter = Assert.IsInstanceOfType<Center>(stack.Children[0]);
+        var logoRow = Assert.IsInstanceOfType<HStack>(logoCenter.Content);
+
+        Assert.AreEqual(2, logoRow.Children.Count);
+        Assert.AreEqual("Code", Assert.IsInstanceOfType<TextFiglet>(logoRow.Children[0]).Text);
+        Assert.AreEqual("Alta", Assert.IsInstanceOfType<TextFiglet>(logoRow.Children[1]).Text);
     }
 
     [TestMethod]
