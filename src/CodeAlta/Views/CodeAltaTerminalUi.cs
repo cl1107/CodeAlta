@@ -27,9 +27,11 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
     private const string DraftTabId = "__draft__";
     private const string ReadyStatusMessage = "Prompt ready";
     private const string ThinkingStatusMessage = "Thinking...";
+    private const bool DefaultAutoApproveEnabled = true;
 
     private readonly ProjectCatalog _projectCatalog;
     private readonly WorkThreadCatalog _threadCatalog;
+    private readonly CodeAltaConfigStore _configStore;
     private readonly WorkThreadRuntimeService _runtimeService;
     private readonly CatalogOptions _catalogOptions;
     private readonly AgentHub _agentHub;
@@ -42,6 +44,8 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
     private IReadOnlyList<ProjectDescriptor> _projects = [];
     private IReadOnlyList<WorkThreadDescriptor> _threads = [];
     private WorkThreadViewState _viewState = new();
+    private CodeAltaConfigDocument _globalConfig = new();
+    private readonly Dictionary<string, CodeAltaConfigDocument> _projectConfigCache = new(StringComparer.OrdinalIgnoreCase);
     private Dispatcher? _dispatcher;
     private Spinner? _statusSpinner;
     private Markup? _statusIconVisual;
@@ -95,6 +99,7 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
 
         _projectCatalog = projectCatalog;
         _threadCatalog = threadCatalog;
+        _configStore = new CodeAltaConfigStore(catalogOptions);
         _runtimeService = runtimeService;
         _catalogOptions = catalogOptions;
         _agentHub = agentHub;

@@ -6,6 +6,11 @@
 
   <ItemGroup>
     <PackageReference Include="SharpYaml" />
+    <PackageReference Include="Tomlyn" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CodeAlta.Agent\CodeAlta.Agent.csproj" />
   </ItemGroup>
 
 </Project>

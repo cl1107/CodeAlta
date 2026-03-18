@@ -1,3 +1,4 @@
+using CodeAlta.Agent;
 using CodeAlta.Catalog;
 using CodeAlta.ViewModels;
 using XenoAtom.Ansi;
@@ -169,7 +170,7 @@ internal sealed partial class CodeAltaTerminalUi
             BuildThreadSidebarTooltip(thread)))
         {
             Icon = icon,
-            IconStyle = ResolveSidebarThreadIconStyle(thread.Kind),
+            IconStyle = ResolveSidebarThreadIconStyle(thread.BackendId, thread.Kind),
             Data = SidebarSelectionTarget.Thread(thread.ThreadId),
         };
     }
@@ -189,15 +190,25 @@ internal sealed partial class CodeAltaTerminalUi
         return markup.Tooltip(tooltip);
     }
 
-    private static Style ResolveSidebarThreadIconStyle(WorkThreadKind kind)
+    internal static SidebarAccent ResolveSidebarThreadAccent(string? backendId, WorkThreadKind kind)
     {
+        if (string.Equals(backendId, AgentBackendIds.Copilot.Value, StringComparison.OrdinalIgnoreCase))
+        {
+            return SidebarAccent.CopilotThread;
+        }
+
         return kind switch
         {
-            WorkThreadKind.GlobalThread => UiPalette.GetSidebarIconStyle(SidebarAccent.Global),
-            WorkThreadKind.ProjectThread => UiPalette.GetSidebarIconStyle(SidebarAccent.ProjectThread),
-            WorkThreadKind.InternalThread => UiPalette.GetSidebarIconStyle(SidebarAccent.InternalThread),
-            _ => UiPalette.GetSidebarIconStyle(SidebarAccent.Fallback),
+            WorkThreadKind.GlobalThread => SidebarAccent.Global,
+            WorkThreadKind.ProjectThread => SidebarAccent.ProjectThread,
+            WorkThreadKind.InternalThread => SidebarAccent.InternalThread,
+            _ => SidebarAccent.Fallback,
         };
+    }
+
+    private static Style ResolveSidebarThreadIconStyle(string? backendId, WorkThreadKind kind)
+    {
+        return UiPalette.GetSidebarIconStyle(ResolveSidebarThreadAccent(backendId, kind));
     }
 
     private static SidebarSelectionTarget? GetSelectedSidebarTarget(TreeNode? node)

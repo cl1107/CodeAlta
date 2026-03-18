@@ -1,3 +1,4 @@
+using CodeAlta.Agent;
 using CodeAlta.Catalog;
 using CodeAlta.Catalog.Bootstrap;
 using CodeAlta.Catalog.Skills;
@@ -461,6 +462,14 @@ public sealed class WorkspaceInfrastructureTests
             OpenThreadIds = ["global", "platform-search-review"],
             SelectedThreadId = "platform-search-review",
             UpdatedAt = new DateTimeOffset(2026, 03, 10, 13, 0, 0, TimeSpan.Zero),
+            ThreadPreferences = new Dictionary<string, WorkThreadPreference>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["platform-search-review"] = new WorkThreadPreference
+                {
+                    ModelId = "gpt-5.4",
+                    ReasoningEffort = AgentReasoningEffort.High,
+                },
+            },
         };
 
         await threadCatalog.SaveViewStateAsync(viewState).ConfigureAwait(false);
@@ -468,6 +477,50 @@ public sealed class WorkspaceInfrastructureTests
 
         CollectionAssert.AreEqual(viewState.OpenThreadIds, reloaded.OpenThreadIds);
         Assert.AreEqual(viewState.SelectedThreadId, reloaded.SelectedThreadId);
+        Assert.AreEqual("gpt-5.4", reloaded.ThreadPreferences["platform-search-review"].ModelId);
+        Assert.AreEqual(AgentReasoningEffort.High, reloaded.ThreadPreferences["platform-search-review"].ReasoningEffort);
+    }
+
+    [TestMethod]
+    public void CodeAltaConfigStore_SaveGlobalBackendPreference_WritesTomlAndReloads()
+    {
+        using var root = TempDirectory.Create();
+        var store = new CodeAltaConfigStore(new CatalogOptions { GlobalRoot = root.Path });
+
+        store.SaveGlobalBackendPreference(AgentBackendIds.Codex, "gpt-5.4", AgentReasoningEffort.High);
+
+        var configPath = Path.Combine(root.Path, "config.toml");
+        var content = File.ReadAllText(configPath);
+        var preference = store.GetEffectiveBackendPreference(AgentBackendIds.Codex);
+
+        StringAssert.Contains(content, "backends");
+        StringAssert.Contains(content, "gpt-5.4");
+        StringAssert.Contains(content, "reasoning_effort = \"high\"");
+        Assert.AreEqual("gpt-5.4", preference.Model);
+        Assert.AreEqual(AgentReasoningEffort.High, preference.ReasoningEffort);
+    }
+
+    [TestMethod]
+    public void CodeAltaConfigStore_GetEffectiveBackendPreference_ProjectConfigOverridesGlobalPerField()
+    {
+        using var root = TempDirectory.Create();
+        var projectRoot = Path.Combine(root.Path, "project-a");
+        Directory.CreateDirectory(Path.Combine(projectRoot, ".codealta"));
+
+        var store = new CodeAltaConfigStore(new CatalogOptions { GlobalRoot = root.Path });
+        store.SaveGlobalBackendPreference(AgentBackendIds.Codex, "gpt-5.4", AgentReasoningEffort.High);
+
+        File.WriteAllText(
+            Path.Combine(projectRoot, ".codealta", "config.toml"),
+            """
+            [backends.codex]
+            reasoning_effort = "medium"
+            """);
+
+        var preference = store.GetEffectiveBackendPreference(AgentBackendIds.Codex, projectRoot);
+
+        Assert.AreEqual("gpt-5.4", preference.Model);
+        Assert.AreEqual(AgentReasoningEffort.Medium, preference.ReasoningEffort);
     }
 
     [TestMethod]

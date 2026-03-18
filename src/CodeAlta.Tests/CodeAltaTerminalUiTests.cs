@@ -1299,7 +1299,7 @@ public sealed class CodeAltaTerminalUiTests
     }
 
     [TestMethod]
-    public void FormatChatUserInputRequestMarkdown_ShowsChoicesAndImplementationGap()
+    public void FormatChatUserInputRequestMarkdown_ByDefault_DescribesCodeAltaAutoAnswering()
     {
         var markdown = CodeAltaTerminalUi.FormatChatUserInputRequestMarkdown(
             new AgentUserInputRequest(
@@ -1322,16 +1322,15 @@ public sealed class CodeAltaTerminalUiTests
                             AllowFreeform: false)
                     ])));
 
-        StringAssert.Contains(markdown, "Terminal question prompts are not implemented yet");
+        StringAssert.Contains(markdown, "CodeAlta will prefer continue/inspect-style choices");
         StringAssert.Contains(markdown, "Which option do you prefer?");
         StringAssert.Contains(markdown, "Search first");
         StringAssert.Contains(markdown, "Answer directly");
-        StringAssert.Contains(markdown, "Terminal question prompts are not implemented yet");
         StringAssert.Contains(markdown, "Freeform: disabled");
     }
 
     [TestMethod]
-    public void FormatChatUserInputRequestMarkdown_WhenAutoApproveEnabled_DescribesAutoAnswering()
+    public void FormatChatUserInputRequestMarkdown_WhenAutoApproveDisabled_DescribesImplementationGap()
     {
         var markdown = CodeAltaTerminalUi.FormatChatUserInputRequestMarkdown(
             new AgentUserInputRequest(
@@ -1348,9 +1347,9 @@ public sealed class CodeAltaTerminalUiTests
                             Options: [new AgentUserInputOption("choice-a"), new AgentUserInputOption("choice-b")],
                             AllowFreeform: false)
                     ])),
-            autoApprove: true);
+            autoApprove: false);
 
-        StringAssert.Contains(markdown, "Auto-Approve will prefer continue/inspect-style choices");
+        StringAssert.Contains(markdown, "Terminal question prompts are not implemented yet");
     }
 
     [TestMethod]
@@ -1508,17 +1507,56 @@ public sealed class CodeAltaTerminalUiTests
     }
 
     [TestMethod]
-    public void BuildChatReasoningOptions_PreservesDefaultAndSupportedEfforts()
+    public void BuildChatReasoningOptions_UsesSupportedEffortsOnly()
     {
         var options = CodeAltaTerminalUi.BuildChatReasoningOptions(
             new AgentModelInfo(
                 "model-a",
                 SupportedReasoningEfforts: [AgentReasoningEffort.Minimal, AgentReasoningEffort.High]));
 
-        Assert.AreEqual("Default", options[0].Label);
         CollectionAssert.AreEqual(
-            new[] { "Default", "Minimal", "High" },
+            new[] { "Minimal", "High" },
             options.Select(static option => option.Label).ToArray());
+    }
+
+    [TestMethod]
+    public void ResolvePreferredReasoningEffort_PrefersHighWhenSupportedAndNoPreferenceIsSet()
+    {
+        var effort = CodeAltaTerminalUi.ResolvePreferredReasoningEffort(
+            new AgentModelInfo(
+                "gpt-5.4",
+                DefaultReasoningEffort: AgentReasoningEffort.Medium,
+                SupportedReasoningEfforts: [AgentReasoningEffort.Low, AgentReasoningEffort.High]),
+            preferredReasoningEffort: null);
+
+        Assert.AreEqual(AgentReasoningEffort.High, effort);
+    }
+
+    [TestMethod]
+    public void ResolvePreferredReasoningEffort_PreservesRequestedEffortWhenSupported()
+    {
+        var effort = CodeAltaTerminalUi.ResolvePreferredReasoningEffort(
+            new AgentModelInfo(
+                "gpt-5.4",
+                DefaultReasoningEffort: AgentReasoningEffort.High,
+                SupportedReasoningEfforts: [AgentReasoningEffort.Low, AgentReasoningEffort.High]),
+            preferredReasoningEffort: AgentReasoningEffort.Low);
+
+        Assert.AreEqual(AgentReasoningEffort.Low, effort);
+    }
+
+    [TestMethod]
+    public void ResolvePreferredModelId_FallsBackToFirstAvailableModel()
+    {
+        AgentModelInfo[] models =
+        [
+            new("gpt-5.4"),
+            new("gpt-5-mini"),
+        ];
+
+        var selectedModelId = CodeAltaTerminalUi.ResolvePreferredModelId(models, "missing-model");
+
+        Assert.AreEqual("gpt-5.4", selectedModelId);
     }
 
     [TestMethod]
@@ -1749,6 +1787,22 @@ public sealed class CodeAltaTerminalUiTests
         Assert.AreEqual(@"Global thread · C:\Users\alexa\.codealta", globalSummary);
         Assert.AreEqual(@"CodeAlta · C:\code\CodeAlta", projectSummary);
         Assert.AreEqual("Internal · CodeAlta", internalSummary);
+    }
+
+    [TestMethod]
+    public void ResolveSidebarThreadAccent_UsesCopilotAccentForCopilotThreads()
+    {
+        var accent = CodeAltaTerminalUi.ResolveSidebarThreadAccent(AgentBackendIds.Copilot.Value, WorkThreadKind.ProjectThread);
+
+        Assert.AreEqual(CodeAltaTerminalUi.SidebarAccent.CopilotThread, accent);
+    }
+
+    [TestMethod]
+    public void ResolveSidebarThreadAccent_UsesKindAccentForCodexThreads()
+    {
+        var accent = CodeAltaTerminalUi.ResolveSidebarThreadAccent(AgentBackendIds.Codex.Value, WorkThreadKind.ProjectThread);
+
+        Assert.AreEqual(CodeAltaTerminalUi.SidebarAccent.ProjectThread, accent);
     }
 
     private static void TickTerminalApp(TerminalApp app)

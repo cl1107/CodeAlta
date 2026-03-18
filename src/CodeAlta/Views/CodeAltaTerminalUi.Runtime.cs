@@ -11,6 +11,7 @@ internal sealed partial class CodeAltaTerminalUi
 {
     private async Task LoadCatalogStateAsync(CancellationToken cancellationToken)
     {
+        LoadConfigState();
         _projects = await _projectCatalog.LoadAsync(cancellationToken).ConfigureAwait(false);
         _threads = await _threadCatalog.LoadInternalAsync(cancellationToken).ConfigureAwait(false);
         _viewState = await _threadCatalog.LoadViewStateAsync(cancellationToken).ConfigureAwait(false);
@@ -105,8 +106,10 @@ internal sealed partial class CodeAltaTerminalUi
                 {
                     state.Models.Clear();
                     state.Models.AddRange(models);
-                    state.SelectedModelId = models.FirstOrDefault()?.Id;
-                    state.SelectedReasoningEffort = NormalizeReasoningEffort(state.SelectedReasoningEffort, GetSelectedModel(state));
+                    state.SelectedModelId = ResolvePreferredModelId(models, state.SelectedModelId);
+                    state.SelectedReasoningEffort = ResolvePreferredReasoningEffort(
+                        FindModel(models, state.SelectedModelId),
+                        state.SelectedReasoningEffort);
                     state.Availability = ChatBackendAvailability.Ready;
                     state.StatusMessage = BuildReadyStatusMessage(state);
                     RefreshView();
@@ -121,6 +124,7 @@ internal sealed partial class CodeAltaTerminalUi
                     state.Models.Clear();
                     state.SelectedModelId = null;
                     state.SelectedReasoningEffort = null;
+                    state.DraftScopeKey = null;
                     state.Availability = availability;
                     state.StatusMessage = statusMessage;
                     RefreshView();
@@ -284,6 +288,7 @@ internal sealed partial class CodeAltaTerminalUi
                 _catalogOptions.GlobalRoot,
                 []);
             var thread = await _runtimeService.CreateGlobalThreadAsync(executionOptions, title).ConfigureAwait(false);
+            RememberThreadPreference(thread.ThreadId, executionOptions.Model, executionOptions.ReasoningEffort, persistNow: false);
             await RegisterCreatedThreadAsync(thread).ConfigureAwait(false);
             ClearThreadTitleDraft();
             SetStatus(BuildReadyStatusText(thread, GetSelectedProject(), _globalScopeSelected), tone: StatusTone.Ready);
@@ -314,6 +319,7 @@ internal sealed partial class CodeAltaTerminalUi
                 project.ProjectPath,
                 [project.ProjectPath]);
             var thread = await _runtimeService.CreateProjectThreadAsync(project, executionOptions, title).ConfigureAwait(false);
+            RememberThreadPreference(thread.ThreadId, executionOptions.Model, executionOptions.ReasoningEffort, persistNow: false);
             await RegisterCreatedThreadAsync(thread).ConfigureAwait(false);
             ClearThreadTitleDraft();
             SetStatus(BuildReadyStatusText(thread, GetSelectedProject(), _globalScopeSelected), tone: StatusTone.Ready);
@@ -677,6 +683,7 @@ internal sealed partial class CodeAltaTerminalUi
                 executionOptions,
                 title: SummarizeThreadContent(prompt),
                 cancellationToken: CancellationToken.None).ConfigureAwait(false);
+            RememberThreadPreference(child.ThreadId, executionOptions.Model, executionOptions.ReasoningEffort, persistNow: false);
 
             _threads = _threads
                 .Where(existing => !string.Equals(existing.ThreadId, child.ThreadId, StringComparison.OrdinalIgnoreCase))
@@ -1735,11 +1742,8 @@ internal sealed partial class CodeAltaTerminalUi
             StatusMessage = BuildReadyStatusText(thread, GetSelectedProject(), globalScopeSelected: false),
         };
 
-        if (_chatBackendStates.TryGetValue(thread.BackendId, out var backendState))
-        {
-            state.ModelId = backendState.SelectedModelId;
-            state.ReasoningEffort = backendState.SelectedReasoningEffort;
-        }
+        ApplyThreadPreference(state);
+        RememberThreadPreference(thread.ThreadId, state.ModelId, state.ReasoningEffort, persistNow: false);
 
         _threadTabs[thread.ThreadId] = state;
         return state;

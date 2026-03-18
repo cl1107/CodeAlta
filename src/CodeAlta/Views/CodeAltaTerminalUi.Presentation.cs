@@ -75,7 +75,6 @@ internal sealed partial class CodeAltaTerminalUi
                 _chatBackendSelect,
                 _chatModelSelect,
                 _chatReasoningSelect,
-                new CheckBox("Auto-Approve").IsChecked(_viewModel.Bind.AutoApproveEnabled),
                 new Markup(() => _viewModel.BackendStatusMarkup)
                 {
                     Wrap = true,
@@ -437,6 +436,7 @@ internal sealed partial class CodeAltaTerminalUi
             backendSelect.IsEnabled = true;
 
             var backendState = _chatBackendStates[backendOptions[backendIndex].BackendId.Value];
+            ApplyDraftBackendPreference(backendState);
             var modelOptions = BuildChatModelOptions(backendState);
             ReplaceSelectItems(modelSelect, modelOptions);
             modelSelect.SelectedIndex = Math.Clamp(
@@ -500,16 +500,12 @@ internal sealed partial class CodeAltaTerminalUi
                 Math.Max(0, backendOptions.Count - 1));
 
             var backendState = _chatBackendStates[tab.BackendId.Value];
-            if (!string.IsNullOrWhiteSpace(tab.ModelId) &&
-                backendState.Models.Any(model => string.Equals(model.Id, tab.ModelId, StringComparison.Ordinal)))
-            {
-                backendState.SelectedModelId = tab.ModelId;
-            }
+            ApplyThreadPreference(tab);
 
             var modelOptions = BuildChatModelOptions(backendState);
             ReplaceSelectItems(modelSelect, modelOptions);
             modelSelect.SelectedIndex = Math.Clamp(
-                modelOptions.FindIndex(option => string.Equals(option.ModelId, tab.ModelId, StringComparison.Ordinal)),
+                modelOptions.FindIndex(option => string.Equals(option.ModelId, tab.ModelId ?? backendState.SelectedModelId, StringComparison.Ordinal)),
                 0,
                 Math.Max(0, modelOptions.Count - 1));
             modelSelect.IsEnabled = backendState.Availability == ChatBackendAvailability.Ready;
@@ -583,6 +579,9 @@ internal sealed partial class CodeAltaTerminalUi
             }
 
             draftBackendState.SelectedModelId = draftOptions[newIndex].ModelId;
+            var preferredModel = FindModel(draftBackendState.Models, draftBackendState.SelectedModelId);
+            draftBackendState.SelectedReasoningEffort = ResolvePreferredReasoningEffort(preferredModel, preferredReasoningEffort: null);
+            RememberGlobalBackendPreference(backendId, draftBackendState.SelectedModelId, draftBackendState.SelectedReasoningEffort);
             RefreshChatSelectorsForDraftScope(backendId);
             return;
         }
@@ -596,6 +595,13 @@ internal sealed partial class CodeAltaTerminalUi
         }
 
         tab.ModelId = options[newIndex].ModelId;
+        var selectedModel = FindModel(backendState.Models, tab.ModelId);
+        tab.ReasoningEffort = ResolvePreferredReasoningEffort(selectedModel, preferredReasoningEffort: null);
+        RememberThreadPreference(tab.Thread.ThreadId, tab.ModelId, tab.ReasoningEffort, persistNow: true);
+        backendState.SelectedModelId = tab.ModelId;
+        backendState.SelectedReasoningEffort = tab.ReasoningEffort;
+        RememberGlobalBackendPreference(tab.BackendId, tab.ModelId, tab.ReasoningEffort);
+        RefreshView();
     }
 
     private void OnChatReasoningSelectionChanged(int newIndex)
@@ -618,6 +624,7 @@ internal sealed partial class CodeAltaTerminalUi
             }
 
             draftBackendState.SelectedReasoningEffort = draftOptions[newIndex].Effort;
+            RememberGlobalBackendPreference(backendId, draftBackendState.SelectedModelId, draftBackendState.SelectedReasoningEffort);
             return;
         }
 
@@ -631,6 +638,10 @@ internal sealed partial class CodeAltaTerminalUi
         }
 
         tab.ReasoningEffort = options[newIndex].Effort;
+        RememberThreadPreference(tab.Thread.ThreadId, tab.ModelId, tab.ReasoningEffort, persistNow: true);
+        backendState.SelectedModelId = tab.ModelId;
+        backendState.SelectedReasoningEffort = tab.ReasoningEffort;
+        RememberGlobalBackendPreference(tab.BackendId, tab.ModelId, tab.ReasoningEffort);
     }
 
     private AgentBackendId GetPreferredBackendId()
@@ -1383,7 +1394,7 @@ internal sealed partial class CodeAltaTerminalUi
     }
 
     private bool GetAutoApproveEnabled()
-        => ReadUiValue(() => _viewModel.AutoApproveEnabled);
+        => DefaultAutoApproveEnabled;
 
     private async Task PersistViewStateAsync()
     {

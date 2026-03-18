@@ -12,7 +12,6 @@ public sealed partial class CodeAltaShellViewModel
         PromptPlaceholder = "Start a thread...";
         BackendStatusMarkup = string.Empty;
         DraftThreadTitle = string.Empty;
-        AutoApproveEnabled = true;
     }
 
     [Bindable]
@@ -35,7 +34,4 @@ public sealed partial class CodeAltaShellViewModel
 
     [Bindable]
     public partial string? DraftThreadTitle { get; set; }
-
-    [Bindable]
-    public partial bool AutoApproveEnabled { get; set; }
 }

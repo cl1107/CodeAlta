@@ -46,21 +46,14 @@ internal sealed partial class CodeAltaTerminalUi
 
     internal static List<ChatReasoningOption> BuildChatReasoningOptions(AgentModelInfo? model)
     {
-        var options = new List<ChatReasoningOption>
-        {
-            new(null, "Default"),
-        };
-
         var efforts = model?.SupportedReasoningEfforts is { Count: > 0 } supported
             ? supported
             : Enum.GetValues<AgentReasoningEffort>();
 
-        foreach (var effort in efforts.Distinct())
-        {
-            options.Add(new ChatReasoningOption(effort, SplitPascalCase(effort.ToString())));
-        }
-
-        return options;
+        return efforts
+            .Distinct()
+            .Select(static effort => new ChatReasoningOption(effort, SplitPascalCase(effort.ToString())))
+            .ToList();
     }
 
     internal static AgentBackendId ResolveChatBackendSelection(
@@ -114,23 +107,53 @@ internal sealed partial class CodeAltaTerminalUi
                 string.Equals(model.Id, backendState.SelectedModelId, StringComparison.Ordinal));
     }
 
-    private static AgentReasoningEffort? NormalizeReasoningEffort(
-        AgentReasoningEffort? selectedReasoningEffort,
-        AgentModelInfo? model)
+    internal static string? ResolvePreferredModelId(
+        IReadOnlyList<AgentModelInfo> models,
+        string? preferredModelId)
     {
-        if (selectedReasoningEffort is null)
+        if (models.Count == 0)
         {
             return null;
         }
 
-        if (model?.SupportedReasoningEfforts is not { Count: > 0 } supportedReasoningEfforts)
+        if (!string.IsNullOrWhiteSpace(preferredModelId) &&
+            models.Any(model => string.Equals(model.Id, preferredModelId, StringComparison.Ordinal)))
         {
-            return selectedReasoningEffort;
+            return preferredModelId;
         }
 
-        return supportedReasoningEfforts.Contains(selectedReasoningEffort.Value)
-            ? selectedReasoningEffort
-            : null;
+        return models[0].Id;
+    }
+
+    internal static AgentReasoningEffort? ResolvePreferredReasoningEffort(
+        AgentModelInfo? model,
+        AgentReasoningEffort? preferredReasoningEffort)
+    {
+        var supportedReasoningEfforts = model?.SupportedReasoningEfforts?
+            .Distinct()
+            .ToArray();
+        if (preferredReasoningEffort is { } requestedEffort &&
+            (supportedReasoningEfforts is null || supportedReasoningEfforts.Length == 0 || supportedReasoningEfforts.Contains(requestedEffort)))
+        {
+            return requestedEffort;
+        }
+
+        if (supportedReasoningEfforts is { Length: > 0 })
+        {
+            if (supportedReasoningEfforts.Contains(AgentReasoningEffort.High))
+            {
+                return AgentReasoningEffort.High;
+            }
+
+            if (model?.DefaultReasoningEffort is { } defaultEffort && supportedReasoningEfforts.Contains(defaultEffort))
+            {
+                return defaultEffort;
+            }
+
+            return supportedReasoningEfforts[0];
+        }
+
+        return model?.DefaultReasoningEffort;
     }
 
     private static string BuildReadyStatusMessage(ChatBackendState backendState)
@@ -680,7 +703,7 @@ internal sealed partial class CodeAltaTerminalUi
     }
 
     internal static string FormatChatUserInputRequestMarkdown(AgentUserInputRequest request)
-        => FormatChatUserInputRequestMarkdown(request, autoApprove: false);
+        => FormatChatUserInputRequestMarkdown(request, autoApprove: DefaultAutoApproveEnabled);
 
     internal static string FormatChatUserInputRequestMarkdown(AgentUserInputRequest request, bool autoApprove)
     {
@@ -688,7 +711,7 @@ internal sealed partial class CodeAltaTerminalUi
 
         var builder = new StringBuilder(
             autoApprove
-                ? "_The agent asked a question. Auto-Approve will prefer continue/inspect-style choices or use a neutral fallback answer so the run can continue._"
+                ? "_The agent asked a question. CodeAlta will prefer continue/inspect-style choices or use a neutral fallback answer so the run can continue._"
                 : "_The agent asked a question. Terminal question prompts are not implemented yet, so CodeAlta returns empty answers for now._");
 
         for (var index = 0; index < request.Form.Prompts.Count; index++)

@@ -64,6 +64,9 @@ public sealed class WorkThreadYamlSerializer
 
         [JsonPropertyName("updated_at")]
         public DateTimeOffset? UpdatedAt { get; set; }
+
+        [JsonPropertyName("thread_preferences")]
+        public Dictionary<string, WorkThreadPreference>? ThreadPreferences { get; set; }
     }
 
     /// <summary>
@@ -157,6 +160,10 @@ public sealed class WorkThreadYamlSerializer
             OpenThreadIds = document.OpenThreadIds ?? [],
             SelectedThreadId = document.SelectedThreadId,
             UpdatedAt = document.UpdatedAt ?? default,
+            ThreadPreferences = document.ThreadPreferences?.ToDictionary(
+                static entry => entry.Key,
+                static entry => entry.Value,
+                StringComparer.OrdinalIgnoreCase) ?? new Dictionary<string, WorkThreadPreference>(StringComparer.OrdinalIgnoreCase),
         };
     }
 
@@ -173,6 +180,7 @@ public sealed class WorkThreadYamlSerializer
             OpenThreadIds = viewState.OpenThreadIds,
             SelectedThreadId = viewState.SelectedThreadId,
             UpdatedAt = viewState.UpdatedAt,
+            ThreadPreferences = viewState.ThreadPreferences,
         };
 
         return YamlSerializer.Serialize(document);

@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using CodeAlta.Agent;
 
 namespace CodeAlta.Catalog;
 
@@ -26,6 +27,12 @@ public sealed class WorkThreadViewState
     public DateTimeOffset UpdatedAt { get; set; }
 
     /// <summary>
+    /// Gets or sets per-thread execution preferences restored by the terminal UI.
+    /// </summary>
+    [JsonPropertyName("thread_preferences")]
+    public Dictionary<string, WorkThreadPreference> ThreadPreferences { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
     /// Validates the view state.
     /// </summary>
     /// <exception cref="ArgumentException">Thrown when the data is invalid.</exception>
@@ -48,6 +55,30 @@ public sealed class WorkThreadViewState
         {
             throw new ArgumentException("Selected thread id must be present in open_thread_ids.", nameof(SelectedThreadId));
         }
+
+        var invalidPreferenceKey = ThreadPreferences.Keys.FirstOrDefault(string.IsNullOrWhiteSpace);
+        if (invalidPreferenceKey is not null)
+        {
+            throw new ArgumentException("Thread preference keys must be non-empty.", nameof(ThreadPreferences));
+        }
     }
+}
+
+/// <summary>
+/// Describes a persisted model and reasoning override for a thread.
+/// </summary>
+public sealed class WorkThreadPreference
+{
+    /// <summary>
+    /// Gets or sets the preferred model identifier.
+    /// </summary>
+    [JsonPropertyName("model_id")]
+    public string? ModelId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the preferred reasoning effort.
+    /// </summary>
+    [JsonPropertyName("reasoning_effort")]
+    public AgentReasoningEffort? ReasoningEffort { get; set; }
 }
 

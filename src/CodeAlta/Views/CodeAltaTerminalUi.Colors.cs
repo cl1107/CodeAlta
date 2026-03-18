@@ -28,12 +28,13 @@ internal sealed partial class CodeAltaTerminalUi
         ];
     }
 
-    private enum SidebarAccent
+    internal enum SidebarAccent
     {
         Global,
         Projects,
         ProjectThread,
         InternalThread,
+        CopilotThread,
         Fallback,
     }
 
@@ -59,6 +60,7 @@ internal sealed partial class CodeAltaTerminalUi
         private static readonly Color SidebarProjects = Color.FromOklch(0.79f, 0.08f, 245f);
         private static readonly Color SidebarProjectThread = Color.FromOklch(0.78f, 0.08f, 152f);
         private static readonly Color SidebarInternalThread = Color.FromOklch(0.73f, 0.10f, 310f);
+        private static readonly Color SidebarCopilotThread = Color.FromOklch(0.76f, 0.14f, 300f);
         private static readonly Color SidebarFallback = Color.FromOklch(0.90f, 0.01f, 255f);
         private static readonly Color PromptPlaceholder = Color.FromOklch(0.65f, 0.02f, 255f);
 
@@ -166,6 +168,7 @@ internal sealed partial class CodeAltaTerminalUi
                 SidebarAccent.Projects => SidebarProjects,
                 SidebarAccent.ProjectThread => SidebarProjectThread,
                 SidebarAccent.InternalThread => SidebarInternalThread,
+                SidebarAccent.CopilotThread => SidebarCopilotThread,
                 _ => SidebarFallback,
             };
 

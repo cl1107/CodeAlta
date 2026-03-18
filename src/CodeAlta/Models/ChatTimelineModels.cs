@@ -61,6 +61,8 @@ internal sealed class ChatBackendState(AgentBackendId backendId, string displayN
     public string? SelectedModelId { get; set; }
 
     public AgentReasoningEffort? SelectedReasoningEffort { get; set; }
+
+    public string? DraftScopeKey { get; set; }
 }
 
 internal sealed class ChatContentState(

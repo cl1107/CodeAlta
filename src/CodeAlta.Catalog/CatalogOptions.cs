@@ -21,6 +21,11 @@ public sealed class CatalogOptions
     public string AgentsRoot => Path.Combine(GlobalRoot, "agents");
 
     /// <summary>
+    /// Gets the global user configuration path.
+    /// </summary>
+    public string ConfigPath => Path.Combine(GlobalRoot, "config.toml");
+
+    /// <summary>
     /// Gets the machine-local runtime root path under the global catalog.
     /// </summary>
     public string MachineRoot => Path.Combine(GlobalRoot, "machine");
