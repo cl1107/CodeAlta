@@ -16,16 +16,16 @@ internal sealed partial class CodeAltaTerminalUi
             HorizontalAlignment = Align.Stretch,
         };
 
-        return new DockLayout(
-            top: null,
-            content: new HSplitter(BuildSidebar(), BuildThreadPane())
+        return new VStack(
+            new HSplitter(BuildSidebar(), BuildThreadPane())
             {
                 Ratio = 0.26,
                 MinFirst = 24,
                 MinSecond = 40,
             },
-            bottom: _threadCommandBar)
+            _threadCommandBar)
         {
+            Spacing = 0,
             HorizontalAlignment = Align.Stretch,
             VerticalAlignment = Align.Stretch,
         };
@@ -58,11 +58,11 @@ internal sealed partial class CodeAltaTerminalUi
 
         return new Group(
             new Markup($"[bold]{NerdFont.FaFolderTree} Navigator[/]"),
-            new DockLayout(
-                null,
+            new VStack(
                 treeHost,
                 footer)
             {
+                Spacing = 0,
                 HorizontalAlignment = Align.Stretch,
                 VerticalAlignment = Align.Stretch,
             })

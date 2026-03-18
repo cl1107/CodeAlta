@@ -92,15 +92,19 @@ internal sealed partial class CodeAltaTerminalUi
 
         _threadBodySplitter ??= new VSplitter(new TextBlock("Open or create a thread to start working."), _threadBottomPanel)
         {
-            Ratio = 0.68,
+            Ratio = 0.75,
             MinFirst = 6,
             MinSecond = 7,
         };
 
-        _threadPaneLayout = new DockLayout(
-            top: _threadTabControl,
-            content: _threadBodySplitter,
-            bottom: null);
+        _threadPaneLayout = new VStack(
+            _threadTabControl,
+            _threadBodySplitter)
+        {
+            Spacing = 0,
+            HorizontalAlignment = Align.Stretch,
+            VerticalAlignment = Align.Stretch,
+        };
 
         RefreshThreadPaneContent();
         return _threadPaneLayout;

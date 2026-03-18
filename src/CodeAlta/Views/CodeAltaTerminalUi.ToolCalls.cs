@@ -364,10 +364,14 @@ internal sealed partial class CodeAltaTerminalUi
                 .Padding(1)
                 .Width(dialogWidth)
                 .Height(dialogHeight)
-                .Content(new DockLayout(
-                    top: detailsGroup,
-                    content: outputGroup,
-                    bottom: null));
+                .Content(new VStack(
+                    detailsGroup,
+                    outputGroup)
+                {
+                    Spacing = 0,
+                    HorizontalAlignment = Align.Stretch,
+                    VerticalAlignment = Align.Stretch,
+                });
             dialog.AddCommand(new Command
             {
                 Id = "ToolCallDialog.Close",

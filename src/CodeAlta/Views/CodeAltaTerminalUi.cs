@@ -49,7 +49,7 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
     private Dispatcher? _dispatcher;
     private Spinner? _statusSpinner;
     private Markup? _statusIconVisual;
-    private DockLayout? _threadPaneLayout;
+    private Visual? _threadPaneLayout;
     private Visual? _threadBottomPanel;
     private VSplitter? _threadBodySplitter;
     private ChatPromptEditor? _threadInput;
@@ -121,13 +121,17 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
 
         SetStatus("Connecting to available backends...", showSpinner: true);
 
-        var root = new DockLayout(
-            top: new TextBlock
+        var root = new VStack(
+            new TextBlock
             {
                 Wrap = false,
             }.Text(() => _viewModel.HeaderText),
-            content: BuildMainView(),
-            bottom: null);
+            BuildMainView())
+        {
+            Spacing = 0,
+            HorizontalAlignment = Align.Stretch,
+            VerticalAlignment = Align.Stretch,
+        };
 
         _runtimeEventsTask = Task.Run(() => PumpRuntimeEventsAsync(_runtimeEventsCts.Token), CancellationToken.None);
         await Terminal.RunAsync(
