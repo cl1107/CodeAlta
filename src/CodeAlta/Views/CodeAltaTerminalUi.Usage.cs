@@ -227,6 +227,7 @@ internal sealed partial class CodeAltaTerminalUi
             .Click(CopySessionUsageMarkdown);
         var closeButton = new Button(new TextBlock($"{NerdFont.MdClose}"))
             .Click(CloseSessionUsagePopup);
+        closeButton.Tone = ControlTone.Error;
 
         stack.Add(new StatusBar()
             .LeftText(new VStack(
