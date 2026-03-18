@@ -1,6 +1,7 @@
 using System.Linq;
 using System.Reflection;
 using System.Text.Json;
+using System.Globalization;
 using CodeAlta.Agent;
 using CodeAlta.Catalog;
 using XenoAtom.Ansi;
@@ -1629,6 +1630,70 @@ public sealed class CodeAltaTerminalUiTests
         StringAssert.Contains(markup, "Codex");
         StringAssert.Contains(markup, "Copilot");
         Assert.IsFalse(markup.Contains("CLI not found", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void SessionUsageFormatting_UsesInvariantCulture()
+    {
+        var previousCulture = CultureInfo.CurrentCulture;
+        var previousUiCulture = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("fr-FR");
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("fr-FR");
+
+            var usage = new AgentSessionUsage(
+                CurrentTokens: 50000,
+                TokenLimit: 120000,
+                MessageCount: 12,
+                UpdatedAt: DateTimeOffset.Parse("2026-03-18T21:00:00+00:00"));
+
+            var indicator = CodeAltaTerminalUi.BuildSessionUsageIndicatorMarkup(usage);
+            var summary = CodeAltaTerminalUi.FormatSessionUsageSummary(usage);
+
+            Assert.AreEqual("[success]ctx 42%[/]", indicator);
+            Assert.AreEqual("50,000 / 120,000 tokens (41.7%)", summary);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previousCulture;
+            CultureInfo.CurrentUICulture = previousUiCulture;
+        }
+    }
+
+    [TestMethod]
+    public void MergeSessionUsage_MergesTypedBackendDetails()
+    {
+        var current = new AgentSessionUsage(
+            CurrentTokens: null,
+            TokenLimit: 128000,
+            MessageCount: 8,
+            UpdatedAt: DateTimeOffset.Parse("2026-03-18T20:00:00+00:00"),
+            Details: new CodexSessionUsageDetails(
+                LastTurnUsage: new CodexTokenUsage(10, 100, 20, 5, 125)));
+        var incoming = new AgentSessionUsage(
+            CurrentTokens: 4096,
+            TokenLimit: null,
+            MessageCount: null,
+            UpdatedAt: DateTimeOffset.Parse("2026-03-18T20:05:00+00:00"),
+            Details: new CodexSessionUsageDetails(
+                TotalUsage: new CodexTokenUsage(40, 1000, 250, 30, 1320),
+                RateLimits: new CodexRateLimitSnapshot(
+                    "requests",
+                    "Requests",
+                    "Pro",
+                    new CodexRateLimitWindow(61, null, 60),
+                    null)));
+
+        var merged = CodeAltaTerminalUi.MergeSessionUsage(current, incoming);
+
+        Assert.AreEqual(4096L, merged.CurrentTokens);
+        Assert.AreEqual(128000L, merged.TokenLimit);
+        Assert.AreEqual(8, merged.MessageCount);
+        var details = Assert.IsInstanceOfType<CodexSessionUsageDetails>(merged.Details);
+        Assert.AreEqual(125L, details.LastTurnUsage!.TotalTokens);
+        Assert.AreEqual(1320L, details.TotalUsage!.TotalTokens);
+        Assert.AreEqual(61, details.RateLimits!.Primary!.UsedPercent);
     }
 
     [TestMethod]

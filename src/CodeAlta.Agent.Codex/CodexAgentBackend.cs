@@ -292,6 +292,16 @@ public sealed class CodexAgentBackend : ICodexAgentBackend
 
     private void DispatchNotification(CodexNotification notification)
     {
+        if (notification is CodexNotification.AccountRateLimitsUpdated)
+        {
+            foreach (var activeSession in _sessions.Values)
+            {
+                activeSession.HandleNotification(notification);
+            }
+
+            return;
+        }
+
         if (!CodexAgentMapper.TryGetThreadId(notification, out var threadId) || threadId is null)
             return;
 

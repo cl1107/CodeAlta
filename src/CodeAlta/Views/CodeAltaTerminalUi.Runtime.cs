@@ -947,6 +947,11 @@ internal sealed partial class CodeAltaTerminalUi
                 break;
 
             case AgentSessionUpdateEvent update:
+                if (update.Usage is { } usage)
+                {
+                    tab.Usage = MergeSessionUsage(tab.Usage, usage);
+                }
+
                 if (update.Kind == AgentSessionUpdateKind.Idle)
                 {
                     ClearThreadStatus(tab);
@@ -1693,6 +1698,11 @@ internal sealed partial class CodeAltaTerminalUi
                 thread.LatestSummary = SummarizeThreadContent(completed.Content);
                 break;
             case AgentSessionUpdateEvent update when !string.IsNullOrWhiteSpace(update.Message):
+                if (update.Kind == AgentSessionUpdateKind.UsageUpdated)
+                {
+                    break;
+                }
+
                 thread.LatestSummary = SummarizeThreadContent(update.Message);
                 break;
             case AgentErrorEvent error when !string.IsNullOrWhiteSpace(error.Message):

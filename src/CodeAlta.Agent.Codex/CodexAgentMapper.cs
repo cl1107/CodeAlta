@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text;
 using System.Text.Json;
+using System.Globalization;
 using CodeAlta.CodexSdk;
 using CodexThread = CodeAlta.CodexSdk.Thread;
 using V2ReasoningEffort = CodeAlta.CodexSdk.ReasoningEffort;
@@ -564,8 +565,16 @@ internal static class CodexAgentMapper
                 sessionId,
                 timestamp,
                 AgentSessionUpdateKind.UsageUpdated,
-                $"Token usage updated for turn {tokenUsage.Data.TurnId}.",
-                new AgentRunId(tokenUsage.Data.TurnId)),
+                BuildCodexUsageMessage(tokenUsage.Data.TokenUsage.Total.TotalTokens, tokenUsage.Data.TokenUsage.ModelContextWindow),
+                new AgentRunId(tokenUsage.Data.TurnId),
+                usage: CreateCodexThreadUsage(timestamp, tokenUsage.Data.TokenUsage)),
+
+            CodexNotification.AccountRateLimitsUpdated rateLimitsUpdated => CreateSessionUpdate(
+                sessionId,
+                timestamp,
+                AgentSessionUpdateKind.UsageUpdated,
+                "Codex rate limits updated.",
+                usage: CreateCodexRateLimitUsage(timestamp, rateLimitsUpdated.Data.RateLimits)),
 
             CodexNotification.ThreadCompacted threadCompacted => CreateSessionUpdate(
                 sessionId,
@@ -768,12 +777,13 @@ internal static class CodexAgentMapper
                 null,
                 new AgentRunId(taskComplete.TurnId)),
 
-            EventMsg.TokenCountEventMsg => CreateSessionUpdate(
+            EventMsg.TokenCountEventMsg tokenCount => CreateSessionUpdate(
                 sessionId,
                 timestamp,
                 AgentSessionUpdateKind.UsageUpdated,
-                "Token usage updated.",
-                CreateRunId(activeTurnId)),
+                BuildCodexUsageMessage(tokenCount.Info?.TotalTokenUsage.TotalTokens, tokenCount.Info?.ModelContextWindow),
+                CreateRunId(activeTurnId),
+                usage: CreateCodexTokenCountUsage(timestamp, tokenCount.Info, tokenCount.RateLimits)),
 
             EventMsg.WarningEventMsg warning => CreateSessionUpdate(
                 sessionId,
@@ -1036,7 +1046,8 @@ internal static class CodexAgentMapper
         AgentSessionUpdateKind kind,
         string? message,
         AgentRunId? runId = null,
-        JsonElement? details = null)
+        JsonElement? details = null,
+        AgentSessionUsage? usage = null)
     {
         return new AgentSessionUpdateEvent(
             AgentBackendIds.Codex,
@@ -1045,8 +1056,115 @@ internal static class CodexAgentMapper
             runId,
             kind,
             message,
-            details);
+            details,
+            usage);
     }
+
+    private static AgentSessionUsage CreateCodexThreadUsage(DateTimeOffset timestamp, ThreadTokenUsage usage)
+    {
+        ArgumentNullException.ThrowIfNull(usage);
+
+        return new AgentSessionUsage(
+            CurrentTokens: usage.Total.TotalTokens,
+            TokenLimit: usage.ModelContextWindow,
+            MessageCount: null,
+            UpdatedAt: timestamp,
+            Details: new CodexSessionUsageDetails(
+                LastTurnUsage: ToCodexTokenUsage(usage.Last),
+                TotalUsage: ToCodexTokenUsage(usage.Total),
+                ModelContextWindow: usage.ModelContextWindow));
+    }
+
+    private static AgentSessionUsage? CreateCodexTokenCountUsage(DateTimeOffset timestamp, TokenUsageInfo? info, RateLimitSnapshot? rateLimits)
+    {
+        if (info is null && rateLimits is null)
+        {
+            return null;
+        }
+
+        return new AgentSessionUsage(
+            CurrentTokens: info?.TotalTokenUsage.TotalTokens,
+            TokenLimit: info?.ModelContextWindow,
+            MessageCount: null,
+            UpdatedAt: timestamp,
+            Details: new CodexSessionUsageDetails(
+                LastTurnUsage: info is null ? null : ToCodexTokenUsage(info.LastTokenUsage),
+                TotalUsage: info is null ? null : ToCodexTokenUsage(info.TotalTokenUsage),
+                ModelContextWindow: info?.ModelContextWindow,
+                RateLimits: ToCodexRateLimitSnapshot(rateLimits)));
+    }
+
+    private static AgentSessionUsage CreateCodexRateLimitUsage(DateTimeOffset timestamp, RateLimitSnapshot rateLimits)
+    {
+        ArgumentNullException.ThrowIfNull(rateLimits);
+
+        return new AgentSessionUsage(
+            CurrentTokens: null,
+            TokenLimit: null,
+            MessageCount: null,
+            UpdatedAt: timestamp,
+            Details: new CodexSessionUsageDetails(
+                RateLimits: ToCodexRateLimitSnapshot(rateLimits)));
+    }
+
+    private static CodexTokenUsage ToCodexTokenUsage(TokenUsageBreakdown usage)
+    {
+        ArgumentNullException.ThrowIfNull(usage);
+
+        return new CodexTokenUsage(
+            usage.CachedInputTokens,
+            usage.InputTokens,
+            usage.OutputTokens,
+            usage.ReasoningOutputTokens,
+            usage.TotalTokens);
+    }
+
+    private static CodexTokenUsage ToCodexTokenUsage(TokenUsage usage)
+    {
+        ArgumentNullException.ThrowIfNull(usage);
+
+        return new CodexTokenUsage(
+            usage.CachedInputTokens,
+            usage.InputTokens,
+            usage.OutputTokens,
+            usage.ReasoningOutputTokens,
+            usage.TotalTokens);
+    }
+
+    private static CodexRateLimitSnapshot? ToCodexRateLimitSnapshot(RateLimitSnapshot? rateLimits)
+    {
+        if (rateLimits is null)
+        {
+            return null;
+        }
+
+        return new CodexRateLimitSnapshot(
+            rateLimits.LimitId,
+            rateLimits.LimitName,
+            rateLimits.PlanType?.ToString(),
+            ToCodexRateLimitWindow(rateLimits.Primary),
+            ToCodexRateLimitWindow(rateLimits.Secondary));
+    }
+
+    private static CodexRateLimitWindow? ToCodexRateLimitWindow(RateLimitWindow? window)
+    {
+        if (window is null)
+        {
+            return null;
+        }
+
+        return new CodexRateLimitWindow(
+            window.UsedPercent,
+            window.ResetsAt is { } resetsAt ? DateTimeOffset.FromUnixTimeSeconds(resetsAt) : null,
+            window.WindowDurationMins);
+    }
+
+    private static string BuildCodexUsageMessage(long? currentTokens, long? tokenLimit)
+        => currentTokens is { } current && tokenLimit is > 0
+            ? FormattableString.Invariant($"{current:0}/{tokenLimit:0} tokens")
+            : currentTokens is { } total
+                ? total.ToString("0", CultureInfo.InvariantCulture) + " tokens"
+                : "Token usage updated.";
 
     private static AgentActivityEvent CreateActivity(
         string sessionId,

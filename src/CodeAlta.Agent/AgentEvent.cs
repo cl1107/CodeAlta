@@ -451,6 +451,7 @@ public sealed record AgentActivityEvent(
 /// <param name="Kind">The session update kind.</param>
 /// <param name="Message">Optional update message.</param>
 /// <param name="Details">Optional structured details.</param>
+/// <param name="Usage">Optional normalized usage payload.</param>
 public sealed record AgentSessionUpdateEvent(
     AgentBackendId BackendId,
     string SessionId,
@@ -458,7 +459,8 @@ public sealed record AgentSessionUpdateEvent(
     AgentRunId? RunId,
     AgentSessionUpdateKind Kind,
     string? Message,
-    JsonElement? Details = null)
+    JsonElement? Details = null,
+    AgentSessionUsage? Usage = null)
     : AgentEvent(BackendId, SessionId, Timestamp, RunId);
 
 /// <summary>

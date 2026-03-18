@@ -251,6 +251,8 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
         public bool StatusBusy { get; set; }
 
         public bool HasCustomStatus { get; set; }
+
+        public AgentSessionUsage? Usage { get; set; }
     }
 
     private enum SidebarSelectionKind

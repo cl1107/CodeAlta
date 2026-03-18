@@ -474,6 +474,75 @@ public sealed class CodexAgentMapperTests
     }
 
     [TestMethod]
+    public void ToAgentEvent_MapsTokenUsageAndRateLimitUpdates()
+    {
+        var timestamp = DateTimeOffset.Parse("2026-02-25T10:00:00+00:00");
+        var usageNotification = new CodexNotification.ThreadTokenUsageUpdated(
+            new ThreadTokenUsageUpdatedNotification
+            {
+                ThreadId = "thread-1",
+                TurnId = "turn-7",
+                TokenUsage = new ThreadTokenUsage
+                {
+                    Last = new TokenUsageBreakdown
+                    {
+                        CachedInputTokens = 32,
+                        InputTokens = 640,
+                        OutputTokens = 128,
+                        ReasoningOutputTokens = 16,
+                        TotalTokens = 816,
+                    },
+                    Total = new TokenUsageBreakdown
+                    {
+                        CachedInputTokens = 128,
+                        InputTokens = 4096,
+                        OutputTokens = 768,
+                        ReasoningOutputTokens = 64,
+                        TotalTokens = 5056,
+                    },
+                    ModelContextWindow = 128000,
+                }
+            });
+
+        var mappedUsage = (AgentSessionUpdateEvent)CodexAgentMapper.ToAgentEvent("thread-1", usageNotification, timestamp);
+
+        Assert.AreEqual(AgentSessionUpdateKind.UsageUpdated, mappedUsage.Kind);
+        Assert.AreEqual("turn-7", mappedUsage.RunId?.Value);
+        Assert.IsNotNull(mappedUsage.Usage);
+        Assert.AreEqual(5056L, mappedUsage.Usage.CurrentTokens);
+        Assert.AreEqual(128000L, mappedUsage.Usage.TokenLimit);
+        var usageDetails = Assert.IsInstanceOfType<CodexSessionUsageDetails>(mappedUsage.Usage.Details);
+        Assert.AreEqual(816L, usageDetails.LastTurnUsage!.TotalTokens);
+        Assert.AreEqual(5056L, usageDetails.TotalUsage!.TotalTokens);
+
+        var rateLimitNotification = new CodexNotification.AccountRateLimitsUpdated(
+            new AccountRateLimitsUpdatedNotification
+            {
+                RateLimits = new RateLimitSnapshot
+                {
+                    LimitId = "requests",
+                    LimitName = "Requests",
+                    PlanType = PlanType.Pro,
+                    Primary = new RateLimitWindow
+                    {
+                        UsedPercent = 42,
+                        ResetsAt = DateTimeOffset.Parse("2026-02-25T11:00:00+00:00").ToUnixTimeSeconds(),
+                        WindowDurationMins = 60,
+                    }
+                }
+            });
+
+        var mappedRateLimit = (AgentSessionUpdateEvent)CodexAgentMapper.ToAgentEvent("thread-1", rateLimitNotification, timestamp);
+
+        Assert.AreEqual(AgentSessionUpdateKind.UsageUpdated, mappedRateLimit.Kind);
+        Assert.IsNotNull(mappedRateLimit.Usage);
+        var rateLimitDetails = Assert.IsInstanceOfType<CodexSessionUsageDetails>(mappedRateLimit.Usage.Details);
+        Assert.AreEqual("Requests", rateLimitDetails.RateLimits!.LimitName);
+        Assert.AreEqual("Pro", rateLimitDetails.RateLimits.PlanType);
+        Assert.AreEqual(42, rateLimitDetails.RateLimits.Primary!.UsedPercent);
+    }
+
+    [TestMethod]
     public void ToAgentEvent_MapsWebSearchItemLifecycle()
     {
         var timestamp = DateTimeOffset.Parse("2026-02-25T10:00:00+00:00");

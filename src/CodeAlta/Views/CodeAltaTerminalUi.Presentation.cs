@@ -37,6 +37,7 @@ internal sealed partial class CodeAltaTerminalUi
             .SelectionChanged((_, e) => OnChatReasoningSelectionChanged(e.NewIndex))
             .MinWidth(12)
             .MaxWidth(22);
+        var usageIndicator = CreateComputedVisual(BuildSessionUsageIndicatorVisual);
         var statusPrefix = new Center(
             new ComputedVisual(
                 () => _viewModel.StatusBusy
@@ -71,7 +72,8 @@ internal sealed partial class CodeAltaTerminalUi
                 _chatBackendSelect,
                 _chatModelSelect,
                 _chatReasoningSelect,
-                new Markup(() => _viewModel.BackendStatusMarkup)
+                new Markup(() => _viewModel.BackendStatusMarkup),
+                usageIndicator,
             ])
         {
             Spacing = 2,

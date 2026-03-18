@@ -535,9 +535,36 @@ public sealed class CopilotAgentMapperTests
             Data = new AssistantUsageData
             {
                 Model = "gpt-5",
+                InputTokens = 1200,
+                OutputTokens = 300,
+                CacheReadTokens = 75,
+                CacheWriteTokens = 25,
+                Duration = 420,
+                Cost = 1.25,
                 QuotaSnapshots = new Dictionary<string, object>
                 {
                     ["sample"] = quotaSnapshot.RootElement.Clone()
+                },
+                CopilotUsage = new AssistantUsageDataCopilotUsage
+                {
+                    TotalNanoAiu = 99,
+                    TokenDetails =
+                    [
+                        new AssistantUsageDataCopilotUsageTokenDetailsItem
+                        {
+                            BatchSize = 1,
+                            CostPerBatch = 0,
+                            TokenType = "input",
+                            TokenCount = 1200
+                        },
+                        new AssistantUsageDataCopilotUsageTokenDetailsItem
+                        {
+                            BatchSize = 1,
+                            CostPerBatch = 0,
+                            TokenType = "output",
+                            TokenCount = 300
+                        }
+                    ]
                 }
             }
         };
@@ -548,6 +575,40 @@ public sealed class CopilotAgentMapperTests
         var usage = (AgentSessionUpdateEvent)mapped;
         Assert.AreEqual(AgentSessionUpdateKind.UsageUpdated, usage.Kind);
         Assert.IsTrue(usage.Message!.Contains("gpt-5", StringComparison.Ordinal));
+        Assert.IsNotNull(usage.Usage);
+        var details = Assert.IsInstanceOfType<CopilotSessionUsageDetails>(usage.Usage.Details);
+        Assert.IsNotNull(details.LastAssistantUsage);
+        Assert.AreEqual(1200L, details.LastAssistantUsage.InputTokens);
+        Assert.AreEqual(300L, details.LastAssistantUsage.OutputTokens);
+        Assert.AreEqual(99d, details.LastAssistantUsage.TotalNanoAiu);
+        Assert.AreEqual(1, details.QuotaSnapshots!.Length);
+        Assert.AreEqual("sample", details.QuotaSnapshots[0].Name);
+    }
+
+    [TestMethod]
+    public void ToAgentEvent_MapsSessionUsageInfoIntoNormalizedUsage()
+    {
+        var timestamp = DateTimeOffset.Parse("2026-02-25T12:05:00+00:00");
+        var sessionUsage = new SessionUsageInfoEvent
+        {
+            Timestamp = timestamp,
+            Data = new SessionUsageInfoData
+            {
+                CurrentTokens = 12345,
+                TokenLimit = 200000,
+                MessagesLength = 18
+            }
+        };
+
+        var mapped = CopilotAgentMapper.ToAgentEvent("session-1", sessionUsage);
+
+        Assert.IsInstanceOfType<AgentSessionUpdateEvent>(mapped);
+        var usage = (AgentSessionUpdateEvent)mapped;
+        Assert.AreEqual(AgentSessionUpdateKind.UsageUpdated, usage.Kind);
+        Assert.IsNotNull(usage.Usage);
+        Assert.AreEqual(12345L, usage.Usage.CurrentTokens);
+        Assert.AreEqual(200000L, usage.Usage.TokenLimit);
+        Assert.AreEqual(18, usage.Usage.MessageCount);
     }
 
     [TestMethod]

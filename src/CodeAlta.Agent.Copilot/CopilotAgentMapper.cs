@@ -1,7 +1,9 @@
 using System.Collections;
+using System.Buffers;
 using System.IO;
 using System.Text;
 using System.Text.Json;
+using System.Globalization;
 using GitHub.Copilot.SDK;
 using Microsoft.Extensions.AI;
 using XenoAtom.Logging;
@@ -278,7 +280,8 @@ internal static class CopilotAgentMapper
                 sessionId,
                 usage.Timestamp,
                 AgentSessionUpdateKind.UsageUpdated,
-                $"{usage.Data.CurrentTokens:0}/{usage.Data.TokenLimit:0} tokens"),
+                FormattableString.Invariant($"{usage.Data.CurrentTokens:0}/{usage.Data.TokenLimit:0} tokens"),
+                usage: CreateCopilotSessionUsage(usage.Timestamp, usage.Data)),
 
             SessionCompactionStartEvent compactionStart => CreateSessionUpdate(
                 sessionId,
@@ -292,7 +295,8 @@ internal static class CopilotAgentMapper
                 AgentSessionUpdateKind.CompactionCompleted,
                 compactionComplete.Data.Success
                     ? "Compaction completed."
-                    : compactionComplete.Data.Error ?? "Compaction failed."),
+                    : compactionComplete.Data.Error ?? "Compaction failed.",
+                usage: CreateCopilotCompactionUsage(compactionComplete.Timestamp, compactionComplete.Data)),
 
             SessionTaskCompleteEvent taskComplete => CreateSessionUpdate(
                 sessionId,
@@ -320,7 +324,8 @@ internal static class CopilotAgentMapper
                 sessionId,
                 truncation.Timestamp,
                 AgentSessionUpdateKind.Truncated,
-                $"{truncation.Data.MessagesRemovedDuringTruncation:0} messages removed."),
+                $"{truncation.Data.MessagesRemovedDuringTruncation:0} messages removed.",
+                usage: CreateCopilotTruncationUsage(truncation.Timestamp, truncation.Data)),
 
             SessionSnapshotRewindEvent rewind => CreateSessionUpdate(
                 sessionId,
@@ -416,7 +421,8 @@ internal static class CopilotAgentMapper
                 sessionId,
                 assistantUsage.Timestamp,
                 AgentSessionUpdateKind.UsageUpdated,
-                $"{assistantUsage.Data.Model}: {assistantUsage.Data.InputTokens ?? 0:0}/{assistantUsage.Data.OutputTokens ?? 0:0} tokens"),
+                FormattableString.Invariant($"{assistantUsage.Data.Model}: {assistantUsage.Data.InputTokens ?? 0:0}/{assistantUsage.Data.OutputTokens ?? 0:0} tokens"),
+                usage: CreateCopilotAssistantUsage(assistantUsage.Timestamp, assistantUsage.Data)),
 
             SessionIdleEvent idle => new AgentSessionUpdateEvent(
                 AgentBackendIds.Copilot,
@@ -869,7 +875,8 @@ internal static class CopilotAgentMapper
         DateTimeOffset timestamp,
         AgentSessionUpdateKind kind,
         string? message,
-        AgentRunId? runId = null)
+        AgentRunId? runId = null,
+        AgentSessionUsage? usage = null)
     {
         return new AgentSessionUpdateEvent(
             AgentBackendIds.Copilot,
@@ -877,8 +884,136 @@ internal static class CopilotAgentMapper
             timestamp,
             runId,
             kind,
-            message);
+            message,
+            Usage: usage);
     }
+
+    private static AgentSessionUsage CreateCopilotSessionUsage(DateTimeOffset timestamp, SessionUsageInfoData data)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+
+        return new AgentSessionUsage(
+            ToInt64(data.CurrentTokens),
+            ToInt64(data.TokenLimit),
+            ToInt32(data.MessagesLength),
+            timestamp);
+    }
+
+    private static AgentSessionUsage CreateCopilotAssistantUsage(DateTimeOffset timestamp, AssistantUsageData data)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+
+        return new AgentSessionUsage(
+            CurrentTokens: null,
+            TokenLimit: null,
+            MessageCount: null,
+            UpdatedAt: timestamp,
+            Details: new CopilotSessionUsageDetails(
+                LastAssistantUsage: new CopilotAssistantUsage(
+                    data.Model,
+                    InputTokens: ToNullableInt64(data.InputTokens),
+                    OutputTokens: ToNullableInt64(data.OutputTokens),
+                    CacheReadTokens: ToNullableInt64(data.CacheReadTokens),
+                    CacheWriteTokens: ToNullableInt64(data.CacheWriteTokens),
+                    Cost: data.Cost,
+                    DurationMs: data.Duration,
+                    Initiator: data.Initiator,
+                    ParentToolCallId: data.ParentToolCallId,
+                    ReasoningEffort: null,
+                    TotalNanoAiu: data.CopilotUsage?.TotalNanoAiu,
+                    TokenDetails: data.CopilotUsage?.TokenDetails
+                        .Select(token => new CopilotTokenDetail(token.TokenType, ToInt64(token.TokenCount)))
+                        .ToArray()),
+                QuotaSnapshots: CreateQuotaSnapshots(data.QuotaSnapshots)));
+    }
+
+    private static AgentSessionUsage CreateCopilotCompactionUsage(DateTimeOffset timestamp, SessionCompactionCompleteData data)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+
+        var messageCount = default(int?);
+        if (data.PreCompactionMessagesLength is { } preMessages && data.MessagesRemoved is { } removedMessages)
+        {
+            messageCount = Math.Max(0, ToInt32(preMessages) - ToInt32(removedMessages));
+        }
+
+        return new AgentSessionUsage(
+            CurrentTokens: ToNullableInt64(data.PostCompactionTokens),
+            TokenLimit: null,
+            MessageCount: messageCount,
+            UpdatedAt: timestamp,
+            Details: new CopilotSessionUsageDetails(
+                LastCompaction: new CopilotCompactionUsage(
+                    data.Success,
+                    PreCompactionTokens: ToNullableInt64(data.PreCompactionTokens),
+                    PostCompactionTokens: ToNullableInt64(data.PostCompactionTokens),
+                    PreCompactionMessages: ToNullableInt32(data.PreCompactionMessagesLength),
+                    MessagesRemoved: ToNullableInt32(data.MessagesRemoved),
+                    TokensRemoved: ToNullableInt64(data.TokensRemoved),
+                    TokensUsed: data.CompactionTokensUsed is null
+                        ? null
+                        : new CopilotCompactionTokenUsage(
+                            ToInt64(data.CompactionTokensUsed.Input),
+                            ToInt64(data.CompactionTokensUsed.Output),
+                            ToInt64(data.CompactionTokensUsed.CachedInput)),
+                    SummaryContent: data.SummaryContent)));
+    }
+
+    private static AgentSessionUsage CreateCopilotTruncationUsage(DateTimeOffset timestamp, SessionTruncationData data)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+
+        return new AgentSessionUsage(
+            CurrentTokens: ToInt64(data.PostTruncationTokensInMessages),
+            TokenLimit: ToInt64(data.TokenLimit),
+            MessageCount: ToInt32(data.PostTruncationMessagesLength),
+            UpdatedAt: timestamp);
+    }
+
+    private static CopilotQuotaSnapshot[]? CreateQuotaSnapshots(Dictionary<string, object>? snapshots)
+    {
+        if (snapshots is not { Count: > 0 })
+        {
+            return null;
+        }
+
+        return snapshots
+            .OrderBy(static entry => entry.Key, StringComparer.Ordinal)
+            .Select(static entry => new CopilotQuotaSnapshot(entry.Key, ToJsonElement(entry.Value)))
+            .ToArray();
+    }
+
+    private static JsonElement ToJsonElement(object? value)
+        => value switch
+        {
+            JsonElement json => json.Clone(),
+            null => JsonDocument.Parse("null").RootElement.Clone(),
+            string text => CreateJsonStringElement(text),
+            bool boolean => JsonDocument.Parse(boolean ? "true" : "false").RootElement.Clone(),
+            int number => JsonDocument.Parse(number.ToString(CultureInfo.InvariantCulture)).RootElement.Clone(),
+            long number => JsonDocument.Parse(number.ToString(CultureInfo.InvariantCulture)).RootElement.Clone(),
+            double number => JsonDocument.Parse(number.ToString("R", CultureInfo.InvariantCulture)).RootElement.Clone(),
+            decimal number => JsonDocument.Parse(number.ToString(CultureInfo.InvariantCulture)).RootElement.Clone(),
+            float number => JsonDocument.Parse(number.ToString("R", CultureInfo.InvariantCulture)).RootElement.Clone(),
+            _ => CreateJsonStringElement(value.ToString() ?? string.Empty),
+        };
+
+    private static JsonElement CreateJsonStringElement(string value)
+    {
+        var buffer = new ArrayBufferWriter<byte>();
+        using var writer = new Utf8JsonWriter(buffer);
+        writer.WriteStringValue(value);
+        writer.Flush();
+        return JsonDocument.Parse(Encoding.UTF8.GetString(buffer.WrittenSpan)).RootElement.Clone();
+    }
+
+    private static long ToInt64(double value) => checked((long)value);
+
+    private static long? ToNullableInt64(double? value) => value is { } concrete ? ToInt64(concrete) : null;
+
+    private static int ToInt32(double value) => checked((int)value);
+
+    private static int? ToNullableInt32(double? value) => value is { } concrete ? ToInt32(concrete) : null;
 
     private static AgentInteractionEvent CreatePermissionResolvedEvent(
         AgentPermissionRequest request,
