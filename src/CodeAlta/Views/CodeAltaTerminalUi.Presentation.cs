@@ -909,11 +909,19 @@ internal sealed partial class CodeAltaTerminalUi
 
     private static TextFigletStyle BuildWelcomeAltaFigletStyle()
     {
-        var phase = (float)((DateTime.UtcNow.Ticks % TimeSpan.TicksPerSecond) / (double)TimeSpan.TicksPerSecond);
+        var phase = ComputeLoopAnimationPhase(DateTime.UtcNow.Ticks, TimeSpan.TicksPerSecond * 6L);
         return TextFigletStyle.Default with
         {
             ForegroundBrush = UiPalette.BuildWelcomeAltaBrush(phase),
         };
+    }
+
+    internal static float ComputeLoopAnimationPhase(long ticks, long cycleTicks)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(cycleTicks);
+
+        var normalizedTicks = ((ticks % cycleTicks) + cycleTicks) % cycleTicks;
+        return (float)(normalizedTicks / (double)cycleTicks);
     }
 
     internal static string BuildReadyStatusText(
@@ -946,21 +954,36 @@ internal sealed partial class CodeAltaTerminalUi
 
         if (busy && string.Equals(message, ThinkingStatusMessage, StringComparison.Ordinal))
         {
-            var phase = (float)((DateTime.UtcNow.Ticks % TimeSpan.TicksPerSecond) / (double)TimeSpan.TicksPerSecond);
+            var phase = ComputeLoopAnimationPhase(DateTime.UtcNow.Ticks, TimeSpan.TicksPerSecond * 5L);
             var sweepBrush = Brush.LinearGradient(
-                new GradientPoint(-0.55f + phase, 0f),
-                new GradientPoint(0.20f + phase, 0f),
-                [
-                    new GradientStop(0f, UiPalette.GetStatusToneColor(StatusTone.Info).WithOpacity(0.55f)),
-                    new GradientStop(0.45f, Colors.White),
-                    new GradientStop(1f, UiPalette.GetStatusToneColor(StatusTone.Info).WithOpacity(0.70f)),
-                ],
-                tileMode: BrushTileMode.Mirror,
+                new GradientPoint(-0.55f + (0.75f * phase), 0f),
+                new GradientPoint(0.20f + (0.75f * phase), 0f),
+                BuildThinkingGradientStops(),
+                tileMode: BrushTileMode.Repeat,
                 mixSpaceOverride: ColorMixSpace.Oklab);
             return TextBlockStyle.Default with { ForegroundBrush = sweepBrush };
         }
 
         return TextBlockStyle.Default with { Foreground = UiPalette.GetStatusToneColor(tone) };
+    }
+
+    internal static GradientStop[] BuildThinkingGradientStops()
+    {
+        var baseColor = UiPalette.GetStatusToneColor(StatusTone.Info);
+        var glowColor = Color.Mix(baseColor, Colors.White, 0.26f, ColorMixSpace.Oklab);
+        var highlightColor = Color.Mix(baseColor, Colors.White, 0.52f, ColorMixSpace.Oklab);
+        return
+        [
+            new GradientStop(0.00f, baseColor.WithOpacity(0.50f)),
+            new GradientStop(0.12f, glowColor.WithOpacity(0.62f)),
+            new GradientStop(0.22f, highlightColor),
+            new GradientStop(0.34f, glowColor.WithOpacity(0.66f)),
+            new GradientStop(0.48f, baseColor.WithOpacity(0.56f)),
+            new GradientStop(0.62f, glowColor.WithOpacity(0.64f)),
+            new GradientStop(0.74f, Colors.White),
+            new GradientStop(0.86f, glowColor.WithOpacity(0.68f)),
+            new GradientStop(1.00f, baseColor.WithOpacity(0.50f)),
+        ];
     }
 
     private static string BuildPromptPlaceholder(

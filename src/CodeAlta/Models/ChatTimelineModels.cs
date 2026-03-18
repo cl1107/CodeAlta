@@ -117,6 +117,19 @@ internal sealed class ChatStatusState(DocumentFlowItem item, MarkdownControl mar
             : $"{BaseMarkdown}\n\n{StatusMarkdown}";
 }
 
+internal sealed class TruncatedHistoryState(DocumentFlowItem item, Rule rule, int omittedMessageCount)
+{
+    public DocumentFlowItem Item { get; } = item;
+
+    public Rule Rule { get; } = rule;
+
+    public int OmittedMessageCount { get; } = omittedMessageCount;
+
+    public bool CanLoad { get; set; } = true;
+}
+
+internal sealed record ThreadHistoryLoadPlan(IReadOnlyList<AgentEvent> EventsToRender, int OmittedMessageCount);
+
 internal enum ToolCallDisplayStatus
 {
     Pending,

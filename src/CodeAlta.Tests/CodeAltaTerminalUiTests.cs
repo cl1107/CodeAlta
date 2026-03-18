@@ -355,6 +355,149 @@ public sealed class CodeAltaTerminalUiTests
     }
 
     [TestMethod]
+    public void BuildWelcomeAltaGradientStops_UseMatchingEdgeColors()
+    {
+        var stops = CodeAltaTerminalUi.BuildWelcomeAltaGradientStops();
+
+        Assert.AreEqual(11, stops.Length);
+        Assert.AreEqual(0.00f, stops[0].Offset);
+        Assert.AreEqual(0.50f, stops[5].Offset);
+        Assert.AreEqual(1.00f, stops[^1].Offset);
+        Assert.AreEqual(stops[0].Color, stops[^1].Color);
+        Assert.AreEqual(stops[2].Color, stops[8].Color);
+    }
+
+    [TestMethod]
+    public void ComputeLoopAnimationPhase_RepeatsAcrossCycleBoundary()
+    {
+        const long cycleTicks = TimeSpan.TicksPerSecond * 5L;
+
+        var start = CodeAltaTerminalUi.ComputeLoopAnimationPhase(0, cycleTicks);
+        var midpoint = CodeAltaTerminalUi.ComputeLoopAnimationPhase(cycleTicks / 2, cycleTicks);
+        var end = CodeAltaTerminalUi.ComputeLoopAnimationPhase(cycleTicks, cycleTicks);
+
+        Assert.AreEqual(0f, start, 0.0001f);
+        Assert.AreEqual(0.5f, midpoint, 0.0001f);
+        Assert.AreEqual(start, end, 0.0001f);
+    }
+
+    [TestMethod]
+    public void BuildThinkingGradientStops_UseMultipleHighlightsAndLoopableEdges()
+    {
+        var stops = CodeAltaTerminalUi.BuildThinkingGradientStops();
+
+        Assert.AreEqual(9, stops.Length);
+        Assert.AreEqual(0.00f, stops[0].Offset);
+        Assert.AreEqual(1.00f, stops[^1].Offset);
+        Assert.AreEqual(stops[0].Color, stops[^1].Color);
+    }
+
+    [TestMethod]
+    public void CreateInitialThreadHistoryLoadPlan_StartsAtLastUserPrompt()
+    {
+        var timestamp = DateTimeOffset.UtcNow;
+        AgentEvent[] history =
+        [
+            new AgentContentDeltaEvent(AgentBackendIds.Copilot, "session-1", timestamp, null, AgentContentKind.User, "user-1", null, "First prompt"),
+            new AgentContentCompletedEvent(AgentBackendIds.Copilot, "session-1", timestamp, null, AgentContentKind.User, "user-1", null, "First prompt"),
+            new AgentContentCompletedEvent(AgentBackendIds.Copilot, "session-1", timestamp, null, AgentContentKind.Assistant, "assistant-1", null, "First reply"),
+            new AgentContentDeltaEvent(AgentBackendIds.Copilot, "session-1", timestamp, null, AgentContentKind.User, "user-2", null, "Second prompt"),
+            new AgentContentCompletedEvent(AgentBackendIds.Copilot, "session-1", timestamp, null, AgentContentKind.User, "user-2", null, "Second prompt"),
+            new AgentContentCompletedEvent(AgentBackendIds.Copilot, "session-1", timestamp, null, AgentContentKind.Assistant, "assistant-2", null, "Second reply"),
+        ];
+
+        var plan = CodeAltaTerminalUi.CreateInitialThreadHistoryLoadPlan(history);
+
+        Assert.AreEqual(3, plan.EventsToRender.Count);
+        Assert.AreSame(history[3], plan.EventsToRender[0]);
+        Assert.AreEqual(2, plan.OmittedMessageCount);
+    }
+
+    [TestMethod]
+    public void BuildTruncatedHistoryTexts_UseHelpfulPluralization()
+    {
+        Assert.AreEqual("Load 1 previous message", CodeAltaTerminalUi.BuildTruncatedHistoryLoadButtonText(1));
+        Assert.AreEqual("Load 12 previous messages", CodeAltaTerminalUi.BuildTruncatedHistoryLoadButtonText(12));
+        Assert.AreEqual("1 previous message...", CodeAltaTerminalUi.BuildTruncatedHistorySummaryText(1));
+        Assert.AreEqual("12 previous messages...", CodeAltaTerminalUi.BuildTruncatedHistorySummaryText(12));
+    }
+
+    [TestMethod]
+    public async Task CreateTruncatedHistoryState_CanBeCreatedFromWorkerThread()
+    {
+        var state = await Task.Run(() => CodeAltaTerminalUi.CreateTruncatedHistoryState(3, static () => { }));
+
+        Assert.IsNotNull(state);
+        Assert.IsInstanceOfType<Rule>(state.Rule);
+        Assert.IsInstanceOfType<Button>(state.Rule.CenterLabel);
+        Assert.AreEqual(3, state.OmittedMessageCount);
+    }
+
+    [TestMethod]
+    public void CreateDeferredUiAction_PostsWorkInsteadOfRunningInline()
+    {
+        using var session = Terminal.Open(new InMemoryTerminalBackend(new TerminalSize(80, 20)), new TerminalOptions { ImplicitStartInput = true }, force: true);
+        var app = new TerminalApp(
+            new TextBlock("root"),
+            session.Instance,
+            new TerminalAppOptions
+            {
+                HostKind = TerminalHostKind.Fullscreen,
+                EnableMouse = true,
+                MouseMode = TerminalMouseMode.Move,
+            });
+
+        var invocationCount = 0;
+        var action = CodeAltaTerminalUi.CreateDeferredUiAction(() => invocationCount++);
+
+        InvokeTerminalApp(app, "BeginRun");
+        try
+        {
+            action();
+            Assert.AreEqual(0, invocationCount);
+
+            TickTerminalApp(app);
+            Assert.AreEqual(1, invocationCount);
+        }
+        finally
+        {
+            InvokeTerminalApp(app, "EndRun");
+        }
+    }
+
+    [TestMethod]
+    public void BuildInitialThreadHistoryItems_PrependsTruncatedHistoryBeforeFirstLoadedPrompt()
+    {
+        var pending = CodeAltaTerminalUi.CreatePendingChatMessage("hello");
+        var followup = CodeAltaTerminalUi.CreatePendingChatMessage("assistant");
+        var truncatedHistory = CodeAltaTerminalUi.CreateTruncatedHistoryState(3, static () => { });
+
+        var items = CodeAltaTerminalUi.BuildInitialThreadHistoryItems(
+            [pending.UserItem, followup.AssistantItem],
+            truncatedHistory.Item);
+
+        Assert.AreEqual(3, items.Count);
+        Assert.AreSame(truncatedHistory.Item.Content, items[0].Content);
+        Assert.AreSame(pending.UserItem.Content, items[1].Content);
+        Assert.AreSame(followup.AssistantItem.Content, items[2].Content);
+    }
+
+    [TestMethod]
+    public void BuildInitialThreadHistoryItems_LeavesRenderedItemsUnchangedWhenNoMarkerExists()
+    {
+        var pending = CodeAltaTerminalUi.CreatePendingChatMessage("hello");
+        var followup = CodeAltaTerminalUi.CreatePendingChatMessage("assistant");
+
+        var items = CodeAltaTerminalUi.BuildInitialThreadHistoryItems(
+            [pending.UserItem, followup.AssistantItem],
+            truncatedHistoryItem: null);
+
+        Assert.AreEqual(2, items.Count);
+        Assert.AreSame(pending.UserItem.Content, items[0].Content);
+        Assert.AreSame(followup.AssistantItem.Content, items[1].Content);
+    }
+
+    [TestMethod]
     public void BuildWelcomePane_CreatesCenteredFigletLogo()
     {
         var welcome = CodeAltaTerminalUi.BuildWelcomePane(null, globalScopeSelected: true);
@@ -367,6 +510,56 @@ public sealed class CodeAltaTerminalUiTests
         Assert.AreEqual(2, logoRow.Children.Count);
         Assert.AreEqual("Code", Assert.IsInstanceOfType<TextFiglet>(logoRow.Children[0]).Text);
         Assert.AreEqual("Alta", Assert.IsInstanceOfType<TextFiglet>(logoRow.Children[1]).Text);
+    }
+
+    [TestMethod]
+    public void ShouldPromoteAgentEventToThinking_TracksLiveProgressButNotErrorsOrIdle()
+    {
+        var timestamp = DateTimeOffset.UtcNow;
+
+        Assert.IsTrue(
+            CodeAltaTerminalUi.ShouldPromoteAgentEventToThinking(
+                new AgentContentDeltaEvent(
+                    AgentBackendIds.Copilot,
+                    "session-1",
+                    timestamp,
+                    null,
+                    AgentContentKind.Reasoning,
+                    "content-1",
+                    null,
+                    "Inspecting reconnect state...")));
+
+        Assert.IsTrue(
+            CodeAltaTerminalUi.ShouldPromoteAgentEventToThinking(
+                new AgentActivityEvent(
+                    AgentBackendIds.Copilot,
+                    "session-1",
+                    timestamp,
+                    null,
+                    AgentActivityKind.ToolCall,
+                    AgentActivityPhase.Started,
+                    "activity-1",
+                    null,
+                    "search",
+                    "Searching...")));
+
+        Assert.IsFalse(
+            CodeAltaTerminalUi.ShouldPromoteAgentEventToThinking(
+                new AgentSessionUpdateEvent(
+                    AgentBackendIds.Copilot,
+                    "session-1",
+                    timestamp,
+                    null,
+                    AgentSessionUpdateKind.Idle,
+                    "Idle")));
+
+        Assert.IsFalse(
+            CodeAltaTerminalUi.ShouldPromoteAgentEventToThinking(
+                new AgentErrorEvent(
+                    AgentBackendIds.Copilot,
+                    "session-1",
+                    timestamp,
+                    "Reconnect failed.")));
     }
 
     [TestMethod]

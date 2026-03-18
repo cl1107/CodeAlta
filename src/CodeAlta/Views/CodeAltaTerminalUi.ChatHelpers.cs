@@ -199,6 +199,16 @@ internal sealed partial class CodeAltaTerminalUi
             ? [CreateUserPromptSeparatorItem(), userItem]
             : [userItem];
 
+    internal static string BuildTruncatedHistoryLoadButtonText(int omittedMessageCount)
+        => omittedMessageCount == 1
+            ? "Load 1 previous message"
+            : $"Load {omittedMessageCount} previous messages";
+
+    internal static string BuildTruncatedHistorySummaryText(int omittedMessageCount)
+        => omittedMessageCount == 1
+            ? "1 previous message..."
+            : $"{omittedMessageCount} previous messages...";
+
     internal static string FormatChatCardTimestamp(DateTimeOffset timestamp)
         => timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
 
@@ -1289,6 +1299,13 @@ internal sealed partial class CodeAltaTerminalUi
         return dispatcher.CheckAccess()
             ? action(state)
             : dispatcher.InvokeAsync(() => action(state)).GetAwaiter().GetResult();
+    }
+
+    internal static Action CreateDeferredUiAction(Action action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+
+        return () => Dispatcher.Current.Post(action);
     }
 
 }

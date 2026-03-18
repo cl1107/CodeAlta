@@ -196,6 +196,10 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
 
         public Task? HistoryLoadTask { get; set; }
 
+        public List<AgentEvent>? HistoryEvents { get; set; }
+
+        public List<DocumentFlowItem>? BufferedHistoryItems { get; set; }
+
         public PendingAssistantState? PendingAssistant { get; set; }
 
         public Dictionary<string, ChatContentState> ContentStates { get; } = new(StringComparer.Ordinal);
@@ -215,6 +219,8 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
         public ToolCallGroupState? ActiveToolCallGroup { get; set; }
 
         public TabPage? Page { get; set; }
+
+        public TruncatedHistoryState? TruncatedHistory { get; set; }
 
         public bool HasSeenUserPrompt { get; set; }
 

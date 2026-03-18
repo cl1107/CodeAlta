@@ -459,19 +459,56 @@ internal sealed partial class CodeAltaTerminalUi
         ThreadTabState tab,
         CancellationToken cancellationToken)
     {
+        await RebuildThreadHistoryAsync(
+                thread,
+                tab,
+                loadOnlyFromLastUserPrompt: true,
+                preferCachedHistory: false,
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async Task RebuildThreadHistoryAsync(
+        WorkThreadDescriptor thread,
+        ThreadTabState tab,
+        bool loadOnlyFromLastUserPrompt,
+        bool preferCachedHistory,
+        CancellationToken cancellationToken)
+    {
         tab.HistoryLoading = true;
+        tab.BufferedHistoryItems = [];
         try
         {
-            SetThreadStatus(tab, $"Loading thread '{thread.Title}'...", showSpinner: true);
-            var executionOptions = BuildExecutionOptions(thread, tab);
-            await _runtimeService.EnsureCoordinatorSessionAsync(thread, executionOptions, cancellationToken).ConfigureAwait(false);
-            var history = await _runtimeService.GetHistoryAsync(thread.ThreadId, cancellationToken).ConfigureAwait(false);
+            SetThreadStatus(
+                tab,
+                loadOnlyFromLastUserPrompt
+                    ? $"Loading thread '{thread.Title}'..."
+                    : $"Loading previous messages from '{thread.Title}'...",
+                showSpinner: true);
+
+            var history = await GetThreadHistoryAsync(thread, tab, preferCachedHistory, cancellationToken).ConfigureAwait(false);
             ResetThreadTab(tab);
-            foreach (var @event in history)
+
+            var plan = loadOnlyFromLastUserPrompt
+                ? CreateInitialThreadHistoryLoadPlan(history)
+                : new ThreadHistoryLoadPlan(history, OmittedMessageCount: 0);
+            DocumentFlowItem? truncatedHistoryItem = null;
+            if (plan.OmittedMessageCount > 0)
+            {
+                truncatedHistoryItem = CreateTruncatedHistoryItem(thread.ThreadId, tab, plan.OmittedMessageCount);
+            }
+
+            foreach (var @event in plan.EventsToRender)
             {
                 HandleAgentEvent(thread, tab, @event);
             }
 
+            if (tab.BufferedHistoryItems is { } bufferedHistoryItems)
+            {
+                tab.BufferedHistoryItems = BuildInitialThreadHistoryItems(bufferedHistoryItems, truncatedHistoryItem);
+            }
+
+            FlushBufferedHistoryItems(tab);
             tab.HistoryLoaded = true;
             ClearThreadStatus(tab);
         }
@@ -482,6 +519,8 @@ internal sealed partial class CodeAltaTerminalUi
                 UiLogger.Error(ex, $"Failed to load history for thread {thread.ThreadId}");
             }
 
+            ResetThreadTab(tab);
+            FlushBufferedHistoryItems(tab);
             RenderThreadFailure(tab, $"Failed to load history: {ex.Message}");
             SetThreadStatus(tab, $"Failed to load '{thread.Title}': {ex.Message}", tone: StatusTone.Error);
         }
@@ -489,7 +528,26 @@ internal sealed partial class CodeAltaTerminalUi
         {
             tab.HistoryLoading = false;
             tab.HistoryLoadTask = null;
+            tab.BufferedHistoryItems = null;
         }
+    }
+
+    private async Task<IReadOnlyList<AgentEvent>> GetThreadHistoryAsync(
+        WorkThreadDescriptor thread,
+        ThreadTabState tab,
+        bool preferCachedHistory,
+        CancellationToken cancellationToken)
+    {
+        if (preferCachedHistory && tab.HistoryEvents is { Count: > 0 } cachedHistory)
+        {
+            return cachedHistory;
+        }
+
+        var executionOptions = BuildExecutionOptions(thread, tab);
+        await _runtimeService.EnsureCoordinatorSessionAsync(thread, executionOptions, cancellationToken).ConfigureAwait(false);
+        var history = (await _runtimeService.GetHistoryAsync(thread.ThreadId, cancellationToken).ConfigureAwait(false)).ToList();
+        tab.HistoryEvents = history;
+        return history;
     }
 
     private async Task SendSelectedThreadPromptAsync(bool steer)
@@ -530,6 +588,7 @@ internal sealed partial class CodeAltaTerminalUi
 
         var tab = EnsureThreadTab(thread);
         await EnsureThreadHistoryLoadedAsync(thread).ConfigureAwait(false);
+        ReplaceTruncatedHistoryLoadButton(tab);
         ClearThreadInput();
         try
         {
@@ -704,6 +763,7 @@ internal sealed partial class CodeAltaTerminalUi
                 UpdateThreadFromAgentEvent(thread, agentEvent.Event);
                 if (_threadTabs.TryGetValue(thread.ThreadId, out var tab))
                 {
+                    tab.HistoryEvents?.Add(agentEvent.Event);
                     TryRenderThreadInteraction(tab, () => HandleAgentEvent(thread, tab, agentEvent.Event), "agent event");
                 }
 
@@ -735,6 +795,11 @@ internal sealed partial class CodeAltaTerminalUi
 
     private void HandleAgentEvent(WorkThreadDescriptor thread, ThreadTabState tab, AgentEvent @event)
     {
+        if (!tab.HistoryLoading && ShouldPromoteAgentEventToThinking(@event))
+        {
+            SetThreadStatus(tab, BuildThinkingStatusText(), showSpinner: true);
+        }
+
         switch (@event)
         {
             case AgentContentDeltaEvent delta:
@@ -910,6 +975,169 @@ internal sealed partial class CodeAltaTerminalUi
         }
     }
 
+    internal static bool ShouldPromoteAgentEventToThinking(AgentEvent @event)
+    {
+        ArgumentNullException.ThrowIfNull(@event);
+
+        return @event switch
+        {
+            AgentContentDeltaEvent { Delta.Length: > 0 } => true,
+            AgentContentCompletedEvent completed when !string.IsNullOrWhiteSpace(completed.Content) => true,
+            AgentPlanSnapshotEvent => true,
+            AgentActivityEvent { Phase: AgentActivityPhase.Requested or AgentActivityPhase.Started or AgentActivityPhase.Progressed or AgentActivityPhase.Completed } => true,
+            AgentSessionUpdateEvent
+            {
+                Kind: AgentSessionUpdateKind.Started
+                    or AgentSessionUpdateKind.Resumed
+                    or AgentSessionUpdateKind.PlanUpdated
+                    or AgentSessionUpdateKind.CompactionStarted
+            } => true,
+            _ => false,
+        };
+    }
+
+    internal static ThreadHistoryLoadPlan CreateInitialThreadHistoryLoadPlan(IReadOnlyList<AgentEvent> history)
+    {
+        ArgumentNullException.ThrowIfNull(history);
+
+        var startIndex = FindInitialThreadHistoryStartIndex(history);
+        if (startIndex <= 0 || startIndex >= history.Count)
+        {
+            return new ThreadHistoryLoadPlan(history, OmittedMessageCount: 0);
+        }
+
+        var eventsToRender = history.Skip(startIndex).ToArray();
+        return new ThreadHistoryLoadPlan(
+            eventsToRender,
+            CountRenderableHistoryMessages(history.Take(startIndex)));
+    }
+
+    internal static int FindInitialThreadHistoryStartIndex(IReadOnlyList<AgentEvent> history)
+    {
+        ArgumentNullException.ThrowIfNull(history);
+
+        var lastUserContentId = default(string);
+        var lastUserIndex = -1;
+        for (var index = history.Count - 1; index >= 0; index--)
+        {
+            if (TryGetUserContentId(history[index], out var contentId))
+            {
+                lastUserContentId = contentId;
+                lastUserIndex = index;
+                break;
+            }
+        }
+
+        if (lastUserIndex <= 0 || string.IsNullOrWhiteSpace(lastUserContentId))
+        {
+            return 0;
+        }
+
+        var startIndex = lastUserIndex;
+        while (startIndex > 0 &&
+               TryGetUserContentId(history[startIndex - 1], out var previousContentId) &&
+               string.Equals(previousContentId, lastUserContentId, StringComparison.Ordinal))
+        {
+            startIndex--;
+        }
+
+        return startIndex;
+    }
+
+    internal static int CountRenderableHistoryMessages(IEnumerable<AgentEvent> history)
+    {
+        ArgumentNullException.ThrowIfNull(history);
+
+        var contentKeys = new HashSet<string>(StringComparer.Ordinal);
+        var activityIds = new HashSet<string>(StringComparer.Ordinal);
+        var interactionIds = new HashSet<string>(StringComparer.Ordinal);
+        var count = 0;
+
+        foreach (var @event in history)
+        {
+            switch (@event)
+            {
+                case AgentContentDeltaEvent delta when ShouldDisplayContentDelta(delta):
+                    if (contentKeys.Add(CreateChatContentKey(delta.Kind, delta.ContentId)))
+                    {
+                        count++;
+                    }
+
+                    break;
+
+                case AgentContentCompletedEvent completed when ShouldDisplayCompletedHistoryContent(completed):
+                    if (contentKeys.Add(CreateChatContentKey(completed.Kind, completed.ContentId)))
+                    {
+                        count++;
+                    }
+
+                    break;
+
+                case AgentPlanSnapshotEvent:
+                    count++;
+                    break;
+
+                case AgentActivityEvent activity when ShouldDisplayActivity(activity) && activityIds.Add(activity.ActivityId):
+                    count++;
+                    break;
+
+                case AgentRawEvent raw when ShouldDisplayRawEvent(raw):
+                    count++;
+                    break;
+
+                case AgentPermissionRequest permissionRequest when interactionIds.Add(permissionRequest.InteractionId):
+                    count++;
+                    break;
+
+                case AgentUserInputRequest userInputRequest when interactionIds.Add(userInputRequest.InteractionId):
+                    count++;
+                    break;
+
+                case AgentInteractionEvent interaction when interactionIds.Add(interaction.InteractionId):
+                    count++;
+                    break;
+
+                case AgentSessionUpdateEvent update when update.Kind != AgentSessionUpdateKind.Idle && ShouldDisplaySessionUpdate(update):
+                    count++;
+                    break;
+
+                case AgentErrorEvent:
+                    count++;
+                    break;
+            }
+        }
+
+        return count;
+    }
+
+    private static bool ShouldDisplayCompletedHistoryContent(AgentContentCompletedEvent completed)
+    {
+        ArgumentNullException.ThrowIfNull(completed);
+
+        if (!ShouldDisplayCompletedContent(completed))
+        {
+            return false;
+        }
+
+        return completed.Kind != AgentContentKind.Assistant || !string.IsNullOrWhiteSpace(completed.Content);
+    }
+
+    private static bool TryGetUserContentId(AgentEvent @event, out string? contentId)
+    {
+        switch (@event)
+        {
+            case AgentContentDeltaEvent { Kind: AgentContentKind.User } delta:
+                contentId = delta.ContentId;
+                return !string.IsNullOrWhiteSpace(contentId);
+            case AgentContentCompletedEvent { Kind: AgentContentKind.User } completed:
+                contentId = completed.ContentId;
+                return !string.IsNullOrWhiteSpace(contentId);
+            default:
+                contentId = null;
+                return false;
+        }
+    }
+
     private void AppendThreadContent(ThreadTabState tab, AgentContentDeltaEvent delta)
     {
         if (string.IsNullOrEmpty(delta.Delta))
@@ -1013,6 +1241,96 @@ internal sealed partial class CodeAltaTerminalUi
 
         AppendThreadTimelineItem(tab, entry.Item);
         return state;
+    }
+
+    private DocumentFlowItem CreateTruncatedHistoryItem(string threadId, ThreadTabState tab, int omittedMessageCount)
+    {
+        var state = CreateTruncatedHistoryState(omittedMessageCount, () => _ = LoadEarlierThreadHistoryAsync(threadId));
+        tab.TruncatedHistory = state;
+        return state.Item;
+    }
+
+    internal static TruncatedHistoryState CreateTruncatedHistoryState(int omittedMessageCount, Action onLoad)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(omittedMessageCount);
+        ArgumentNullException.ThrowIfNull(onLoad);
+
+        return RunOnUiThread(
+            static state =>
+            {
+                var button = new Button(new TextBlock(BuildTruncatedHistoryLoadButtonText(state.omittedMessageCount)))
+                    .Click(CreateDeferredUiAction(state.onLoad));
+                var rule = new Rule()
+                    .CenterLabel(button);
+                var item = new DocumentFlowItem
+                {
+                    Content = new FlowDocument().Add(rule),
+                    Alignment = DocumentFlowAlignment.Stretch,
+                    Padding = new Thickness(0, 1, 0, 0),
+                };
+                return new TruncatedHistoryState(item, rule, state.omittedMessageCount);
+            },
+            (omittedMessageCount, onLoad));
+    }
+
+    internal static List<DocumentFlowItem> BuildInitialThreadHistoryItems(
+        IReadOnlyList<DocumentFlowItem> renderedItems,
+        DocumentFlowItem? truncatedHistoryItem)
+    {
+        ArgumentNullException.ThrowIfNull(renderedItems);
+
+        if (truncatedHistoryItem is null)
+        {
+            return [.. renderedItems];
+        }
+
+        var items = new List<DocumentFlowItem>(renderedItems.Count + 1);
+        items.Add(truncatedHistoryItem.Value);
+        items.AddRange(renderedItems);
+        return items;
+    }
+
+    private void ReplaceTruncatedHistoryLoadButton(ThreadTabState tab)
+    {
+        ArgumentNullException.ThrowIfNull(tab);
+
+        if (tab.TruncatedHistory is not { CanLoad: true } truncatedHistory)
+        {
+            return;
+        }
+
+        truncatedHistory.CanLoad = false;
+        PostToUi(
+            () =>
+            {
+                truncatedHistory.Rule.CenterLabel = new TextBlock(BuildTruncatedHistorySummaryText(truncatedHistory.OmittedMessageCount))
+                {
+                    Wrap = false,
+                };
+            });
+    }
+
+    private async Task LoadEarlierThreadHistoryAsync(string threadId)
+    {
+        var thread = FindThread(threadId);
+        if (thread is null || !_threadTabs.TryGetValue(threadId, out var tab))
+        {
+            return;
+        }
+
+        if (tab.TruncatedHistory is not { CanLoad: true })
+        {
+            return;
+        }
+
+        ReplaceTruncatedHistoryLoadButton(tab);
+        await RebuildThreadHistoryAsync(
+                thread,
+                tab,
+                loadOnlyFromLastUserPrompt: false,
+                preferCachedHistory: true,
+                CancellationToken.None)
+            .ConfigureAwait(false);
     }
 
     private void UpsertThreadStatus(
@@ -1431,6 +1749,7 @@ internal sealed partial class CodeAltaTerminalUi
     {
         CloseToolCallDialogs(tab);
         PostToUi(() => tab.Flow.Items.Clear());
+        tab.BufferedHistoryItems = null;
         tab.ContentStates.Clear();
         tab.ActivityStates.Clear();
         tab.InteractionStates.Clear();
@@ -1440,17 +1759,41 @@ internal sealed partial class CodeAltaTerminalUi
         tab.UserInputRequests.Clear();
         tab.PendingAssistant = null;
         tab.ActiveToolCallGroup = null;
+        tab.TruncatedHistory = null;
         tab.HasSeenUserPrompt = false;
     }
 
     private void AppendThreadTimelineItem(ThreadTabState tab, DocumentFlowItem item)
     {
         tab.ActiveToolCallGroup = null;
+        if (tab.HistoryLoading)
+        {
+            (tab.BufferedHistoryItems ??= []).Add(item);
+            return;
+        }
+
         PostToUi(() =>
         {
             tab.Flow.Items.Add(item);
             tab.Flow.ScrollToTail();
         });
+    }
+
+    private void FlushBufferedHistoryItems(ThreadTabState tab)
+    {
+        ArgumentNullException.ThrowIfNull(tab);
+
+        if (tab.BufferedHistoryItems is not { Count: > 0 } items)
+        {
+            return;
+        }
+
+        PostToUi(
+            () =>
+            {
+                tab.Flow.Items.AddRange(items);
+                tab.Flow.ScrollToTail();
+            });
     }
 
     private ProjectDescriptor? GetSelectedProject()
