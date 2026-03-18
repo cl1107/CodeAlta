@@ -893,10 +893,14 @@ internal static class CopilotAgentMapper
         ArgumentNullException.ThrowIfNull(data);
 
         return new AgentSessionUsage(
-            ToInt64(data.CurrentTokens),
-            ToInt64(data.TokenLimit),
-            ToInt32(data.MessagesLength),
-            timestamp);
+            Window: new AgentWindowUsageSnapshot(
+                ToInt64(data.CurrentTokens),
+                ToInt64(data.TokenLimit),
+                ToInt32(data.MessagesLength),
+                "Active context window"),
+            Scope: AgentUsageScope.CurrentWindow,
+            Source: AgentUsageSource.CopilotSessionUsageInfo,
+            UpdatedAt: timestamp);
     }
 
     private static AgentSessionUsage CreateCopilotAssistantUsage(DateTimeOffset timestamp, AssistantUsageData data)
@@ -904,9 +908,20 @@ internal static class CopilotAgentMapper
         ArgumentNullException.ThrowIfNull(data);
 
         return new AgentSessionUsage(
-            CurrentTokens: null,
-            TokenLimit: null,
-            MessageCount: null,
+            LastOperation: new AgentOperationUsageSnapshot(
+                Model: data.Model,
+                InputTokens: ToNullableInt64(data.InputTokens),
+                OutputTokens: ToNullableInt64(data.OutputTokens),
+                CacheReadTokens: ToNullableInt64(data.CacheReadTokens),
+                CacheWriteTokens: ToNullableInt64(data.CacheWriteTokens),
+                Cost: data.Cost,
+                DurationMs: data.Duration,
+                Initiator: data.Initiator,
+                ParentToolCallId: data.ParentToolCallId,
+                ReasoningEffort: null,
+                Label: "Last API call"),
+            Scope: AgentUsageScope.LastOperation,
+            Source: AgentUsageSource.CopilotAssistantUsage,
             UpdatedAt: timestamp,
             Details: new CopilotSessionUsageDetails(
                 LastAssistantUsage: new CopilotAssistantUsage(
@@ -938,9 +953,20 @@ internal static class CopilotAgentMapper
         }
 
         return new AgentSessionUsage(
-            CurrentTokens: ToNullableInt64(data.PostCompactionTokens),
-            TokenLimit: null,
-            MessageCount: messageCount,
+            Window: new AgentWindowUsageSnapshot(
+                ToNullableInt64(data.PostCompactionTokens),
+                null,
+                messageCount,
+                "Post-compaction window"),
+            LastOperation: data.CompactionTokensUsed is null
+                ? null
+                : new AgentOperationUsageSnapshot(
+                    InputTokens: ToInt64(data.CompactionTokensUsed.Input),
+                    OutputTokens: ToInt64(data.CompactionTokensUsed.Output),
+                    CachedInputTokens: ToInt64(data.CompactionTokensUsed.CachedInput),
+                    Label: "Compaction call"),
+            Scope: AgentUsageScope.Compaction,
+            Source: AgentUsageSource.CopilotCompactionComplete,
             UpdatedAt: timestamp,
             Details: new CopilotSessionUsageDetails(
                 LastCompaction: new CopilotCompactionUsage(
@@ -964,9 +990,13 @@ internal static class CopilotAgentMapper
         ArgumentNullException.ThrowIfNull(data);
 
         return new AgentSessionUsage(
-            CurrentTokens: ToInt64(data.PostTruncationTokensInMessages),
-            TokenLimit: ToInt64(data.TokenLimit),
-            MessageCount: ToInt32(data.PostTruncationMessagesLength),
+            Window: new AgentWindowUsageSnapshot(
+                ToInt64(data.PostTruncationTokensInMessages),
+                ToInt64(data.TokenLimit),
+                ToInt32(data.PostTruncationMessagesLength),
+                "Post-truncation window"),
+            Scope: AgentUsageScope.Truncation,
+            Source: AgentUsageSource.CopilotTruncation,
             UpdatedAt: timestamp);
     }
 
@@ -979,8 +1009,92 @@ internal static class CopilotAgentMapper
 
         return snapshots
             .OrderBy(static entry => entry.Key, StringComparer.Ordinal)
-            .Select(static entry => new CopilotQuotaSnapshot(entry.Key, ToJsonElement(entry.Value)))
+            .Select(static entry => new CopilotQuotaSnapshot(entry.Key, ToCopilotQuotaDetails(entry.Value)))
             .ToArray();
+    }
+
+    private static CopilotQuotaDetails ToCopilotQuotaDetails(object? value)
+    {
+        var payload = ToJsonElement(value);
+        return TryCreateRequestQuotaDetails(payload, out var details)
+            ? details
+            : new CopilotOpaqueQuotaDetails(SummarizeQuotaPayload(payload));
+    }
+
+    private static bool TryCreateRequestQuotaDetails(JsonElement payload, out CopilotRequestQuotaDetails details)
+    {
+        details = default!;
+        if (payload.ValueKind != JsonValueKind.Object)
+        {
+            return false;
+        }
+
+        var hasKnownField = false;
+
+        long? entitlementRequests = null;
+        if (TryGetInt64(payload, "entitlementRequests", out var parsedEntitlementRequests))
+        {
+            entitlementRequests = parsedEntitlementRequests;
+            hasKnownField = true;
+        }
+
+        long? usedRequests = null;
+        if (TryGetInt64(payload, "usedRequests", out var parsedUsedRequests))
+        {
+            usedRequests = parsedUsedRequests;
+            hasKnownField = true;
+        }
+
+        double? remainingPercentage = null;
+        if (TryGetDouble(payload, "remainingPercentage", out var parsedRemainingPercentage))
+        {
+            remainingPercentage = parsedRemainingPercentage;
+            hasKnownField = true;
+        }
+
+        long? overage = null;
+        if (TryGetInt64(payload, "overage", out var parsedOverage))
+        {
+            overage = parsedOverage;
+            hasKnownField = true;
+        }
+
+        bool? usageAllowedWithExhaustion = null;
+        if (TryGetBoolean(payload, "usageAllowedWithExhaustion", out var parsedUsageAllowed) ||
+            TryGetBoolean(payload, "overageAllowedWithExhaustedQuota", out parsedUsageAllowed))
+        {
+            usageAllowedWithExhaustion = parsedUsageAllowed;
+            hasKnownField = true;
+        }
+
+        bool? isUnlimitedEntitlement = null;
+        if (TryGetBoolean(payload, "isUnlimitedEntitlement", out var parsedUnlimited))
+        {
+            isUnlimitedEntitlement = parsedUnlimited;
+            hasKnownField = true;
+        }
+
+        DateTimeOffset? resetDate = null;
+        if (TryGetDateTimeOffset(payload, "resetDate", out var parsedResetDate))
+        {
+            resetDate = parsedResetDate;
+            hasKnownField = true;
+        }
+
+        if (!hasKnownField)
+        {
+            return false;
+        }
+
+        details = new CopilotRequestQuotaDetails(
+            EntitlementRequests: entitlementRequests,
+            UsedRequests: usedRequests,
+            RemainingPercentage: remainingPercentage,
+            Overage: overage,
+            UsageAllowedWithExhaustion: usageAllowedWithExhaustion,
+            IsUnlimitedEntitlement: isUnlimitedEntitlement,
+            ResetDate: resetDate);
+        return true;
     }
 
     private static JsonElement ToJsonElement(object? value)
@@ -995,8 +1109,58 @@ internal static class CopilotAgentMapper
             double number => JsonDocument.Parse(number.ToString("R", CultureInfo.InvariantCulture)).RootElement.Clone(),
             decimal number => JsonDocument.Parse(number.ToString(CultureInfo.InvariantCulture)).RootElement.Clone(),
             float number => JsonDocument.Parse(number.ToString("R", CultureInfo.InvariantCulture)).RootElement.Clone(),
+            IDictionary<string, object?> dictionary => CreateJsonObjectElement(dictionary),
+            IDictionary dictionary => CreateJsonObjectElement(dictionary),
+            IEnumerable enumerable => CreateJsonArrayElement(enumerable),
             _ => CreateJsonStringElement(value.ToString() ?? string.Empty),
         };
+
+    private static JsonElement CreateJsonObjectElement(IEnumerable<KeyValuePair<string, object?>> entries)
+    {
+        var buffer = new ArrayBufferWriter<byte>();
+        using var writer = new Utf8JsonWriter(buffer);
+        writer.WriteStartObject();
+        foreach (var entry in entries)
+        {
+            writer.WritePropertyName(entry.Key);
+            WriteJsonValue(writer, entry.Value);
+        }
+
+        writer.WriteEndObject();
+        writer.Flush();
+        return JsonDocument.Parse(Encoding.UTF8.GetString(buffer.WrittenSpan)).RootElement.Clone();
+    }
+
+    private static JsonElement CreateJsonObjectElement(IDictionary dictionary)
+    {
+        var buffer = new ArrayBufferWriter<byte>();
+        using var writer = new Utf8JsonWriter(buffer);
+        writer.WriteStartObject();
+        foreach (DictionaryEntry entry in dictionary)
+        {
+            writer.WritePropertyName(entry.Key?.ToString() ?? string.Empty);
+            WriteJsonValue(writer, entry.Value);
+        }
+
+        writer.WriteEndObject();
+        writer.Flush();
+        return JsonDocument.Parse(Encoding.UTF8.GetString(buffer.WrittenSpan)).RootElement.Clone();
+    }
+
+    private static JsonElement CreateJsonArrayElement(IEnumerable values)
+    {
+        var buffer = new ArrayBufferWriter<byte>();
+        using var writer = new Utf8JsonWriter(buffer);
+        writer.WriteStartArray();
+        foreach (var item in values)
+        {
+            WriteJsonValue(writer, item);
+        }
+
+        writer.WriteEndArray();
+        writer.Flush();
+        return JsonDocument.Parse(Encoding.UTF8.GetString(buffer.WrittenSpan)).RootElement.Clone();
+    }
 
     private static JsonElement CreateJsonStringElement(string value)
     {
@@ -1005,6 +1169,171 @@ internal static class CopilotAgentMapper
         writer.WriteStringValue(value);
         writer.Flush();
         return JsonDocument.Parse(Encoding.UTF8.GetString(buffer.WrittenSpan)).RootElement.Clone();
+    }
+
+    private static void WriteJsonValue(Utf8JsonWriter writer, object? value)
+    {
+        switch (value)
+        {
+            case null:
+                writer.WriteNullValue();
+                return;
+            case JsonElement jsonElement:
+                jsonElement.WriteTo(writer);
+                return;
+            case string stringValue:
+                writer.WriteStringValue(stringValue);
+                return;
+            case bool booleanValue:
+                writer.WriteBooleanValue(booleanValue);
+                return;
+            case int numberValue:
+                writer.WriteNumberValue(numberValue);
+                return;
+            case long numberValue:
+                writer.WriteNumberValue(numberValue);
+                return;
+            case double numberValue:
+                writer.WriteNumberValue(numberValue);
+                return;
+            case decimal numberValue:
+                writer.WriteNumberValue(numberValue);
+                return;
+            case float numberValue:
+                writer.WriteNumberValue(numberValue);
+                return;
+            case IDictionary<string, object?> dictionaryValue:
+                writer.WriteStartObject();
+                foreach (var entry in dictionaryValue)
+                {
+                    writer.WritePropertyName(entry.Key);
+                    WriteJsonValue(writer, entry.Value);
+                }
+
+                writer.WriteEndObject();
+                return;
+            case IDictionary dictionaryValue:
+                writer.WriteStartObject();
+                foreach (DictionaryEntry entry in dictionaryValue)
+                {
+                    writer.WritePropertyName(entry.Key?.ToString() ?? string.Empty);
+                    WriteJsonValue(writer, entry.Value);
+                }
+
+                writer.WriteEndObject();
+                return;
+            case IEnumerable enumerableValue:
+                writer.WriteStartArray();
+                foreach (var item in enumerableValue)
+                {
+                    WriteJsonValue(writer, item);
+                }
+
+                writer.WriteEndArray();
+                return;
+            default:
+                writer.WriteStringValue(value.ToString());
+                return;
+        }
+    }
+
+    private static string SummarizeQuotaPayload(JsonElement payload)
+    {
+        var raw = payload.GetRawText();
+        return raw.Length <= 160
+            ? raw
+            : raw[..157] + "...";
+    }
+
+    private static bool TryGetBoolean(JsonElement payload, string propertyName, out bool value)
+    {
+        value = default;
+        if (!payload.TryGetProperty(propertyName, out var property))
+        {
+            return false;
+        }
+
+        if (property.ValueKind == JsonValueKind.True || property.ValueKind == JsonValueKind.False)
+        {
+            value = property.GetBoolean();
+            return true;
+        }
+
+        if (property.ValueKind == JsonValueKind.String &&
+            bool.TryParse(property.GetString(), out var parsed))
+        {
+            value = parsed;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryGetInt64(JsonElement payload, string propertyName, out long value)
+    {
+        value = default;
+        if (!payload.TryGetProperty(propertyName, out var property))
+        {
+            return false;
+        }
+
+        if (property.ValueKind == JsonValueKind.Number &&
+            property.TryGetInt64(out value))
+        {
+            return true;
+        }
+
+        if (property.ValueKind == JsonValueKind.Number &&
+            property.TryGetDouble(out var doubleValue))
+        {
+            value = checked((long)doubleValue);
+            return true;
+        }
+
+        if (property.ValueKind == JsonValueKind.String &&
+            long.TryParse(property.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed))
+        {
+            value = parsed;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryGetDouble(JsonElement payload, string propertyName, out double value)
+    {
+        value = default;
+        if (!payload.TryGetProperty(propertyName, out var property))
+        {
+            return false;
+        }
+
+        if (property.ValueKind == JsonValueKind.Number &&
+            property.TryGetDouble(out value))
+        {
+            return true;
+        }
+
+        if (property.ValueKind == JsonValueKind.String &&
+            double.TryParse(property.GetString(), NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var parsed))
+        {
+            value = parsed;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryGetDateTimeOffset(JsonElement payload, string propertyName, out DateTimeOffset value)
+    {
+        value = default;
+        if (!payload.TryGetProperty(propertyName, out var property) ||
+            property.ValueKind != JsonValueKind.String)
+        {
+            return false;
+        }
+
+        return DateTimeOffset.TryParse(property.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out value);
     }
 
     private static long ToInt64(double value) => checked((long)value);

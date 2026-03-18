@@ -1,4 +1,3 @@
-using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace CodeAlta.Agent;
@@ -6,25 +5,206 @@ namespace CodeAlta.Agent;
 /// <summary>
 /// Represents normalized context-window and token-usage information for a session.
 /// </summary>
-/// <param name="CurrentTokens">The current number of tokens in the active context window when known.</param>
-/// <param name="TokenLimit">The total context-window limit for the active model when known.</param>
-/// <param name="MessageCount">The number of messages currently contributing to the active context window when known.</param>
+/// <param name="Window">The current known context-window usage snapshot when available.</param>
+/// <param name="LastOperation">The most recent meaningful operation usage snapshot when available.</param>
+/// <param name="RateLimits">The normalized rate-limit summary when available.</param>
+/// <param name="Scope">The scope represented by this usage snapshot.</param>
+/// <param name="Source">The backend event source that produced this usage snapshot.</param>
 /// <param name="UpdatedAt">The time the usage snapshot was last updated.</param>
 /// <param name="Details">Optional backend-specific usage details.</param>
 public sealed record AgentSessionUsage(
-    long? CurrentTokens,
-    long? TokenLimit,
-    int? MessageCount,
-    DateTimeOffset UpdatedAt,
+    AgentWindowUsageSnapshot? Window = null,
+    AgentOperationUsageSnapshot? LastOperation = null,
+    AgentRateLimitSummary? RateLimits = null,
+    AgentUsageScope Scope = AgentUsageScope.Unknown,
+    AgentUsageSource Source = AgentUsageSource.Unknown,
+    DateTimeOffset UpdatedAt = default,
     AgentSessionUsageDetails? Details = null)
 {
+    /// <summary>
+    /// Gets the current number of tokens in the active context window when known.
+    /// </summary>
+    public long? CurrentTokens => Window?.CurrentTokens;
+
+    /// <summary>
+    /// Gets the total context-window limit for the active model when known.
+    /// </summary>
+    public long? TokenLimit => Window?.TokenLimit;
+
+    /// <summary>
+    /// Gets the number of messages currently contributing to the active context window when known.
+    /// </summary>
+    public int? MessageCount => Window?.MessageCount;
+
     /// <summary>
     /// Gets the percentage of the context window currently in use when both values are available.
     /// </summary>
     public double? WindowUsagePercentage =>
-        TokenLimit is > 0 && CurrentTokens is >= 0
-            ? (CurrentTokens.Value * 100d) / TokenLimit.Value
+        Window?.TokenLimit is > 0 && Window.CurrentTokens is >= 0
+            ? (Window.CurrentTokens.Value * 100d) / Window.TokenLimit.Value
             : null;
+}
+
+/// <summary>
+/// Represents a normalized context-window usage snapshot.
+/// </summary>
+/// <param name="CurrentTokens">The current number of tokens in the window when known.</param>
+/// <param name="TokenLimit">The total window size when known.</param>
+/// <param name="MessageCount">The number of messages currently contributing to the window when known.</param>
+/// <param name="Label">The UI label describing the window snapshot.</param>
+public sealed record AgentWindowUsageSnapshot(
+    long? CurrentTokens,
+    long? TokenLimit,
+    int? MessageCount,
+    string? Label = null);
+
+/// <summary>
+/// Represents normalized usage for the most recent meaningful model operation.
+/// </summary>
+/// <param name="Model">The model that serviced the operation when known.</param>
+/// <param name="InputTokens">The number of fresh input tokens consumed.</param>
+/// <param name="OutputTokens">The number of output tokens produced.</param>
+/// <param name="CacheReadTokens">The number of tokens read from prompt cache when known.</param>
+/// <param name="CacheWriteTokens">The number of tokens written to prompt cache when known.</param>
+/// <param name="CachedInputTokens">The number of cached input tokens reused when known.</param>
+/// <param name="ReasoningTokens">The number of reasoning tokens consumed or produced when known.</param>
+/// <param name="Cost">The backend-reported cost when available.</param>
+/// <param name="DurationMs">The backend-reported duration in milliseconds when available.</param>
+/// <param name="Initiator">The initiator of the operation when reported.</param>
+/// <param name="ParentToolCallId">The parent tool call identifier when this operation belongs to a sub-agent or tool request.</param>
+/// <param name="ReasoningEffort">The reasoning-effort setting used for the operation when reported.</param>
+/// <param name="Label">The UI label describing the operation snapshot.</param>
+public sealed record AgentOperationUsageSnapshot(
+    string? Model = null,
+    long? InputTokens = null,
+    long? OutputTokens = null,
+    long? CacheReadTokens = null,
+    long? CacheWriteTokens = null,
+    long? CachedInputTokens = null,
+    long? ReasoningTokens = null,
+    double? Cost = null,
+    double? DurationMs = null,
+    string? Initiator = null,
+    string? ParentToolCallId = null,
+    string? ReasoningEffort = null,
+    string? Label = null);
+
+/// <summary>
+/// Represents normalized rate-limit information for a session.
+/// </summary>
+/// <param name="Name">The rate-limit or quota display name when known.</param>
+/// <param name="PlanType">The active plan type when known.</param>
+/// <param name="Primary">The primary rate-limit window when available.</param>
+/// <param name="Secondary">The secondary rate-limit window when available.</param>
+/// <param name="Label">The UI label describing the rate-limit snapshot.</param>
+public sealed record AgentRateLimitSummary(
+    string? Name = null,
+    string? PlanType = null,
+    AgentRateLimitWindow? Primary = null,
+    AgentRateLimitWindow? Secondary = null,
+    string? Label = null);
+
+/// <summary>
+/// Represents a normalized rate-limit window.
+/// </summary>
+/// <param name="UsedPercent">The percentage of the window currently consumed when known.</param>
+/// <param name="ResetsAt">The time the window resets when known.</param>
+/// <param name="WindowDurationMinutes">The duration of the rate-limit window in minutes when known.</param>
+public sealed record AgentRateLimitWindow(
+    int? UsedPercent = null,
+    DateTimeOffset? ResetsAt = null,
+    long? WindowDurationMinutes = null);
+
+/// <summary>
+/// Identifies the semantic scope represented by a usage snapshot.
+/// </summary>
+public enum AgentUsageScope
+{
+    /// <summary>
+    /// The scope is unknown.
+    /// </summary>
+    Unknown,
+
+    /// <summary>
+    /// The snapshot represents the current context window.
+    /// </summary>
+    CurrentWindow,
+
+    /// <summary>
+    /// The snapshot represents the most recent model operation.
+    /// </summary>
+    LastOperation,
+
+    /// <summary>
+    /// The snapshot represents cumulative thread totals.
+    /// </summary>
+    ThreadTotal,
+
+    /// <summary>
+    /// The snapshot represents compaction.
+    /// </summary>
+    Compaction,
+
+    /// <summary>
+    /// The snapshot represents truncation.
+    /// </summary>
+    Truncation,
+
+    /// <summary>
+    /// The snapshot only contains rate-limit data.
+    /// </summary>
+    RateLimitOnly
+}
+
+/// <summary>
+/// Identifies which backend event produced a usage snapshot.
+/// </summary>
+public enum AgentUsageSource
+{
+    /// <summary>
+    /// The source is unknown.
+    /// </summary>
+    Unknown,
+
+    /// <summary>
+    /// Copilot session usage information.
+    /// </summary>
+    CopilotSessionUsageInfo,
+
+    /// <summary>
+    /// Copilot assistant usage.
+    /// </summary>
+    CopilotAssistantUsage,
+
+    /// <summary>
+    /// Copilot session compaction completion.
+    /// </summary>
+    CopilotCompactionComplete,
+
+    /// <summary>
+    /// Copilot session truncation.
+    /// </summary>
+    CopilotTruncation,
+
+    /// <summary>
+    /// Codex thread token usage updates.
+    /// </summary>
+    CodexThreadTokenUsageUpdated,
+
+    /// <summary>
+    /// Codex token-count events.
+    /// </summary>
+    CodexTokenCountEvent,
+
+    /// <summary>
+    /// Codex account rate-limit updates.
+    /// </summary>
+    CodexAccountRateLimitsUpdated,
+
+    /// <summary>
+    /// Usage data recovered from persisted state or history.
+    /// </summary>
+    RecoveredHistory
 }
 
 /// <summary>
@@ -54,7 +234,7 @@ public sealed record CodexSessionUsageDetails(
 /// </summary>
 /// <param name="LastAssistantUsage">Usage for the most recent Copilot model call when available.</param>
 /// <param name="LastCompaction">Usage and reduction details for the most recent compaction when available.</param>
-/// <param name="QuotaSnapshots">Opaque quota snapshots surfaced by the Copilot backend.</param>
+/// <param name="QuotaSnapshots">Typed Copilot quota snapshots when available.</param>
 public sealed record CopilotSessionUsageDetails(
     CopilotAssistantUsage? LastAssistantUsage = null,
     CopilotCompactionUsage? LastCompaction = null,
@@ -113,7 +293,7 @@ public sealed record CodexRateLimitWindow(
 /// <param name="Cost">The backend-reported request cost when available.</param>
 /// <param name="DurationMs">The backend-reported request duration in milliseconds when available.</param>
 /// <param name="Initiator">The initiator for the call when reported.</param>
-/// <param name="ParentToolCallId">The parent tool call identifier when this usage belongs to a sub-agent/tool request.</param>
+/// <param name="ParentToolCallId">The parent tool call identifier when this usage belongs to a sub-agent or tool request.</param>
 /// <param name="ReasoningEffort">The reasoning-effort setting used for the request when reported.</param>
 /// <param name="TotalNanoAiu">The Copilot AIU cost reported by the backend when available.</param>
 /// <param name="TokenDetails">Additional backend token details when available.</param>
@@ -173,10 +353,46 @@ public sealed record CopilotCompactionTokenUsage(
     long CachedInputTokens);
 
 /// <summary>
-/// Named Copilot quota snapshot payload.
+/// Named Copilot quota snapshot.
 /// </summary>
 /// <param name="Name">The quota identifier.</param>
-/// <param name="Payload">The opaque payload emitted by the Copilot backend.</param>
+/// <param name="Details">The typed quota details.</param>
 public sealed record CopilotQuotaSnapshot(
     string Name,
-    JsonElement Payload);
+    CopilotQuotaDetails Details);
+
+/// <summary>
+/// Base type for typed Copilot quota details.
+/// </summary>
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "$type")]
+[JsonDerivedType(typeof(CopilotRequestQuotaDetails), "request")]
+[JsonDerivedType(typeof(CopilotOpaqueQuotaDetails), "opaque")]
+public abstract record CopilotQuotaDetails;
+
+/// <summary>
+/// Typed Copilot request-quota snapshot.
+/// </summary>
+/// <param name="EntitlementRequests">The number of requests included in the entitlement when known.</param>
+/// <param name="UsedRequests">The number of requests used in the current period when known.</param>
+/// <param name="RemainingPercentage">The percentage of the entitlement remaining when known.</param>
+/// <param name="Overage">The number of overage requests when known.</param>
+/// <param name="UsageAllowedWithExhaustion">Whether usage continues when the quota is exhausted.</param>
+/// <param name="IsUnlimitedEntitlement">Whether the quota is effectively unlimited.</param>
+/// <param name="ResetDate">The time the quota resets when known.</param>
+public sealed record CopilotRequestQuotaDetails(
+    long? EntitlementRequests = null,
+    long? UsedRequests = null,
+    double? RemainingPercentage = null,
+    long? Overage = null,
+    bool? UsageAllowedWithExhaustion = null,
+    bool? IsUnlimitedEntitlement = null,
+    DateTimeOffset? ResetDate = null)
+    : CopilotQuotaDetails;
+
+/// <summary>
+/// Typed opaque Copilot quota snapshot fallback for unknown shapes.
+/// </summary>
+/// <param name="Summary">A compact text summary of the unknown payload.</param>
+public sealed record CopilotOpaqueQuotaDetails(
+    string Summary)
+    : CopilotQuotaDetails;

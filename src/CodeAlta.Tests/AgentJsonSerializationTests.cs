@@ -172,4 +172,48 @@ public sealed class AgentJsonSerializationTests
         Assert.AreEqual("broken", exception.GetProperty("message").GetString());
         Assert.AreEqual(typeof(InvalidOperationException).FullName, exception.GetProperty("type").GetString());
     }
+
+    [TestMethod]
+    public void AgentEvent_ToJson_SerializesNormalizedUsageSnapshots()
+    {
+        var usage = new AgentSessionUsage(
+            Window: new AgentWindowUsageSnapshot(12345, 200000, 18, "Active context window"),
+            LastOperation: new AgentOperationUsageSnapshot(
+                Model: "gpt-5.4",
+                InputTokens: 1200,
+                OutputTokens: 300,
+                Label: "Last API call"),
+            RateLimits: new AgentRateLimitSummary(
+                Name: "Requests",
+                PlanType: "Pro",
+                Primary: new AgentRateLimitWindow(42, DateTimeOffset.Parse("2026-03-18T21:00:00+00:00"), 60),
+                Label: "Account rate limits"),
+            Scope: AgentUsageScope.LastOperation,
+            Source: AgentUsageSource.CopilotAssistantUsage,
+            UpdatedAt: DateTimeOffset.Parse("2026-03-18T21:08:00+00:00"),
+            Details: new CopilotSessionUsageDetails(
+                QuotaSnapshots:
+                [
+                    new CopilotQuotaSnapshot(
+                        "chat",
+                        new CopilotRequestQuotaDetails(EntitlementRequests: 1500, UsedRequests: 477)),
+                ]));
+        var @event = new AgentSessionUpdateEvent(
+            new AgentBackendId("copilot"),
+            "session-1",
+            DateTimeOffset.Parse("2026-03-18T21:08:00+00:00"),
+            null,
+            AgentSessionUpdateKind.UsageUpdated,
+            "Usage updated.",
+            Usage: usage);
+
+        using var document = JsonDocument.Parse(@event.ToJson());
+        var usageRoot = document.RootElement.GetProperty("usage");
+
+        Assert.AreEqual("LastOperation", usageRoot.GetProperty("scope").GetString());
+        Assert.AreEqual("CopilotAssistantUsage", usageRoot.GetProperty("source").GetString());
+        Assert.AreEqual("Active context window", usageRoot.GetProperty("window").GetProperty("label").GetString());
+        Assert.AreEqual("Last API call", usageRoot.GetProperty("lastOperation").GetProperty("label").GetString());
+        Assert.AreEqual("request", usageRoot.GetProperty("details").GetProperty("quotaSnapshots")[0].GetProperty("details").GetProperty("$type").GetString());
+    }
 }

@@ -509,8 +509,16 @@ public sealed class CodexAgentMapperTests
         Assert.AreEqual(AgentSessionUpdateKind.UsageUpdated, mappedUsage.Kind);
         Assert.AreEqual("turn-7", mappedUsage.RunId?.Value);
         Assert.IsNotNull(mappedUsage.Usage);
-        Assert.IsNull(mappedUsage.Usage.CurrentTokens);
+        Assert.AreEqual(AgentUsageScope.CurrentWindow, mappedUsage.Usage.Scope);
+        Assert.AreEqual(AgentUsageSource.CodexThreadTokenUsageUpdated, mappedUsage.Usage.Source);
+        Assert.AreEqual(5056L, mappedUsage.Usage.CurrentTokens);
         Assert.AreEqual(128000L, mappedUsage.Usage.TokenLimit);
+        Assert.IsNotNull(mappedUsage.Usage.Window);
+        Assert.AreEqual("Active thread window", mappedUsage.Usage.Window.Label);
+        Assert.IsNotNull(mappedUsage.Usage.LastOperation);
+        Assert.AreEqual("Last turn", mappedUsage.Usage.LastOperation.Label);
+        Assert.AreEqual(640L, mappedUsage.Usage.LastOperation.InputTokens);
+        Assert.AreEqual(16L, mappedUsage.Usage.LastOperation.ReasoningTokens);
         var usageDetails = Assert.IsInstanceOfType<CodexSessionUsageDetails>(mappedUsage.Usage.Details);
         Assert.AreEqual(816L, usageDetails.LastTurnUsage!.TotalTokens);
         Assert.AreEqual(5056L, usageDetails.TotalUsage!.TotalTokens);
@@ -536,6 +544,12 @@ public sealed class CodexAgentMapperTests
 
         Assert.AreEqual(AgentSessionUpdateKind.UsageUpdated, mappedRateLimit.Kind);
         Assert.IsNotNull(mappedRateLimit.Usage);
+        Assert.AreEqual(AgentUsageScope.RateLimitOnly, mappedRateLimit.Usage.Scope);
+        Assert.AreEqual(AgentUsageSource.CodexAccountRateLimitsUpdated, mappedRateLimit.Usage.Source);
+        Assert.IsNotNull(mappedRateLimit.Usage.RateLimits);
+        Assert.AreEqual("Account rate limits", mappedRateLimit.Usage.RateLimits.Label);
+        Assert.AreEqual("Requests", mappedRateLimit.Usage.RateLimits.Name);
+        Assert.AreEqual(42, mappedRateLimit.Usage.RateLimits.Primary!.UsedPercent);
         var rateLimitDetails = Assert.IsInstanceOfType<CodexSessionUsageDetails>(mappedRateLimit.Usage.Details);
         Assert.AreEqual("Requests", rateLimitDetails.RateLimits!.LimitName);
         Assert.AreEqual("Pro", rateLimitDetails.RateLimits.PlanType);

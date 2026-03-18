@@ -1065,9 +1065,14 @@ internal static class CodexAgentMapper
         ArgumentNullException.ThrowIfNull(usage);
 
         return new AgentSessionUsage(
-            CurrentTokens: null,
-            TokenLimit: usage.ModelContextWindow,
-            MessageCount: null,
+            Window: new AgentWindowUsageSnapshot(
+                usage.Total.TotalTokens,
+                usage.ModelContextWindow,
+                null,
+                "Active thread window"),
+            LastOperation: ToAgentOperationUsage(usage.Last, "Last turn"),
+            Scope: AgentUsageScope.CurrentWindow,
+            Source: AgentUsageSource.CodexThreadTokenUsageUpdated,
             UpdatedAt: timestamp,
             Details: new CodexSessionUsageDetails(
                 LastTurnUsage: ToCodexTokenUsage(usage.Last),
@@ -1083,9 +1088,17 @@ internal static class CodexAgentMapper
         }
 
         return new AgentSessionUsage(
-            CurrentTokens: null,
-            TokenLimit: info?.ModelContextWindow,
-            MessageCount: null,
+            Window: info is null
+                ? null
+                : new AgentWindowUsageSnapshot(
+                    info.TotalTokenUsage.TotalTokens,
+                    info.ModelContextWindow,
+                    null,
+                    "Active thread window"),
+            LastOperation: info is null ? null : ToAgentOperationUsage(info.LastTokenUsage, "Last turn"),
+            RateLimits: ToAgentRateLimitSummary(rateLimits, "Account rate limits"),
+            Scope: info is null ? AgentUsageScope.RateLimitOnly : AgentUsageScope.CurrentWindow,
+            Source: AgentUsageSource.CodexTokenCountEvent,
             UpdatedAt: timestamp,
             Details: new CodexSessionUsageDetails(
                 LastTurnUsage: info is null ? null : ToCodexTokenUsage(info.LastTokenUsage),
@@ -1099,12 +1112,64 @@ internal static class CodexAgentMapper
         ArgumentNullException.ThrowIfNull(rateLimits);
 
         return new AgentSessionUsage(
-            CurrentTokens: null,
-            TokenLimit: null,
-            MessageCount: null,
+            RateLimits: ToAgentRateLimitSummary(rateLimits, "Account rate limits"),
+            Scope: AgentUsageScope.RateLimitOnly,
+            Source: AgentUsageSource.CodexAccountRateLimitsUpdated,
             UpdatedAt: timestamp,
             Details: new CodexSessionUsageDetails(
                 RateLimits: ToCodexRateLimitSnapshot(rateLimits)));
+    }
+
+    private static AgentOperationUsageSnapshot ToAgentOperationUsage(TokenUsageBreakdown usage, string label)
+    {
+        ArgumentNullException.ThrowIfNull(usage);
+
+        return new AgentOperationUsageSnapshot(
+            InputTokens: usage.InputTokens,
+            OutputTokens: usage.OutputTokens,
+            CachedInputTokens: usage.CachedInputTokens,
+            ReasoningTokens: usage.ReasoningOutputTokens,
+            Label: label);
+    }
+
+    private static AgentOperationUsageSnapshot ToAgentOperationUsage(TokenUsage usage, string label)
+    {
+        ArgumentNullException.ThrowIfNull(usage);
+
+        return new AgentOperationUsageSnapshot(
+            InputTokens: usage.InputTokens,
+            OutputTokens: usage.OutputTokens,
+            CachedInputTokens: usage.CachedInputTokens,
+            ReasoningTokens: usage.ReasoningOutputTokens,
+            Label: label);
+    }
+
+    private static AgentRateLimitSummary? ToAgentRateLimitSummary(RateLimitSnapshot? rateLimits, string label)
+    {
+        if (rateLimits is null)
+        {
+            return null;
+        }
+
+        return new AgentRateLimitSummary(
+            Name: rateLimits.LimitName ?? rateLimits.LimitId,
+            PlanType: rateLimits.PlanType?.ToString(),
+            Primary: ToAgentRateLimitWindow(rateLimits.Primary),
+            Secondary: ToAgentRateLimitWindow(rateLimits.Secondary),
+            Label: label);
+    }
+
+    private static AgentRateLimitWindow? ToAgentRateLimitWindow(RateLimitWindow? window)
+    {
+        if (window is null)
+        {
+            return null;
+        }
+
+        return new AgentRateLimitWindow(
+            window.UsedPercent,
+            window.ResetsAt is { } resetsAt ? DateTimeOffset.FromUnixTimeSeconds(resetsAt) : null,
+            window.WindowDurationMins);
     }
 
     private static CodexTokenUsage ToCodexTokenUsage(TokenUsageBreakdown usage)

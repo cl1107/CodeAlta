@@ -300,18 +300,34 @@ Use usage events for token/cost/window information.
 
 Recommended shape:
 
-- `Scope` (`Run`, `Session`, `Tool`, `ContextWindow`)
-- `InputTokens`
-- `OutputTokens`
-- `ReasoningTokens`
-- `CachedInputTokens`
-- `TotalTokens`
-- `TokenLimit`
-- `CurrentTokens`
-- `Cost`
-- `Duration`
-- `RunId`
-- `SourceId`
+- `Window`
+  - `CurrentTokens`
+  - `TokenLimit`
+  - `MessageCount`
+  - `Label`
+- `LastOperation`
+  - `Model`
+  - `InputTokens`
+  - `OutputTokens`
+  - `CacheReadTokens`
+  - `CacheWriteTokens`
+  - `CachedInputTokens`
+  - `ReasoningTokens`
+  - `Cost`
+  - `DurationMs`
+  - `Initiator`
+  - `ParentToolCallId`
+  - `ReasoningEffort`
+  - `Label`
+- `RateLimits`
+  - `Name`
+  - `PlanType`
+  - `Primary`
+  - `Secondary`
+  - `Label`
+- `Scope`
+- `Source`
+- `UpdatedAt`
 - `Details`
 
 Rationale:
@@ -319,6 +335,7 @@ Rationale:
 - Copilot exposes both model-call usage and session window usage.
 - Codex exposes thread/turn token usage.
 - The UI can show live token pressure and post-run usage summaries.
+- The footer can stay a simple `ctx --` / `ctx NN%` view while the popup renders explicit Summary, Usage breakdown, Limits and quotas, and Backend-specific detail sections.
 
 ### 6. Action-required events
 

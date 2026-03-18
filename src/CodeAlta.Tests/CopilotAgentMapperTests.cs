@@ -528,7 +528,7 @@ public sealed class CopilotAgentMapperTests
     public void ToAgentEvent_MapsUsageEventToSessionUpdate()
     {
         var timestamp = DateTimeOffset.Parse("2026-02-25T12:00:00+00:00");
-        using var quotaSnapshot = JsonDocument.Parse("""{"remaining":1}""");
+        using var quotaSnapshot = JsonDocument.Parse("""{"entitlementRequests":1500,"usedRequests":477,"usageAllowedWithExhaustion":true,"isUnlimitedEntitlement":false}""");
         var usageEvent = new AssistantUsageEvent
         {
             Timestamp = timestamp,
@@ -576,6 +576,9 @@ public sealed class CopilotAgentMapperTests
         Assert.AreEqual(AgentSessionUpdateKind.UsageUpdated, usage.Kind);
         Assert.IsTrue(usage.Message!.Contains("gpt-5", StringComparison.Ordinal));
         Assert.IsNotNull(usage.Usage);
+        Assert.AreEqual(AgentUsageScope.LastOperation, usage.Usage.Scope);
+        Assert.AreEqual(AgentUsageSource.CopilotAssistantUsage, usage.Usage.Source);
+        Assert.IsNotNull(usage.Usage.LastOperation);
         var details = Assert.IsInstanceOfType<CopilotSessionUsageDetails>(usage.Usage.Details);
         Assert.IsNotNull(details.LastAssistantUsage);
         Assert.AreEqual(1200L, details.LastAssistantUsage.InputTokens);
@@ -583,6 +586,10 @@ public sealed class CopilotAgentMapperTests
         Assert.AreEqual(99d, details.LastAssistantUsage.TotalNanoAiu);
         Assert.AreEqual(1, details.QuotaSnapshots!.Length);
         Assert.AreEqual("sample", details.QuotaSnapshots[0].Name);
+        var quotaDetails = Assert.IsInstanceOfType<CopilotRequestQuotaDetails>(details.QuotaSnapshots[0].Details);
+        Assert.AreEqual(1500L, quotaDetails.EntitlementRequests);
+        Assert.AreEqual(477L, quotaDetails.UsedRequests);
+        Assert.AreEqual(true, quotaDetails.UsageAllowedWithExhaustion);
     }
 
     [TestMethod]
@@ -606,9 +613,74 @@ public sealed class CopilotAgentMapperTests
         var usage = (AgentSessionUpdateEvent)mapped;
         Assert.AreEqual(AgentSessionUpdateKind.UsageUpdated, usage.Kind);
         Assert.IsNotNull(usage.Usage);
+        Assert.AreEqual(AgentUsageScope.CurrentWindow, usage.Usage.Scope);
+        Assert.AreEqual(AgentUsageSource.CopilotSessionUsageInfo, usage.Usage.Source);
+        Assert.IsNotNull(usage.Usage.Window);
+        Assert.AreEqual("Active context window", usage.Usage.Window.Label);
         Assert.AreEqual(12345L, usage.Usage.CurrentTokens);
         Assert.AreEqual(200000L, usage.Usage.TokenLimit);
         Assert.AreEqual(18, usage.Usage.MessageCount);
+    }
+
+    [TestMethod]
+    public void ToAgentEvent_MapsCompactionAndTruncationIntoNormalizedWindowSnapshots()
+    {
+        var timestamp = DateTimeOffset.Parse("2026-02-25T12:10:00+00:00");
+        var compactionEvent = new SessionCompactionCompleteEvent
+        {
+            Timestamp = timestamp,
+            Data = new SessionCompactionCompleteData
+            {
+                Success = true,
+                PreCompactionTokens = 90000,
+                PostCompactionTokens = 45000,
+                PreCompactionMessagesLength = 40,
+                MessagesRemoved = 10,
+                TokensRemoved = 45000,
+                CompactionTokensUsed = new SessionCompactionCompleteDataCompactionTokensUsed
+                {
+                    Input = 1200,
+                    Output = 300,
+                    CachedInput = 800
+                }
+            }
+        };
+
+        var mappedCompaction = (AgentSessionUpdateEvent)CopilotAgentMapper.ToAgentEvent("session-1", compactionEvent);
+
+        Assert.AreEqual(AgentUsageScope.Compaction, mappedCompaction.Usage!.Scope);
+        Assert.AreEqual(AgentUsageSource.CopilotCompactionComplete, mappedCompaction.Usage.Source);
+        Assert.AreEqual("Post-compaction window", mappedCompaction.Usage.Window!.Label);
+        Assert.AreEqual(45000L, mappedCompaction.Usage.CurrentTokens);
+        Assert.AreEqual(30, mappedCompaction.Usage.MessageCount);
+        Assert.IsNotNull(mappedCompaction.Usage.LastOperation);
+        Assert.AreEqual("Compaction call", mappedCompaction.Usage.LastOperation.Label);
+        Assert.AreEqual(800L, mappedCompaction.Usage.LastOperation.CachedInputTokens);
+
+        var truncationEvent = new SessionTruncationEvent
+        {
+            Timestamp = timestamp,
+            Data = new SessionTruncationData
+            {
+                TokenLimit = 200000,
+                PreTruncationTokensInMessages = 250000,
+                PreTruncationMessagesLength = 60,
+                PostTruncationTokensInMessages = 180000,
+                PostTruncationMessagesLength = 42,
+                TokensRemovedDuringTruncation = 70000,
+                MessagesRemovedDuringTruncation = 18,
+                PerformedBy = "BasicTruncator"
+            }
+        };
+
+        var mappedTruncation = (AgentSessionUpdateEvent)CopilotAgentMapper.ToAgentEvent("session-1", truncationEvent);
+
+        Assert.AreEqual(AgentUsageScope.Truncation, mappedTruncation.Usage!.Scope);
+        Assert.AreEqual(AgentUsageSource.CopilotTruncation, mappedTruncation.Usage.Source);
+        Assert.AreEqual("Post-truncation window", mappedTruncation.Usage.Window!.Label);
+        Assert.AreEqual(180000L, mappedTruncation.Usage.CurrentTokens);
+        Assert.AreEqual(200000L, mappedTruncation.Usage.TokenLimit);
+        Assert.AreEqual(42, mappedTruncation.Usage.MessageCount);
     }
 
     [TestMethod]

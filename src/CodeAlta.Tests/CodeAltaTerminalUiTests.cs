@@ -1643,9 +1643,9 @@ public sealed class CodeAltaTerminalUiTests
             CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("fr-FR");
 
             var usage = new AgentSessionUsage(
-                CurrentTokens: 50000,
-                TokenLimit: 120000,
-                MessageCount: 12,
+                Window: new AgentWindowUsageSnapshot(50000, 120000, 12, "Active context window"),
+                Scope: AgentUsageScope.CurrentWindow,
+                Source: AgentUsageSource.CopilotSessionUsageInfo,
                 UpdatedAt: DateTimeOffset.Parse("2026-03-18T21:00:00+00:00"));
 
             var indicator = CodeAltaTerminalUi.BuildSessionUsageIndicatorMarkup(usage);
@@ -1662,12 +1662,12 @@ public sealed class CodeAltaTerminalUiTests
     }
 
     [TestMethod]
-    public void FormatSessionUsageSummary_CodexThreadTotalsDoNotPretendToBeContextUsage()
+    public void FormatSessionUsageSummary_CodexWindowUsesNormalizedWindowSnapshot()
     {
         var usage = new AgentSessionUsage(
-            CurrentTokens: 22697041,
-            TokenLimit: 258400,
-            MessageCount: null,
+            Window: new AgentWindowUsageSnapshot(22697, 258400, null, "Active thread window"),
+            Scope: AgentUsageScope.CurrentWindow,
+            Source: AgentUsageSource.CodexThreadTokenUsageUpdated,
             UpdatedAt: DateTimeOffset.Parse("2026-03-18T21:48:22+00:00"),
             Details: new CodexSessionUsageDetails(
                 LastTurnUsage: new CodexTokenUsage(35712, 35944, 313, 98, 36257),
@@ -1677,24 +1677,34 @@ public sealed class CodeAltaTerminalUiTests
         var indicator = CodeAltaTerminalUi.BuildSessionUsageIndicatorMarkup(usage);
         var summary = CodeAltaTerminalUi.FormatSessionUsageSummary(usage);
 
-        Assert.AreEqual("ctx --", indicator);
-        Assert.AreEqual("22,697,041 total thread tokens · 258,400 token window", summary);
+        Assert.AreEqual("ctx 9%", indicator);
+        Assert.AreEqual("22,697 / 258,400 tokens (8.8%)", summary);
     }
 
     [TestMethod]
     public void MergeSessionUsage_MergesTypedBackendDetails()
     {
         var current = new AgentSessionUsage(
-            CurrentTokens: null,
-            TokenLimit: 128000,
-            MessageCount: 8,
+            Window: new AgentWindowUsageSnapshot(4096, 128000, 8, "Active thread window"),
+            Scope: AgentUsageScope.CurrentWindow,
+            Source: AgentUsageSource.CodexThreadTokenUsageUpdated,
             UpdatedAt: DateTimeOffset.Parse("2026-03-18T20:00:00+00:00"),
             Details: new CodexSessionUsageDetails(
                 LastTurnUsage: new CodexTokenUsage(10, 100, 20, 5, 125)));
         var incoming = new AgentSessionUsage(
-            CurrentTokens: 4096,
-            TokenLimit: null,
-            MessageCount: null,
+            LastOperation: new AgentOperationUsageSnapshot(
+                InputTokens: 1000,
+                OutputTokens: 250,
+                CachedInputTokens: 40,
+                ReasoningTokens: 30,
+                Label: "Last turn"),
+            RateLimits: new AgentRateLimitSummary(
+                Name: "Requests",
+                PlanType: "Pro",
+                Primary: new AgentRateLimitWindow(61, null, 60),
+                Label: "Account rate limits"),
+            Scope: AgentUsageScope.CurrentWindow,
+            Source: AgentUsageSource.CodexTokenCountEvent,
             UpdatedAt: DateTimeOffset.Parse("2026-03-18T20:05:00+00:00"),
             Details: new CodexSessionUsageDetails(
                 TotalUsage: new CodexTokenUsage(40, 1000, 250, 30, 1320),
@@ -1710,10 +1720,55 @@ public sealed class CodeAltaTerminalUiTests
         Assert.AreEqual(4096L, merged.CurrentTokens);
         Assert.AreEqual(128000L, merged.TokenLimit);
         Assert.AreEqual(8, merged.MessageCount);
+        Assert.IsNotNull(merged.LastOperation);
+        Assert.AreEqual(1000L, merged.LastOperation.InputTokens);
+        Assert.IsNotNull(merged.RateLimits);
+        Assert.AreEqual(61, merged.RateLimits.Primary!.UsedPercent);
+        Assert.AreEqual(AgentUsageSource.CodexTokenCountEvent, merged.Source);
         var details = Assert.IsInstanceOfType<CodexSessionUsageDetails>(merged.Details);
         Assert.AreEqual(125L, details.LastTurnUsage!.TotalTokens);
         Assert.AreEqual(1320L, details.TotalUsage!.TotalTokens);
         Assert.AreEqual(61, details.RateLimits!.Primary!.UsedPercent);
+    }
+
+    [TestMethod]
+    public void MergeSessionUsage_MergesCopilotQuotaSnapshotsWithoutDroppingWindow()
+    {
+        var current = new AgentSessionUsage(
+            Window: new AgentWindowUsageSnapshot(12345, 200000, 18, "Active context window"),
+            Scope: AgentUsageScope.CurrentWindow,
+            Source: AgentUsageSource.CopilotSessionUsageInfo,
+            UpdatedAt: DateTimeOffset.Parse("2026-03-18T20:00:00+00:00"),
+            Details: new CopilotSessionUsageDetails(
+                LastAssistantUsage: new CopilotAssistantUsage("gpt-5.4", InputTokens: 1000, OutputTokens: 200)));
+        var incoming = new AgentSessionUsage(
+            LastOperation: new AgentOperationUsageSnapshot(
+                Model: "gpt-5.4",
+                InputTokens: 1200,
+                OutputTokens: 300,
+                Label: "Last API call"),
+            Scope: AgentUsageScope.LastOperation,
+            Source: AgentUsageSource.CopilotAssistantUsage,
+            UpdatedAt: DateTimeOffset.Parse("2026-03-18T20:05:00+00:00"),
+            Details: new CopilotSessionUsageDetails(
+                QuotaSnapshots:
+                [
+                    new CopilotQuotaSnapshot(
+                        "chat",
+                        new CopilotRequestQuotaDetails(EntitlementRequests: 1500, UsedRequests: 477)),
+                ]));
+
+        var merged = CodeAltaTerminalUi.MergeSessionUsage(current, incoming);
+
+        Assert.AreEqual(12345L, merged.CurrentTokens);
+        Assert.AreEqual(200000L, merged.TokenLimit);
+        Assert.AreEqual(18, merged.MessageCount);
+        Assert.IsNotNull(merged.LastOperation);
+        Assert.AreEqual(1200L, merged.LastOperation.InputTokens);
+        var details = Assert.IsInstanceOfType<CopilotSessionUsageDetails>(merged.Details);
+        Assert.AreEqual(1, details.QuotaSnapshots!.Length);
+        Assert.IsInstanceOfType<CopilotRequestQuotaDetails>(details.QuotaSnapshots[0].Details);
+        Assert.IsNotNull(details.LastAssistantUsage);
     }
 
     [TestMethod]
@@ -1728,12 +1783,24 @@ public sealed class CodeAltaTerminalUiTests
 
             var markdown = CodeAltaTerminalUi.BuildSessionUsageMarkdown(
                 new AgentSessionUsage(
-                    CurrentTokens: 50000,
-                    TokenLimit: 120000,
-                    MessageCount: 12,
+                    Window: new AgentWindowUsageSnapshot(50000, 120000, 12, "Active context window"),
+                    LastOperation: new AgentOperationUsageSnapshot(
+                        InputTokens: 1000,
+                        OutputTokens: 200,
+                        CachedInputTokens: 25,
+                        ReasoningTokens: 10,
+                        Label: "Last turn"),
+                    RateLimits: new AgentRateLimitSummary(
+                        Name: "Requests",
+                        PlanType: "Pro",
+                        Primary: new AgentRateLimitWindow(42, null, 60),
+                        Label: "Account rate limits"),
+                    Scope: AgentUsageScope.CurrentWindow,
+                    Source: AgentUsageSource.CodexTokenCountEvent,
                     UpdatedAt: DateTimeOffset.Parse("2026-03-18T21:08:00+00:00"),
                     Details: new CodexSessionUsageDetails(
                         LastTurnUsage: new CodexTokenUsage(25, 1000, 200, 10, 1235),
+                        TotalUsage: new CodexTokenUsage(200, 5000, 800, 40, 6040),
                         RateLimits: new CodexRateLimitSnapshot(
                             "requests",
                             "Requests",
@@ -1744,9 +1811,14 @@ public sealed class CodeAltaTerminalUiTests
                 "gpt-5-codex");
 
             StringAssert.Contains(markdown, "# Codex context usage");
+            StringAssert.Contains(markdown, "## Summary");
+            StringAssert.Contains(markdown, "## Usage breakdown");
+            StringAssert.Contains(markdown, "## Limits and quotas");
+            StringAssert.Contains(markdown, "## Backend-specific details");
             StringAssert.Contains(markdown, "50,000 / 120,000 tokens (41.7%)");
-            StringAssert.Contains(markdown, "## Last turn");
-            StringAssert.Contains(markdown, "## Rate limits");
+            StringAssert.Contains(markdown, "Scope: Current window");
+            StringAssert.Contains(markdown, "Source: Codex token-count event");
+            StringAssert.Contains(markdown, "Last turn: input 1,000");
             StringAssert.Contains(markdown, "42% used");
         }
         finally
@@ -1757,15 +1829,22 @@ public sealed class CodeAltaTerminalUiTests
     }
 
     [TestMethod]
-    public void BuildSessionUsageMarkdown_CopilotQuotaSnapshotsUseJsonCodeBlocks()
+    public void BuildSessionUsageMarkdown_CopilotQuotaSnapshotsUseTypedSummaries()
     {
-        using var quotaJson = JsonDocument.Parse("""{"isUnlimitedEntitlement":false,"entitlementRequests":1500,"usedRequests":477,"usageAllowedWithExhaustion":true}""");
-
         var markdown = CodeAltaTerminalUi.BuildSessionUsageMarkdown(
             new AgentSessionUsage(
-                CurrentTokens: 49652,
-                TokenLimit: 272000,
-                MessageCount: 54,
+                Window: new AgentWindowUsageSnapshot(49652, 272000, 54, "Active context window"),
+                LastOperation: new AgentOperationUsageSnapshot(
+                    Model: "gpt-5.4",
+                    ReasoningEffort: "high",
+                    Initiator: "agent",
+                    InputTokens: 47307,
+                    OutputTokens: 989,
+                    CacheReadTokens: 47104,
+                    CacheWriteTokens: 0,
+                    Label: "Last API call"),
+                Scope: AgentUsageScope.LastOperation,
+                Source: AgentUsageSource.CopilotAssistantUsage,
                 UpdatedAt: DateTimeOffset.Parse("2026-03-18T21:39:53+00:00"),
                 Details: new CopilotSessionUsageDetails(
                     LastAssistantUsage: new CopilotAssistantUsage(
@@ -1781,18 +1860,22 @@ public sealed class CodeAltaTerminalUiTests
                         TotalNanoAiu: null),
                     QuotaSnapshots:
                     [
-                        new CopilotQuotaSnapshot("premium_interactions", quotaJson.RootElement.Clone()),
+                        new CopilotQuotaSnapshot(
+                            "premium_interactions",
+                            new CopilotRequestQuotaDetails(
+                                EntitlementRequests: 1500,
+                                UsedRequests: 477,
+                                UsageAllowedWithExhaustion: true,
+                                IsUnlimitedEntitlement: false)),
                     ])),
             "Copilot",
             "gpt-5.4");
 
         StringAssert.Contains(markdown, "# Copilot context usage");
-        StringAssert.Contains(markdown, "## Quota snapshots");
-        StringAssert.Contains(markdown, "### premium_interactions");
-        StringAssert.Contains(markdown, "```json");
-        StringAssert.Contains(markdown, "\"isUnlimitedEntitlement\": false");
-        StringAssert.Contains(markdown, "\"usedRequests\": 477");
-        Assert.IsFalse(markdown.Contains("- premium_interactions:", StringComparison.Ordinal));
+        StringAssert.Contains(markdown, "## Limits and quotas");
+        StringAssert.Contains(markdown, "### Copilot quota snapshots");
+        StringAssert.Contains(markdown, "premium_interactions: 477 / 1,500 requests");
+        StringAssert.Contains(markdown, "usage allowed after exhaustion");
     }
 
     [TestMethod]
