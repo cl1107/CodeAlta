@@ -281,7 +281,23 @@ internal sealed partial class CodeAltaTerminalUi
             return;
         }
 
-        OpenThread(threadId);
+        if (string.Equals(threadId, _pendingThreadTabSelectionThreadId, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _pendingThreadTabSelectionThreadId = threadId;
+        (_dispatcher ?? Dispatcher.Current).Post(
+            () =>
+            {
+                if (!string.Equals(threadId, _pendingThreadTabSelectionThreadId, StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+
+                _pendingThreadTabSelectionThreadId = null;
+                OpenThread(threadId);
+            });
     }
 
     private void RefreshView()
