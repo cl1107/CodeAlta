@@ -148,6 +148,11 @@ internal sealed partial class CodeAltaTerminalUi
                 desiredPages.Add(EnsureThreadTabPage(thread));
             }
 
+            if (_draftTabOpen)
+            {
+                desiredPages.Add(EnsureDraftTabPage());
+            }
+
             _threadTabControl.IsVisible = desiredPages.Count > 0;
 
             var existingPages = _threadTabControl.Tabs;
@@ -230,6 +235,43 @@ internal sealed partial class CodeAltaTerminalUi
         return page;
     }
 
+    private TabPage EnsureDraftTabPage()
+    {
+        if (_draftTabPage is not null)
+        {
+            return _draftTabPage;
+        }
+
+        var header = CreateComputedVisual(
+            () => new HStack(
+                [
+                    CreateOpenTabIndicator(isBusy: false, StatusTone.Info),
+                    CreateOpenTabTitle(BuildDraftTabTitle(GetSelectedProject(), _globalScopeSelected)),
+                ])
+            {
+                Spacing = 1,
+            });
+
+        var page = new TabPage(header, CreateThreadTabPageContentPlaceholder())
+        {
+            Data = DraftTabId,
+            ShowCloseButton = true,
+        };
+        page.RequestClosing += (_, e) =>
+        {
+            if (e.Reason != TabCloseReason.CloseButton || !string.Equals(e.Page.Data as string, DraftTabId, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            e.Cancel = true;
+            _ = CloseDraftTabAsync();
+        };
+
+        _draftTabPage = page;
+        return page;
+    }
+
     private static Visual CreateThreadTabPageContentPlaceholder()
         // The active thread flow is hosted by the splitter, so tabs need a detached placeholder.
         => new Placeholder
@@ -245,13 +287,30 @@ internal sealed partial class CodeAltaTerminalUi
         }
 
         var selectedIndex = -1;
-        for (var i = 0; i < _threadTabControl.Tabs.Count; i++)
+        if (string.IsNullOrWhiteSpace(_selectedThreadId))
         {
-            if (_threadTabControl.Tabs[i].Data is string threadId &&
-                string.Equals(threadId, _selectedThreadId, StringComparison.OrdinalIgnoreCase))
+            if (_draftTabOpen)
             {
-                selectedIndex = i;
-                break;
+                for (var i = 0; i < _threadTabControl.Tabs.Count; i++)
+                {
+                    if (string.Equals(_threadTabControl.Tabs[i].Data as string, DraftTabId, StringComparison.Ordinal))
+                    {
+                        selectedIndex = i;
+                        break;
+                    }
+                }
+            }
+        }
+        else
+        {
+            for (var i = 0; i < _threadTabControl.Tabs.Count; i++)
+            {
+                if (_threadTabControl.Tabs[i].Data is string threadId &&
+                    string.Equals(threadId, _selectedThreadId, StringComparison.OrdinalIgnoreCase))
+                {
+                    selectedIndex = i;
+                    break;
+                }
             }
         }
 
@@ -280,6 +339,17 @@ internal sealed partial class CodeAltaTerminalUi
 
         if (selectedIndex < 0 || selectedIndex >= _threadTabControl.Tabs.Count)
         {
+            return;
+        }
+
+        if (string.Equals(_threadTabControl.Tabs[selectedIndex].Data as string, DraftTabId, StringComparison.Ordinal))
+        {
+            if (string.IsNullOrWhiteSpace(_selectedThreadId))
+            {
+                return;
+            }
+
+            _ = ActivateDraftTabAsync();
             return;
         }
 
@@ -336,7 +406,10 @@ internal sealed partial class CodeAltaTerminalUi
         {
             RefreshChatSelectorsForDraftScope();
             UpdatePromptAvailabilityUi();
-            _threadBodySplitter.First = new TextBlock("No open tabs.");
+            _threadBodySplitter.First = new TextBlock(
+                _draftTabOpen
+                    ? BuildDraftTabBodyText(GetSelectedProject(), _globalScopeSelected)
+                    : "No open tabs.");
             SetReadyStatusForCurrentSelection();
 
             return;
@@ -587,6 +660,7 @@ internal sealed partial class CodeAltaTerminalUi
     private void SelectGlobalScope()
     {
         _pendingThreadTabSelectionThreadId = null;
+        _draftTabOpen = true;
         _globalScopeSelected = true;
         _selectedThreadId = null;
         _viewState.SelectedThreadId = null;
@@ -598,6 +672,7 @@ internal sealed partial class CodeAltaTerminalUi
     private void SelectProjectScope(string projectId)
     {
         _pendingThreadTabSelectionThreadId = null;
+        _draftTabOpen = true;
         _globalScopeSelected = false;
         _selectedProjectId = projectId;
         _selectedThreadId = null;
@@ -621,15 +696,7 @@ internal sealed partial class CodeAltaTerminalUi
             _selectedProjectId = _projects.FirstOrDefault()?.Id;
         }
 
-        if (_selectedThreadId is not null && FindThread(_selectedThreadId) is { } thread)
-        {
-            _globalScopeSelected = thread.Kind == WorkThreadKind.GlobalThread;
-            if (thread.ProjectRef is not null)
-            {
-                _selectedProjectId = thread.ProjectRef;
-            }
-        }
-        else if (!_globalScopeSelected && _selectedProjectId is null)
+        if (!_globalScopeSelected && _selectedProjectId is null)
         {
             _globalScopeSelected = true;
         }
@@ -680,6 +747,34 @@ internal sealed partial class CodeAltaTerminalUi
         => globalScopeSelected
             ? "Send the first prompt to start a global thread."
             : "Send the first prompt to start a thread for the selected project.";
+
+    internal static string BuildDraftTabTitle(
+        ProjectDescriptor? selectedProject,
+        bool globalScopeSelected)
+    {
+        if (globalScopeSelected)
+        {
+            return "Global draft";
+        }
+
+        return selectedProject is null
+            ? "Project draft"
+            : $"{CompactTabTitle(selectedProject.DisplayName)} draft";
+    }
+
+    internal static string BuildDraftTabBodyText(
+        ProjectDescriptor? selectedProject,
+        bool globalScopeSelected)
+    {
+        if (globalScopeSelected)
+        {
+            return "Draft scope selected. Send a prompt to start a global thread.";
+        }
+
+        return selectedProject is null
+            ? "Draft scope selected. Choose a project or send a prompt to start a thread."
+            : $"Draft scope selected for '{selectedProject.DisplayName}'. Send a prompt to start a thread.";
+    }
 
     internal static string BuildReadyStatusText(
         WorkThreadDescriptor? thread,
@@ -1099,6 +1194,31 @@ internal sealed partial class CodeAltaTerminalUi
         _viewModel.DraftThreadTitle = string.Empty;
     }
 
+    private async Task ActivateDraftTabAsync()
+    {
+        _pendingThreadTabSelectionThreadId = null;
+        _draftTabOpen = true;
+        _selectedThreadId = null;
+        _viewState.SelectedThreadId = null;
+        _viewState.UpdatedAt = DateTimeOffset.UtcNow;
+        await PersistViewStateAsync().ConfigureAwait(false);
+        RefreshView();
+    }
+
+    private async Task CloseDraftTabAsync()
+    {
+        _draftTabOpen = false;
+        if (string.IsNullOrWhiteSpace(_selectedThreadId))
+        {
+            _selectedThreadId = _viewState.OpenThreadIds.FirstOrDefault();
+            _viewState.SelectedThreadId = _selectedThreadId;
+        }
+
+        _viewState.UpdatedAt = DateTimeOffset.UtcNow;
+        await PersistViewStateAsync().ConfigureAwait(false);
+        RefreshView();
+    }
+
     private bool GetAutoApproveEnabled()
         => ReadUiValue(() => _viewModel.AutoApproveEnabled);
 
@@ -1182,8 +1302,8 @@ internal sealed partial class CodeAltaTerminalUi
             DescriptionMarkup = "Close the current thread tab.",
             Gesture = new KeyGesture(TerminalKey.F9),
             Presentation = CommandPresentation.CommandBar,
-            Execute = _visual => { _ = CloseSelectedThreadAsync(); },
-            CanExecute = _visual => GetSelectedThread() is not null,
+            Execute = _visual => { _ = GetSelectedThread() is not null ? CloseSelectedThreadAsync() : CloseDraftTabAsync(); },
+            CanExecute = _visual => GetSelectedThread() is not null || (_draftTabOpen && string.IsNullOrWhiteSpace(_selectedThreadId)),
         });
 
         return editor;

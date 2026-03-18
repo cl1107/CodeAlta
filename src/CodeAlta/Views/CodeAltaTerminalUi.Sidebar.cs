@@ -143,7 +143,7 @@ internal sealed partial class CodeAltaTerminalUi
             Icon = NerdFont.MdFolderOutline,
             IconStyle = UiPalette.GetSidebarIconStyle(SidebarAccent.Projects),
             Data = SidebarSelectionTarget.Project(project.Id),
-            IsExpanded = string.Equals(project.Id, _selectedProjectId, StringComparison.OrdinalIgnoreCase),
+            IsExpanded = string.Equals(project.Id, GetExpandedSidebarProjectId(), StringComparison.OrdinalIgnoreCase),
         };
 
         foreach (var thread in threads)
@@ -203,6 +203,11 @@ internal sealed partial class CodeAltaTerminalUi
     private static SidebarSelectionTarget? GetSelectedSidebarTarget(TreeNode? node)
     {
         return node?.Data as SidebarSelectionTarget;
+    }
+
+    private string? GetExpandedSidebarProjectId()
+    {
+        return GetSelectedThread()?.ProjectRef ?? _selectedProjectId;
     }
 
     private SidebarSelectionTarget ResolveSidebarTargetForCurrentState()

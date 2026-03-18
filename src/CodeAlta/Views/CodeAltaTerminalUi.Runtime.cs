@@ -19,6 +19,7 @@ internal sealed partial class CodeAltaTerminalUi
         _selectedThreadId = string.IsNullOrWhiteSpace(desiredThreadId)
             ? null
             : _threads.FirstOrDefault(thread => string.Equals(thread.ThreadId, desiredThreadId, StringComparison.OrdinalIgnoreCase))?.ThreadId;
+        _draftTabOpen = _selectedThreadId is null;
         _pendingStartupThreadRestoreId = desiredThreadId;
         var selectedThread = GetSelectedThread();
         _selectedProjectId = selectedThread?.ProjectRef ?? _projects.FirstOrDefault()?.Id;
@@ -176,8 +177,8 @@ internal sealed partial class CodeAltaTerminalUi
 
             _viewState.SelectedThreadId = restoredThread.ThreadId;
             _selectedThreadId = restoredThread.ThreadId;
-            _globalScopeSelected = restoredThread.Kind == WorkThreadKind.GlobalThread;
             _selectedProjectId = restoredThread.ProjectRef ?? _selectedProjectId;
+            _draftTabOpen = false;
         }
 
         EnsureSelectionDefaults();
@@ -334,6 +335,7 @@ internal sealed partial class CodeAltaTerminalUi
             .OrderByDescending(static item => item.LastActiveAt)
             .ToArray();
 
+        _draftTabOpen = false;
         OpenThread(thread.ThreadId);
         await EnsureThreadHistoryLoadedAsync(thread).ConfigureAwait(false);
     }
@@ -357,8 +359,6 @@ internal sealed partial class CodeAltaTerminalUi
         _viewState.SelectedThreadId = threadId;
         _viewState.UpdatedAt = DateTimeOffset.UtcNow;
         _selectedThreadId = threadId;
-        _globalScopeSelected = thread.Kind == WorkThreadKind.GlobalThread;
-        _selectedProjectId = thread.ProjectRef ?? _selectedProjectId;
         if (CanLoadThreadHistory(thread) && !IsChatBackendReady(new AgentBackendId(thread.BackendId)))
         {
             _pendingStartupThreadRestoreId = thread.ThreadId;
@@ -1454,7 +1454,12 @@ internal sealed partial class CodeAltaTerminalUi
     }
 
     private ProjectDescriptor? GetSelectedProject()
-        => GetProjectById(_selectedProjectId);
+    {
+        var selectedThread = GetSelectedThread();
+        return selectedThread?.ProjectRef is { } projectId
+            ? GetProjectById(projectId)
+            : GetProjectById(_selectedProjectId);
+    }
 
     private ProjectDescriptor? GetProjectById(string? projectId)
     {

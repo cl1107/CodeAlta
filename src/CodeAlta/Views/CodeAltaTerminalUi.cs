@@ -22,6 +22,7 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
     private const int MaxRecentThreadsPerProject = 3;
     private const int MaxTabTitleLength = 18;
     private const int StatusPrefixWidth = 2;
+    private const string DraftTabId = "__draft__";
     private const string ReadyStatusMessage = "Prompt ready";
     private const string ThinkingStatusMessage = "Thinking...";
 
@@ -54,6 +55,7 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
     private Select<ChatReasoningOption>? _chatReasoningSelect;
     private TreeView? _sidebarTree;
     private TabControl? _threadTabControl;
+    private TabPage? _draftTabPage;
     private Task? _runtimeEventsTask;
     private Task? _startupRefreshTask;
     private CancellationTokenSource? _startupRefreshCts;
@@ -64,6 +66,7 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
     private bool _syncingThreadTabPages;
     private string? _pendingThreadTabSelectionThreadId;
     private SidebarSelectionTarget? _pendingSidebarSelectionTarget;
+    private bool _draftTabOpen;
     private bool _terminalLoopStarted;
     private bool _globalScopeSelected = true;
     private bool _sidebarSelectionSyncEnabled = true;
