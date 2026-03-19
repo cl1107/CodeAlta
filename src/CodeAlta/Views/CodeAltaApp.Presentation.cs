@@ -200,7 +200,7 @@ internal sealed partial class CodeAltaApp
         return page;
     }
 
-    private static Visual CreateThreadTabPageContentPlaceholder()
+    internal static Visual CreateThreadTabPageContentPlaceholder()
         // The active thread flow is hosted by the splitter, so tabs need a detached placeholder.
         => new Placeholder
         {

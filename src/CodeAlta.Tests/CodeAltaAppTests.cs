@@ -454,6 +454,41 @@ public sealed class CodeAltaAppTests
     }
 
     [TestMethod]
+    public void SessionUsagePopupView_ShowAndClose_ToggleOpenStateAndContent()
+    {
+        using var session = Terminal.Open(new InMemoryTerminalBackend(new TerminalSize(80, 20)), new TerminalOptions { ImplicitStartInput = true }, force: true);
+        var anchor = new TextBlock("anchor");
+        var app = new TerminalApp(
+            anchor,
+            session.Instance,
+            new TerminalAppOptions
+            {
+                HostKind = TerminalHostKind.Fullscreen,
+                EnableMouse = true,
+                MouseMode = TerminalMouseMode.Move,
+            });
+        var popupView = new SessionUsagePopupView(() => new TextBlock("usage"));
+
+        InvokeTerminalApp(app, "BeginRun");
+        try
+        {
+            popupView.Show(anchor);
+
+            Assert.IsTrue(popupView.IsOpen);
+            Assert.AreSame(anchor, popupView.Popup.Anchor);
+            Assert.IsInstanceOfType<TextBlock>(popupView.Popup.Content);
+
+            popupView.Close();
+
+            Assert.IsFalse(popupView.IsOpen);
+        }
+        finally
+        {
+            InvokeTerminalApp(app, "EndRun");
+        }
+    }
+
+    [TestMethod]
     public void BuildWelcomePane_CreatesCenteredFigletLogo()
     {
         var welcome = CodeAltaApp.BuildWelcomePane(null, globalScopeSelected: true);

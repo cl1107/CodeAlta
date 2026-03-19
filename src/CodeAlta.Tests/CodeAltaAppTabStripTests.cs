@@ -32,11 +32,8 @@ public sealed class CodeAltaAppTabStripTests
     [TestMethod]
     public void CreateThreadTabPageContentPlaceholder_ReturnsHiddenDetachedVisual()
     {
-        var method = typeof(CodeAltaApp).GetMethod("CreateThreadTabPageContentPlaceholder", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
-        Assert.IsNotNull(method);
-
-        var first = (Visual?)method.Invoke(null, null);
-        var second = (Visual?)method.Invoke(null, null);
+        var first = CodeAltaApp.CreateThreadTabPageContentPlaceholder();
+        var second = CodeAltaApp.CreateThreadTabPageContentPlaceholder();
 
         Assert.IsNotNull(first);
         Assert.IsNotNull(second);
