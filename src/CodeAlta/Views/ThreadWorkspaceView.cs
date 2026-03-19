@@ -15,7 +15,6 @@ internal sealed class ThreadWorkspaceView
         CodeAltaShellViewModel shellViewModel,
         ThreadWorkspaceViewModel workspaceViewModel,
         PromptComposerViewModel promptComposerViewModel,
-        Spinner statusSpinner,
         Func<Visual> buildSessionUsageIndicatorVisual,
         Func<ChatPromptEditor> createPromptEditor,
         Action sendPrompt,
@@ -28,7 +27,6 @@ internal sealed class ThreadWorkspaceView
         ArgumentNullException.ThrowIfNull(shellViewModel);
         ArgumentNullException.ThrowIfNull(workspaceViewModel);
         ArgumentNullException.ThrowIfNull(promptComposerViewModel);
-        ArgumentNullException.ThrowIfNull(statusSpinner);
         ArgumentNullException.ThrowIfNull(buildSessionUsageIndicatorVisual);
         ArgumentNullException.ThrowIfNull(createPromptEditor);
         ArgumentNullException.ThrowIfNull(sendPrompt);
@@ -72,6 +70,10 @@ internal sealed class ThreadWorkspaceView
         ChatAutoScrollCheckBox = new CheckBox("AutoScroll", isChecked: true);
         ChatAutoScrollCheckBox.RegisterDynamicUpdate(_ => onAutoScrollChanged());
         ChatAutoScrollCheckBox.RegisterDynamicUpdate(_ => ChatAutoScrollCheckBox.IsEnabled = workspaceViewModel.CanToggleAutoScroll);
+
+        var statusSpinner = new Spinner().Style(SpinnerStyles.Arc);
+        statusSpinner.IsActive(() => shellViewModel.StatusBusy);
+        statusSpinner.IsVisible(() => shellViewModel.StatusBusy);
 
         var usageIndicator = buildSessionUsageIndicatorVisual();
         var statusPrefix = new Center(

@@ -7,7 +7,7 @@ internal sealed partial class CodeAltaApp
     {
         _sessionUsagePresenter ??= new SessionUsagePresenter(
             _sessionUsageViewModel,
-            markdown => (_threadPaneLayout?.App)?.Terminal.Clipboard.TrySetText(markdown),
+            markdown => (ThreadPaneLayout?.App)?.Terminal.Clipboard.TrySetText(markdown),
             build => CreateUsageComputedVisual(build));
         return _sessionUsagePresenter;
     }

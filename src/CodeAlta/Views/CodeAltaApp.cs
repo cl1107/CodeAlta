@@ -60,20 +60,6 @@ internal sealed partial class CodeAltaApp : IAsyncDisposable
     private ThreadWorkspaceView? _threadWorkspaceView;
     private SessionUsagePresenter? _sessionUsagePresenter;
     private IUiDispatcher? _uiDispatcher;
-    private Spinner? _statusSpinner;
-    private Visual? _threadPaneLayout;
-    private Visual? _threadBottomPanel;
-    private VSplitter? _threadBodySplitter;
-    private ChatPromptEditor? _threadInput;
-    private Visual? _threadInputView;
-    private Button? _sendPromptButton;
-    private CommandBar? _threadCommandBar;
-    private Select<ChatBackendOption>? _chatBackendSelect;
-    private Select<ChatModelOption>? _chatModelSelect;
-    private Select<ChatReasoningOption>? _chatReasoningSelect;
-    private CheckBox? _chatAutoScrollCheckBox;
-    private TabControl? _threadTabControl;
-    private TabPage? _draftTabPage;
     private bool _chatSelectorsRefreshing;
     private bool _syncingThreadTabSelection;
     private bool _syncingThreadTabPages;
@@ -119,6 +105,24 @@ internal sealed partial class CodeAltaApp : IAsyncDisposable
         get => _selection.PendingStartupThreadRestoreId;
         set => _selection.PendingStartupThreadRestoreId = value;
     }
+
+    private Visual? ThreadPaneLayout => _threadWorkspaceView?.ThreadPaneLayout;
+
+    private VSplitter? ThreadBodySplitter => _threadWorkspaceView?.ThreadBodySplitter;
+
+    private ChatPromptEditor? ThreadInput => _threadWorkspaceView?.ThreadInput;
+
+    private CommandBar? ThreadCommandBar => _threadWorkspaceView?.ThreadCommandBar;
+
+    private Select<ChatBackendOption>? ChatBackendSelect => _threadWorkspaceView?.ChatBackendSelect;
+
+    private Select<ChatModelOption>? ChatModelSelect => _threadWorkspaceView?.ChatModelSelect;
+
+    private Select<ChatReasoningOption>? ChatReasoningSelect => _threadWorkspaceView?.ChatReasoningSelect;
+
+    private CheckBox? ChatAutoScrollCheckBox => _threadWorkspaceView?.ChatAutoScrollCheckBox;
+
+    private TabControl? ThreadTabControl => _threadWorkspaceView?.ThreadTabControl;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CodeAltaApp"/> class.
@@ -178,10 +182,6 @@ internal sealed partial class CodeAltaApp : IAsyncDisposable
     {
         await LoadCatalogStateAsync(cancellationToken).ConfigureAwait(false);
         _shellViewModel.HeaderText = BuildHeaderText();
-
-        _statusSpinner = new Spinner().Style(SpinnerStyles.Arc);
-        _statusSpinner.IsActive(() => _shellViewModel.StatusBusy);
-        _statusSpinner.IsVisible(() => _shellViewModel.StatusBusy);
 
         SetStatus("Connecting to available backends...", showSpinner: true);
 

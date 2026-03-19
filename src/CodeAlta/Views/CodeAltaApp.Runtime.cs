@@ -494,7 +494,7 @@ internal sealed partial class CodeAltaApp
             return;
         }
 
-        var prompt = UiDispatch.Invoke(GetUiDispatcher(), () => _threadInput?.Text?.Trim());
+        var prompt = UiDispatch.Invoke(GetUiDispatcher(), () => ThreadInput?.Text?.Trim());
         if (string.IsNullOrWhiteSpace(prompt))
         {
             return;
@@ -557,7 +557,7 @@ internal sealed partial class CodeAltaApp
         }
 
         var tab = EnsureThreadTab(thread);
-        var prompt = UiDispatch.Invoke(GetUiDispatcher(), () => _threadInput?.Text?.Trim());
+        var prompt = UiDispatch.Invoke(GetUiDispatcher(), () => ThreadInput?.Text?.Trim());
         if (string.IsNullOrWhiteSpace(prompt))
         {
             SetStatus("Enter delegation instructions before creating an internal thread.", tone: StatusTone.Warning);
@@ -1193,19 +1193,19 @@ internal sealed partial class CodeAltaApp
             GetUiDispatcher(),
             () =>
             {
-                if (_chatBackendSelect is null || _chatModelSelect is null)
+                if (ChatBackendSelect is null || ChatModelSelect is null)
                 {
                     return backendState.SelectedModelId;
                 }
 
                 var backendOptions = ChatBackendPresentation.BuildBackendOptions();
-                if ((uint)_chatBackendSelect.SelectedIndex < (uint)backendOptions.Count &&
-                    string.Equals(backendOptions[_chatBackendSelect.SelectedIndex].BackendId.Value, backendId.Value, StringComparison.OrdinalIgnoreCase))
+                if ((uint)ChatBackendSelect.SelectedIndex < (uint)backendOptions.Count &&
+                    string.Equals(backendOptions[ChatBackendSelect.SelectedIndex].BackendId.Value, backendId.Value, StringComparison.OrdinalIgnoreCase))
                 {
                     var modelOptions = ChatBackendPresentation.BuildModelOptions(backendState);
-                    if ((uint)_chatModelSelect.SelectedIndex < (uint)modelOptions.Count)
+                    if ((uint)ChatModelSelect.SelectedIndex < (uint)modelOptions.Count)
                     {
-                        return modelOptions[_chatModelSelect.SelectedIndex].ModelId;
+                        return modelOptions[ChatModelSelect.SelectedIndex].ModelId;
                     }
                 }
 
@@ -1216,20 +1216,20 @@ internal sealed partial class CodeAltaApp
             GetUiDispatcher(),
             () =>
             {
-                if (_chatBackendSelect is null || _chatReasoningSelect is null)
+                if (ChatBackendSelect is null || ChatReasoningSelect is null)
                 {
                     return backendState.SelectedReasoningEffort;
                 }
 
                 var backendOptions = ChatBackendPresentation.BuildBackendOptions();
-                if ((uint)_chatBackendSelect.SelectedIndex < (uint)backendOptions.Count &&
-                    string.Equals(backendOptions[_chatBackendSelect.SelectedIndex].BackendId.Value, backendId.Value, StringComparison.OrdinalIgnoreCase))
+                if ((uint)ChatBackendSelect.SelectedIndex < (uint)backendOptions.Count &&
+                    string.Equals(backendOptions[ChatBackendSelect.SelectedIndex].BackendId.Value, backendId.Value, StringComparison.OrdinalIgnoreCase))
                 {
                     var selectedModel = backendState.Models.FirstOrDefault(candidate => string.Equals(candidate.Id, model, StringComparison.Ordinal));
                     var reasoningOptions = ChatBackendPresentation.BuildReasoningOptions(selectedModel);
-                    if ((uint)_chatReasoningSelect.SelectedIndex < (uint)reasoningOptions.Count)
+                    if ((uint)ChatReasoningSelect.SelectedIndex < (uint)reasoningOptions.Count)
                     {
-                        return reasoningOptions[_chatReasoningSelect.SelectedIndex].Effort;
+                        return reasoningOptions[ChatReasoningSelect.SelectedIndex].Effort;
                     }
                 }
 
@@ -1327,7 +1327,7 @@ internal sealed partial class CodeAltaApp
         var timeline = new ThreadTimelinePresenter(
             GetUiDispatcher(),
             () => state!.AutoScroll,
-            () => _threadPaneLayout?.GetAbsoluteBounds());
+            () => ThreadPaneLayout?.GetAbsoluteBounds());
         state = new ThreadTabState(thread, timeline);
         state.BackendId = new AgentBackendId(thread.BackendId);
         state.ViewModel.Title = thread.Title;

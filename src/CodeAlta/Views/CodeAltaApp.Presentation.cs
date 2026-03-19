@@ -28,7 +28,7 @@ internal sealed partial class CodeAltaApp
 
     private void SyncThreadTabControl()
     {
-        if (_threadTabControl is null)
+        if (ThreadTabControl is null)
         {
             return;
         }
@@ -39,9 +39,9 @@ internal sealed partial class CodeAltaApp
             var projection = BuildThreadTabStripProjection();
             var desiredPages = BuildDesiredThreadTabPages(projection);
 
-            _threadTabControl.IsVisible = projection.Tabs.Count > 0;
+            ThreadTabControl.IsVisible = projection.Tabs.Count > 0;
 
-            var existingPages = _threadTabControl.Tabs;
+            var existingPages = ThreadTabControl.Tabs;
             var matches = existingPages.Count == desiredPages.Count;
             if (matches)
             {
@@ -59,12 +59,12 @@ internal sealed partial class CodeAltaApp
             {
                 for (var i = existingPages.Count - 1; i >= 0; i--)
                 {
-                    _threadTabControl.TryCloseTab(existingPages[i]);
+                    ThreadTabControl.TryCloseTab(existingPages[i]);
                 }
 
                 foreach (var page in desiredPages)
                 {
-                    _threadTabControl.AddTab(page);
+                    ThreadTabControl.AddTab(page);
                 }
             }
 
@@ -165,9 +165,10 @@ internal sealed partial class CodeAltaApp
 
     private TabPage EnsureDraftTabPage()
     {
-        if (_draftTabPage is not null)
+        if (_threadTabPages.TryGetValue(DraftTabId, out var existingPage))
         {
-            return _draftTabPage;
+            existingPage.Data = DraftTabId;
+            return existingPage;
         }
 
         var header = CreateComputedVisual(
@@ -196,7 +197,7 @@ internal sealed partial class CodeAltaApp
             _ = CloseDraftTabAsync();
         };
 
-        _draftTabPage = page;
+        _threadTabPages[DraftTabId] = page;
         return page;
     }
 
@@ -211,15 +212,15 @@ internal sealed partial class CodeAltaApp
     {
         ArgumentNullException.ThrowIfNull(projection);
 
-        if (_threadTabControl is null || _threadTabControl.Tabs.Count == 0 || string.IsNullOrWhiteSpace(projection.SelectedTabId))
+        if (ThreadTabControl is null || ThreadTabControl.Tabs.Count == 0 || string.IsNullOrWhiteSpace(projection.SelectedTabId))
         {
             return;
         }
 
         var selectedIndex = -1;
-        for (var i = 0; i < _threadTabControl.Tabs.Count; i++)
+        for (var i = 0; i < ThreadTabControl.Tabs.Count; i++)
         {
-            if (_threadTabControl.Tabs[i].Data is string threadId &&
+            if (ThreadTabControl.Tabs[i].Data is string threadId &&
                 string.Equals(threadId, projection.SelectedTabId, StringComparison.OrdinalIgnoreCase))
             {
                 selectedIndex = i;
@@ -227,7 +228,7 @@ internal sealed partial class CodeAltaApp
             }
         }
 
-        if (selectedIndex < 0 || _threadTabControl.SelectedIndex == selectedIndex)
+        if (selectedIndex < 0 || ThreadTabControl.SelectedIndex == selectedIndex)
         {
             return;
         }
@@ -235,7 +236,7 @@ internal sealed partial class CodeAltaApp
         _syncingThreadTabSelection = true;
         try
         {
-            _threadTabControl.SelectedIndex = selectedIndex;
+            ThreadTabControl.SelectedIndex = selectedIndex;
         }
         finally
         {
@@ -245,17 +246,17 @@ internal sealed partial class CodeAltaApp
 
     private void OnThreadTabControlSelectionChanged(int selectedIndex)
     {
-        if (_syncingThreadTabSelection || _syncingThreadTabPages || _threadTabControl is null)
+        if (_syncingThreadTabSelection || _syncingThreadTabPages || ThreadTabControl is null)
         {
             return;
         }
 
-        if (selectedIndex < 0 || selectedIndex >= _threadTabControl.Tabs.Count)
+        if (selectedIndex < 0 || selectedIndex >= ThreadTabControl.Tabs.Count)
         {
             return;
         }
 
-        if (string.Equals(_threadTabControl.Tabs[selectedIndex].Data as string, DraftTabId, StringComparison.Ordinal))
+        if (string.Equals(ThreadTabControl.Tabs[selectedIndex].Data as string, DraftTabId, StringComparison.Ordinal))
         {
             if (string.IsNullOrWhiteSpace(_selectedThreadId))
             {
@@ -266,7 +267,7 @@ internal sealed partial class CodeAltaApp
             return;
         }
 
-        if (_threadTabControl.Tabs[selectedIndex].Data is not string threadId ||
+        if (ThreadTabControl.Tabs[selectedIndex].Data is not string threadId ||
             string.Equals(threadId, _selectedThreadId, StringComparison.OrdinalIgnoreCase))
         {
             return;
@@ -362,7 +363,7 @@ internal sealed partial class CodeAltaApp
 
     private void RefreshThreadPaneContent()
     {
-        if (_threadPaneLayout is null || _threadBodySplitter is null || _threadInput is null)
+        if (ThreadPaneLayout is null || ThreadBodySplitter is null || ThreadInput is null)
         {
             return;
         }
@@ -374,7 +375,7 @@ internal sealed partial class CodeAltaApp
         {
             RefreshChatSelectorsForDraftScope();
             UpdatePromptAvailabilityUi();
-            _threadBodySplitter.First = BuildWelcomePane(GetSelectedProject(), _globalScopeSelected);
+            ThreadBodySplitter.First = BuildWelcomePane(GetSelectedProject(), _globalScopeSelected);
             SetReadyStatusForCurrentSelection();
 
             return;
@@ -383,7 +384,7 @@ internal sealed partial class CodeAltaApp
         var tab = EnsureThreadTab(selectedThread);
         RefreshChatSelectorsForThread(tab);
         UpdatePromptAvailabilityUi();
-        _threadBodySplitter.First = tab.Timeline.Flow;
+        ThreadBodySplitter.First = tab.Timeline.Flow;
         SetReadyStatusForCurrentSelection();
     }
 
@@ -393,10 +394,10 @@ internal sealed partial class CodeAltaApp
         _chatSelectorsRefreshing = true;
         try
         {
-            var backendSelect = _chatBackendSelect!;
-            var modelSelect = _chatModelSelect!;
-            var reasoningSelect = _chatReasoningSelect!;
-            var autoScrollCheckBox = _chatAutoScrollCheckBox!;
+            var backendSelect = ChatBackendSelect!;
+            var modelSelect = ChatModelSelect!;
+            var reasoningSelect = ChatReasoningSelect!;
+            var autoScrollCheckBox = ChatAutoScrollCheckBox!;
             var backendOptions = ChatBackendPresentation.BuildBackendOptions();
             ChatBackendPresentation.ReplaceSelectItems(backendSelect, backendOptions);
 
@@ -441,10 +442,10 @@ internal sealed partial class CodeAltaApp
 
     private AgentBackendId GetPreferredDraftBackendId(IReadOnlyList<ChatBackendOption> backendOptions)
     {
-        if (_chatBackendSelect is not null &&
-            (uint)_chatBackendSelect.SelectedIndex < (uint)backendOptions.Count)
+        if (ChatBackendSelect is not null &&
+            (uint)ChatBackendSelect.SelectedIndex < (uint)backendOptions.Count)
         {
-            var current = backendOptions[_chatBackendSelect.SelectedIndex].BackendId;
+            var current = backendOptions[ChatBackendSelect.SelectedIndex].BackendId;
             if (IsChatBackendReady(current))
             {
                 return current;
@@ -466,10 +467,10 @@ internal sealed partial class CodeAltaApp
         _chatSelectorsRefreshing = true;
         try
         {
-            var backendSelect = _chatBackendSelect!;
-            var modelSelect = _chatModelSelect!;
-            var reasoningSelect = _chatReasoningSelect!;
-            var autoScrollCheckBox = _chatAutoScrollCheckBox!;
+            var backendSelect = ChatBackendSelect!;
+            var modelSelect = ChatModelSelect!;
+            var reasoningSelect = ChatReasoningSelect!;
+            var autoScrollCheckBox = ChatAutoScrollCheckBox!;
             var backendOptions = ChatBackendPresentation.BuildBackendOptions();
             ChatBackendPresentation.ReplaceSelectItems(backendSelect, backendOptions);
             backendSelect.SelectedIndex = Math.Clamp(
@@ -633,7 +634,7 @@ internal sealed partial class CodeAltaApp
 
     private void OnChatAutoScrollChanged()
     {
-        if (_chatSelectorsRefreshing || _chatAutoScrollCheckBox is null)
+        if (_chatSelectorsRefreshing || ChatAutoScrollCheckBox is null)
         {
             return;
         }
@@ -645,12 +646,12 @@ internal sealed partial class CodeAltaApp
         }
 
         var tab = EnsureThreadTab(thread);
-        if (tab.AutoScroll == _chatAutoScrollCheckBox.IsChecked)
+        if (tab.AutoScroll == ChatAutoScrollCheckBox.IsChecked)
         {
             return;
         }
 
-        tab.AutoScroll = _chatAutoScrollCheckBox.IsChecked;
+        tab.AutoScroll = ChatAutoScrollCheckBox.IsChecked;
         RememberThreadPreference(tab.Thread.ThreadId, tab.ModelId, tab.ReasoningEffort, tab.AutoScroll, persistNow: true);
     }
 
@@ -661,10 +662,10 @@ internal sealed partial class CodeAltaApp
             () =>
             {
                 var options = ChatBackendPresentation.BuildBackendOptions();
-                if (_chatBackendSelect is not null &&
-                    (uint)_chatBackendSelect.SelectedIndex < (uint)options.Count)
+                if (ChatBackendSelect is not null &&
+                    (uint)ChatBackendSelect.SelectedIndex < (uint)options.Count)
                 {
-                    return options[_chatBackendSelect.SelectedIndex].BackendId;
+                    return options[ChatBackendSelect.SelectedIndex].BackendId;
                 }
 
                 var readyBackend = options.FirstOrDefault(option => IsChatBackendReady(option.BackendId));
@@ -1353,7 +1354,7 @@ internal sealed partial class CodeAltaApp
             GetUiDispatcher(),
             () =>
             {
-                _threadInput!.Text = string.Empty;
+                ThreadInput!.Text = string.Empty;
                 return 0;
             });
     }

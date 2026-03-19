@@ -16,7 +16,6 @@ internal sealed partial class CodeAltaApp
             _shellViewModel,
             _threadWorkspaceViewModel,
             _promptComposerViewModel,
-            _statusSpinner!,
             () => CreateUsageComputedVisual(EnsureSessionUsagePresenter().BuildIndicatorVisual),
             CreatePromptEditor,
             () => _ = SendSelectedThreadPromptAsync(steer: false),
@@ -25,18 +24,6 @@ internal sealed partial class CodeAltaApp
             OnChatModelSelectionChanged,
             OnChatReasoningSelectionChanged,
             OnChatAutoScrollChanged);
-        _threadPaneLayout ??= _threadWorkspaceView.ThreadPaneLayout;
-        _threadBottomPanel ??= _threadWorkspaceView.ThreadBottomPanel;
-        _threadBodySplitter ??= _threadWorkspaceView.ThreadBodySplitter;
-        _threadInput ??= _threadWorkspaceView.ThreadInput;
-        _threadInputView ??= _threadWorkspaceView.ThreadInputView;
-        _sendPromptButton ??= _threadWorkspaceView.SendPromptButton;
-        _threadCommandBar ??= _threadWorkspaceView.ThreadCommandBar;
-        _chatBackendSelect ??= _threadWorkspaceView.ChatBackendSelect;
-        _chatModelSelect ??= _threadWorkspaceView.ChatModelSelect;
-        _chatReasoningSelect ??= _threadWorkspaceView.ChatReasoningSelect;
-        _chatAutoScrollCheckBox ??= _threadWorkspaceView.ChatAutoScrollCheckBox;
-        _threadTabControl ??= _threadWorkspaceView.ThreadTabControl;
 
         RefreshSidebarProjection();
         RefreshThreadPaneContent();
@@ -45,7 +32,7 @@ internal sealed partial class CodeAltaApp
             _shellViewModel,
             _sidebarView.Root,
             _threadWorkspaceView.Root,
-            _threadCommandBar);
+            ThreadCommandBar!);
         return _shellView;
     }
 
