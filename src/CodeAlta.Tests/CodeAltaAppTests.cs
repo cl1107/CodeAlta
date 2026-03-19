@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Globalization;
 using CodeAlta.Agent;
 using CodeAlta.Catalog;
+using CodeAlta.Orchestration.Runtime;
 using XenoAtom.Ansi;
 using XenoAtom.Terminal;
 using XenoAtom.Terminal.Backends;
@@ -515,6 +516,38 @@ public sealed class CodeAltaAppTests
                     "session-1",
                     timestamp,
                     "Reconnect failed.")));
+    }
+
+    [TestMethod]
+    public void ShouldRefreshShellChromeAfterRuntimeEvent_SkipsUsageOnlySessionUpdates()
+    {
+        var runtimeEvent = new WorkThreadAgentEvent(
+            "thread-1",
+            new AgentSessionUpdateEvent(
+                AgentBackendIds.Codex,
+                "session-1",
+                DateTimeOffset.UtcNow,
+                null,
+                AgentSessionUpdateKind.UsageUpdated,
+                "usage updated"));
+
+        Assert.IsFalse(CodeAltaApp.ShouldRefreshShellChromeAfterRuntimeEvent(runtimeEvent));
+    }
+
+    [TestMethod]
+    public void ShouldRefreshShellChromeAfterRuntimeEvent_KeepsShellRefreshForNonUsageEvents()
+    {
+        var runtimeEvent = new WorkThreadAgentEvent(
+            "thread-1",
+            new AgentSessionUpdateEvent(
+                AgentBackendIds.Codex,
+                "session-1",
+                DateTimeOffset.UtcNow,
+                null,
+                AgentSessionUpdateKind.Warning,
+                "warning"));
+
+        Assert.IsTrue(CodeAltaApp.ShouldRefreshShellChromeAfterRuntimeEvent(runtimeEvent));
     }
 
     [TestMethod]

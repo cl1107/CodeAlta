@@ -706,7 +706,10 @@ internal sealed partial class CodeAltaApp
                 break;
         }
 
-        RefreshShellChrome();
+        if (ShouldRefreshShellChromeAfterRuntimeEvent(runtimeEvent))
+        {
+            RefreshShellChrome();
+        }
     }
 
     private void HandleAgentEvent(WorkThreadDescriptor thread, ThreadTabState tab, AgentEvent @event)
@@ -849,6 +852,10 @@ internal sealed partial class CodeAltaApp
                 if (update.Usage is { } usage)
                 {
                     tab.Usage = MergeSessionUsage(tab.Usage, usage);
+                    if (IsSelectedThread(thread.ThreadId))
+                    {
+                        InvalidateSelectedSessionUsage();
+                    }
                 }
 
                 if (update.Kind == AgentSessionUpdateKind.Idle)
@@ -901,6 +908,19 @@ internal sealed partial class CodeAltaApp
                     or AgentSessionUpdateKind.CompactionStarted
             } => true,
             _ => false,
+        };
+    }
+
+    internal static bool ShouldRefreshShellChromeAfterRuntimeEvent(WorkThreadRuntimeEvent runtimeEvent)
+    {
+        ArgumentNullException.ThrowIfNull(runtimeEvent);
+
+        return runtimeEvent is not WorkThreadAgentEvent
+        {
+            Event: AgentSessionUpdateEvent
+            {
+                Kind: AgentSessionUpdateKind.UsageUpdated
+            }
         };
     }
 

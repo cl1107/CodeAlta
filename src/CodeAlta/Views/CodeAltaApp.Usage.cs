@@ -9,7 +9,7 @@ internal sealed partial class CodeAltaApp
             GetSelectedSessionUsage,
             GetUsageSelectionContext,
             markdown => (_threadPaneLayout?.App)?.Terminal.Clipboard.TrySetText(markdown),
-            build => CreateComputedVisual(build));
+            build => CreateUsageComputedVisual(build));
         return _sessionUsagePresenter;
     }
 

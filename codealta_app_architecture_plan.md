@@ -81,7 +81,7 @@ This document is the implementation checklist companion to the architecture prop
 - [ ] Make tab-strip updates driven by open-tab and selected-tab changes.
 - [ ] Make status/header updates driven by bindable state changes.
 - [x] Make timeline updates incremental per event/history load.
-- [ ] Make usage popup updates target only the selected thread usage state.
+- [x] Make usage popup updates target only the selected thread usage state.
 
 ## Phase 9: Rework tests around the new seams
 

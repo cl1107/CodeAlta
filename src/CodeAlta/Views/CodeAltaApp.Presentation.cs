@@ -317,6 +317,7 @@ internal sealed partial class CodeAltaApp
     private void RefreshThreadWorkspaceCore()
     {
         _viewRefreshState.Value++;
+        _usageRefreshState.Value++;
         RefreshThreadPaneContent();
     }
 
@@ -489,6 +490,7 @@ internal sealed partial class CodeAltaApp
         if (thread is null)
         {
             RefreshChatSelectorsForDraftScope(options[newIndex].BackendId);
+            InvalidateSelectedSessionUsage();
             return;
         }
 
@@ -525,6 +527,7 @@ internal sealed partial class CodeAltaApp
             draftBackendState.SelectedReasoningEffort = ChatBackendPresentation.ResolvePreferredReasoningEffort(preferredModel, preferredReasoningEffort: null);
             RememberGlobalBackendPreference(backendId, draftBackendState.SelectedModelId, draftBackendState.SelectedReasoningEffort);
             RefreshChatSelectorsForDraftScope(backendId);
+            InvalidateSelectedSessionUsage();
             return;
         }
 
@@ -567,6 +570,7 @@ internal sealed partial class CodeAltaApp
 
             draftBackendState.SelectedReasoningEffort = draftOptions[newIndex].Effort;
             RememberGlobalBackendPreference(backendId, draftBackendState.SelectedModelId, draftBackendState.SelectedReasoningEffort);
+            InvalidateSelectedSessionUsage();
             return;
         }
 
@@ -1238,6 +1242,11 @@ internal sealed partial class CodeAltaApp
         PostToUi(() => _viewRefreshState.Value++);
     }
 
+    private void InvalidateSelectedSessionUsage()
+    {
+        PostToUi(() => _usageRefreshState.Value++);
+    }
+
     private bool IsSelectedThread(string threadId)
         => !string.IsNullOrWhiteSpace(threadId) &&
            string.Equals(_selectedThreadId, threadId, StringComparison.OrdinalIgnoreCase);
@@ -1340,6 +1349,17 @@ internal sealed partial class CodeAltaApp
             () =>
             {
                 var _ = _viewRefreshState.Value;
+                return build();
+            });
+    }
+
+    private ComputedVisual CreateUsageComputedVisual(Func<Visual> build)
+    {
+        ArgumentNullException.ThrowIfNull(build);
+        return new ComputedVisual(
+            () =>
+            {
+                var _ = _usageRefreshState.Value;
                 return build();
             });
     }
