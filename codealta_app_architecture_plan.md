@@ -33,6 +33,7 @@ This document is the implementation checklist companion to the architecture prop
 - [x] Move shell layout construction out of `CodeAltaApp` partials and into view classes.
 - [x] Move sidebar control creation and tree rebuild wiring into `SidebarView`.
 - [x] Move thread-pane control creation and selector wiring into `ThreadWorkspaceView`.
+- [x] Introduce `ShellSelectionState` for open-tab and selected-scope state ownership.
 - [ ] Keep `CodeAltaApp` focused on app lifecycle only.
 
 ## Phase 4: Introduce focused bindable view models

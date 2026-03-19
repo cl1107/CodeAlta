@@ -49,10 +49,10 @@ internal sealed partial class CodeAltaApp : IAsyncDisposable
     private readonly Dictionary<string, TabPage> _threadTabPages = new(StringComparer.OrdinalIgnoreCase);
     private readonly State<int> _viewRefreshState = new(0);
     private readonly State<int> _usageRefreshState = new(0);
+    private readonly ShellSelectionState _selection = new();
 
     private IReadOnlyList<ProjectDescriptor> _projects = [];
     private IReadOnlyList<WorkThreadDescriptor> _threads = [];
-    private WorkThreadViewState _viewState = new();
     private CodeAltaConfigDocument _globalConfig = new();
     private readonly Dictionary<string, CodeAltaConfigDocument> _projectConfigCache = new(StringComparer.OrdinalIgnoreCase);
     private CodeAltaShellView? _shellView;
@@ -79,15 +79,46 @@ internal sealed partial class CodeAltaApp : IAsyncDisposable
     private bool _syncingThreadTabPages;
     private string? _pendingThreadTabSelectionThreadId;
     private SidebarSelectionTarget? _pendingSidebarSelectionTarget;
-    private bool _draftTabOpen;
     private bool _terminalLoopStarted;
-    private bool _globalScopeSelected = true;
     private bool _sidebarSelectionSyncEnabled = true;
     private SidebarTreeProjection? _sidebarProjection;
     private SidebarSelectionTarget? _lastSidebarSelectedTarget;
-    private string? _selectedProjectId;
-    private string? _selectedThreadId;
-    private string? _pendingStartupThreadRestoreId;
+
+    private WorkThreadViewState _viewState
+    {
+        get => _selection.ViewState;
+        set => _selection.ViewState = value;
+    }
+
+    private bool _draftTabOpen
+    {
+        get => _selection.DraftTabOpen;
+        set => _selection.DraftTabOpen = value;
+    }
+
+    private bool _globalScopeSelected
+    {
+        get => _selection.GlobalScopeSelected;
+        set => _selection.GlobalScopeSelected = value;
+    }
+
+    private string? _selectedProjectId
+    {
+        get => _selection.SelectedProjectId;
+        set => _selection.SelectedProjectId = value;
+    }
+
+    private string? _selectedThreadId
+    {
+        get => _selection.SelectedThreadId;
+        set => _selection.SelectedThreadId = value;
+    }
+
+    private string? _pendingStartupThreadRestoreId
+    {
+        get => _selection.PendingStartupThreadRestoreId;
+        set => _selection.PendingStartupThreadRestoreId = value;
+    }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CodeAltaApp"/> class.
