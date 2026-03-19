@@ -175,4 +175,43 @@ public sealed class CopilotAgentSessionTests
         Assert.AreEqual(1, finalAnswerEvents.Count);
         Assert.AreEqual(AgentContentKind.Assistant, ((AgentContentCompletedEvent)finalAnswerEvents[0]).Kind);
     }
+
+    [TestMethod]
+    public void ShouldRefreshQuotaForEvent_TriggersOnTurnBoundariesAndPromptReady()
+    {
+        Assert.IsTrue(CopilotAgentSession.ShouldRefreshQuotaForEvent(
+            new AssistantTurnStartEvent
+            {
+                Timestamp = DateTimeOffset.Parse("2026-03-19T07:00:00Z"),
+                Data = new AssistantTurnStartData
+                {
+                    TurnId = "1",
+                    InteractionId = "interaction-1"
+                }
+            }));
+        Assert.IsTrue(CopilotAgentSession.ShouldRefreshQuotaForEvent(
+            new AssistantTurnEndEvent
+            {
+                Timestamp = DateTimeOffset.Parse("2026-03-19T07:00:01Z"),
+                Data = new AssistantTurnEndData
+                {
+                    TurnId = "1"
+                }
+            }));
+        Assert.IsTrue(CopilotAgentSession.ShouldRefreshQuotaForEvent(
+            new SessionIdleEvent
+            {
+                Timestamp = DateTimeOffset.Parse("2026-03-19T07:00:02Z"),
+                Data = new SessionIdleData()
+            }));
+        Assert.IsFalse(CopilotAgentSession.ShouldRefreshQuotaForEvent(
+            new UserMessageEvent
+            {
+                Timestamp = DateTimeOffset.Parse("2026-03-19T07:00:03Z"),
+                Data = new UserMessageData
+                {
+                    Content = "hello"
+                }
+            }));
+    }
 }

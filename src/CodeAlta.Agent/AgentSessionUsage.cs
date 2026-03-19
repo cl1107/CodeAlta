@@ -177,6 +177,11 @@ public enum AgentUsageSource
     CopilotAssistantUsage,
 
     /// <summary>
+    /// Copilot account quota snapshots fetched explicitly from the backend.
+    /// </summary>
+    CopilotAccountQuota,
+
+    /// <summary>
     /// Copilot session compaction completion.
     /// </summary>
     CopilotCompactionComplete,

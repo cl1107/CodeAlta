@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Globalization;
 using GitHub.Copilot.SDK;
+using GitHub.Copilot.SDK.Rpc;
 using Microsoft.Extensions.AI;
 using XenoAtom.Logging;
 
@@ -942,6 +943,21 @@ internal static class CopilotAgentMapper
                 QuotaSnapshots: CreateQuotaSnapshots(data.QuotaSnapshots)));
     }
 
+    internal static AgentSessionUsage? CreateCopilotQuotaUsage(DateTimeOffset timestamp, AccountGetQuotaResult? quota)
+    {
+        if (quota?.QuotaSnapshots is not { Count: > 0 } snapshots)
+        {
+            return null;
+        }
+
+        return new AgentSessionUsage(
+            Scope: AgentUsageScope.RateLimitOnly,
+            Source: AgentUsageSource.CopilotAccountQuota,
+            UpdatedAt: timestamp,
+            Details: new CopilotSessionUsageDetails(
+                QuotaSnapshots: CreateQuotaSnapshots(snapshots)));
+    }
+
     private static AgentSessionUsage CreateCopilotCompactionUsage(DateTimeOffset timestamp, SessionCompactionCompleteData data)
     {
         ArgumentNullException.ThrowIfNull(data);
@@ -1013,12 +1029,40 @@ internal static class CopilotAgentMapper
             .ToArray();
     }
 
+    private static CopilotQuotaSnapshot[]? CreateQuotaSnapshots(Dictionary<string, AccountGetQuotaResultQuotaSnapshotsValue>? snapshots)
+    {
+        if (snapshots is not { Count: > 0 })
+        {
+            return null;
+        }
+
+        return snapshots
+            .OrderBy(static entry => entry.Key, StringComparer.Ordinal)
+            .Select(static entry => new CopilotQuotaSnapshot(entry.Key, ToCopilotQuotaDetails(entry.Value)))
+            .ToArray();
+    }
+
     private static CopilotQuotaDetails ToCopilotQuotaDetails(object? value)
     {
         var payload = ToJsonElement(value);
         return TryCreateRequestQuotaDetails(payload, out var details)
             ? details
             : new CopilotOpaqueQuotaDetails(SummarizeQuotaPayload(payload));
+    }
+
+    private static CopilotQuotaDetails ToCopilotQuotaDetails(AccountGetQuotaResultQuotaSnapshotsValue value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+
+        bool? isUnlimitedEntitlement = value.EntitlementRequests < 0 ? true : null;
+        return new CopilotRequestQuotaDetails(
+            EntitlementRequests: value.EntitlementRequests >= 0 ? ToInt64(value.EntitlementRequests) : null,
+            UsedRequests: ToInt64(value.UsedRequests),
+            RemainingPercentage: value.RemainingPercentage,
+            Overage: ToInt64(value.Overage),
+            UsageAllowedWithExhaustion: value.OverageAllowedWithExhaustedQuota,
+            IsUnlimitedEntitlement: isUnlimitedEntitlement,
+            ResetDate: TryParseQuotaResetDate(value.ResetDate));
     }
 
     private static bool TryCreateRequestQuotaDetails(JsonElement payload, out CopilotRequestQuotaDetails details)
@@ -1335,6 +1379,11 @@ internal static class CopilotAgentMapper
 
         return DateTimeOffset.TryParse(property.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out value);
     }
+
+    private static DateTimeOffset? TryParseQuotaResetDate(string? value)
+        => DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsed)
+            ? parsed
+            : null;
 
     private static long ToInt64(double value) => checked((long)value);
 

@@ -2,6 +2,7 @@ using System.Text.Json;
 using CodeAlta.Agent;
 using CodeAlta.Agent.Copilot;
 using GitHub.Copilot.SDK;
+using GitHub.Copilot.SDK.Rpc;
 
 namespace CodeAlta.Tests;
 
@@ -620,6 +621,54 @@ public sealed class CopilotAgentMapperTests
         Assert.AreEqual(12345L, usage.Usage.CurrentTokens);
         Assert.AreEqual(200000L, usage.Usage.TokenLimit);
         Assert.AreEqual(18, usage.Usage.MessageCount);
+    }
+
+    [TestMethod]
+    public void CreateCopilotQuotaUsage_MapsAccountQuotaSnapshots()
+    {
+        var timestamp = DateTimeOffset.Parse("2026-03-19T07:00:00+00:00");
+        var usage = CopilotAgentMapper.CreateCopilotQuotaUsage(
+            timestamp,
+            new AccountGetQuotaResult
+            {
+                QuotaSnapshots = new Dictionary<string, AccountGetQuotaResultQuotaSnapshotsValue>
+                {
+                    ["premium_interactions"] = new()
+                    {
+                        EntitlementRequests = 1500,
+                        UsedRequests = 477,
+                        RemainingPercentage = 68.2,
+                        Overage = 0,
+                        OverageAllowedWithExhaustedQuota = true,
+                        ResetDate = "2026-03-20T00:00:00Z"
+                    },
+                    ["chat"] = new()
+                    {
+                        EntitlementRequests = -1,
+                        UsedRequests = 0,
+                        RemainingPercentage = 100,
+                        Overage = 0,
+                        OverageAllowedWithExhaustedQuota = true,
+                        ResetDate = "2026-03-20T00:00:00Z"
+                    }
+                }
+            });
+
+        Assert.IsNotNull(usage);
+        Assert.AreEqual(AgentUsageScope.RateLimitOnly, usage.Scope);
+        Assert.AreEqual(AgentUsageSource.CopilotAccountQuota, usage.Source);
+        var details = Assert.IsInstanceOfType<CopilotSessionUsageDetails>(usage.Details);
+        Assert.AreEqual(2, details.QuotaSnapshots!.Length);
+        Assert.AreEqual("chat", details.QuotaSnapshots[0].Name);
+        var unlimited = Assert.IsInstanceOfType<CopilotRequestQuotaDetails>(details.QuotaSnapshots[0].Details);
+        Assert.AreEqual(true, unlimited.IsUnlimitedEntitlement);
+        Assert.IsNull(unlimited.EntitlementRequests);
+        Assert.AreEqual("premium_interactions", details.QuotaSnapshots[1].Name);
+        var premium = Assert.IsInstanceOfType<CopilotRequestQuotaDetails>(details.QuotaSnapshots[1].Details);
+        Assert.AreEqual(1500L, premium.EntitlementRequests);
+        Assert.AreEqual(477L, premium.UsedRequests);
+        Assert.AreEqual(true, premium.UsageAllowedWithExhaustion);
+        Assert.AreEqual(DateTimeOffset.Parse("2026-03-20T00:00:00Z"), premium.ResetDate);
     }
 
     [TestMethod]

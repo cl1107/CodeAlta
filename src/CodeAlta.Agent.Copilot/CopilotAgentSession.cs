@@ -11,11 +11,16 @@ namespace CodeAlta.Agent.Copilot;
 public sealed class CopilotAgentSession : ICopilotAgentSession
 {
     private static readonly Logger Logger = LogManager.GetLogger("CodeAlta.Agent.Copilot.Session");
+    private static readonly TimeSpan QuotaRefreshInterval = TimeSpan.FromSeconds(1);
     private readonly CopilotAgentBackend _backend;
     private readonly Channel<AgentEvent> _eventChannel;
     private readonly ConcurrentDictionary<Guid, Action<AgentEvent>> _subscribers = new();
     private readonly IDisposable _subscription;
     private readonly CopilotInteractionTracker _interactionTracker = new();
+    private readonly CancellationTokenSource _quotaRefreshCancellation = new();
+    private readonly SemaphoreSlim _quotaRefreshLock = new(1, 1);
+    private readonly Task _quotaPollingTask;
+    private DateTimeOffset _lastQuotaRefreshAt = DateTimeOffset.MinValue;
     private bool _disposed;
 
     internal CopilotAgentSession(CopilotAgentBackend backend, CopilotSession session)
@@ -33,6 +38,8 @@ public sealed class CopilotAgentSession : ICopilotAgentSession
         });
 
         _subscription = Session.On(OnSessionEvent);
+        _quotaPollingTask = RunQuotaPollingLoopAsync(_quotaRefreshCancellation.Token);
+        TriggerQuotaRefresh(force: true);
     }
 
     /// <inheritdoc />
@@ -114,7 +121,18 @@ public sealed class CopilotAgentSession : ICopilotAgentSession
 
         _disposed = true;
         _subscription.Dispose();
+        _quotaRefreshCancellation.Cancel();
         CompleteEventStream();
+        try
+        {
+            await _quotaPollingTask.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+
+        _quotaRefreshCancellation.Dispose();
+        _quotaRefreshLock.Dispose();
         await Session.DisposeAsync().ConfigureAwait(false);
         _backend.RemoveSession(SessionId, this);
     }
@@ -147,6 +165,11 @@ public sealed class CopilotAgentSession : ICopilotAgentSession
                 LogDebug($"Mapped Copilot agent event session={SessionId} type={eventData.GetType().Name} payload={eventData.ToJson()}");
                 Publish(eventData);
             }
+
+            if (ShouldRefreshQuotaForEvent(sessionEvent))
+            {
+                TriggerQuotaRefresh(force: true);
+            }
         }
         catch (Exception ex)
         {
@@ -159,6 +182,20 @@ public sealed class CopilotAgentSession : ICopilotAgentSession
                     ex.Message,
                     ex));
         }
+    }
+
+    internal static bool ShouldRefreshQuotaForEvent(SessionEvent sessionEvent)
+    {
+        ArgumentNullException.ThrowIfNull(sessionEvent);
+
+        return sessionEvent switch
+        {
+            AssistantTurnStartEvent => true,
+            AssistantTurnEndEvent => true,
+            SessionIdleEvent => true,
+            SessionShutdownEvent => true,
+            _ => false,
+        };
     }
 
     internal static IReadOnlyList<AgentEvent> ProjectSessionEvents(
@@ -204,6 +241,84 @@ public sealed class CopilotAgentSession : ICopilotAgentSession
     private void CompleteEventStream()
     {
         _eventChannel.Writer.TryComplete();
+    }
+
+    private void TriggerQuotaRefresh(bool force)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _ = RefreshQuotaAsync(force, _quotaRefreshCancellation.Token);
+    }
+
+    private async Task RunQuotaPollingLoopAsync(CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(QuotaRefreshInterval);
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
+            {
+                await RefreshQuotaAsync(force: false, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+    }
+
+    private async Task RefreshQuotaAsync(bool force, CancellationToken cancellationToken)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        if (!force && DateTimeOffset.UtcNow - _lastQuotaRefreshAt < QuotaRefreshInterval)
+        {
+            return;
+        }
+
+        if (!await _quotaRefreshLock.WaitAsync(0, cancellationToken).ConfigureAwait(false))
+        {
+            return;
+        }
+
+        try
+        {
+            if (!force && DateTimeOffset.UtcNow - _lastQuotaRefreshAt < QuotaRefreshInterval)
+            {
+                return;
+            }
+
+            _lastQuotaRefreshAt = DateTimeOffset.UtcNow;
+            var quota = await _backend.Client.Rpc.Account.GetQuotaAsync(cancellationToken).ConfigureAwait(false);
+            if (CopilotAgentMapper.CreateCopilotQuotaUsage(DateTimeOffset.UtcNow, quota) is not { } usage)
+            {
+                return;
+            }
+
+            Publish(new AgentSessionUpdateEvent(
+                AgentBackendIds.Copilot,
+                SessionId,
+                usage.UpdatedAt,
+                null,
+                AgentSessionUpdateKind.UsageUpdated,
+                null,
+                Usage: usage));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            LogDebug($"Failed to refresh Copilot quota session={SessionId}: {ex.Message}");
+        }
+        finally
+        {
+            _quotaRefreshLock.Release();
+        }
     }
 
     private static void LogDebug(string message)
