@@ -267,7 +267,7 @@ internal sealed partial class CodeAltaApp
             return;
         }
 
-        _pendingThreadTabSelectionThreadId = null;
+        ResetPendingThreadTabSelection();
         EnsureThreadTab(thread);
         if (!_viewState.OpenThreadIds.Contains(threadId, StringComparer.OrdinalIgnoreCase))
         {
@@ -299,7 +299,7 @@ internal sealed partial class CodeAltaApp
 
     private async Task CloseThreadAsync(string threadId)
     {
-        _pendingThreadTabSelectionThreadId = null;
+        ResetPendingThreadTabSelection();
         _viewState.OpenThreadIds.RemoveAll(id => string.Equals(id, threadId, StringComparison.OrdinalIgnoreCase));
         _threadWorkspaceView?.RemoveTabPage(threadId);
         _threadTabs.Remove(threadId);

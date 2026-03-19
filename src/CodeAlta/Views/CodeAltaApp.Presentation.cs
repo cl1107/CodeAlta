@@ -44,281 +44,12 @@ internal sealed partial class CodeAltaApp
         return _shellView;
     }
 
-    private TabControl CreateThreadTabControl()
-    {
-        var control = new TabControl()
-            .Style(TabControlStyle.NoBorder);
-        control.RegisterDynamicUpdate(_ => OnThreadTabControlSelectionChanged(control.SelectedIndex));
-        return control;
-    }
-
-    private void SyncThreadTabControl()
-    {
-        if (ThreadTabControl is null)
-        {
-            return;
-        }
-
-        _syncingThreadTabPages = true;
-        try
-        {
-            var projection = BuildThreadTabStripProjection();
-            var desiredPages = BuildDesiredThreadTabPages(projection);
-
-            ThreadTabControl.IsVisible = projection.Tabs.Count > 0;
-
-            var existingPages = ThreadTabControl.Tabs;
-            var matches = existingPages.Count == desiredPages.Count;
-            if (matches)
-            {
-                for (var i = 0; i < desiredPages.Count; i++)
-                {
-                    if (!ReferenceEquals(existingPages[i], desiredPages[i]))
-                    {
-                        matches = false;
-                        break;
-                    }
-                }
-            }
-
-            if (!matches)
-            {
-                for (var i = existingPages.Count - 1; i >= 0; i--)
-                {
-                    ThreadTabControl.TryCloseTab(existingPages[i]);
-                }
-
-                foreach (var page in desiredPages)
-                {
-                    ThreadTabControl.AddTab(page);
-                }
-            }
-
-            SyncThreadTabControlSelection(projection);
-        }
-        finally
-        {
-            _syncingThreadTabPages = false;
-        }
-    }
-
-    private ThreadTabStripProjection BuildThreadTabStripProjection()
-    {
-        var availableThreadIds = _viewState.OpenThreadIds
-            .Select(FindThread)
-            .Where(static thread => thread is not null)
-            .Select(thread =>
-            {
-                var current = thread!;
-                EnsureThreadTab(current);
-                return current.ThreadId;
-            })
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        return ThreadTabStripProjectionBuilder.Build(
-            _viewState.OpenThreadIds,
-            availableThreadIds,
-            _draftTabOpen,
-            DraftTabId,
-            _selectedThreadId);
-    }
-
-    private List<TabPage> BuildDesiredThreadTabPages(ThreadTabStripProjection projection)
-    {
-        ArgumentNullException.ThrowIfNull(projection);
-
-        var pages = new List<TabPage>(projection.Tabs.Count);
-        foreach (var tab in projection.Tabs)
-        {
-            pages.Add(tab.IsDraft
-                ? EnsureDraftTabPage()
-                : EnsureThreadTabPage(tab.TabId));
-        }
-
-        return pages;
-    }
-
-    private TabPage EnsureThreadTabPage(string threadId)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
-        var workspaceView = _threadWorkspaceView ?? throw new InvalidOperationException("Thread workspace view is not initialized.");
-
-        if (workspaceView.TryGetTabPage(threadId, out var existingPage))
-        {
-            existingPage.Data = threadId;
-            return existingPage;
-        }
-
-        var thread = FindThread(threadId);
-        if (thread is null)
-        {
-            throw new InvalidOperationException($"Thread '{threadId}' was not found when creating a tab page.");
-        }
-
-        var tab = EnsureThreadTab(thread);
-
-        var header = CreateComputedVisual(
-            () =>
-            {
-                var current = tab.Thread;
-                return new HStack(
-                    [
-                        ThreadTabVisualFactory.CreateIndicator(tab.ViewModel.StatusBusy, tab.ViewModel.StatusTone),
-                        ThreadTabVisualFactory.CreateTitle(ThreadTabVisualFactory.CompactTitle(tab.ViewModel.Title)),
-                    ])
-                {
-                    Spacing = 1,
-                }.Tooltip(current.Title);
-            });
-
-        var page = new TabPage(header, CreateThreadTabPageContentPlaceholder())
-        {
-            Data = thread.ThreadId,
-            ShowCloseButton = true,
-        };
-        page.RequestClosing += (_, e) =>
-        {
-            if (e.Reason != TabCloseReason.CloseButton || e.Page.Data is not string threadId)
-            {
-                return;
-            }
-
-            e.Cancel = true;
-            _ = CloseThreadAsync(threadId);
-        };
-
-        workspaceView.RememberTabPage(thread.ThreadId, page);
-        return page;
-    }
-
-    private TabPage EnsureDraftTabPage()
-    {
-        var workspaceView = _threadWorkspaceView ?? throw new InvalidOperationException("Thread workspace view is not initialized.");
-        if (workspaceView.TryGetTabPage(DraftTabId, out var existingPage))
-        {
-            existingPage.Data = DraftTabId;
-            return existingPage;
-        }
-
-        var header = CreateComputedVisual(
-            () => new HStack(
-                [
-                    ThreadTabVisualFactory.CreateIndicator(isBusy: false, StatusTone.Info),
-                    ThreadTabVisualFactory.CreateTitle(ShellTextFormatter.BuildDraftTabTitle(GetSelectedProject(), _globalScopeSelected)),
-                ])
-            {
-                Spacing = 1,
-            });
-
-        var page = new TabPage(header, CreateThreadTabPageContentPlaceholder())
-        {
-            Data = DraftTabId,
-            ShowCloseButton = true,
-        };
-        page.RequestClosing += (_, e) =>
-        {
-            if (e.Reason != TabCloseReason.CloseButton || !string.Equals(e.Page.Data as string, DraftTabId, StringComparison.Ordinal))
-            {
-                return;
-            }
-
-            e.Cancel = true;
-            _ = CloseDraftTabAsync();
-        };
-
-        workspaceView.RememberTabPage(DraftTabId, page);
-        return page;
-    }
-
     internal static Visual CreateThreadTabPageContentPlaceholder()
         // The active thread flow is hosted by the splitter, so tabs need a detached placeholder.
         => new Placeholder
         {
             IsVisible = false,
         };
-
-    private void SyncThreadTabControlSelection(ThreadTabStripProjection projection)
-    {
-        ArgumentNullException.ThrowIfNull(projection);
-
-        if (ThreadTabControl is null || ThreadTabControl.Tabs.Count == 0 || string.IsNullOrWhiteSpace(projection.SelectedTabId))
-        {
-            return;
-        }
-
-        var selectedIndex = -1;
-        for (var i = 0; i < ThreadTabControl.Tabs.Count; i++)
-        {
-            if (ThreadTabControl.Tabs[i].Data is string threadId &&
-                string.Equals(threadId, projection.SelectedTabId, StringComparison.OrdinalIgnoreCase))
-            {
-                selectedIndex = i;
-                break;
-            }
-        }
-
-        if (selectedIndex < 0 || ThreadTabControl.SelectedIndex == selectedIndex)
-        {
-            return;
-        }
-
-        _syncingThreadTabSelection = true;
-        try
-        {
-            ThreadTabControl.SelectedIndex = selectedIndex;
-        }
-        finally
-        {
-            _syncingThreadTabSelection = false;
-        }
-    }
-
-    private void OnThreadTabControlSelectionChanged(int selectedIndex)
-    {
-        if (_syncingThreadTabSelection || _syncingThreadTabPages || ThreadTabControl is null)
-        {
-            return;
-        }
-
-        if (selectedIndex < 0 || selectedIndex >= ThreadTabControl.Tabs.Count)
-        {
-            return;
-        }
-
-        if (string.Equals(ThreadTabControl.Tabs[selectedIndex].Data as string, DraftTabId, StringComparison.Ordinal))
-        {
-            if (string.IsNullOrWhiteSpace(_selectedThreadId))
-            {
-                return;
-            }
-
-            _ = ActivateDraftTabAsync();
-            return;
-        }
-
-        if (ThreadTabControl.Tabs[selectedIndex].Data is not string threadId ||
-            string.Equals(threadId, _selectedThreadId, StringComparison.OrdinalIgnoreCase))
-        {
-            return;
-        }
-
-        if (string.Equals(threadId, _pendingThreadTabSelectionThreadId, StringComparison.OrdinalIgnoreCase))
-        {
-            return;
-        }
-
-        _pendingThreadTabSelectionThreadId = threadId;
-        GetUiDispatcher().Post(
-            () =>
-            {
-                if (!string.Equals(threadId, _pendingThreadTabSelectionThreadId, StringComparison.OrdinalIgnoreCase))
-                {
-                    return;
-                }
-
-                _pendingThreadTabSelectionThreadId = null;
-                _ = _shellController.OpenThreadAsync(threadId, CancellationToken.None);
-            });
-    }
 
     private void RefreshShellChrome()
         => DispatchToUi(RefreshShellChromeCore);
@@ -418,7 +149,7 @@ internal sealed partial class CodeAltaApp
 
     internal void SelectGlobalScope()
     {
-        _pendingThreadTabSelectionThreadId = null;
+        ResetPendingThreadTabSelection();
         _draftTabOpen = true;
         _globalScopeSelected = true;
         _selectedThreadId = null;
@@ -430,7 +161,7 @@ internal sealed partial class CodeAltaApp
 
     internal void SelectProjectScope(string projectId)
     {
-        _pendingThreadTabSelectionThreadId = null;
+        ResetPendingThreadTabSelection();
         _draftTabOpen = true;
         _globalScopeSelected = false;
         _selectedProjectId = projectId;
@@ -737,7 +468,7 @@ internal sealed partial class CodeAltaApp
 
     private async Task ActivateDraftTabAsync()
     {
-        _pendingThreadTabSelectionThreadId = null;
+        ResetPendingThreadTabSelection();
         _draftTabOpen = true;
         _selectedThreadId = null;
         _viewState.SelectedThreadId = null;

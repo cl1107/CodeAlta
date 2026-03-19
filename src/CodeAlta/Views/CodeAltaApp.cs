@@ -46,6 +46,7 @@ internal sealed partial class CodeAltaApp : IAsyncDisposable
     private readonly ShellSelectionState _selection = new();
     private readonly SidebarCoordinator _sidebarCoordinator;
     private readonly ChatSelectorCoordinator _chatSelectorCoordinator;
+    private readonly ThreadTabStripCoordinator _threadTabStripCoordinator;
 
     private IReadOnlyList<ProjectDescriptor> _projects = [];
     private IReadOnlyList<WorkThreadDescriptor> _threads = [];
@@ -53,9 +54,6 @@ internal sealed partial class CodeAltaApp : IAsyncDisposable
     private ThreadWorkspaceView? _threadWorkspaceView;
     private SessionUsagePresenter? _sessionUsagePresenter;
     private IUiDispatcher? _uiDispatcher;
-    private bool _syncingThreadTabSelection;
-    private bool _syncingThreadTabPages;
-    private string? _pendingThreadTabSelectionThreadId;
     private bool _terminalLoopStarted;
 
     private WorkThreadViewState _viewState
@@ -201,6 +199,22 @@ internal sealed partial class CodeAltaApp : IAsyncDisposable
             RefreshHeaderAndThreadWorkspace,
             VerifyBindableAccess,
             GetUiDispatcher);
+        _threadTabStripCoordinator = new ThreadTabStripCoordinator(
+            () => ThreadTabControl,
+            () => _threadWorkspaceView,
+            () => _viewState.OpenThreadIds,
+            () => _draftTabOpen,
+            () => _selectedThreadId,
+            () => _globalScopeSelected,
+            GetSelectedProject,
+            threadId => FindThread(threadId),
+            thread => EnsureThreadTab(thread),
+            build => CreateComputedVisual(build),
+            GetUiDispatcher,
+            () => _ = ActivateDraftTabAsync(),
+            threadId => _ = CloseThreadAsync(threadId),
+            () => _ = CloseDraftTabAsync(),
+            threadId => _ = _shellController.OpenThreadAsync(threadId, CancellationToken.None));
     }
 
     /// <summary>
@@ -404,5 +418,20 @@ internal sealed partial class CodeAltaApp : IAsyncDisposable
     private void UpdatePromptAvailabilityUi()
     {
         _chatSelectorCoordinator.UpdatePromptAvailabilityUi();
+    }
+
+    private void SyncThreadTabControl()
+    {
+        _threadTabStripCoordinator.SyncControl();
+    }
+
+    private void OnThreadTabControlSelectionChanged(int selectedIndex)
+    {
+        _threadTabStripCoordinator.OnSelectionChanged(selectedIndex);
+    }
+
+    private void ResetPendingThreadTabSelection()
+    {
+        _threadTabStripCoordinator.ResetPendingSelection();
     }
 }

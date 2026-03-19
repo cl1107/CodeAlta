@@ -136,6 +136,20 @@ public sealed class ArchitectureGuardrailTests
     }
 
     [TestMethod]
+    public void CodeAltaAppPresentation_DoesNotOwnTabStripSyncWorkflow()
+    {
+        var presentationSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "CodeAltaApp.Presentation.cs"));
+
+        Assert.IsFalse(presentationSource.Contains("private void SyncThreadTabControl(", StringComparison.Ordinal));
+        Assert.IsFalse(presentationSource.Contains("private ThreadTabStripProjection BuildThreadTabStripProjection(", StringComparison.Ordinal));
+        Assert.IsFalse(presentationSource.Contains("private List<TabPage> BuildDesiredThreadTabPages(", StringComparison.Ordinal));
+        Assert.IsFalse(presentationSource.Contains("private TabPage EnsureThreadTabPage(", StringComparison.Ordinal));
+        Assert.IsFalse(presentationSource.Contains("private TabPage EnsureDraftTabPage(", StringComparison.Ordinal));
+        Assert.IsFalse(presentationSource.Contains("private void SyncThreadTabControlSelection(", StringComparison.Ordinal));
+        Assert.IsFalse(presentationSource.Contains("private void OnThreadTabControlSelectionChanged(", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public void CodeAltaApp_PartialFilesRemainFocusedAndLimited()
     {
         var codeAltaRoot = GetCodeAltaSourceRoot();
