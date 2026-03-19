@@ -1065,8 +1065,9 @@ internal static class CodexAgentMapper
         ArgumentNullException.ThrowIfNull(usage);
 
         return new AgentSessionUsage(
+            Window: CreateCodexWindowUsage(ToCodexTokenUsage(usage.Last), usage.ModelContextWindow),
             LastOperation: ToAgentOperationUsage(usage.Last, "Last turn"),
-            Scope: AgentUsageScope.ThreadTotal,
+            Scope: AgentUsageScope.CurrentWindow,
             Source: AgentUsageSource.CodexThreadTokenUsageUpdated,
             UpdatedAt: timestamp,
             Details: new CodexSessionUsageDetails(
@@ -1083,9 +1084,10 @@ internal static class CodexAgentMapper
         }
 
         return new AgentSessionUsage(
+            Window: info is null ? null : CreateCodexWindowUsage(ToCodexTokenUsage(info.LastTokenUsage), info.ModelContextWindow),
             LastOperation: info is null ? null : ToAgentOperationUsage(info.LastTokenUsage, "Last turn"),
             RateLimits: ToAgentRateLimitSummary(rateLimits, "Account rate limits"),
-            Scope: info is null ? AgentUsageScope.RateLimitOnly : AgentUsageScope.ThreadTotal,
+            Scope: info is null ? AgentUsageScope.RateLimitOnly : AgentUsageScope.CurrentWindow,
             Source: AgentUsageSource.CodexTokenCountEvent,
             UpdatedAt: timestamp,
             Details: new CodexSessionUsageDetails(
@@ -1106,6 +1108,20 @@ internal static class CodexAgentMapper
             UpdatedAt: timestamp,
             Details: new CodexSessionUsageDetails(
                 RateLimits: ToCodexRateLimitSnapshot(rateLimits)));
+    }
+
+    private static AgentWindowUsageSnapshot? CreateCodexWindowUsage(CodexTokenUsage? usage, long? modelContextWindow)
+    {
+        if (usage is null || modelContextWindow is not > 0)
+        {
+            return null;
+        }
+
+        return new AgentWindowUsageSnapshot(
+            usage.TotalTokens,
+            modelContextWindow,
+            null,
+            "Active context window");
     }
 
     private static AgentOperationUsageSnapshot ToAgentOperationUsage(TokenUsageBreakdown usage, string label)

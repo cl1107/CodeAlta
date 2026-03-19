@@ -1665,33 +1665,34 @@ public sealed class CodeAltaTerminalUiTests
     public void FormatSessionUsageSummary_CodexWindowUsesNormalizedWindowSnapshot()
     {
         var usage = new AgentSessionUsage(
-            Window: new AgentWindowUsageSnapshot(22697, 258400, null, "Active thread window"),
+            Window: new AgentWindowUsageSnapshot(40473, 258400, null, "Active context window"),
             Scope: AgentUsageScope.CurrentWindow,
             Source: AgentUsageSource.CodexThreadTokenUsageUpdated,
             UpdatedAt: DateTimeOffset.Parse("2026-03-18T21:48:22+00:00"),
             Details: new CodexSessionUsageDetails(
-                LastTurnUsage: new CodexTokenUsage(35712, 35944, 313, 98, 36257),
-                TotalUsage: new CodexTokenUsage(20904320, 22611022, 86019, 39724, 22697041),
+                LastTurnUsage: new CodexTokenUsage(40064, 40283, 190, 33, 40473),
+                TotalUsage: new CodexTokenUsage(32809344, 35409515, 161773, 67166, 35571288),
                 ModelContextWindow: 258400));
 
         var indicator = CodeAltaTerminalUi.BuildSessionUsageIndicatorMarkup(usage);
         var summary = CodeAltaTerminalUi.FormatSessionUsageSummary(usage);
 
-        Assert.AreEqual("ctx 9%", indicator);
-        Assert.AreEqual("22,697 / 258,400 tokens (8.8%)", summary);
+        Assert.AreEqual("ctx 16%", indicator);
+        Assert.AreEqual("40,473 / 258,400 tokens (15.7%)", summary);
     }
 
     [TestMethod]
-    public void BuildSessionUsageIndicatorMarkup_CodexThreadTotalsDoNotPretendToBeWindowUsage()
+    public void BuildSessionUsageIndicatorMarkup_CodexWindowUsesLastTurnTotals()
     {
         var usage = new AgentSessionUsage(
+            Window: new AgentWindowUsageSnapshot(200535, 258400, null, "Active context window"),
             LastOperation: new AgentOperationUsageSnapshot(
                 InputTokens: 200435,
                 OutputTokens: 86,
                 CachedInputTokens: 199424,
                 ReasoningTokens: 14,
                 Label: "Last turn"),
-            Scope: AgentUsageScope.ThreadTotal,
+            Scope: AgentUsageScope.CurrentWindow,
             Source: AgentUsageSource.CodexThreadTokenUsageUpdated,
             UpdatedAt: DateTimeOffset.Parse("2026-03-19T05:59:24+00:00"),
             Details: new CodexSessionUsageDetails(
@@ -1702,9 +1703,8 @@ public sealed class CodeAltaTerminalUiTests
         var indicator = CodeAltaTerminalUi.BuildSessionUsageIndicatorMarkup(usage);
         var markdown = CodeAltaTerminalUi.BuildSessionUsageMarkdown(usage, "Codex", "gpt-5.4");
 
-        Assert.AreEqual("ctx --", indicator);
-        StringAssert.Contains(markdown, "Window: unavailable");
-        StringAssert.Contains(markdown, "Scope: Thread total");
+        Assert.AreEqual("ctx 78%", indicator);
+        StringAssert.Contains(markdown, "Window: 200,535 / 258,400 tokens (77.6%)");
         StringAssert.Contains(markdown, "Thread total: total 33,641,433");
     }
 
@@ -1838,15 +1838,14 @@ public sealed class CodeAltaTerminalUiTests
                 "gpt-5-codex");
 
             StringAssert.Contains(markdown, "# Codex context usage");
-            StringAssert.Contains(markdown, "## Summary");
-            StringAssert.Contains(markdown, "## Usage breakdown");
+            StringAssert.Contains(markdown, "## Usage breakdown: 12 messages");
             StringAssert.Contains(markdown, "## Limits");
             StringAssert.Contains(markdown, "## Backend-specific details");
             StringAssert.Contains(markdown, "50,000 / 120,000 tokens (41.7%)");
-            StringAssert.Contains(markdown, "Scope: Current window");
-            StringAssert.Contains(markdown, "Source: Codex token-count event");
             StringAssert.Contains(markdown, "Last turn: input 1,000");
             StringAssert.Contains(markdown, "42% used");
+            Assert.IsFalse(markdown.Contains("## Summary", StringComparison.Ordinal));
+            Assert.IsFalse(markdown.Contains("Codex limit identity", StringComparison.Ordinal));
         }
         finally
         {

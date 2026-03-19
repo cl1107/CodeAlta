@@ -509,11 +509,12 @@ public sealed class CodexAgentMapperTests
         Assert.AreEqual(AgentSessionUpdateKind.UsageUpdated, mappedUsage.Kind);
         Assert.AreEqual("turn-7", mappedUsage.RunId?.Value);
         Assert.IsNotNull(mappedUsage.Usage);
-        Assert.AreEqual(AgentUsageScope.ThreadTotal, mappedUsage.Usage.Scope);
+        Assert.AreEqual(AgentUsageScope.CurrentWindow, mappedUsage.Usage.Scope);
         Assert.AreEqual(AgentUsageSource.CodexThreadTokenUsageUpdated, mappedUsage.Usage.Source);
-        Assert.IsNull(mappedUsage.Usage.CurrentTokens);
-        Assert.IsNull(mappedUsage.Usage.TokenLimit);
-        Assert.IsNull(mappedUsage.Usage.Window);
+        Assert.AreEqual(816L, mappedUsage.Usage.CurrentTokens);
+        Assert.AreEqual(128000L, mappedUsage.Usage.TokenLimit);
+        Assert.IsNotNull(mappedUsage.Usage.Window);
+        Assert.AreEqual("Active context window", mappedUsage.Usage.Window.Label);
         Assert.IsNotNull(mappedUsage.Usage.LastOperation);
         Assert.AreEqual("Last turn", mappedUsage.Usage.LastOperation.Label);
         Assert.AreEqual(640L, mappedUsage.Usage.LastOperation.InputTokens);
@@ -827,6 +828,34 @@ public sealed class CodexAgentMapperTests
             Assert.AreEqual("origin\thttps://example.com/repo.git (fetch)", completed.Message);
             Assert.IsTrue(completed.Details.HasValue);
             Assert.AreEqual(0, completed.Details.Value.GetProperty("exitCode").GetInt32());
+        }
+        finally
+        {
+            File.Delete(sessionLogPath);
+        }
+    }
+
+    [TestMethod]
+    public void ToSessionLogHistoryEvents_MapsTokenCountWindowUsageFromLastTurnTotals()
+    {
+        var sessionLogPath = CreateSessionLogFile(
+            """{"timestamp":"2026-03-19T06:24:50.000Z","type":"event_msg","payload":{"type":"task_started","turn_id":"turn-1","model_context_window":258400,"collaboration_mode_kind":"default"}}""",
+            """{"timestamp":"2026-03-19T06:24:51.981Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":35409515,"cached_input_tokens":32809344,"output_tokens":161773,"reasoning_output_tokens":67166,"total_tokens":35571288},"last_token_usage":{"input_tokens":40283,"cached_input_tokens":40064,"output_tokens":190,"reasoning_output_tokens":33,"total_tokens":40473},"model_context_window":258400},"rate_limits":{"limit_id":"codex","limit_name":null,"primary":{"used_percent":0.0,"window_minutes":300,"resets_at":1773916848},"secondary":{"used_percent":2.0,"window_minutes":10080,"resets_at":1774460484},"credits":null,"plan_type":"pro"}}}"""
+        );
+
+        try
+        {
+            var events = CodexAgentMapper.ToSessionLogHistoryEvents("thread-1", sessionLogPath);
+
+            var usageUpdate = events.OfType<AgentSessionUpdateEvent>().Single(x => x.Kind == AgentSessionUpdateKind.UsageUpdated);
+            Assert.IsNotNull(usageUpdate.Usage);
+            Assert.AreEqual(AgentUsageScope.CurrentWindow, usageUpdate.Usage.Scope);
+            Assert.AreEqual(40473L, usageUpdate.Usage.CurrentTokens);
+            Assert.AreEqual(258400L, usageUpdate.Usage.TokenLimit);
+            Assert.IsNotNull(usageUpdate.Usage.LastOperation);
+            Assert.AreEqual(40283L, usageUpdate.Usage.LastOperation.InputTokens);
+            var details = Assert.IsInstanceOfType<CodexSessionUsageDetails>(usageUpdate.Usage.Details);
+            Assert.AreEqual(35571288L, details.TotalUsage!.TotalTokens);
         }
         finally
         {

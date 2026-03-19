@@ -291,7 +291,6 @@ internal sealed partial class CodeAltaTerminalUi
             return builder.ToString().TrimEnd();
         }
 
-        AppendSummaryMarkdown(builder, usage);
         AppendUsageBreakdownMarkdown(builder, usage);
         AppendLimitsAndQuotasMarkdown(builder, usage);
         AppendBackendSpecificMarkdown(builder, usage);
@@ -463,7 +462,7 @@ internal sealed partial class CodeAltaTerminalUi
     {
         var added = false;
         if (usage.Details is CodexSessionUsageDetails codex &&
-            (codex.TotalUsage is not null || codex.RateLimits is not null))
+            codex.TotalUsage is not null)
         {
             AddSectionHeader(stack, "Backend-specific details");
             AddCodexUsageContent(stack, codex);
@@ -491,15 +490,6 @@ internal sealed partial class CodeAltaTerminalUi
             {
                 stack.Add(totalChart);
             }
-
-            stack.Add(new Markup(AnsiMarkup.Escape(FormatCodexTokenUsage(details.TotalUsage))));
-        }
-
-        if (details.RateLimits is { } rateLimits &&
-            (!string.IsNullOrWhiteSpace(rateLimits.LimitId) || !string.IsNullOrWhiteSpace(rateLimits.LimitName)))
-        {
-            stack.Add(new Markup("[bold]Codex rate-limit identity[/]"));
-            stack.Add(new Markup(AnsiMarkup.Escape($"{rateLimits.LimitName ?? "Codex"} ({rateLimits.LimitId ?? "unknown id"})")));
         }
     }
 
@@ -964,49 +954,6 @@ internal sealed partial class CodeAltaTerminalUi
         };
     }
 
-    private static string FormatUsageSource(AgentUsageSource source)
-    {
-        return source switch
-        {
-            AgentUsageSource.CopilotSessionUsageInfo => "Copilot session usage info",
-            AgentUsageSource.CopilotAssistantUsage => "Copilot assistant usage",
-            AgentUsageSource.CopilotCompactionComplete => "Copilot compaction complete",
-            AgentUsageSource.CopilotTruncation => "Copilot truncation",
-            AgentUsageSource.CodexThreadTokenUsageUpdated => "Codex thread token usage updated",
-            AgentUsageSource.CodexTokenCountEvent => "Codex token-count event",
-            AgentUsageSource.CodexAccountRateLimitsUpdated => "Codex account rate limits updated",
-            AgentUsageSource.RecoveredHistory => "Recovered history",
-            _ => "Unknown",
-        };
-    }
-
-    private static void AppendSummaryMarkdown(System.Text.StringBuilder builder, AgentSessionUsage usage)
-    {
-        builder.AppendLine()
-            .AppendLine("## Summary");
-        if (usage.Window is { } window)
-        {
-            builder.Append("- Window: ").AppendLine(FormatSessionUsageSummary(usage));
-            if (!string.IsNullOrWhiteSpace(window.Label))
-            {
-                builder.Append("- Window label: ").AppendLine(window.Label);
-            }
-        }
-        else
-        {
-            builder.AppendLine("- Window: unavailable");
-        }
-
-        if (usage.MessageCount is { } messageCount)
-        {
-            builder.Append("- Messages: ").AppendLine(messageCount.ToString(CultureInfo.InvariantCulture));
-        }
-
-        builder.Append("- Scope: ").AppendLine(FormatUsageScope(usage.Scope));
-        builder.Append("- Source: ").AppendLine(FormatUsageSource(usage.Source));
-        builder.Append("- Updated: ").AppendLine(usage.UpdatedAt.LocalDateTime.ToString("HH:mm:ss", CultureInfo.InvariantCulture));
-    }
-
     private static void AppendUsageBreakdownMarkdown(System.Text.StringBuilder builder, AgentSessionUsage usage)
     {
         if (usage.LastOperation is null && usage.Window is null)
@@ -1015,7 +962,15 @@ internal sealed partial class CodeAltaTerminalUi
         }
 
         builder.AppendLine()
-            .AppendLine("## Usage breakdown");
+            .Append(usage.MessageCount is { } messageCount
+                ? FormattableString.Invariant($"## Usage breakdown: {messageCount} messages")
+                : "## Usage breakdown")
+            .AppendLine();
+        if (usage.Window is not null)
+        {
+            builder.Append("- Window: ").AppendLine(FormatSessionUsageSummary(usage));
+        }
+
         if (usage.LastOperation is { } operation)
         {
             builder.Append("- ")
@@ -1026,6 +981,11 @@ internal sealed partial class CodeAltaTerminalUi
             {
                 builder.Append("- Operation details: ").AppendLine(extras);
             }
+        }
+
+        if (TryFormatUsageMetadataLine(usage, out var metadataLine))
+        {
+            builder.Append("- ").AppendLine(metadataLine);
         }
     }
 
@@ -1108,7 +1068,7 @@ internal sealed partial class CodeAltaTerminalUi
     {
         var appended = false;
         if (usage.Details is CodexSessionUsageDetails codex &&
-            (codex.TotalUsage is not null || codex.RateLimits is not null))
+            codex.TotalUsage is not null)
         {
             builder.AppendLine()
                 .AppendLine("## Backend-specific details");
@@ -1117,13 +1077,6 @@ internal sealed partial class CodeAltaTerminalUi
             {
                 builder.Append("- Thread total: ")
                     .AppendLine(FormatCodexTokenUsage(codex.TotalUsage));
-            }
-
-            if (codex.RateLimits is { } rateLimits &&
-                (!string.IsNullOrWhiteSpace(rateLimits.LimitId) || !string.IsNullOrWhiteSpace(rateLimits.LimitName)))
-            {
-                builder.Append("- Codex limit identity: ")
-                    .AppendLine($"{rateLimits.LimitName ?? "Codex"} ({rateLimits.LimitId ?? "unknown id"})");
             }
         }
 
