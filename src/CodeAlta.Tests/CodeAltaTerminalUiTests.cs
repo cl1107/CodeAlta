@@ -1651,7 +1651,7 @@ public sealed class CodeAltaTerminalUiTests
             var indicator = CodeAltaTerminalUi.BuildSessionUsageIndicatorMarkup(usage);
             var summary = CodeAltaTerminalUi.FormatSessionUsageSummary(usage);
 
-            Assert.AreEqual("ctx 42%", indicator);
+            Assert.AreEqual("[success]Context 42%[/]", indicator);
             Assert.AreEqual("50,000 / 120,000 tokens (41.7%)", summary);
         }
         finally
@@ -1677,7 +1677,7 @@ public sealed class CodeAltaTerminalUiTests
         var indicator = CodeAltaTerminalUi.BuildSessionUsageIndicatorMarkup(usage);
         var summary = CodeAltaTerminalUi.FormatSessionUsageSummary(usage);
 
-        Assert.AreEqual("ctx 16%", indicator);
+        Assert.AreEqual("[success]Context 16%[/]", indicator);
         Assert.AreEqual("40,473 / 258,400 tokens (15.7%)", summary);
     }
 
@@ -1703,9 +1703,23 @@ public sealed class CodeAltaTerminalUiTests
         var indicator = CodeAltaTerminalUi.BuildSessionUsageIndicatorMarkup(usage);
         var markdown = CodeAltaTerminalUi.BuildSessionUsageMarkdown(usage, "Codex", "gpt-5.4");
 
-        Assert.AreEqual("ctx 78%", indicator);
+        Assert.AreEqual("[warning]Context 78%[/]", indicator);
         StringAssert.Contains(markdown, "Window: 200,535 / 258,400 tokens (77.6%)");
         StringAssert.Contains(markdown, "Thread total: total 33,641,433");
+    }
+
+    [TestMethod]
+    public void BuildSessionUsageIndicatorMarkup_UsesErrorToneNearWindowLimit()
+    {
+        var usage = new AgentSessionUsage(
+            Window: new AgentWindowUsageSnapshot(95000, 100000, null, "Active context window"),
+            Scope: AgentUsageScope.CurrentWindow,
+            Source: AgentUsageSource.CopilotSessionUsageInfo,
+            UpdatedAt: DateTimeOffset.Parse("2026-03-19T08:00:00+00:00"));
+
+        var indicator = CodeAltaTerminalUi.BuildSessionUsageIndicatorMarkup(usage);
+
+        Assert.AreEqual("[error]Context 95%[/]", indicator);
     }
 
     [TestMethod]

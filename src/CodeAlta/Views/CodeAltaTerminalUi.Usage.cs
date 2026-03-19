@@ -129,10 +129,11 @@ internal sealed partial class CodeAltaTerminalUi
     {
         if (usage?.WindowUsagePercentage is not { } percentage)
         {
-            return "ctx --";
+            return "[dim]Context --[/]";
         }
 
-        return FormattableString.Invariant($"ctx {Math.Clamp(percentage, 0d, 999d):0}%");
+        var clampedPercentage = Math.Clamp(percentage, 0d, 999d);
+        return FormattableString.Invariant($"[{GetUsageTone(clampedPercentage)}]Context {clampedPercentage:0}%[/]");
     }
 
     internal static string FormatSessionUsageSummary(AgentSessionUsage usage)
@@ -959,7 +960,7 @@ internal sealed partial class CodeAltaTerminalUi
     {
         return percentage switch
         {
-            < 70 => "success",
+            < 75 => "success",
             < 90 => "warning",
             _ => "error",
         };
