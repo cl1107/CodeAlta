@@ -1682,6 +1682,33 @@ public sealed class CodeAltaTerminalUiTests
     }
 
     [TestMethod]
+    public void BuildSessionUsageIndicatorMarkup_CodexThreadTotalsDoNotPretendToBeWindowUsage()
+    {
+        var usage = new AgentSessionUsage(
+            LastOperation: new AgentOperationUsageSnapshot(
+                InputTokens: 200435,
+                OutputTokens: 86,
+                CachedInputTokens: 199424,
+                ReasoningTokens: 14,
+                Label: "Last turn"),
+            Scope: AgentUsageScope.ThreadTotal,
+            Source: AgentUsageSource.CodexThreadTokenUsageUpdated,
+            UpdatedAt: DateTimeOffset.Parse("2026-03-19T05:59:24+00:00"),
+            Details: new CodexSessionUsageDetails(
+                LastTurnUsage: new CodexTokenUsage(199424, 200435, 86, 14, 200535),
+                TotalUsage: new CodexTokenUsage(31249920, 33493301, 148132, 61352, 33641433),
+                ModelContextWindow: 258400));
+
+        var indicator = CodeAltaTerminalUi.BuildSessionUsageIndicatorMarkup(usage);
+        var markdown = CodeAltaTerminalUi.BuildSessionUsageMarkdown(usage, "Codex", "gpt-5.4");
+
+        Assert.AreEqual("ctx --", indicator);
+        StringAssert.Contains(markdown, "Window: unavailable");
+        StringAssert.Contains(markdown, "Scope: Thread total");
+        StringAssert.Contains(markdown, "Thread total: total 33,641,433");
+    }
+
+    [TestMethod]
     public void MergeSessionUsage_MergesTypedBackendDetails()
     {
         var current = new AgentSessionUsage(

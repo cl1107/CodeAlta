@@ -509,12 +509,11 @@ public sealed class CodexAgentMapperTests
         Assert.AreEqual(AgentSessionUpdateKind.UsageUpdated, mappedUsage.Kind);
         Assert.AreEqual("turn-7", mappedUsage.RunId?.Value);
         Assert.IsNotNull(mappedUsage.Usage);
-        Assert.AreEqual(AgentUsageScope.CurrentWindow, mappedUsage.Usage.Scope);
+        Assert.AreEqual(AgentUsageScope.ThreadTotal, mappedUsage.Usage.Scope);
         Assert.AreEqual(AgentUsageSource.CodexThreadTokenUsageUpdated, mappedUsage.Usage.Source);
-        Assert.AreEqual(5056L, mappedUsage.Usage.CurrentTokens);
-        Assert.AreEqual(128000L, mappedUsage.Usage.TokenLimit);
-        Assert.IsNotNull(mappedUsage.Usage.Window);
-        Assert.AreEqual("Active thread window", mappedUsage.Usage.Window.Label);
+        Assert.IsNull(mappedUsage.Usage.CurrentTokens);
+        Assert.IsNull(mappedUsage.Usage.TokenLimit);
+        Assert.IsNull(mappedUsage.Usage.Window);
         Assert.IsNotNull(mappedUsage.Usage.LastOperation);
         Assert.AreEqual("Last turn", mappedUsage.Usage.LastOperation.Label);
         Assert.AreEqual(640L, mappedUsage.Usage.LastOperation.InputTokens);

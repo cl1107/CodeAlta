@@ -1065,13 +1065,8 @@ internal static class CodexAgentMapper
         ArgumentNullException.ThrowIfNull(usage);
 
         return new AgentSessionUsage(
-            Window: new AgentWindowUsageSnapshot(
-                usage.Total.TotalTokens,
-                usage.ModelContextWindow,
-                null,
-                "Active thread window"),
             LastOperation: ToAgentOperationUsage(usage.Last, "Last turn"),
-            Scope: AgentUsageScope.CurrentWindow,
+            Scope: AgentUsageScope.ThreadTotal,
             Source: AgentUsageSource.CodexThreadTokenUsageUpdated,
             UpdatedAt: timestamp,
             Details: new CodexSessionUsageDetails(
@@ -1088,16 +1083,9 @@ internal static class CodexAgentMapper
         }
 
         return new AgentSessionUsage(
-            Window: info is null
-                ? null
-                : new AgentWindowUsageSnapshot(
-                    info.TotalTokenUsage.TotalTokens,
-                    info.ModelContextWindow,
-                    null,
-                    "Active thread window"),
             LastOperation: info is null ? null : ToAgentOperationUsage(info.LastTokenUsage, "Last turn"),
             RateLimits: ToAgentRateLimitSummary(rateLimits, "Account rate limits"),
-            Scope: info is null ? AgentUsageScope.RateLimitOnly : AgentUsageScope.CurrentWindow,
+            Scope: info is null ? AgentUsageScope.RateLimitOnly : AgentUsageScope.ThreadTotal,
             Source: AgentUsageSource.CodexTokenCountEvent,
             UpdatedAt: timestamp,
             Details: new CodexSessionUsageDetails(
