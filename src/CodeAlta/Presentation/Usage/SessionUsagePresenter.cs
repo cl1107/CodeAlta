@@ -1,5 +1,6 @@
 using System.Globalization;
 using CodeAlta.Agent;
+using CodeAlta.ViewModels;
 using XenoAtom.Ansi;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Controls;
@@ -12,32 +13,28 @@ internal sealed class SessionUsagePresenter
     private const int UsageTooltipMinWidth = 52;
     private const int UsageTooltipMaxWidth = 76;
 
-    private readonly Func<AgentSessionUsage?> _getUsage;
-    private readonly Func<(string BackendName, string? ModelName)> _getContext;
+    private readonly SessionUsageViewModel _viewModel;
     private readonly Action<string> _copyMarkdown;
     private readonly Func<Func<Visual>, Visual> _createComputedVisual;
     private SessionUsagePopupView? _popupView;
 
     public SessionUsagePresenter(
-        Func<AgentSessionUsage?> getUsage,
-        Func<(string BackendName, string? ModelName)> getContext,
+        SessionUsageViewModel viewModel,
         Action<string> copyMarkdown,
         Func<Func<Visual>, Visual> createComputedVisual)
     {
-        ArgumentNullException.ThrowIfNull(getUsage);
-        ArgumentNullException.ThrowIfNull(getContext);
+        ArgumentNullException.ThrowIfNull(viewModel);
         ArgumentNullException.ThrowIfNull(copyMarkdown);
         ArgumentNullException.ThrowIfNull(createComputedVisual);
 
-        _getUsage = getUsage;
-        _getContext = getContext;
+        _viewModel = viewModel;
         _copyMarkdown = copyMarkdown;
         _createComputedVisual = createComputedVisual;
     }
 
     public Visual BuildIndicatorVisual()
     {
-        var button = new Button(new Markup(() => SessionUsageFormatter.BuildIndicatorMarkup(_getUsage()))
+        var button = new Button(new Markup(() => SessionUsageFormatter.BuildIndicatorMarkup(_viewModel.Usage))
         {
             Wrap = false,
         })
@@ -79,14 +76,12 @@ internal sealed class SessionUsagePresenter
 
     private Visual BuildPopupContent()
     {
-        var (backendName, modelName) = _getContext();
-        return BuildDetailsVisual(_getUsage(), backendName, modelName);
+        return BuildDetailsVisual(_viewModel.Usage, _viewModel.BackendName, _viewModel.ModelName);
     }
 
     private void CopyMarkdown()
     {
-        var (backendName, modelName) = _getContext();
-        var markdown = SessionUsageFormatter.BuildMarkdown(_getUsage(), backendName, modelName);
+        var markdown = SessionUsageFormatter.BuildMarkdown(_viewModel.Usage, _viewModel.BackendName, _viewModel.ModelName);
         _copyMarkdown(markdown);
     }
 

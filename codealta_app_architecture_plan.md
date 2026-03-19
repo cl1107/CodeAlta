@@ -42,7 +42,7 @@ This document is the implementation checklist companion to the architecture prop
 - [x] Add `ThreadWorkspaceViewModel`.
 - [x] Add `ThreadTabViewModel`.
 - [x] Add `PromptComposerViewModel`.
-- [ ] Add `SessionUsageViewModel` if needed by the popup/presenter split.
+- [x] Add `SessionUsageViewModel` if needed by the popup/presenter split.
 - [x] Move shell/header/status/sidebar/workspace scalar state into bindable view models.
 - [ ] Ensure all `[Bindable]` reads and writes happen on the UI thread only.
 - [x] Remove command enablement logic that depends on direct control inspection when a view-model-based alternative is available.

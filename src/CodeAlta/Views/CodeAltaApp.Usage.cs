@@ -6,34 +6,30 @@ internal sealed partial class CodeAltaApp
     private SessionUsagePresenter EnsureSessionUsagePresenter()
     {
         _sessionUsagePresenter ??= new SessionUsagePresenter(
-            GetSelectedSessionUsage,
-            GetUsageSelectionContext,
+            _sessionUsageViewModel,
             markdown => (_threadPaneLayout?.App)?.Terminal.Clipboard.TrySetText(markdown),
             build => CreateUsageComputedVisual(build));
         return _sessionUsagePresenter;
     }
 
-    private AgentSessionUsage? GetSelectedSessionUsage()
-    {
-        var selectedThread = GetSelectedThread();
-        return selectedThread is null
-            ? null
-            : EnsureThreadTab(selectedThread).Usage;
-    }
-
-    private (string BackendName, string? ModelName) GetUsageSelectionContext()
+    private void SyncSelectedSessionUsageViewModel()
     {
         var selectedThread = GetSelectedThread();
         if (selectedThread is not null)
         {
             var tab = EnsureThreadTab(selectedThread);
             var backendState = _chatBackendStates[tab.BackendId.Value];
-            return (backendState.DisplayName, tab.ModelId ?? backendState.SelectedModelId);
+            _sessionUsageViewModel.Usage = tab.Usage;
+            _sessionUsageViewModel.BackendName = backendState.DisplayName;
+            _sessionUsageViewModel.ModelName = tab.ModelId ?? backendState.SelectedModelId;
+            return;
         }
 
         var backendId = GetPreferredBackendId();
         var draftBackendState = _chatBackendStates[backendId.Value];
-        return (draftBackendState.DisplayName, draftBackendState.SelectedModelId);
+        _sessionUsageViewModel.Usage = null;
+        _sessionUsageViewModel.BackendName = draftBackendState.DisplayName;
+        _sessionUsageViewModel.ModelName = draftBackendState.SelectedModelId;
     }
 
     internal static AgentSessionUsage MergeSessionUsage(AgentSessionUsage? current, AgentSessionUsage incoming)

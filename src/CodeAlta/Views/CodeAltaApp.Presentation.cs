@@ -351,6 +351,7 @@ internal sealed partial class CodeAltaApp
 
     private void RefreshThreadWorkspaceCore()
     {
+        SyncSelectedSessionUsageViewModel();
         _viewRefreshState.Value++;
         _usageRefreshState.Value++;
         RefreshThreadPaneContent();
@@ -1279,7 +1280,12 @@ internal sealed partial class CodeAltaApp
 
     private void InvalidateSelectedSessionUsage()
     {
-        DispatchToUi(() => _usageRefreshState.Value++);
+        DispatchToUi(
+            () =>
+            {
+                SyncSelectedSessionUsageViewModel();
+                _usageRefreshState.Value++;
+            });
     }
 
     private bool IsSelectedThread(string threadId)
