@@ -988,6 +988,23 @@ public sealed class CodeAltaAppTests
     }
 
     [TestMethod]
+    public void CanAccessBindableState_RequiresUiThreadAfterTerminalStarts()
+    {
+        Assert.IsTrue(CodeAltaApp.CanAccessBindableState(
+            dispatcherHasAccess: false,
+            terminalLoopStarted: false));
+        Assert.IsTrue(CodeAltaApp.CanAccessBindableState(
+            dispatcherHasAccess: true,
+            terminalLoopStarted: false));
+        Assert.IsTrue(CodeAltaApp.CanAccessBindableState(
+            dispatcherHasAccess: true,
+            terminalLoopStarted: true));
+        Assert.IsFalse(CodeAltaApp.CanAccessBindableState(
+            dispatcherHasAccess: false,
+            terminalLoopStarted: true));
+    }
+
+    [TestMethod]
     public void CompactSidebarThreadTitle_TrimsLongTitlesToSingleLineLength()
     {
         var compact = CodeAltaApp.CompactSidebarThreadTitle("The lunet-build action in this repository is used like this:");

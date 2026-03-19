@@ -36,5 +36,5 @@ internal sealed partial class CodeAltaApp : ICodeAltaShell
         => OpenThread(threadId);
 
     void ICodeAltaShell.SetInitialized(bool isInitialized)
-        => _shellViewModel.IsInitialized = isInitialized;
+        => DispatchToUi(() => _shellViewModel.IsInitialized = isInitialized);
 }

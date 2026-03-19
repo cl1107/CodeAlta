@@ -323,6 +323,7 @@ internal sealed partial class CodeAltaApp
 
     private void RefreshHeaderAndThreadWorkspaceCore()
     {
+        VerifyBindableAccess();
         EnsureSelectionDefaults();
         _shellViewModel.HeaderText = BuildHeaderText();
         RefreshThreadWorkspaceCore();
@@ -330,6 +331,7 @@ internal sealed partial class CodeAltaApp
 
     private void RefreshShellChromeCore()
     {
+        VerifyBindableAccess();
         EnsureSelectionDefaults();
         _shellViewModel.HeaderText = BuildHeaderText();
         RefreshSidebarProjection();
@@ -343,6 +345,7 @@ internal sealed partial class CodeAltaApp
 
     private void RefreshSelectionAndThreadWorkspaceCore()
     {
+        VerifyBindableAccess();
         EnsureSelectionDefaults();
         _shellViewModel.HeaderText = BuildHeaderText();
         SyncSidebarSelectionToCurrentState();
@@ -386,6 +389,7 @@ internal sealed partial class CodeAltaApp
 
     private void RefreshChatSelectorsForDraftScope(AgentBackendId? preferredBackendId = null)
     {
+        VerifyBindableAccess();
         _chatSelectorsRefreshing = true;
         try
         {
@@ -458,6 +462,7 @@ internal sealed partial class CodeAltaApp
 
     private void RefreshChatSelectorsForThread(ThreadTabState tab)
     {
+        VerifyBindableAccess();
         _chatSelectorsRefreshing = true;
         try
         {
@@ -1131,6 +1136,7 @@ internal sealed partial class CodeAltaApp
 
     private void UpdatePromptAvailabilityUi()
     {
+        VerifyBindableAccess();
         var projection = BuildPromptComposerProjection();
         _promptComposerViewModel.Placeholder = projection.Placeholder;
         _promptComposerViewModel.IsEnabled = projection.IsEnabled;
@@ -1146,6 +1152,7 @@ internal sealed partial class CodeAltaApp
         DispatchToUi(
             () =>
             {
+                VerifyBindableAccess();
                 _shellViewModel.StatusText = message;
                 _shellViewModel.StatusBusy = showSpinner;
                 _shellViewModel.StatusTone = tone;
@@ -1280,6 +1287,29 @@ internal sealed partial class CodeAltaApp
                 _terminalLoopStarted));
     }
 
+    internal static bool CanAccessBindableState(
+        bool dispatcherHasAccess,
+        bool terminalLoopStarted)
+    {
+        if (!terminalLoopStarted)
+        {
+            return true;
+        }
+
+        return dispatcherHasAccess;
+    }
+
+    private void VerifyBindableAccess()
+    {
+        var dispatcher = GetUiDispatcher();
+        if (CanAccessBindableState(dispatcher.CheckAccess(), _terminalLoopStarted))
+        {
+            return;
+        }
+
+        throw new InvalidOperationException("Bindable view-model state must be accessed on the UI thread.");
+    }
+
     internal static bool ShouldRunInlineOnCurrentThread(
         bool dispatcherHasAccess,
         bool terminalLoopStarted)
@@ -1330,7 +1360,7 @@ internal sealed partial class CodeAltaApp
 
     private void ClearThreadTitleDraft()
     {
-        _sidebarViewModel.DraftThreadTitle = string.Empty;
+        DispatchToUi(() => _sidebarViewModel.DraftThreadTitle = string.Empty);
     }
 
     private async Task ActivateDraftTabAsync()

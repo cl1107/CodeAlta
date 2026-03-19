@@ -14,6 +14,7 @@ internal sealed partial class CodeAltaApp
 
     private void SyncSelectedSessionUsageViewModel()
     {
+        VerifyBindableAccess();
         var selectedThread = GetSelectedThread();
         if (selectedThread is not null)
         {
