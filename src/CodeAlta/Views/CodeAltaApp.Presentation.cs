@@ -283,13 +283,41 @@ internal sealed partial class CodeAltaApp
         PostToUi(
             () =>
             {
-                EnsureSelectionDefaults();
-                _shellViewModel.HeaderText = BuildHeaderText();
-                RebuildSidebarTree();
-
-                _viewRefreshState.Value++;
-                RefreshThreadPaneContent();
+                RefreshShellChromeCore();
+                RefreshThreadWorkspaceCore();
             });
+    }
+
+    private void RefreshShellChrome()
+        => PostToUi(RefreshShellChromeCore);
+
+    private void RefreshHeaderAndThreadWorkspace()
+    {
+        PostToUi(
+            () =>
+            {
+                RefreshHeaderAndThreadWorkspaceCore();
+            });
+    }
+
+    private void RefreshHeaderAndThreadWorkspaceCore()
+    {
+        EnsureSelectionDefaults();
+        _shellViewModel.HeaderText = BuildHeaderText();
+        RefreshThreadWorkspaceCore();
+    }
+
+    private void RefreshShellChromeCore()
+    {
+        EnsureSelectionDefaults();
+        _shellViewModel.HeaderText = BuildHeaderText();
+        RebuildSidebarTree();
+    }
+
+    private void RefreshThreadWorkspaceCore()
+    {
+        _viewRefreshState.Value++;
+        RefreshThreadPaneContent();
     }
 
     private void RefreshThreadPaneContent()
@@ -471,7 +499,7 @@ internal sealed partial class CodeAltaApp
 
         var tab = EnsureThreadTab(thread);
         tab.BackendId = options[newIndex].BackendId;
-        RefreshView();
+        RefreshHeaderAndThreadWorkspace();
     }
 
     private void OnChatModelSelectionChanged(int newIndex)
@@ -515,7 +543,7 @@ internal sealed partial class CodeAltaApp
         backendState.SelectedModelId = tab.ModelId;
         backendState.SelectedReasoningEffort = tab.ReasoningEffort;
         RememberGlobalBackendPreference(tab.BackendId, tab.ModelId, tab.ReasoningEffort);
-        RefreshView();
+        RefreshHeaderAndThreadWorkspace();
     }
 
     private void OnChatReasoningSelectionChanged(int newIndex)

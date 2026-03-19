@@ -60,7 +60,7 @@ internal sealed partial class CodeAltaApp
             {
                 state.Availability = ChatBackendAvailability.Connecting;
                 state.StatusMessage = "Detecting backend...";
-                RefreshView();
+                RefreshHeaderAndThreadWorkspaceCore();
             });
 
         try
@@ -77,7 +77,7 @@ internal sealed partial class CodeAltaApp
                         state.SelectedReasoningEffort);
                     state.Availability = ChatBackendAvailability.Ready;
                     state.StatusMessage = ChatBackendPresentation.BuildReadyStatusMessage(state);
-                    RefreshView();
+                    RefreshHeaderAndThreadWorkspaceCore();
                 });
         }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
@@ -92,7 +92,7 @@ internal sealed partial class CodeAltaApp
                     state.DraftScopeKey = null;
                     state.Availability = availability;
                     state.StatusMessage = statusMessage;
-                    RefreshView();
+                    RefreshHeaderAndThreadWorkspaceCore();
                 });
         }
     }
@@ -706,7 +706,7 @@ internal sealed partial class CodeAltaApp
                 break;
         }
 
-        RefreshView();
+        RefreshShellChrome();
     }
 
     private void HandleAgentEvent(WorkThreadDescriptor thread, ThreadTabState tab, AgentEvent @event)
