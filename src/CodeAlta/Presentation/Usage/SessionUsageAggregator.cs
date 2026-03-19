@@ -1,39 +1,8 @@
 using CodeAlta.Agent;
-using XenoAtom.Terminal.UI;
 
-internal sealed partial class CodeAltaApp
+internal static class SessionUsageAggregator
 {
-    private SessionUsagePresenter EnsureSessionUsagePresenter()
-    {
-        _sessionUsagePresenter ??= new SessionUsagePresenter(
-            _sessionUsageViewModel,
-            markdown => (ThreadPaneLayout?.App)?.Terminal.Clipboard.TrySetText(markdown),
-            build => CreateUsageComputedVisual(build));
-        return _sessionUsagePresenter;
-    }
-
-    private void SyncSelectedSessionUsageViewModel()
-    {
-        VerifyBindableAccess();
-        var selectedThread = GetSelectedThread();
-        if (selectedThread is not null)
-        {
-            var tab = EnsureThreadTab(selectedThread);
-            var backendState = _chatBackendStates[tab.BackendId.Value];
-            _sessionUsageViewModel.Usage = tab.Usage;
-            _sessionUsageViewModel.BackendName = backendState.DisplayName;
-            _sessionUsageViewModel.ModelName = tab.ModelId ?? backendState.SelectedModelId;
-            return;
-        }
-
-        var backendId = GetPreferredBackendId();
-        var draftBackendState = _chatBackendStates[backendId.Value];
-        _sessionUsageViewModel.Usage = null;
-        _sessionUsageViewModel.BackendName = draftBackendState.DisplayName;
-        _sessionUsageViewModel.ModelName = draftBackendState.SelectedModelId;
-    }
-
-    internal static AgentSessionUsage MergeSessionUsage(AgentSessionUsage? current, AgentSessionUsage incoming)
+    public static AgentSessionUsage Merge(AgentSessionUsage? current, AgentSessionUsage incoming)
     {
         ArgumentNullException.ThrowIfNull(incoming);
 
@@ -52,11 +21,17 @@ internal sealed partial class CodeAltaApp
             Details: MergeSessionUsageDetails(current.Details, incoming.Details));
     }
 
-    internal static string BuildSessionUsageIndicatorMarkup(AgentSessionUsage? usage)
+    public static string BuildIndicatorMarkup(AgentSessionUsage? usage)
         => SessionUsageFormatter.BuildIndicatorMarkup(usage);
 
-    internal static string FormatSessionUsageSummary(AgentSessionUsage usage)
+    public static string FormatSummary(AgentSessionUsage usage)
         => SessionUsageFormatter.FormatSummary(usage);
+
+    public static string BuildMarkdown(AgentSessionUsage? usage, string backendName, string? modelName)
+        => SessionUsageFormatter.BuildMarkdown(usage, backendName, modelName);
+
+    public static string? FormatOperationPopupText(AgentOperationUsageSnapshot usage)
+        => SessionUsageFormatter.FormatOperationPopupText(usage);
 
     private static AgentWindowUsageSnapshot? MergeWindowUsage(AgentWindowUsageSnapshot? current, AgentWindowUsageSnapshot? incoming)
     {
@@ -181,10 +156,4 @@ internal sealed partial class CodeAltaApp
             _ => incoming
         };
     }
-
-    internal static string BuildSessionUsageMarkdown(AgentSessionUsage? usage, string backendName, string? modelName)
-        => SessionUsageFormatter.BuildMarkdown(usage, backendName, modelName);
-
-    internal static string? FormatOperationPopupText(AgentOperationUsageSnapshot usage)
-        => SessionUsageFormatter.FormatOperationPopupText(usage);
 }

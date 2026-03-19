@@ -1632,8 +1632,8 @@ public sealed class CodeAltaAppTests
                 Source: AgentUsageSource.CopilotSessionUsageInfo,
                 UpdatedAt: DateTimeOffset.Parse("2026-03-18T21:00:00+00:00"));
 
-            var indicator = CodeAltaApp.BuildSessionUsageIndicatorMarkup(usage);
-            var summary = CodeAltaApp.FormatSessionUsageSummary(usage);
+            var indicator = SessionUsageAggregator.BuildIndicatorMarkup(usage);
+            var summary = SessionUsageAggregator.FormatSummary(usage);
 
             Assert.AreEqual("[dim]Context[/] [success]42%[/]", indicator);
             Assert.AreEqual("50,000 / 120,000 tokens (41.7%)", summary);
@@ -1658,8 +1658,8 @@ public sealed class CodeAltaAppTests
                 TotalUsage: new CodexTokenUsage(32809344, 35409515, 161773, 67166, 35571288),
                 ModelContextWindow: 258400));
 
-        var indicator = CodeAltaApp.BuildSessionUsageIndicatorMarkup(usage);
-        var summary = CodeAltaApp.FormatSessionUsageSummary(usage);
+        var indicator = SessionUsageAggregator.BuildIndicatorMarkup(usage);
+        var summary = SessionUsageAggregator.FormatSummary(usage);
 
         Assert.AreEqual("[dim]Context[/] [success]16%[/]", indicator);
         Assert.AreEqual("40,473 / 258,400 tokens (15.7%)", summary);
@@ -1684,8 +1684,8 @@ public sealed class CodeAltaAppTests
                 TotalUsage: new CodexTokenUsage(31249920, 33493301, 148132, 61352, 33641433),
                 ModelContextWindow: 258400));
 
-        var indicator = CodeAltaApp.BuildSessionUsageIndicatorMarkup(usage);
-        var markdown = CodeAltaApp.BuildSessionUsageMarkdown(usage, "Codex", "gpt-5.4");
+        var indicator = SessionUsageAggregator.BuildIndicatorMarkup(usage);
+        var markdown = SessionUsageAggregator.BuildMarkdown(usage, "Codex", "gpt-5.4");
 
         Assert.AreEqual("[dim]Context[/] [warning]78%[/]", indicator);
         StringAssert.Contains(markdown, "Window: 200,535 / 258,400 tokens (77.6%)");
@@ -1701,7 +1701,7 @@ public sealed class CodeAltaAppTests
             Source: AgentUsageSource.CopilotSessionUsageInfo,
             UpdatedAt: DateTimeOffset.Parse("2026-03-19T08:00:00+00:00"));
 
-        var indicator = CodeAltaApp.BuildSessionUsageIndicatorMarkup(usage);
+        var indicator = SessionUsageAggregator.BuildIndicatorMarkup(usage);
 
         Assert.AreEqual("[dim]Context[/] [error]95%[/]", indicator);
     }
@@ -1740,7 +1740,7 @@ public sealed class CodeAltaAppTests
                     new CodexRateLimitWindow(61, null, 60),
                     null)));
 
-        var merged = CodeAltaApp.MergeSessionUsage(current, incoming);
+        var merged = SessionUsageAggregator.Merge(current, incoming);
 
         Assert.AreEqual(4096L, merged.CurrentTokens);
         Assert.AreEqual(128000L, merged.TokenLimit);
@@ -1783,7 +1783,7 @@ public sealed class CodeAltaAppTests
                         new CopilotRequestQuotaDetails(EntitlementRequests: 1500, UsedRequests: 477)),
                 ]));
 
-        var merged = CodeAltaApp.MergeSessionUsage(current, incoming);
+        var merged = SessionUsageAggregator.Merge(current, incoming);
 
         Assert.AreEqual(12345L, merged.CurrentTokens);
         Assert.AreEqual(200000L, merged.TokenLimit);
@@ -1806,7 +1806,7 @@ public sealed class CodeAltaAppTests
             CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("fr-FR");
             CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("fr-FR");
 
-            var markdown = CodeAltaApp.BuildSessionUsageMarkdown(
+            var markdown = SessionUsageAggregator.BuildMarkdown(
                 new AgentSessionUsage(
                     Window: new AgentWindowUsageSnapshot(50000, 120000, 12, "Active context window"),
                     LastOperation: new AgentOperationUsageSnapshot(
@@ -1855,7 +1855,7 @@ public sealed class CodeAltaAppTests
     [TestMethod]
     public void BuildSessionUsageMarkdown_CopilotQuotaSnapshotsUseTypedSummaries()
     {
-        var markdown = CodeAltaApp.BuildSessionUsageMarkdown(
+        var markdown = SessionUsageAggregator.BuildMarkdown(
             new AgentSessionUsage(
                 Window: new AgentWindowUsageSnapshot(49652, 272000, 54, "Active context window"),
                 LastOperation: new AgentOperationUsageSnapshot(
@@ -1906,7 +1906,7 @@ public sealed class CodeAltaAppTests
     [TestMethod]
     public void FormatOperationPopupText_UsesMetadataOnlyWhenChartExists()
     {
-        var popupText = CodeAltaApp.FormatOperationPopupText(
+        var popupText = SessionUsageAggregator.FormatOperationPopupText(
             new AgentOperationUsageSnapshot(
                 Model: "gpt-5.4",
                 ReasoningEffort: "high",
@@ -1924,7 +1924,7 @@ public sealed class CodeAltaAppTests
     [TestMethod]
     public void FormatOperationPopupText_OmitsCodexTokenSummaryWhenChartExists()
     {
-        var popupText = CodeAltaApp.FormatOperationPopupText(
+        var popupText = SessionUsageAggregator.FormatOperationPopupText(
             new AgentOperationUsageSnapshot(
                 InputTokens: 103252,
                 OutputTokens: 234,

@@ -80,6 +80,7 @@ This document is the implementation checklist companion to the architecture prop
 - [x] Move status/usage/tool-call/chat formatting helpers out of `CodeAltaApp`.
 - [x] Remove `CodeAltaApp.ChatHelpers.cs` as a generic helper bucket.
 - [x] Remove remaining `CodeAltaApp` partial files that exist only to group unrelated helpers.
+- [x] Move session usage merge helpers out of `CodeAltaApp` partials.
 
 ## Phase 8: Reduce broad refresh paths
 
@@ -102,7 +103,7 @@ This document is the implementation checklist companion to the architecture prop
 
 ## Final cleanup
 
-- [ ] Verify `CodeAltaApp` is no longer a large partial class spanning unrelated concerns.
+- [x] Verify `CodeAltaApp` is no longer a large partial class spanning unrelated concerns.
 - [x] Verify `CodeAltaApp` owns lifecycle only and does not hold many concrete controls.
 - [x] Verify there is one explicit UI dispatcher contract in active use.
 - [x] Verify runtime events are applied through one shell/controller path on the UI thread.

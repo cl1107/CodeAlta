@@ -847,7 +847,7 @@ internal sealed partial class CodeAltaApp
             case AgentSessionUpdateEvent update:
                 if (update.Usage is { } usage)
                 {
-                    tab.Usage = MergeSessionUsage(tab.Usage, usage);
+                    tab.Usage = SessionUsageAggregator.Merge(tab.Usage, usage);
                     if (IsSelectedThread(thread.ThreadId))
                     {
                         InvalidateSelectedSessionUsage();

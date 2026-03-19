@@ -1277,6 +1277,36 @@ internal sealed partial class CodeAltaApp
         SetStatus(readyMessage, tone: StatusTone.Ready);
     }
 
+    private SessionUsagePresenter EnsureSessionUsagePresenter()
+    {
+        _sessionUsagePresenter ??= new SessionUsagePresenter(
+            _sessionUsageViewModel,
+            markdown => (ThreadPaneLayout?.App)?.Terminal.Clipboard.TrySetText(markdown),
+            build => CreateUsageComputedVisual(build));
+        return _sessionUsagePresenter;
+    }
+
+    private void SyncSelectedSessionUsageViewModel()
+    {
+        VerifyBindableAccess();
+        var selectedThread = GetSelectedThread();
+        if (selectedThread is not null)
+        {
+            var tab = EnsureThreadTab(selectedThread);
+            var backendState = _chatBackendStates[tab.BackendId.Value];
+            _sessionUsageViewModel.Usage = tab.Usage;
+            _sessionUsageViewModel.BackendName = backendState.DisplayName;
+            _sessionUsageViewModel.ModelName = tab.ModelId ?? backendState.SelectedModelId;
+            return;
+        }
+
+        var backendId = GetPreferredBackendId();
+        var draftBackendState = _chatBackendStates[backendId.Value];
+        _sessionUsageViewModel.Usage = null;
+        _sessionUsageViewModel.BackendName = draftBackendState.DisplayName;
+        _sessionUsageViewModel.ModelName = draftBackendState.SelectedModelId;
+    }
+
     private T ReadBindableState<T>(Func<T> read)
     {
         ArgumentNullException.ThrowIfNull(read);

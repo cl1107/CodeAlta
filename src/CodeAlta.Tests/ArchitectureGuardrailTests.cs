@@ -57,6 +57,7 @@ public sealed class ArchitectureGuardrailTests
 
         Assert.IsFalse(File.Exists(Path.Combine(viewsRoot, "CodeAltaApp.ControllerBridge.cs")));
         Assert.IsFalse(File.Exists(Path.Combine(viewsRoot, "CodeAltaApp.Settings.cs")));
+        Assert.IsFalse(File.Exists(Path.Combine(viewsRoot, "CodeAltaApp.Usage.cs")));
     }
 
     [TestMethod]
@@ -90,12 +91,26 @@ public sealed class ArchitectureGuardrailTests
     public void UiProjectionAndUsageFiles_KeepExplicitBindableAccessGuards()
     {
         var sidebarSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "CodeAltaApp.Sidebar.cs"));
-        var usageSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "CodeAltaApp.Usage.cs"));
         var presentationSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "CodeAltaApp.Presentation.cs"));
 
         Assert.IsTrue(sidebarSource.Contains("VerifyBindableAccess();", StringComparison.Ordinal));
-        Assert.IsTrue(usageSource.Contains("VerifyBindableAccess();", StringComparison.Ordinal));
         Assert.IsTrue(presentationSource.Contains("private T ReadBindableState<T>(Func<T> read)", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void CodeAltaApp_PartialFilesRemainFocusedAndLimited()
+    {
+        var viewsRoot = Path.Combine(GetCodeAltaSourceRoot(), "Views");
+        var partialFiles = Directory
+            .EnumerateFiles(viewsRoot, "CodeAltaApp*.cs", SearchOption.TopDirectoryOnly)
+            .Where(static file => File.ReadAllText(file).Contains("partial class CodeAltaApp", StringComparison.Ordinal))
+            .Select(Path.GetFileName)
+            .OrderBy(static name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.AreEqual(
+            "CodeAltaApp.Presentation.cs|CodeAltaApp.Runtime.cs|CodeAltaApp.Sidebar.cs|CodeAltaApp.cs",
+            string.Join("|", partialFiles));
     }
 
     private static void AssertSourceDoesNotContain(IEnumerable<string> sourceFiles, string pattern)
