@@ -194,7 +194,7 @@ internal sealed partial class CodeAltaApp
         try
         {
             SetStatus("Creating global thread...", showSpinner: true);
-            var title = UiDispatch.Invoke(GetUiDispatcher(), () => _sidebarViewModel.DraftThreadTitle?.Trim());
+            var title = ReadBindableState(() => _sidebarViewModel.DraftThreadTitle?.Trim());
             var executionOptions = BuildPreferredExecutionOptions(
                 GetPreferredBackendId(),
                 _catalogOptions.GlobalRoot,
@@ -225,7 +225,7 @@ internal sealed partial class CodeAltaApp
         try
         {
             SetStatus($"Creating thread for '{project.DisplayName}'...", showSpinner: true);
-            var title = UiDispatch.Invoke(GetUiDispatcher(), () => _sidebarViewModel.DraftThreadTitle?.Trim());
+            var title = ReadBindableState(() => _sidebarViewModel.DraftThreadTitle?.Trim());
             var executionOptions = BuildPreferredExecutionOptions(
                 GetPreferredBackendId(),
                 project.ProjectPath,

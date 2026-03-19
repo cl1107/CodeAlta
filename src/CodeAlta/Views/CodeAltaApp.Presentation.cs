@@ -1277,6 +1277,19 @@ internal sealed partial class CodeAltaApp
         SetStatus(readyMessage, tone: StatusTone.Ready);
     }
 
+    private T ReadBindableState<T>(Func<T> read)
+    {
+        ArgumentNullException.ThrowIfNull(read);
+
+        return UiDispatch.Invoke(
+            GetUiDispatcher(),
+            () =>
+            {
+                VerifyBindableAccess();
+                return read();
+            });
+    }
+
     internal void SetShellInitialized(bool isInitialized)
     {
         DispatchToUi(() => _shellViewModel.IsInitialized = isInitialized);

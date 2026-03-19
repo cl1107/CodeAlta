@@ -43,6 +43,8 @@ internal sealed partial class CodeAltaApp
             return;
         }
 
+        VerifyBindableAccess();
+
         var projection = SidebarTreeProjectionBuilder.Build(
             _projects,
             _threads,

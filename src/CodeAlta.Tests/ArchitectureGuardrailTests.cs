@@ -74,6 +74,30 @@ public sealed class ArchitectureGuardrailTests
         Assert.IsFalse(appSource.Contains("_statusSpinner", StringComparison.Ordinal));
     }
 
+    [TestMethod]
+    public void RuntimeLayer_UsesBindableReadHelperForViewModelReads()
+    {
+        var runtimeSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "CodeAltaApp.Runtime.cs"));
+
+        Assert.IsTrue(runtimeSource.Contains("ReadBindableState(() => _sidebarViewModel.DraftThreadTitle?.Trim())", StringComparison.Ordinal));
+        Assert.IsFalse(runtimeSource.Contains("_shellViewModel.", StringComparison.Ordinal));
+        Assert.IsFalse(runtimeSource.Contains("_threadWorkspaceViewModel.", StringComparison.Ordinal));
+        Assert.IsFalse(runtimeSource.Contains("_promptComposerViewModel.", StringComparison.Ordinal));
+        Assert.IsFalse(runtimeSource.Contains("_sessionUsageViewModel.", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void UiProjectionAndUsageFiles_KeepExplicitBindableAccessGuards()
+    {
+        var sidebarSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "CodeAltaApp.Sidebar.cs"));
+        var usageSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "CodeAltaApp.Usage.cs"));
+        var presentationSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "CodeAltaApp.Presentation.cs"));
+
+        Assert.IsTrue(sidebarSource.Contains("VerifyBindableAccess();", StringComparison.Ordinal));
+        Assert.IsTrue(usageSource.Contains("VerifyBindableAccess();", StringComparison.Ordinal));
+        Assert.IsTrue(presentationSource.Contains("private T ReadBindableState<T>(Func<T> read)", StringComparison.Ordinal));
+    }
+
     private static void AssertSourceDoesNotContain(IEnumerable<string> sourceFiles, string pattern)
     {
         ArgumentNullException.ThrowIfNull(sourceFiles);

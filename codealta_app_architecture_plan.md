@@ -106,7 +106,7 @@ This document is the implementation checklist companion to the architecture prop
 - [x] Verify `CodeAltaApp` owns lifecycle only and does not hold many concrete controls.
 - [x] Verify there is one explicit UI dispatcher contract in active use.
 - [x] Verify runtime events are applied through one shell/controller path on the UI thread.
-- [ ] Verify bindable view models are only accessed on the UI thread.
+- [x] Verify bindable view models are only accessed on the UI thread.
 - [x] Verify timeline/tool-call/dialog logic lives outside the shell controller.
 - [x] Verify `ThreadTabState` is gone or reduced to one focused responsibility.
 - [x] Verify `RefreshView()` no longer exists as a broad shell refresh primitive.
