@@ -130,7 +130,7 @@ internal sealed partial class CodeAltaApp
         }
 
         EnsureSelectionDefaults();
-        RefreshView();
+        RefreshCatalogAndThreadWorkspace();
     }
 
     internal static (ChatBackendAvailability Availability, string StatusMessage) ClassifyBackendInitializationFailure(
@@ -530,7 +530,7 @@ internal sealed partial class CodeAltaApp
 
             thread.MarkStarted(DateTimeOffset.UtcNow);
             tab.HistoryLoaded = true;
-            RefreshView();
+            RefreshHeaderAndThreadWorkspace();
         }
         catch (Exception ex)
         {
@@ -638,7 +638,7 @@ internal sealed partial class CodeAltaApp
             ClearThreadInput();
             SetThreadStatus(tab, $"Delegation started · {child.Title}", tone: StatusTone.Ready);
             await PersistViewStateAsync().ConfigureAwait(false);
-            RefreshView();
+            RefreshCatalogAndThreadWorkspace();
         }
         catch (Exception ex)
         {

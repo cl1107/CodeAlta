@@ -125,9 +125,9 @@ internal sealed class CodeAltaShellController : IAsyncDisposable
             if (!_disposeCts.IsCancellationRequested)
             {
                 await UiDispatcher.InvokeAsync(
-                        () =>
-                        {
-                            _app.RefreshView();
+                    () =>
+                    {
+                            _app.RefreshCatalogAndThreadWorkspace();
                             _app.SetReadyStatusForCurrentSelection();
                             _app.TrySchedulePendingStartupThreadRestore(CancellationToken.None);
                         })

@@ -13,7 +13,7 @@ namespace CodeAlta.Tests;
 public sealed class CodeAltaAppSidebarTests
 {
     [TestMethod]
-    public async Task RefreshView_RebuildsSidebarTreeWhenRecoveredThreadsChange()
+    public async Task RefreshCatalogAndThreadWorkspace_RebuildsSidebarTreeWhenRecoveredThreadsChange()
     {
         var rootPath = Path.Combine(Path.GetTempPath(), $"codealta-ui-{Guid.NewGuid():N}");
         Directory.CreateDirectory(rootPath);
@@ -75,7 +75,7 @@ public sealed class CodeAltaAppSidebarTests
                     }
                 ]);
 
-            InvokePrivate(ui, "RefreshView");
+            InvokePrivate(ui, "RefreshCatalogAndThreadWorkspace");
             Assert.AreEqual(1, sidebarTree.Roots[1].Children[0].Children.Count);
         }
         finally

@@ -278,18 +278,17 @@ internal sealed partial class CodeAltaApp
             });
     }
 
-    internal void RefreshView()
+    private void RefreshShellChrome()
+        => PostToUi(RefreshShellChromeCore);
+
+    internal void RefreshCatalogAndThreadWorkspace()
     {
         PostToUi(
             () =>
             {
-                RefreshShellChromeCore();
-                RefreshThreadWorkspaceCore();
+                RefreshCatalogAndThreadWorkspaceCore();
             });
     }
-
-    private void RefreshShellChrome()
-        => PostToUi(RefreshShellChromeCore);
 
     private void RefreshHeaderAndThreadWorkspace()
     {
@@ -321,6 +320,12 @@ internal sealed partial class CodeAltaApp
         EnsureSelectionDefaults();
         _shellViewModel.HeaderText = BuildHeaderText();
         RebuildSidebarTree();
+    }
+
+    private void RefreshCatalogAndThreadWorkspaceCore()
+    {
+        RefreshShellChromeCore();
+        RefreshThreadWorkspaceCore();
     }
 
     private void RefreshSelectionAndThreadWorkspaceCore()

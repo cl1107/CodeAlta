@@ -76,7 +76,7 @@ This document is the implementation checklist companion to the architecture prop
 
 ## Phase 8: Reduce broad refresh paths
 
-- [ ] Replace broad `RefreshView()` usage with narrower update paths.
+- [x] Replace broad `RefreshView()` usage with narrower update paths.
 - [ ] Make sidebar updates driven by sidebar projection changes.
 - [x] Make tab-strip updates driven by open-tab and selected-tab changes.
 - [ ] Make status/header updates driven by bindable state changes.
