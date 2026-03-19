@@ -12,7 +12,6 @@ internal sealed partial class CodeAltaApp
 {
     private async Task LoadCatalogStateAsync(CancellationToken cancellationToken)
     {
-        LoadConfigState();
         _projects = await _projectCatalog.LoadAsync(cancellationToken).ConfigureAwait(false);
         _threads = await _threadCatalog.LoadInternalAsync(cancellationToken).ConfigureAwait(false);
         _viewState = await _threadCatalog.LoadViewStateAsync(cancellationToken).ConfigureAwait(false);
@@ -73,7 +72,7 @@ internal sealed partial class CodeAltaApp
                     state.Models.AddRange(models);
                     state.SelectedModelId = ChatBackendPresentation.ResolvePreferredModelId(models, state.SelectedModelId);
                     state.SelectedReasoningEffort = ChatBackendPresentation.ResolvePreferredReasoningEffort(
-                        FindModel(models, state.SelectedModelId),
+                        ChatBackendPreferenceCoordinator.FindModel(models, state.SelectedModelId),
                         state.SelectedReasoningEffort);
                     state.Availability = ChatBackendAvailability.Ready;
                     state.StatusMessage = ChatBackendPresentation.BuildReadyStatusMessage(state);

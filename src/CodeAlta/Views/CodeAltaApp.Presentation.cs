@@ -565,7 +565,7 @@ internal sealed partial class CodeAltaApp
             }
 
             draftBackendState.SelectedModelId = draftOptions[newIndex].ModelId;
-            var preferredModel = FindModel(draftBackendState.Models, draftBackendState.SelectedModelId);
+            var preferredModel = ChatBackendPreferenceCoordinator.FindModel(draftBackendState.Models, draftBackendState.SelectedModelId);
             draftBackendState.SelectedReasoningEffort = ChatBackendPresentation.ResolvePreferredReasoningEffort(preferredModel, preferredReasoningEffort: null);
             RememberGlobalBackendPreference(backendId, draftBackendState.SelectedModelId, draftBackendState.SelectedReasoningEffort);
             RefreshChatSelectorsForDraftScope(backendId);
@@ -582,7 +582,7 @@ internal sealed partial class CodeAltaApp
         }
 
         tab.ModelId = options[newIndex].ModelId;
-        var selectedModel = FindModel(backendState.Models, tab.ModelId);
+        var selectedModel = ChatBackendPreferenceCoordinator.FindModel(backendState.Models, tab.ModelId);
         tab.ReasoningEffort = ChatBackendPresentation.ResolvePreferredReasoningEffort(selectedModel, preferredReasoningEffort: null);
         RememberThreadPreference(tab.Thread.ThreadId, tab.ModelId, tab.ReasoningEffort, tab.AutoScroll, persistNow: true);
         backendState.SelectedModelId = tab.ModelId;

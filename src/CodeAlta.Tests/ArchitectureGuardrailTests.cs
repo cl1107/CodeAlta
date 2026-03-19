@@ -50,6 +50,15 @@ public sealed class ArchitectureGuardrailTests
         Assert.IsFalse(controllerSource.Contains("Dialog", StringComparison.Ordinal));
     }
 
+    [TestMethod]
+    public void CodeAltaApp_PartialBucketsDoNotReintroduceBridgeOrSettingsSlices()
+    {
+        var viewsRoot = Path.Combine(GetCodeAltaSourceRoot(), "Views");
+
+        Assert.IsFalse(File.Exists(Path.Combine(viewsRoot, "CodeAltaApp.ControllerBridge.cs")));
+        Assert.IsFalse(File.Exists(Path.Combine(viewsRoot, "CodeAltaApp.Settings.cs")));
+    }
+
     private static void AssertSourceDoesNotContain(IEnumerable<string> sourceFiles, string pattern)
     {
         ArgumentNullException.ThrowIfNull(sourceFiles);

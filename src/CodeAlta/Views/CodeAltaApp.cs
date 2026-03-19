@@ -31,7 +31,7 @@ internal sealed partial class CodeAltaApp : IAsyncDisposable
 
     private readonly ProjectCatalog _projectCatalog;
     private readonly WorkThreadCatalog _threadCatalog;
-    private readonly CodeAltaConfigStore _configStore;
+    private readonly ChatBackendPreferenceCoordinator _backendPreferences;
     private readonly WorkThreadRuntimeService _runtimeService;
     private readonly CatalogOptions _catalogOptions;
     private readonly AgentHub _agentHub;
@@ -53,8 +53,6 @@ internal sealed partial class CodeAltaApp : IAsyncDisposable
 
     private IReadOnlyList<ProjectDescriptor> _projects = [];
     private IReadOnlyList<WorkThreadDescriptor> _threads = [];
-    private CodeAltaConfigDocument _globalConfig = new();
-    private readonly Dictionary<string, CodeAltaConfigDocument> _projectConfigCache = new(StringComparer.OrdinalIgnoreCase);
     private CodeAltaShellView? _shellView;
     private SidebarView? _sidebarView;
     private ThreadWorkspaceView? _threadWorkspaceView;
@@ -161,7 +159,7 @@ internal sealed partial class CodeAltaApp : IAsyncDisposable
 
         _projectCatalog = projectCatalog;
         _threadCatalog = threadCatalog;
-        _configStore = new CodeAltaConfigStore(catalogOptions);
+        _backendPreferences = new ChatBackendPreferenceCoordinator(new CodeAltaConfigStore(catalogOptions), UiLogger);
         _runtimeService = runtimeService;
         _catalogOptions = catalogOptions;
         _agentHub = agentHub;
@@ -240,4 +238,39 @@ internal sealed partial class CodeAltaApp : IAsyncDisposable
     }
 
     internal sealed record InitialThreadSelection(string? SelectedThreadId, string? StartupThreadRestoreId);
+
+    private string? GetDraftProjectRoot()
+        => _globalScopeSelected ? null : GetSelectedProject()?.ProjectPath;
+
+    private string? GetThreadProjectRoot(WorkThreadDescriptor thread)
+    {
+        ArgumentNullException.ThrowIfNull(thread);
+        return GetProjectById(thread.ProjectRef)?.ProjectPath;
+    }
+
+    private void ApplyDraftBackendPreference(ChatBackendState backendState)
+        => _backendPreferences.ApplyDraftBackendPreference(backendState, GetDraftProjectRoot());
+
+    private void ApplyThreadPreference(OpenThreadState tab)
+        => _backendPreferences.ApplyThreadPreference(tab, _viewState, GetThreadProjectRoot(tab.Thread), _chatBackendStates);
+
+    private void RememberGlobalBackendPreference(
+        AgentBackendId backendId,
+        string? modelId,
+        AgentReasoningEffort? reasoningEffort)
+        => _backendPreferences.RememberGlobalBackendPreference(backendId, modelId, reasoningEffort);
+
+    private void RememberThreadPreference(
+        string threadId,
+        string? modelId,
+        AgentReasoningEffort? reasoningEffort,
+        bool autoScroll,
+        bool persistNow)
+    {
+        _backendPreferences.RememberThreadPreference(_viewState, threadId, modelId, reasoningEffort, autoScroll);
+        if (persistNow)
+        {
+            _ = PersistViewStateAsync();
+        }
+    }
 }
