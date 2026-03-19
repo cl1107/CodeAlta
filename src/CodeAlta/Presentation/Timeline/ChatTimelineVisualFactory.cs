@@ -148,7 +148,7 @@ internal static class ChatTimelineVisualFactory
     }
 
     private static GroupStyle CreateChatGroupStyle(ChatTimelineTone tone)
-        => CodeAltaApp.GetChatGroupStyle(tone);
+        => UiPalette.GetChatGroupStyle(tone);
 
     private static (string Icon, string Title, string ToneName) GetChatCardHeaderParts(ChatTimelineTone tone, string? headerOverride)
     {

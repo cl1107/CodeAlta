@@ -72,7 +72,7 @@ This document is the implementation checklist companion to the architecture prop
 - [x] Create `SessionUsageFormatter`.
 - [x] Move status/usage/tool-call/chat formatting helpers out of `CodeAltaApp`.
 - [x] Remove `CodeAltaApp.ChatHelpers.cs` as a generic helper bucket.
-- [ ] Remove remaining `CodeAltaApp` partial files that exist only to group unrelated helpers.
+- [x] Remove remaining `CodeAltaApp` partial files that exist only to group unrelated helpers.
 
 ## Phase 8: Reduce broad refresh paths
 

@@ -20,7 +20,7 @@ internal static class ToolCallSummaryFormatter
         builder.Append(GetToolStatusIconMarkup(entry.Status))
             .Append(' ')
             .Append("[bold][")
-            .Append(CodeAltaApp.GetToolStatusMarkup(entry.Status))
+            .Append(UiPalette.GetToolStatusMarkup(entry.Status))
             .Append("]")
             .Append(AnsiMarkup.Escape(primaryLabel))
             .Append("[/][/]");
@@ -59,30 +59,30 @@ internal static class ToolCallSummaryFormatter
 
         if (running > 0)
         {
-            parts.Add($"[{CodeAltaApp.GetToolStatusMarkup(ToolCallDisplayStatus.Running)}]{running.ToString(CultureInfo.InvariantCulture)} running[/]");
+            parts.Add($"[{UiPalette.GetToolStatusMarkup(ToolCallDisplayStatus.Running)}]{running.ToString(CultureInfo.InvariantCulture)} running[/]");
         }
 
         if (pending > 0)
         {
-            parts.Add($"[{CodeAltaApp.GetToolStatusMarkup(ToolCallDisplayStatus.Pending)}]{pending.ToString(CultureInfo.InvariantCulture)} pending[/]");
+            parts.Add($"[{UiPalette.GetToolStatusMarkup(ToolCallDisplayStatus.Pending)}]{pending.ToString(CultureInfo.InvariantCulture)} pending[/]");
         }
 
         if (completed > 0)
         {
-            parts.Add($"[{CodeAltaApp.GetToolStatusMarkup(ToolCallDisplayStatus.Completed)}]{completed.ToString(CultureInfo.InvariantCulture)} done[/]");
+            parts.Add($"[{UiPalette.GetToolStatusMarkup(ToolCallDisplayStatus.Completed)}]{completed.ToString(CultureInfo.InvariantCulture)} done[/]");
         }
 
         if (failed > 0)
         {
-            parts.Add($"[{CodeAltaApp.GetToolStatusMarkup(ToolCallDisplayStatus.Failed)}]{failed.ToString(CultureInfo.InvariantCulture)} failed[/]");
+            parts.Add($"[{UiPalette.GetToolStatusMarkup(ToolCallDisplayStatus.Failed)}]{failed.ToString(CultureInfo.InvariantCulture)} failed[/]");
         }
 
         if (canceled > 0)
         {
-            parts.Add($"[{CodeAltaApp.GetToolStatusMarkup(ToolCallDisplayStatus.Canceled)}]{canceled.ToString(CultureInfo.InvariantCulture)} canceled[/]");
+            parts.Add($"[{UiPalette.GetToolStatusMarkup(ToolCallDisplayStatus.Canceled)}]{canceled.ToString(CultureInfo.InvariantCulture)} canceled[/]");
         }
 
-        return $"[{CodeAltaApp.MutedMarkup}]" + string.Join(" · ", parts) + "[/]";
+        return $"[{UiPalette.MutedMarkup}]" + string.Join(" · ", parts) + "[/]";
     }
 
     public static string BuildDetailMarkdown(ToolCallEntryState entry)
@@ -168,7 +168,7 @@ internal static class ToolCallSummaryFormatter
     }
 
     private static string GetToolStatusIconMarkup(ToolCallDisplayStatus status)
-        => $"[{CodeAltaApp.GetToolStatusMarkup(status)}]●[/]";
+        => $"[{UiPalette.GetToolStatusMarkup(status)}]●[/]";
 
     private static string ResolveToolDisplayName(AgentActivityKind kind, string? displayName)
     {

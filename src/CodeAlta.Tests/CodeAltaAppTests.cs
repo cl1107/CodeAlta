@@ -355,7 +355,7 @@ public sealed class CodeAltaAppTests
     [TestMethod]
     public void BuildWelcomeAltaGradientStops_UseMatchingEdgeColors()
     {
-        var stops = CodeAltaApp.BuildWelcomeAltaGradientStops();
+        var stops = UiPalette.BuildWelcomeAltaGradientStops();
 
         Assert.AreEqual(11, stops.Length);
         Assert.AreEqual(0.00f, stops[0].Offset);
@@ -2013,7 +2013,7 @@ public sealed class CodeAltaAppTests
     {
         var accent = CodeAltaApp.ResolveSidebarThreadAccent(AgentBackendIds.Copilot.Value, WorkThreadKind.ProjectThread);
 
-        Assert.AreEqual(CodeAltaApp.SidebarAccent.CopilotThread, accent);
+        Assert.AreEqual(SidebarAccent.CopilotThread, accent);
     }
 
     [TestMethod]
@@ -2021,7 +2021,7 @@ public sealed class CodeAltaAppTests
     {
         var accent = CodeAltaApp.ResolveSidebarThreadAccent(AgentBackendIds.Codex.Value, WorkThreadKind.ProjectThread);
 
-        Assert.AreEqual(CodeAltaApp.SidebarAccent.ProjectThread, accent);
+        Assert.AreEqual(SidebarAccent.ProjectThread, accent);
     }
 
     [TestMethod]

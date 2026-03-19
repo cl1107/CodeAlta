@@ -153,7 +153,7 @@ internal sealed class ToolCallPresenter
                     HorizontalAlignment = Align.Start,
                     VerticalAlignment = Align.Start,
                 };
-                button.SetStyle(ButtonStyle.Key, CodeAltaApp.GetToolChipButtonStyle(ToolCallDisplayStatus.Pending));
+                button.SetStyle(ButtonStyle.Key, UiPalette.GetToolChipButtonStyle(ToolCallDisplayStatus.Pending));
                 return new ToolCallEntryState(state.toolCallId, button, summaryText)
                 {
                     Group = state.group,
@@ -187,14 +187,14 @@ internal sealed class ToolCallPresenter
         var group = RunOnUiThread(
             static timestampValue =>
             {
-                var headerText = new Markup($"[{CodeAltaApp.MutedMarkup}]{NerdFont.CodTools}[/] [bold]Tool Calls[/]");
+                var headerText = new Markup($"[{UiPalette.MutedMarkup}]{NerdFont.CodTools}[/] [bold]Tool Calls[/]");
                 var summaryText = new Markup("[dim]Waiting for tool activity...[/]");
                 var timestampText = new Markup(string.Empty);
                 var itemsHost = new WrapHStack { Spacing = 1, RunSpacing = 0, HorizontalAlignment = Align.Stretch, VerticalAlignment = Align.Start };
                 var card = new Group(headerText, itemsHost)
                     .TopRightText(summaryText)
                     .BottomRightText(timestampText)
-                    .Style(CodeAltaApp.GetToolCallGroupStyle())
+                    .Style(UiPalette.GetToolCallGroupStyle())
                     .HorizontalAlignment(Align.Stretch)
                     .VerticalAlignment(Align.Start);
                 var item = new DocumentFlowItem { Content = new FlowDocument().Add(card), Alignment = DocumentFlowAlignment.Stretch };
@@ -247,7 +247,7 @@ internal sealed class ToolCallPresenter
         {
             entry.SummaryText.Text = ToolCallSummaryFormatter.BuildSummaryMarkup(entry);
             entry.Button.Tone = ControlTone.Default;
-            entry.Button.SetStyle(ButtonStyle.Key, CodeAltaApp.GetToolChipButtonStyle(entry.Status));
+            entry.Button.SetStyle(ButtonStyle.Key, UiPalette.GetToolChipButtonStyle(entry.Status));
         });
     }
 
