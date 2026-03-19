@@ -110,7 +110,7 @@ internal sealed partial class CodeAltaApp
                 {
                     Group = state.group,
                     ActivityKind = state.activityKind,
-                    DisplayName = GetActivityKindLabel(state.activityKind),
+                    DisplayName = ToolCallSummaryFormatter.GetActivityKindLabel(state.activityKind),
                     FirstSeenAt = state.timestamp,
                     LastUpdatedAt = state.timestamp,
                 };
@@ -174,7 +174,7 @@ internal sealed partial class CodeAltaApp
         tab.ActiveToolCallGroup = group;
         AppendThreadTimelineItem(tab, group.Item, resetActiveToolCallGroup: false);
 
-        ApplyChatCardTimestamp(group.TimestampText, timestamp);
+        ChatTimelineVisualFactory.ApplyTimestamp(group.TimestampText, timestamp);
         UpdateToolCallGroupVisual(group);
         return group;
     }
@@ -294,7 +294,7 @@ internal sealed partial class CodeAltaApp
         PostToUi(() =>
         {
             group.SummaryText.Text = ToolCallSummaryFormatter.BuildGroupSummaryMarkup(group);
-            ApplyChatCardTimestamp(group.TimestampText, group.LastUpdatedAt);
+            ChatTimelineVisualFactory.ApplyTimestamp(group.TimestampText, group.LastUpdatedAt);
         });
     }
 
@@ -537,19 +537,19 @@ internal sealed partial class CodeAltaApp
         if (!string.IsNullOrWhiteSpace(activity.Name))
         {
             return activity.Kind == AgentActivityKind.Subagent && activity.Details is { } subagentDetails &&
-                TryGetStringProperty(subagentDetails, "agentName", out var agentName)
+                ToolCallSummaryFormatter.TryGetStringProperty(subagentDetails, "agentName", out var agentName)
                 ? agentName!
                 : activity.Name!;
         }
 
         if (activity.Details is { } details)
         {
-            if (TryGetStringProperty(details, "toolName", out var toolName) ||
-                TryGetStringProperty(details, "mcpToolName", out toolName) ||
-                TryGetStringProperty(details, "tool", out toolName) ||
-                TryGetStringProperty(details, "name", out toolName) ||
-                TryGetStringProperty(details, "agentName", out toolName) ||
-                TryGetStringProperty(details, "agentDisplayName", out toolName))
+            if (ToolCallSummaryFormatter.TryGetStringProperty(details, "toolName", out var toolName) ||
+                ToolCallSummaryFormatter.TryGetStringProperty(details, "mcpToolName", out toolName) ||
+                ToolCallSummaryFormatter.TryGetStringProperty(details, "tool", out toolName) ||
+                ToolCallSummaryFormatter.TryGetStringProperty(details, "name", out toolName) ||
+                ToolCallSummaryFormatter.TryGetStringProperty(details, "agentName", out toolName) ||
+                ToolCallSummaryFormatter.TryGetStringProperty(details, "agentDisplayName", out toolName))
             {
                 return toolName!;
             }
@@ -561,7 +561,7 @@ internal sealed partial class CodeAltaApp
             }
         }
 
-        return GetActivityKindLabel(activity.Kind);
+        return ToolCallSummaryFormatter.GetActivityKindLabel(activity.Kind);
     }
 
     private static string ResolveToolDisplayName(AgentActivityKind kind, string? displayName)
@@ -575,13 +575,13 @@ internal sealed partial class CodeAltaApp
         {
             AgentActivityKind.CommandExecution => "command",
             AgentActivityKind.FileChange => "file_change",
-            _ => GetActivityKindLabel(kind),
+            _ => ToolCallSummaryFormatter.GetActivityKindLabel(kind),
         };
     }
 
     private static string? ResolveToolCommandText(AgentActivityEvent activity)
     {
-        if (activity.Details is { } details && TryGetStringProperty(details, "command", out var command))
+        if (activity.Details is { } details && ToolCallSummaryFormatter.TryGetStringProperty(details, "command", out var command))
         {
             return command;
         }
@@ -590,14 +590,14 @@ internal sealed partial class CodeAltaApp
         {
             if (detailObject.TryGetProperty("arguments", out var arguments) &&
                 arguments.ValueKind == JsonValueKind.Object &&
-                TryGetStringProperty(arguments, "command", out command))
+                ToolCallSummaryFormatter.TryGetStringProperty(arguments, "command", out command))
             {
                 return command;
             }
 
             if (detailObject.TryGetProperty("input", out var input) &&
                 input.ValueKind == JsonValueKind.Object &&
-                TryGetStringProperty(input, "command", out command))
+                ToolCallSummaryFormatter.TryGetStringProperty(input, "command", out command))
             {
                 return command;
             }
@@ -627,33 +627,33 @@ internal sealed partial class CodeAltaApp
             parts.Add(FormatToolArguments(rawArguments));
         }
 
-        if (TryGetStringProperty(details, "cwd", out var cwd))
+        if (ToolCallSummaryFormatter.TryGetStringProperty(details, "cwd", out var cwd))
         {
             parts.Add($"cwd: {cwd}");
         }
 
-        if (TryGetStringProperty(details, "query", out var query))
+        if (ToolCallSummaryFormatter.TryGetStringProperty(details, "query", out var query))
         {
             parts.Add(query!);
         }
 
-        if (TryGetStringProperty(details, "prompt", out var prompt))
+        if (ToolCallSummaryFormatter.TryGetStringProperty(details, "prompt", out var prompt))
         {
             parts.Add(prompt!);
         }
 
-        if (TryGetStringProperty(details, "path", out var path))
+        if (ToolCallSummaryFormatter.TryGetStringProperty(details, "path", out var path))
         {
             parts.Add(path!);
         }
 
-        if (TryGetStringProperty(details, "server", out var server) ||
-            TryGetStringProperty(details, "mcpServerName", out server))
+        if (ToolCallSummaryFormatter.TryGetStringProperty(details, "server", out var server) ||
+            ToolCallSummaryFormatter.TryGetStringProperty(details, "mcpServerName", out server))
         {
             parts.Add($"server: {server}");
         }
 
-        if (TryGetStringProperty(details, "agentDescription", out var agentDescription))
+        if (ToolCallSummaryFormatter.TryGetStringProperty(details, "agentDescription", out var agentDescription))
         {
             parts.Add(agentDescription!);
         }
@@ -703,7 +703,7 @@ internal sealed partial class CodeAltaApp
     {
         if (activity.Details is { } details)
         {
-            if (TryGetStringProperty(details, "aggregatedOutput", out var aggregatedOutput))
+            if (ToolCallSummaryFormatter.TryGetStringProperty(details, "aggregatedOutput", out var aggregatedOutput))
             {
                 return aggregatedOutput;
             }
@@ -1036,12 +1036,12 @@ internal sealed partial class CodeAltaApp
     private static bool HasExplicitToolDisplayName(JsonElement? details)
     {
         return details is { ValueKind: JsonValueKind.Object } element &&
-               (TryGetStringProperty(element, "toolName", out _) ||
-                TryGetStringProperty(element, "mcpToolName", out _) ||
-                TryGetStringProperty(element, "tool", out _) ||
-                TryGetStringProperty(element, "name", out _) ||
-                TryGetStringProperty(element, "agentName", out _) ||
-                TryGetStringProperty(element, "agentDisplayName", out _));
+               (ToolCallSummaryFormatter.TryGetStringProperty(element, "toolName", out _) ||
+                ToolCallSummaryFormatter.TryGetStringProperty(element, "mcpToolName", out _) ||
+                ToolCallSummaryFormatter.TryGetStringProperty(element, "tool", out _) ||
+                ToolCallSummaryFormatter.TryGetStringProperty(element, "name", out _) ||
+                ToolCallSummaryFormatter.TryGetStringProperty(element, "agentName", out _) ||
+                ToolCallSummaryFormatter.TryGetStringProperty(element, "agentDisplayName", out _));
     }
 
     private static bool IsGenericToolDisplayName(string candidate, AgentActivityKind kind)

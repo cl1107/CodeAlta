@@ -6,6 +6,7 @@ using XenoAtom.Logging;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Controls;
 using XenoAtom.Terminal.UI.Geometry;
+using XenoAtom.Terminal.UI.Threading;
 
 internal sealed partial class CodeAltaApp
 {
@@ -70,12 +71,12 @@ internal sealed partial class CodeAltaApp
                 {
                     state.Models.Clear();
                     state.Models.AddRange(models);
-                    state.SelectedModelId = ResolvePreferredModelId(models, state.SelectedModelId);
-                    state.SelectedReasoningEffort = ResolvePreferredReasoningEffort(
+                    state.SelectedModelId = ChatBackendPresentation.ResolvePreferredModelId(models, state.SelectedModelId);
+                    state.SelectedReasoningEffort = ChatBackendPresentation.ResolvePreferredReasoningEffort(
                         FindModel(models, state.SelectedModelId),
                         state.SelectedReasoningEffort);
                     state.Availability = ChatBackendAvailability.Ready;
-                    state.StatusMessage = BuildReadyStatusMessage(state);
+                    state.StatusMessage = ChatBackendPresentation.BuildReadyStatusMessage(state);
                     RefreshView();
                 });
         }
@@ -142,22 +143,22 @@ internal sealed partial class CodeAltaApp
         var root = exception.GetBaseException();
         if (root is FileNotFoundException or DirectoryNotFoundException)
         {
-            return (ChatBackendAvailability.Unsupported, BuildUnsupportedBackendMessage(state, root.Message));
+            return (ChatBackendAvailability.Unsupported, ChatBackendPresentation.BuildUnsupportedBackendMessage(state, root.Message));
         }
 
         if (root is Win32Exception win32Exception && win32Exception.NativeErrorCode == 2)
         {
-            return (ChatBackendAvailability.Unsupported, BuildUnsupportedBackendMessage(state, root.Message));
+            return (ChatBackendAvailability.Unsupported, ChatBackendPresentation.BuildUnsupportedBackendMessage(state, root.Message));
         }
 
         var message = root.Message.Trim();
         if (message.Contains("not found", StringComparison.OrdinalIgnoreCase) ||
             message.Contains("No such file", StringComparison.OrdinalIgnoreCase))
         {
-            return (ChatBackendAvailability.Unsupported, BuildUnsupportedBackendMessage(state, message));
+            return (ChatBackendAvailability.Unsupported, ChatBackendPresentation.BuildUnsupportedBackendMessage(state, message));
         }
 
-        return (ChatBackendAvailability.Failed, BuildFailedBackendMessage(state, message));
+        return (ChatBackendAvailability.Failed, ChatBackendPresentation.BuildFailedBackendMessage(state, message));
     }
 
     internal void TrySchedulePendingStartupThreadRestore(CancellationToken cancellationToken)
@@ -703,7 +704,7 @@ internal sealed partial class CodeAltaApp
                             markdown: hostEvent.Message,
                             tone: ChatTimelineTone.Notice,
                             headerOverride: "Notice",
-                            headerSecondary: GetSessionUpdateHeader(hostEvent.Kind)),
+                            headerSecondary: ChatMarkdownFormatter.GetSessionUpdateHeader(hostEvent.Kind)),
                         "host event");
                 }
 
@@ -728,7 +729,7 @@ internal sealed partial class CodeAltaApp
                     break;
                 }
 
-                if (!ShouldDisplayContentDelta(delta))
+                if (!ChatMarkdownFormatter.ShouldDisplayContentDelta(delta))
                 {
                     break;
                 }
@@ -747,7 +748,7 @@ internal sealed partial class CodeAltaApp
                     break;
                 }
 
-                if (!ShouldDisplayCompletedContent(completed))
+                if (!ChatMarkdownFormatter.ShouldDisplayCompletedContent(completed))
                 {
                     break;
                 }
@@ -766,7 +767,7 @@ internal sealed partial class CodeAltaApp
                     tab.PlanStates,
                     "plan",
                     planEvent.Timestamp,
-                    FormatChatPlanMarkdown(planEvent.Snapshot),
+                    ChatMarkdownFormatter.FormatChatPlanMarkdown(planEvent.Snapshot),
                     ChatTimelineTone.Notice,
                     headerOverride: "Plan");
                 break;
@@ -777,7 +778,7 @@ internal sealed partial class CodeAltaApp
                     break;
                 }
 
-                if (!ShouldDisplayActivity(activity))
+                if (!ChatMarkdownFormatter.ShouldDisplayActivity(activity))
                 {
                     break;
                 }
@@ -787,13 +788,13 @@ internal sealed partial class CodeAltaApp
                     tab.ActivityStates,
                     activity.ActivityId,
                     activity.Timestamp,
-                    FormatChatActivityMarkdown(activity),
+                    ChatMarkdownFormatter.FormatChatActivityMarkdown(activity),
                     ChatTimelineTone.Activity,
-                    headerOverride: GetActivityHeadline(activity.Kind, activity.Phase));
+                    headerOverride: ChatMarkdownFormatter.GetActivityHeadline(activity.Kind, activity.Phase));
                 break;
 
             case AgentRawEvent raw:
-                if (!ShouldDisplayRawEvent(raw))
+                if (!ChatMarkdownFormatter.ShouldDisplayRawEvent(raw))
                 {
                     break;
                 }
@@ -803,13 +804,13 @@ internal sealed partial class CodeAltaApp
                     dictionary: null,
                     key: null,
                     raw.Timestamp,
-                    markdown: FormatChatRawEventMarkdown(raw),
+                    markdown: ChatMarkdownFormatter.FormatChatRawEventMarkdown(raw),
                     tone: ChatTimelineTone.Activity,
                     headerOverride: "Raw Event");
                 break;
 
             case AgentPermissionRequest permissionRequest:
-                if (!ShouldDisplayPermissionRequest(GetAutoApproveEnabled()))
+                if (!ChatMarkdownFormatter.ShouldDisplayPermissionRequest(GetAutoApproveEnabled()))
                 {
                     break;
                 }
@@ -819,7 +820,7 @@ internal sealed partial class CodeAltaApp
                     tab,
                     permissionRequest.InteractionId,
                     permissionRequest.Timestamp,
-                    FormatChatPermissionRequestMarkdown(permissionRequest),
+                    ChatMarkdownFormatter.FormatChatPermissionRequestMarkdown(permissionRequest),
                     null,
                     ChatTimelineTone.Interaction,
                     "Action Required",
@@ -833,7 +834,7 @@ internal sealed partial class CodeAltaApp
                     tab,
                     userInputRequest.InteractionId,
                     userInputRequest.Timestamp,
-                    FormatChatUserInputRequestMarkdown(userInputRequest, autoApproveEnabled),
+                    ChatMarkdownFormatter.FormatChatUserInputRequestMarkdown(userInputRequest, autoApproveEnabled),
                     null,
                     ChatTimelineTone.Interaction,
                     "Action Required",
@@ -841,7 +842,7 @@ internal sealed partial class CodeAltaApp
                 break;
 
             case AgentInteractionEvent interaction:
-                if (!ShouldDisplayInteraction(interaction, GetAutoApproveEnabled()))
+                if (!ChatMarkdownFormatter.ShouldDisplayInteraction(interaction, GetAutoApproveEnabled()))
                 {
                     tab.PermissionRequests.Remove(interaction.InteractionId);
                     tab.UserInputRequests.Remove(interaction.InteractionId);
@@ -853,7 +854,7 @@ internal sealed partial class CodeAltaApp
                     interaction.InteractionId,
                     interaction.Timestamp,
                     null,
-                    FormatChatInteractionResolutionMarkdown(interaction, includeHeading: false),
+                    ChatMarkdownFormatter.FormatChatInteractionResolutionMarkdown(interaction, includeHeading: false),
                     ChatTimelineTone.Interaction);
                 tab.PermissionRequests.Remove(interaction.InteractionId);
                 tab.UserInputRequests.Remove(interaction.InteractionId);
@@ -871,7 +872,7 @@ internal sealed partial class CodeAltaApp
                     break;
                 }
 
-                if (!ShouldDisplaySessionUpdate(update))
+                if (!ChatMarkdownFormatter.ShouldDisplaySessionUpdate(update))
                 {
                     break;
                 }
@@ -881,10 +882,10 @@ internal sealed partial class CodeAltaApp
                     dictionary: null,
                     key: null,
                     update.Timestamp,
-                    markdown: FormatChatSessionUpdateMarkdown(update),
+                    markdown: ChatMarkdownFormatter.FormatChatSessionUpdateMarkdown(update),
                     tone: update.Kind == AgentSessionUpdateKind.Warning ? ChatTimelineTone.Interaction : ChatTimelineTone.Notice,
                     headerOverride: "Notice",
-                    headerSecondary: GetSessionUpdateHeader(update.Kind));
+                    headerSecondary: ChatMarkdownFormatter.GetSessionUpdateHeader(update.Kind));
                 if (!string.IsNullOrWhiteSpace(update.Message))
                 {
                     thread.LatestSummary = SummarizeThreadContent(update.Message);
@@ -982,8 +983,8 @@ internal sealed partial class CodeAltaApp
         {
             switch (@event)
             {
-                case AgentContentDeltaEvent delta when ShouldDisplayContentDelta(delta):
-                    if (contentKeys.Add(CreateChatContentKey(delta.Kind, delta.ContentId)))
+                case AgentContentDeltaEvent delta when ChatMarkdownFormatter.ShouldDisplayContentDelta(delta):
+                    if (contentKeys.Add(ChatTimelineVisualFactory.CreateContentKey(delta.Kind, delta.ContentId)))
                     {
                         count++;
                     }
@@ -991,7 +992,7 @@ internal sealed partial class CodeAltaApp
                     break;
 
                 case AgentContentCompletedEvent completed when ShouldDisplayCompletedHistoryContent(completed):
-                    if (contentKeys.Add(CreateChatContentKey(completed.Kind, completed.ContentId)))
+                    if (contentKeys.Add(ChatTimelineVisualFactory.CreateContentKey(completed.Kind, completed.ContentId)))
                     {
                         count++;
                     }
@@ -1002,11 +1003,11 @@ internal sealed partial class CodeAltaApp
                     count++;
                     break;
 
-                case AgentActivityEvent activity when ShouldDisplayActivity(activity) && activityIds.Add(activity.ActivityId):
+                case AgentActivityEvent activity when ChatMarkdownFormatter.ShouldDisplayActivity(activity) && activityIds.Add(activity.ActivityId):
                     count++;
                     break;
 
-                case AgentRawEvent raw when ShouldDisplayRawEvent(raw):
+                case AgentRawEvent raw when ChatMarkdownFormatter.ShouldDisplayRawEvent(raw):
                     count++;
                     break;
 
@@ -1022,7 +1023,7 @@ internal sealed partial class CodeAltaApp
                     count++;
                     break;
 
-                case AgentSessionUpdateEvent update when update.Kind != AgentSessionUpdateKind.Idle && ShouldDisplaySessionUpdate(update):
+                case AgentSessionUpdateEvent update when update.Kind != AgentSessionUpdateKind.Idle && ChatMarkdownFormatter.ShouldDisplaySessionUpdate(update):
                     count++;
                     break;
 
@@ -1039,7 +1040,7 @@ internal sealed partial class CodeAltaApp
     {
         ArgumentNullException.ThrowIfNull(completed);
 
-        if (!ShouldDisplayCompletedContent(completed))
+        if (!ChatMarkdownFormatter.ShouldDisplayCompletedContent(completed))
         {
             return false;
         }
@@ -1073,11 +1074,15 @@ internal sealed partial class CodeAltaApp
         var state = GetOrCreateThreadContentState(tab, delta.Kind, delta.ContentId, delta.Timestamp);
         state.Buffer.Append(delta.Delta);
         var content = state.Buffer.ToString();
-        var markdown = FormatChatContentMarkdown(delta.Kind, content);
-        var headerSecondary = GetChatContentHeaderSecondary(delta.Kind, content);
+        var markdown = ChatMarkdownFormatter.FormatChatContentMarkdown(delta.Kind, content);
+        var headerSecondary = ChatMarkdownFormatter.GetChatContentHeaderSecondary(delta.Kind, content);
         PostToUi(() =>
         {
-            ApplyChatCardHeader(state.HeaderText, GetContentTone(delta.Kind), GetContentHeader(delta.Kind), headerSecondary);
+            ChatTimelineVisualFactory.ApplyHeader(
+                state.HeaderText,
+                ChatTimelineVisualFactory.GetContentTone(delta.Kind),
+                ChatTimelineVisualFactory.GetContentHeader(delta.Kind),
+                headerSecondary);
             state.Markdown.Markdown = markdown;
             tab.Flow.ScrollToTailIfEnabled(tab.AutoScroll);
         });
@@ -1089,11 +1094,15 @@ internal sealed partial class CodeAltaApp
         var content = ResolveCompletedThreadContent(completed.Content, state.Buffer);
         state.Buffer.Clear();
         state.Buffer.Append(content);
-        var markdown = FormatChatContentMarkdown(completed.Kind, content);
-        var headerSecondary = GetChatContentHeaderSecondary(completed.Kind, content);
+        var markdown = ChatMarkdownFormatter.FormatChatContentMarkdown(completed.Kind, content);
+        var headerSecondary = ChatMarkdownFormatter.GetChatContentHeaderSecondary(completed.Kind, content);
         PostToUi(() =>
         {
-            ApplyChatCardHeader(state.HeaderText, GetContentTone(completed.Kind), GetContentHeader(completed.Kind), headerSecondary);
+            ChatTimelineVisualFactory.ApplyHeader(
+                state.HeaderText,
+                ChatTimelineVisualFactory.GetContentTone(completed.Kind),
+                ChatTimelineVisualFactory.GetContentHeader(completed.Kind),
+                headerSecondary);
             state.Markdown.Markdown = markdown;
             tab.Flow.ScrollToTailIfEnabled(tab.AutoScroll);
         });
@@ -1118,7 +1127,7 @@ internal sealed partial class CodeAltaApp
             return false;
         }
 
-        var key = CreateChatContentKey(completed.Kind, completed.ContentId);
+        var key = ChatTimelineVisualFactory.CreateContentKey(completed.Kind, completed.ContentId);
         if (tab.ContentStates.TryGetValue(key, out var existing))
         {
             return existing.Buffer.Length == 0;
@@ -1129,7 +1138,7 @@ internal sealed partial class CodeAltaApp
 
     private ChatContentState GetOrCreateThreadContentState(ThreadTabState tab, AgentContentKind kind, string contentId, DateTimeOffset timestamp)
     {
-        var key = CreateChatContentKey(kind, contentId);
+        var key = ChatTimelineVisualFactory.CreateContentKey(kind, contentId);
         if (tab.ContentStates.TryGetValue(key, out var existing))
         {
             return existing;
@@ -1138,24 +1147,24 @@ internal sealed partial class CodeAltaApp
         if (kind == AgentContentKind.Assistant && tab.PendingAssistant is { ContentId: null } pending)
         {
             pending.ContentId = contentId;
-            ApplyChatCardTimestamp(pending.TimestampText, timestamp);
+            ChatTimelineVisualFactory.ApplyTimestamp(pending.TimestampText, timestamp);
             tab.PendingAssistant = null;
             var pendingState = new ChatContentState(pending.Item, pending.Markdown, pending.TimestampText, pending.HeaderText, pending.Buffer, kind);
             tab.ContentStates[key] = pendingState;
             return pendingState;
         }
 
-        var entry = CreateChatMarkdownItem(
-            FormatChatContentMarkdown(kind, string.Empty),
-            GetContentTone(kind),
-            headerOverride: GetContentHeader(kind),
-            headerSecondary: GetChatContentHeaderSecondary(kind, string.Empty));
-        ApplyChatCardTimestamp(entry.TimestampText, timestamp);
+        var entry = ChatTimelineVisualFactory.CreateMarkdownItem(
+            ChatMarkdownFormatter.FormatChatContentMarkdown(kind, string.Empty),
+            ChatTimelineVisualFactory.GetContentTone(kind),
+            headerOverride: ChatTimelineVisualFactory.GetContentHeader(kind),
+            headerSecondary: ChatMarkdownFormatter.GetChatContentHeaderSecondary(kind, string.Empty));
+        ChatTimelineVisualFactory.ApplyTimestamp(entry.TimestampText, timestamp);
         var state = new ChatContentState(entry.Item, entry.Markdown, entry.TimestampText, entry.HeaderText, new System.Text.StringBuilder(), kind);
         tab.ContentStates[key] = state;
         if (kind == AgentContentKind.User)
         {
-            foreach (var item in BuildUserPromptTimelineItems(entry.Item, tab.HasSeenUserPrompt))
+            foreach (var item in ChatTimelineVisualFactory.BuildUserPromptTimelineItems(entry.Item, tab.HasSeenUserPrompt))
             {
                 AppendThreadTimelineItem(tab, item);
             }
@@ -1180,11 +1189,11 @@ internal sealed partial class CodeAltaApp
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(omittedMessageCount);
         ArgumentNullException.ThrowIfNull(onLoad);
 
-        return RunOnUiThread(
+        return RunOnCurrentUiThread(
             static state =>
             {
-                var button = new Button(new TextBlock(BuildTruncatedHistoryLoadButtonText(state.omittedMessageCount)))
-                    .Click(CreateDeferredUiAction(state.onLoad));
+                var button = new Button(new TextBlock(ChatTimelineVisualFactory.BuildTruncatedHistoryLoadButtonText(state.omittedMessageCount)))
+                    .Click(ChatTimelineVisualFactory.CreateDeferredUiAction(state.onLoad));
                 var rule = new Rule()
                     .CenterLabel(button);
                 var item = new DocumentFlowItem
@@ -1228,7 +1237,7 @@ internal sealed partial class CodeAltaApp
         PostToUi(
             () =>
             {
-                truncatedHistory.Rule.CenterLabel = new TextBlock(BuildTruncatedHistorySummaryText(truncatedHistory.OmittedMessageCount))
+                truncatedHistory.Rule.CenterLabel = new TextBlock(ChatTimelineVisualFactory.BuildTruncatedHistorySummaryText(truncatedHistory.OmittedMessageCount))
                 {
                     Wrap = false,
                 };
@@ -1285,7 +1294,7 @@ internal sealed partial class CodeAltaApp
         stateEntry.BaseMarkdown = markdown;
         PostToUi(() =>
         {
-            ApplyChatCardTimestamp(stateEntry.TimestampText, timestamp);
+            ChatTimelineVisualFactory.ApplyTimestamp(stateEntry.TimestampText, timestamp);
             stateEntry.Markdown.Markdown = stateEntry.MarkdownValue;
             tab.Flow.ScrollToTailIfEnabled(tab.AutoScroll);
         });
@@ -1320,7 +1329,7 @@ internal sealed partial class CodeAltaApp
 
         PostToUi(() =>
         {
-            ApplyChatCardTimestamp(state.TimestampText, timestamp);
+            ChatTimelineVisualFactory.ApplyTimestamp(state.TimestampText, timestamp);
             state.Markdown.Markdown = state.MarkdownValue;
             tab.Flow.ScrollToTailIfEnabled(tab.AutoScroll);
         });
@@ -1333,8 +1342,8 @@ internal sealed partial class CodeAltaApp
         string? headerOverride = null,
         string? headerSecondary = null)
     {
-        var entry = CreateChatMarkdownItem(markdown, tone, headerOverride, headerSecondary);
-        ApplyChatCardTimestamp(entry.TimestampText, timestamp);
+        var entry = ChatTimelineVisualFactory.CreateMarkdownItem(markdown, tone, headerOverride, headerSecondary);
+        ChatTimelineVisualFactory.ApplyTimestamp(entry.TimestampText, timestamp);
         return new ChatStatusState(entry.Item, entry.Markdown, entry.TimestampText)
         {
             BaseMarkdown = markdown,
@@ -1349,7 +1358,7 @@ internal sealed partial class CodeAltaApp
             return;
         }
 
-        RunOnUiThread(
+        RunOnCurrentUiThread(
             static state =>
             {
                 state.pendingAssistant.Markdown.Markdown = "_No assistant content was returned._";
@@ -1365,11 +1374,11 @@ internal sealed partial class CodeAltaApp
         if (pendingAssistant is not null)
         {
             pendingAssistant.Buffer.Append(message);
-            RunOnUiThread(
+            RunOnCurrentUiThread(
                 static state =>
                 {
                     state.pendingAssistant.Markdown.Markdown = state.message;
-                    ApplyChatCardTimestamp(state.pendingAssistant.TimestampText, state.timestamp);
+                    ChatTimelineVisualFactory.ApplyTimestamp(state.pendingAssistant.TimestampText, state.timestamp);
                     return 0;
                 },
                 (pendingAssistant: pendingAssistant, message, timestamp));
@@ -1377,9 +1386,9 @@ internal sealed partial class CodeAltaApp
             return;
         }
 
-        var entry = CreateChatMarkdownItem(message, ChatTimelineTone.Interaction, headerOverride: "Error");
-        ApplyChatCardTimestamp(entry.TimestampText, timestamp);
-        RunOnUiThread(
+        var entry = ChatTimelineVisualFactory.CreateMarkdownItem(message, ChatTimelineTone.Interaction, headerOverride: "Error");
+        ChatTimelineVisualFactory.ApplyTimestamp(entry.TimestampText, timestamp);
+        RunOnCurrentUiThread(
             static state =>
             {
                 state.tab.Flow.Items.Add(state.entry.Item);
@@ -1394,7 +1403,7 @@ internal sealed partial class CodeAltaApp
         if (pendingAssistant is not null)
         {
             pendingAssistant.Buffer.Append(markdown);
-            RunOnUiThread(
+            RunOnCurrentUiThread(
                 static state =>
                 {
                     state.pendingAssistant.Markdown.Markdown = state.markdown;
@@ -1405,8 +1414,8 @@ internal sealed partial class CodeAltaApp
             return;
         }
 
-        var entry = CreateChatMarkdownItem(markdown, ChatTimelineTone.Interaction, headerOverride: "Error");
-        RunOnUiThread(
+        var entry = ChatTimelineVisualFactory.CreateMarkdownItem(markdown, ChatTimelineTone.Interaction, headerOverride: "Error");
+        RunOnCurrentUiThread(
             static state =>
             {
                 state.tab.Flow.Items.Add(state.entry.Item);
@@ -1445,7 +1454,7 @@ internal sealed partial class CodeAltaApp
             ? new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)
             : new AgentPermissionDecision(AgentPermissionDecisionKind.Deny);
 
-        if (ShouldDisplayPermissionRequest(autoApproveEnabled) && _threadTabs.TryGetValue(threadId, out var tab))
+        if (ChatMarkdownFormatter.ShouldDisplayPermissionRequest(autoApproveEnabled) && _threadTabs.TryGetValue(threadId, out var tab))
         {
             TryRenderThreadInteraction(
                 tab,
@@ -1455,8 +1464,8 @@ internal sealed partial class CodeAltaApp
                         tab,
                         request.InteractionId,
                         request.Timestamp,
-                        FormatChatPermissionRequestMarkdown(request),
-                        FormatChatImmediatePermissionDecisionMarkdown(decision, autoApproveEnabled),
+                        ChatMarkdownFormatter.FormatChatPermissionRequestMarkdown(request),
+                        ChatMarkdownFormatter.FormatChatImmediatePermissionDecisionMarkdown(decision, autoApproveEnabled),
                         ChatTimelineTone.Interaction,
                         "Action Required",
                         "Permission Request");
@@ -1475,7 +1484,7 @@ internal sealed partial class CodeAltaApp
         cancellationToken.ThrowIfCancellationRequested();
 
         var autoApproveEnabled = GetAutoApproveEnabled();
-        var response = CreateChatUserInputResponse(request, autoApproveEnabled);
+        var response = ChatPromptResponseBuilder.CreateResponse(request, autoApproveEnabled);
         if (_threadTabs.TryGetValue(threadId, out var tab))
         {
             TryRenderThreadInteraction(
@@ -1486,8 +1495,8 @@ internal sealed partial class CodeAltaApp
                         tab,
                         request.InteractionId,
                         request.Timestamp,
-                        FormatChatUserInputRequestMarkdown(request, autoApproveEnabled),
-                        FormatChatImmediateUserInputResponseMarkdown(response, autoApproveEnabled),
+                        ChatMarkdownFormatter.FormatChatUserInputRequestMarkdown(request, autoApproveEnabled),
+                        ChatMarkdownFormatter.FormatChatImmediateUserInputResponseMarkdown(response, autoApproveEnabled),
                         ChatTimelineTone.Interaction,
                         "Action Required",
                         "User Input Request");
@@ -1528,11 +1537,11 @@ internal sealed partial class CodeAltaApp
                     return backendState.SelectedModelId;
                 }
 
-                var backendOptions = BuildChatBackendOptions();
+                var backendOptions = ChatBackendPresentation.BuildBackendOptions();
                 if ((uint)_chatBackendSelect.SelectedIndex < (uint)backendOptions.Count &&
                     string.Equals(backendOptions[_chatBackendSelect.SelectedIndex].BackendId.Value, backendId.Value, StringComparison.OrdinalIgnoreCase))
                 {
-                    var modelOptions = BuildChatModelOptions(backendState);
+                    var modelOptions = ChatBackendPresentation.BuildModelOptions(backendState);
                     if ((uint)_chatModelSelect.SelectedIndex < (uint)modelOptions.Count)
                     {
                         return modelOptions[_chatModelSelect.SelectedIndex].ModelId;
@@ -1550,12 +1559,12 @@ internal sealed partial class CodeAltaApp
                     return backendState.SelectedReasoningEffort;
                 }
 
-                var backendOptions = BuildChatBackendOptions();
+                var backendOptions = ChatBackendPresentation.BuildBackendOptions();
                 if ((uint)_chatBackendSelect.SelectedIndex < (uint)backendOptions.Count &&
                     string.Equals(backendOptions[_chatBackendSelect.SelectedIndex].BackendId.Value, backendId.Value, StringComparison.OrdinalIgnoreCase))
                 {
                     var selectedModel = backendState.Models.FirstOrDefault(candidate => string.Equals(candidate.Id, model, StringComparison.Ordinal));
-                    var reasoningOptions = BuildChatReasoningOptions(selectedModel);
+                    var reasoningOptions = ChatBackendPresentation.BuildReasoningOptions(selectedModel);
                     if ((uint)_chatReasoningSelect.SelectedIndex < (uint)reasoningOptions.Count)
                     {
                         return reasoningOptions[_chatReasoningSelect.SelectedIndex].Effort;
@@ -1806,6 +1815,26 @@ internal sealed partial class CodeAltaApp
             .Where(thread => includeInternal || thread.Kind == WorkThreadKind.ProjectThread)
             .OrderByDescending(static thread => thread.LastActiveAt)
             .ToArray();
+    }
+
+    private static T RunOnCurrentUiThread<T>(Func<T> action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+
+        var dispatcher = Dispatcher.Current;
+        return dispatcher.CheckAccess()
+            ? action()
+            : dispatcher.InvokeAsync(action).GetAwaiter().GetResult();
+    }
+
+    private static T RunOnCurrentUiThread<TState, T>(Func<TState, T> action, TState state)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+
+        var dispatcher = Dispatcher.Current;
+        return dispatcher.CheckAccess()
+            ? action(state)
+            : dispatcher.InvokeAsync(() => action(state)).GetAwaiter().GetResult();
     }
 
 }

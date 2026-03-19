@@ -4,6 +4,9 @@ using XenoAtom.Terminal.UI.Styling;
 
 internal sealed partial class CodeAltaApp
 {
+    internal static GroupStyle GetChatGroupStyle(ChatTimelineTone tone)
+        => UiPalette.GetChatGroupStyle(tone);
+
     internal static string GetToolStatusMarkup(ToolCallDisplayStatus status)
         => UiPalette.GetToolStatusMarkup(status);
 

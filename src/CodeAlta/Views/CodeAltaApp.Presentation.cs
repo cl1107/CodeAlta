@@ -328,8 +328,8 @@ internal sealed partial class CodeAltaApp
             var modelSelect = _chatModelSelect!;
             var reasoningSelect = _chatReasoningSelect!;
             var autoScrollCheckBox = _chatAutoScrollCheckBox!;
-            var backendOptions = BuildChatBackendOptions();
-            ReplaceSelectItems(backendSelect, backendOptions);
+            var backendOptions = ChatBackendPresentation.BuildBackendOptions();
+            ChatBackendPresentation.ReplaceSelectItems(backendSelect, backendOptions);
 
             var backendId = preferredBackendId ?? GetPreferredDraftBackendId(backendOptions);
             var backendIndex = Math.Max(0, backendOptions.FindIndex(option => string.Equals(option.BackendId.Value, backendId.Value, StringComparison.OrdinalIgnoreCase)));
@@ -338,8 +338,8 @@ internal sealed partial class CodeAltaApp
 
             var backendState = _chatBackendStates[backendOptions[backendIndex].BackendId.Value];
             ApplyDraftBackendPreference(backendState);
-            var modelOptions = BuildChatModelOptions(backendState);
-            ReplaceSelectItems(modelSelect, modelOptions);
+            var modelOptions = ChatBackendPresentation.BuildModelOptions(backendState);
+            ChatBackendPresentation.ReplaceSelectItems(modelSelect, modelOptions);
             modelSelect.SelectedIndex = Math.Clamp(
                 modelOptions.FindIndex(option => string.Equals(option.ModelId, backendState.SelectedModelId, StringComparison.Ordinal)),
                 0,
@@ -347,9 +347,9 @@ internal sealed partial class CodeAltaApp
             modelSelect.IsEnabled = backendState.Availability == ChatBackendAvailability.Ready;
 
             var selectedModel = backendState.Models.FirstOrDefault(model => string.Equals(model.Id, backendState.SelectedModelId, StringComparison.Ordinal))
-                ?? GetSelectedModel(backendState);
-            var reasoningOptions = BuildChatReasoningOptions(selectedModel);
-            ReplaceSelectItems(reasoningSelect, reasoningOptions);
+                ?? ChatBackendPresentation.GetSelectedModel(backendState);
+            var reasoningOptions = ChatBackendPresentation.BuildReasoningOptions(selectedModel);
+            ChatBackendPresentation.ReplaceSelectItems(reasoningSelect, reasoningOptions);
             reasoningSelect.SelectedIndex = Math.Clamp(
                 reasoningOptions.FindIndex(option => option.Effort == backendState.SelectedReasoningEffort),
                 0,
@@ -358,7 +358,7 @@ internal sealed partial class CodeAltaApp
             autoScrollCheckBox.IsChecked = true;
             autoScrollCheckBox.IsEnabled = false;
 
-            _threadWorkspaceViewModel.BackendStatusMarkup = BuildChatBackendStatusMarkup(_chatBackendStates.Values, backendOptions[backendIndex].BackendId, isInitializing: false);
+            _threadWorkspaceViewModel.BackendStatusMarkup = ChatBackendPresentation.BuildBackendStatusMarkup(_chatBackendStates.Values, backendOptions[backendIndex].BackendId, isInitializing: false);
             _threadWorkspaceViewModel.CanSelectBackend = true;
             _threadWorkspaceViewModel.CanSelectModel = backendState.Availability == ChatBackendAvailability.Ready;
             _threadWorkspaceViewModel.CanSelectReasoning = backendState.Availability == ChatBackendAvailability.Ready;
@@ -400,8 +400,8 @@ internal sealed partial class CodeAltaApp
             var modelSelect = _chatModelSelect!;
             var reasoningSelect = _chatReasoningSelect!;
             var autoScrollCheckBox = _chatAutoScrollCheckBox!;
-            var backendOptions = BuildChatBackendOptions();
-            ReplaceSelectItems(backendSelect, backendOptions);
+            var backendOptions = ChatBackendPresentation.BuildBackendOptions();
+            ChatBackendPresentation.ReplaceSelectItems(backendSelect, backendOptions);
             backendSelect.SelectedIndex = Math.Clamp(
                 backendOptions.FindIndex(option => string.Equals(option.BackendId.Value, tab.BackendId.Value, StringComparison.OrdinalIgnoreCase)),
                 0,
@@ -410,8 +410,8 @@ internal sealed partial class CodeAltaApp
             var backendState = _chatBackendStates[tab.BackendId.Value];
             ApplyThreadPreference(tab);
 
-            var modelOptions = BuildChatModelOptions(backendState);
-            ReplaceSelectItems(modelSelect, modelOptions);
+            var modelOptions = ChatBackendPresentation.BuildModelOptions(backendState);
+            ChatBackendPresentation.ReplaceSelectItems(modelSelect, modelOptions);
             modelSelect.SelectedIndex = Math.Clamp(
                 modelOptions.FindIndex(option => string.Equals(option.ModelId, tab.ModelId ?? backendState.SelectedModelId, StringComparison.Ordinal)),
                 0,
@@ -420,9 +420,9 @@ internal sealed partial class CodeAltaApp
 
             var selectedModel = backendState.Models.FirstOrDefault(model =>
                 string.Equals(model.Id, tab.ModelId, StringComparison.Ordinal))
-                ?? GetSelectedModel(backendState);
-            var reasoningOptions = BuildChatReasoningOptions(selectedModel);
-            ReplaceSelectItems(reasoningSelect, reasoningOptions);
+                ?? ChatBackendPresentation.GetSelectedModel(backendState);
+            var reasoningOptions = ChatBackendPresentation.BuildReasoningOptions(selectedModel);
+            ChatBackendPresentation.ReplaceSelectItems(reasoningSelect, reasoningOptions);
             reasoningSelect.SelectedIndex = Math.Clamp(
                 reasoningOptions.FindIndex(option => option.Effort == tab.ReasoningEffort),
                 0,
@@ -432,7 +432,7 @@ internal sealed partial class CodeAltaApp
             autoScrollCheckBox.IsEnabled = true;
 
             backendSelect.IsEnabled = false;
-            _threadWorkspaceViewModel.BackendStatusMarkup = BuildChatBackendStatusMarkup(_chatBackendStates.Values, tab.BackendId, isInitializing: false);
+            _threadWorkspaceViewModel.BackendStatusMarkup = ChatBackendPresentation.BuildBackendStatusMarkup(_chatBackendStates.Values, tab.BackendId, isInitializing: false);
             _threadWorkspaceViewModel.CanSelectBackend = false;
             _threadWorkspaceViewModel.CanSelectModel = backendState.Availability == ChatBackendAvailability.Ready;
             _threadWorkspaceViewModel.CanSelectReasoning = backendState.Availability == ChatBackendAvailability.Ready;
@@ -451,7 +451,7 @@ internal sealed partial class CodeAltaApp
             return;
         }
 
-        var options = BuildChatBackendOptions();
+        var options = ChatBackendPresentation.BuildBackendOptions();
         if ((uint)newIndex >= (uint)options.Count)
         {
             return;
@@ -486,7 +486,7 @@ internal sealed partial class CodeAltaApp
         {
             var backendId = GetPreferredBackendId();
             var draftBackendState = _chatBackendStates[backendId.Value];
-            var draftOptions = BuildChatModelOptions(draftBackendState);
+            var draftOptions = ChatBackendPresentation.BuildModelOptions(draftBackendState);
             if ((uint)newIndex >= (uint)draftOptions.Count)
             {
                 return;
@@ -494,7 +494,7 @@ internal sealed partial class CodeAltaApp
 
             draftBackendState.SelectedModelId = draftOptions[newIndex].ModelId;
             var preferredModel = FindModel(draftBackendState.Models, draftBackendState.SelectedModelId);
-            draftBackendState.SelectedReasoningEffort = ResolvePreferredReasoningEffort(preferredModel, preferredReasoningEffort: null);
+            draftBackendState.SelectedReasoningEffort = ChatBackendPresentation.ResolvePreferredReasoningEffort(preferredModel, preferredReasoningEffort: null);
             RememberGlobalBackendPreference(backendId, draftBackendState.SelectedModelId, draftBackendState.SelectedReasoningEffort);
             RefreshChatSelectorsForDraftScope(backendId);
             return;
@@ -502,7 +502,7 @@ internal sealed partial class CodeAltaApp
 
         var tab = EnsureThreadTab(thread);
         var backendState = _chatBackendStates[tab.BackendId.Value];
-        var options = BuildChatModelOptions(backendState);
+        var options = ChatBackendPresentation.BuildModelOptions(backendState);
         if ((uint)newIndex >= (uint)options.Count)
         {
             return;
@@ -510,7 +510,7 @@ internal sealed partial class CodeAltaApp
 
         tab.ModelId = options[newIndex].ModelId;
         var selectedModel = FindModel(backendState.Models, tab.ModelId);
-        tab.ReasoningEffort = ResolvePreferredReasoningEffort(selectedModel, preferredReasoningEffort: null);
+        tab.ReasoningEffort = ChatBackendPresentation.ResolvePreferredReasoningEffort(selectedModel, preferredReasoningEffort: null);
         RememberThreadPreference(tab.Thread.ThreadId, tab.ModelId, tab.ReasoningEffort, tab.AutoScroll, persistNow: true);
         backendState.SelectedModelId = tab.ModelId;
         backendState.SelectedReasoningEffort = tab.ReasoningEffort;
@@ -531,7 +531,7 @@ internal sealed partial class CodeAltaApp
             var backendId = GetPreferredBackendId();
             var draftBackendState = _chatBackendStates[backendId.Value];
             var draftSelectedModel = draftBackendState.Models.FirstOrDefault(model => string.Equals(model.Id, draftBackendState.SelectedModelId, StringComparison.Ordinal));
-            var draftOptions = BuildChatReasoningOptions(draftSelectedModel);
+            var draftOptions = ChatBackendPresentation.BuildReasoningOptions(draftSelectedModel);
             if ((uint)newIndex >= (uint)draftOptions.Count)
             {
                 return;
@@ -545,7 +545,7 @@ internal sealed partial class CodeAltaApp
         var tab = EnsureThreadTab(thread);
         var backendState = _chatBackendStates[tab.BackendId.Value];
         var selectedModel = backendState.Models.FirstOrDefault(model => string.Equals(model.Id, tab.ModelId, StringComparison.Ordinal));
-        var options = BuildChatReasoningOptions(selectedModel);
+        var options = ChatBackendPresentation.BuildReasoningOptions(selectedModel);
         if ((uint)newIndex >= (uint)options.Count)
         {
             return;
@@ -586,7 +586,7 @@ internal sealed partial class CodeAltaApp
         return ReadUiValue(
             () =>
             {
-                var options = BuildChatBackendOptions();
+                var options = ChatBackendPresentation.BuildBackendOptions();
                 if (_chatBackendSelect is not null &&
                     (uint)_chatBackendSelect.SelectedIndex < (uint)options.Count)
                 {
@@ -1280,6 +1280,26 @@ internal sealed partial class CodeAltaApp
         return dispatcher.CheckAccess()
             ? action()
             : dispatcher.InvokeAsync(action).GetAwaiter().GetResult();
+    }
+
+    private T RunOnUiThread<T>(Func<T> action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+
+        var dispatcher = GetUiDispatcher();
+        return dispatcher.CheckAccess()
+            ? action()
+            : dispatcher.InvokeAsync(action).GetAwaiter().GetResult();
+    }
+
+    private T RunOnUiThread<TState, T>(Func<TState, T> action, TState state)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+
+        var dispatcher = GetUiDispatcher();
+        return dispatcher.CheckAccess()
+            ? action(state)
+            : dispatcher.InvokeAsync(() => action(state)).GetAwaiter().GetResult();
     }
 
     private IUiDispatcher GetUiDispatcher()

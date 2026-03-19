@@ -470,7 +470,7 @@ internal sealed partial class CodeAltaApp
         stack.Add(new Markup($"[bold]{AnsiMarkup.Escape(quota.Name)}[/]"));
         if (quota.Details is CopilotOpaqueQuotaDetails opaqueQuota)
         {
-            stack.Add(CreateUsageMarkdownControl(FormatChatCodeFence(opaqueQuota.Summary, "text")));
+            stack.Add(CreateUsageMarkdownControl(ChatMarkdownFormatter.FormatCodeFence(opaqueQuota.Summary, "text")));
         }
     }
 

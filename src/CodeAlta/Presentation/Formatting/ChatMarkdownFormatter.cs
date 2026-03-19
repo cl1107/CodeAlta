@@ -2,6 +2,8 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using CodeAlta.Agent;
+using XenoAtom.Terminal.UI;
+
 internal static class ChatMarkdownFormatter
 {
     public static string FormatChatContentMarkdown(AgentContentKind kind, string content)
@@ -97,6 +99,32 @@ internal static class ChatMarkdownFormatter
         return update.Message ?? string.Empty;
     }
 
+    public static string GetSessionUpdateHeader(AgentSessionUpdateKind kind)
+    {
+        return kind switch
+        {
+            AgentSessionUpdateKind.Info => $"{NerdFont.CodInfo} Info",
+            AgentSessionUpdateKind.Warning => $"{NerdFont.CodWarning} Warning",
+            AgentSessionUpdateKind.ModelChanged => $"{NerdFont.MdChat} Model Changed",
+            AgentSessionUpdateKind.ModeChanged => $"{NerdFont.MdCubeOutline} Mode Changed",
+            AgentSessionUpdateKind.TitleChanged => $"{NerdFont.MdRenameBox} Title Changed",
+            AgentSessionUpdateKind.ContextChanged => $"{NerdFont.MdFolder} Context Changed",
+            AgentSessionUpdateKind.PlanUpdated => $"{NerdFont.MdProgressWrench} Plan Updated",
+            AgentSessionUpdateKind.UsageUpdated => $"{NerdFont.MdPacMan} Usage Updated",
+            AgentSessionUpdateKind.CompactionStarted => $"{NerdFont.MdSelectCompare} Compaction Started",
+            AgentSessionUpdateKind.CompactionCompleted => $"{NerdFont.MdShieldPlusOutline} Compaction Completed",
+            AgentSessionUpdateKind.Handoff => $"{NerdFont.MdServerNetwork} Handoff",
+            AgentSessionUpdateKind.Truncated => $"{NerdFont.MdDelete} Session Truncated",
+            AgentSessionUpdateKind.Shutdown => $"{NerdFont.MdClose} Session Shutdown",
+            AgentSessionUpdateKind.TaskCompleted => $"{NerdFont.MdCheck} Task Completed",
+            AgentSessionUpdateKind.DiffUpdated => $"{NerdFont.CodEdit} Diff Updated",
+            AgentSessionUpdateKind.Started => $"{NerdFont.MdTimerOutline} Session Started",
+            AgentSessionUpdateKind.Resumed => $"{NerdFont.MdAccountArrowRight} Session Resumed",
+            AgentSessionUpdateKind.Idle => $"{NerdFont.MdCat} Agent Idle",
+            _ => SplitPascalCase(kind.ToString()),
+        };
+    }
+
     public static string FormatChatPermissionRequestMarkdown(AgentPermissionRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -114,7 +142,7 @@ internal static class ChatMarkdownFormatter
                 {
                     builder.AppendLine()
                         .AppendLine()
-                        .Append(FormatChatCodeFence(command.Command, "shell"));
+                        .Append(FormatCodeFence(command.Command, "shell"));
                 }
 
                 AppendBullet(builder, "Working directory", command.WorkingDirectory, code: true);
@@ -165,7 +193,7 @@ internal static class ChatMarkdownFormatter
 
                 builder.AppendLine()
                     .AppendLine()
-                    .Append(FormatChatCodeFence(generic.Raw.GetRawText(), "json"));
+                    .Append(FormatCodeFence(generic.Raw.GetRawText(), "json"));
                 break;
 
             default:
@@ -327,6 +355,44 @@ internal static class ChatMarkdownFormatter
         }
 
         return builder.ToString();
+    }
+
+    public static string FormatChatInteractionResolutionMarkdown(AgentInteractionEvent interaction, bool includeHeading)
+    {
+        ArgumentNullException.ThrowIfNull(interaction);
+
+        var label = interaction.Kind switch
+        {
+            AgentInteractionKind.PermissionResolved => "Permission Resolved",
+            AgentInteractionKind.UserInputResolved => "User Input Resolved",
+            _ => interaction.Kind.ToString(),
+        };
+        var detailsMarkdown = BuildChatInteractionResolutionDetailsMarkdown(interaction);
+
+        if (!includeHeading)
+        {
+            if (string.IsNullOrWhiteSpace(detailsMarkdown))
+            {
+                return string.IsNullOrWhiteSpace(interaction.Message)
+                    ? "_Status:_ resolved"
+                    : $"_Status:_ {interaction.Message}";
+            }
+
+            return string.IsNullOrWhiteSpace(interaction.Message)
+                ? $"_Status:_ resolved\n\n{detailsMarkdown}"
+                : $"_Status:_ {interaction.Message}\n\n{detailsMarkdown}";
+        }
+
+        if (string.IsNullOrWhiteSpace(interaction.Message))
+        {
+            return string.IsNullOrWhiteSpace(detailsMarkdown)
+                ? $"**{NerdFont.CodArrowRight} {label}**"
+                : $"**{NerdFont.CodArrowRight} {label}**\n\n{detailsMarkdown}";
+        }
+
+        return string.IsNullOrWhiteSpace(detailsMarkdown)
+            ? $"**{NerdFont.CodArrowRight} {label}**\n\n{interaction.Message}"
+            : $"**{NerdFont.CodArrowRight} {label}**\n\n{interaction.Message}\n\n{detailsMarkdown}";
     }
 
     public static string FormatChatImmediatePermissionDecisionMarkdown(AgentPermissionDecision decision, bool autoApprove)
@@ -610,9 +676,9 @@ internal static class ChatMarkdownFormatter
     }
 
     private static string FormatChatOutputMarkdown(string content)
-        => string.IsNullOrWhiteSpace(content) ? string.Empty : FormatChatCodeFence(content, "text");
+        => string.IsNullOrWhiteSpace(content) ? string.Empty : FormatCodeFence(content, "text");
 
-    private static string FormatChatCodeFence(string content, string language)
+    internal static string FormatCodeFence(string content, string language)
     {
         var fence = content.Contains("```", StringComparison.Ordinal) ? "````" : "```";
         return $"{fence}{language}\n{content}\n{fence}";
@@ -670,6 +736,62 @@ internal static class ChatMarkdownFormatter
 
         value = null;
         return false;
+    }
+
+    private static string BuildChatInteractionResolutionDetailsMarkdown(AgentInteractionEvent interaction)
+    {
+        if (interaction.Details is not { } details)
+        {
+            return string.Empty;
+        }
+
+        var builder = new StringBuilder();
+        switch (interaction.Kind)
+        {
+            case AgentInteractionKind.PermissionResolved:
+                if (TryGetStringProperty(details, "decisionKind", out var decisionKind))
+                {
+                    builder.Append("- Decision: ").Append(SplitPascalCase(decisionKind!));
+                }
+                break;
+
+            case AgentInteractionKind.UserInputResolved:
+                if (details.ValueKind == JsonValueKind.Object &&
+                    details.TryGetProperty("answers", out var answers) &&
+                    answers.ValueKind == JsonValueKind.Object)
+                {
+                    var answerLines = new List<string>();
+                    foreach (var answer in answers.EnumerateObject())
+                    {
+                        answerLines.Add(
+                            string.IsNullOrWhiteSpace(answer.Value.GetString())
+                                ? $"- `{answer.Name}`: _empty_"
+                                : $"- `{answer.Name}`: `{answer.Value.GetString()}`");
+                    }
+
+                    if (answerLines.Count == 0)
+                    {
+                        builder.Append("- Answers: _empty_");
+                    }
+                    else
+                    {
+                        builder.Append(string.Join(Environment.NewLine, answerLines));
+                    }
+
+                    if (answerLines.Count > 0 && answerLines.All(static line => line.EndsWith("_empty_", StringComparison.Ordinal)))
+                    {
+                        if (builder.Length > 0)
+                        {
+                            builder.AppendLine();
+                        }
+
+                        builder.Append("- Note: Terminal question prompts are not implemented yet.");
+                    }
+                }
+                break;
+        }
+
+        return builder.ToString();
     }
 
 }

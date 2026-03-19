@@ -676,7 +676,7 @@ internal static class ToolCallSummaryFormatter
         return $"{fence}{language}\n{content}\n{fence}";
     }
 
-    private static string GetActivityKindLabel(AgentActivityKind kind)
+    internal static string GetActivityKindLabel(AgentActivityKind kind)
     {
         return kind switch
         {
@@ -719,7 +719,7 @@ internal static class ToolCallSummaryFormatter
         return builder.ToString();
     }
 
-    private static bool TryGetStringProperty(JsonElement element, string propertyName, out string? value)
+    internal static bool TryGetStringProperty(JsonElement element, string propertyName, out string? value)
     {
         if (element.ValueKind == JsonValueKind.Object &&
             element.TryGetProperty(propertyName, out var property) &&

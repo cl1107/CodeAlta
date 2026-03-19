@@ -62,13 +62,13 @@ internal sealed partial class CodeAltaApp
             ? backendState.SelectedModelId ?? defaults.Model
             : defaults.Model;
 
-        backendState.SelectedModelId = ResolvePreferredModelId(backendState.Models, preferredModelId);
+        backendState.SelectedModelId = ChatBackendPresentation.ResolvePreferredModelId(backendState.Models, preferredModelId);
         var selectedModel = FindModel(backendState.Models, backendState.SelectedModelId);
         var preferredReasoningEffort = preserveCurrentSelection
             ? backendState.SelectedReasoningEffort ?? defaults.ReasoningEffort
             : defaults.ReasoningEffort;
 
-        backendState.SelectedReasoningEffort = ResolvePreferredReasoningEffort(selectedModel, preferredReasoningEffort);
+        backendState.SelectedReasoningEffort = ChatBackendPresentation.ResolvePreferredReasoningEffort(selectedModel, preferredReasoningEffort);
         backendState.DraftScopeKey = scopeKey;
     }
 
@@ -87,12 +87,12 @@ internal sealed partial class CodeAltaApp
             return;
         }
 
-        tab.ModelId = ResolvePreferredModelId(
+        tab.ModelId = ChatBackendPresentation.ResolvePreferredModelId(
             backendState.Models,
             tab.ModelId);
 
         var selectedModel = FindModel(backendState.Models, tab.ModelId);
-        tab.ReasoningEffort = ResolvePreferredReasoningEffort(
+        tab.ReasoningEffort = ChatBackendPresentation.ResolvePreferredReasoningEffort(
             selectedModel,
             tab.ReasoningEffort);
     }
