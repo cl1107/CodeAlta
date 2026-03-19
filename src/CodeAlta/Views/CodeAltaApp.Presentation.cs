@@ -16,7 +16,7 @@ using XenoAtom.Terminal.UI.Styling;
 using XenoAtom.Terminal.UI.Text;
 using XenoAtom.Terminal.UI.Threading;
 
-internal sealed partial class CodeAltaTerminalUi
+internal sealed partial class CodeAltaApp
 {
     private Visual BuildThreadPane()
     {
@@ -925,7 +925,7 @@ internal sealed partial class CodeAltaTerminalUi
 
     private static FigletFont LoadWelcomeFigletFont()
     {
-        using var stream = typeof(CodeAltaTerminalUi).Assembly.GetManifestResourceStream("CodeAlta.Assets.3d.flf");
+        using var stream = typeof(CodeAltaApp).Assembly.GetManifestResourceStream("CodeAlta.Assets.3d.flf");
         if (stream is null)
         {
             throw new InvalidOperationException("Unable to load embedded welcome FIGlet font 'CodeAlta.Assets.3d.flf'.");

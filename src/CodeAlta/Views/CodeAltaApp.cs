@@ -17,7 +17,7 @@ using XenoAtom.Terminal.UI.Styling;
 using XenoAtom.Terminal.UI.Text;
 using XenoAtom.Terminal.UI.Threading;
 
-internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
+internal sealed partial class CodeAltaApp : IAsyncDisposable
 {
     private static readonly Logger UiLogger = LogManager.GetLogger("CodeAlta.UI");
     private static readonly Lazy<FigletFont> WelcomeFigletFont = new(LoadWelcomeFigletFont);
@@ -85,9 +85,9 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
     private string? _pendingStartupThreadRestoreId;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="CodeAltaTerminalUi"/> class.
+    /// Initializes a new instance of the <see cref="CodeAltaApp"/> class.
     /// </summary>
-    public CodeAltaTerminalUi(
+    public CodeAltaApp(
         ProjectCatalog projectCatalog,
         WorkThreadCatalog threadCatalog,
         WorkThreadRuntimeService runtimeService,

@@ -7,7 +7,7 @@ using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Controls;
 using XenoAtom.Terminal.UI.Geometry;
 
-internal sealed partial class CodeAltaTerminalUi
+internal sealed partial class CodeAltaApp
 {
     private async Task LoadCatalogStateAsync(CancellationToken cancellationToken)
     {
@@ -438,7 +438,7 @@ internal sealed partial class CodeAltaTerminalUi
     private Task GetOrStartThreadHistoryLoadTask(
         ThreadTabState tab,
         WorkThreadDescriptor thread,
-        Func<CodeAltaTerminalUi, WorkThreadDescriptor, ThreadTabState, CancellationToken, Task> loadAsync,
+        Func<CodeAltaApp, WorkThreadDescriptor, ThreadTabState, CancellationToken, Task> loadAsync,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(tab);

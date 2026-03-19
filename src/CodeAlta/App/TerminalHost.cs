@@ -90,7 +90,7 @@ internal sealed class TerminalHost : IAsyncDisposable
 
     public async Task RunAsync(CancellationToken cancellationToken)
     {
-        await using var ui = new CodeAltaTerminalUi(
+        await using var ui = new CodeAltaApp(
             _projectCatalog,
             _threadCatalog,
             _runtimeService,

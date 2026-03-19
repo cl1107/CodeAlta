@@ -12,7 +12,7 @@ using XenoAtom.Terminal.UI.Styling;
 using XenoAtom.Terminal.UI.Text;
 using XenoAtom.Terminal.UI.Threading;
 
-internal sealed partial class CodeAltaTerminalUi
+internal sealed partial class CodeAltaApp
 {
     private static void ReplaceSelectItems<T>(Select<T> select, IReadOnlyList<T> items)
     {

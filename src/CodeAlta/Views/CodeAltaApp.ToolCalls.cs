@@ -12,7 +12,7 @@ using XenoAtom.Terminal.UI.Geometry;
 using XenoAtom.Terminal.UI.Input;
 using XenoAtom.Terminal.UI.Styling;
 
-internal sealed partial class CodeAltaTerminalUi
+internal sealed partial class CodeAltaApp
 {
     private const int ToolCallPreviewLimit = 16;
     private const int ToolCallDialogLogCapacity = 20000;

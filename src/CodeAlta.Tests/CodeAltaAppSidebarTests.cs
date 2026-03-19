@@ -10,7 +10,7 @@ using XenoAtom.Terminal.UI.Controls;
 namespace CodeAlta.Tests;
 
 [TestClass]
-public sealed class CodeAltaTerminalUiSidebarTests
+public sealed class CodeAltaAppSidebarTests
 {
     [TestMethod]
     public async Task RefreshView_RebuildsSidebarTreeWhenRecoveredThreadsChange()
@@ -42,7 +42,7 @@ public sealed class CodeAltaTerminalUiSidebarTests
             Directory.CreateDirectory(project.ProjectPath);
             await projectCatalog.SaveAsync(project);
 
-            var ui = new CodeAltaTerminalUi(projectCatalog, threadCatalog, runtimeService, catalogOptions, hub);
+            var ui = new CodeAltaApp(projectCatalog, threadCatalog, runtimeService, catalogOptions, hub);
             var sidebarTree = new TreeView();
             SetPrivateField(ui, "_sidebarTree", sidebarTree);
             SetPrivateField(ui, "_projects", (IReadOnlyList<ProjectDescriptor>)[project]);
@@ -129,7 +129,7 @@ public sealed class CodeAltaTerminalUiSidebarTests
                 LastActiveAt = DateTimeOffset.UtcNow,
             };
 
-            var ui = new CodeAltaTerminalUi(projectCatalog, threadCatalog, runtimeService, catalogOptions, hub);
+            var ui = new CodeAltaApp(projectCatalog, threadCatalog, runtimeService, catalogOptions, hub);
             var sidebarTree = new TreeView();
             SetPrivateField(ui, "_sidebarTree", sidebarTree);
             SetPrivateField(ui, "_projects", (IReadOnlyList<ProjectDescriptor>)[project]);
@@ -184,7 +184,7 @@ public sealed class CodeAltaTerminalUiSidebarTests
             Directory.CreateDirectory(project.ProjectPath);
             await projectCatalog.SaveAsync(project);
 
-            var ui = new CodeAltaTerminalUi(projectCatalog, threadCatalog, runtimeService, catalogOptions, hub);
+            var ui = new CodeAltaApp(projectCatalog, threadCatalog, runtimeService, catalogOptions, hub);
             var sidebarTree = new TreeView();
             SetPrivateField(ui, "_sidebarTree", sidebarTree);
             SetPrivateField(ui, "_projects", (IReadOnlyList<ProjectDescriptor>)[project]);

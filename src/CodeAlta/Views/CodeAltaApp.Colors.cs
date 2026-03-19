@@ -2,7 +2,7 @@ using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Geometry;
 using XenoAtom.Terminal.UI.Styling;
 
-internal sealed partial class CodeAltaTerminalUi
+internal sealed partial class CodeAltaApp
 {
     internal static GradientStop[] BuildWelcomeAltaGradientStops()
     {

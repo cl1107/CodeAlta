@@ -11,29 +11,29 @@ using XenoAtom.Terminal.UI.Controls;
 namespace CodeAlta.Tests;
 
 [TestClass]
-public sealed class CodeAltaTerminalUiTabStripTests
+public sealed class CodeAltaAppTabStripTests
 {
     [TestMethod]
     public void ResolveOpenTabIndicatorKind_PrefersRunningAndMapsTone()
     {
         Assert.AreEqual(
-            CodeAltaTerminalUi.OpenTabIndicatorKind.Running,
-            CodeAltaTerminalUi.ResolveOpenTabIndicatorKind(isBusy: true, CodeAltaTerminalUi.StatusTone.Ready));
+            CodeAltaApp.OpenTabIndicatorKind.Running,
+            CodeAltaApp.ResolveOpenTabIndicatorKind(isBusy: true, CodeAltaApp.StatusTone.Ready));
         Assert.AreEqual(
-            CodeAltaTerminalUi.OpenTabIndicatorKind.Ready,
-            CodeAltaTerminalUi.ResolveOpenTabIndicatorKind(isBusy: false, CodeAltaTerminalUi.StatusTone.Ready));
+            CodeAltaApp.OpenTabIndicatorKind.Ready,
+            CodeAltaApp.ResolveOpenTabIndicatorKind(isBusy: false, CodeAltaApp.StatusTone.Ready));
         Assert.AreEqual(
-            CodeAltaTerminalUi.OpenTabIndicatorKind.Warning,
-            CodeAltaTerminalUi.ResolveOpenTabIndicatorKind(isBusy: false, CodeAltaTerminalUi.StatusTone.Warning));
+            CodeAltaApp.OpenTabIndicatorKind.Warning,
+            CodeAltaApp.ResolveOpenTabIndicatorKind(isBusy: false, CodeAltaApp.StatusTone.Warning));
         Assert.AreEqual(
-            CodeAltaTerminalUi.OpenTabIndicatorKind.Error,
-            CodeAltaTerminalUi.ResolveOpenTabIndicatorKind(isBusy: false, CodeAltaTerminalUi.StatusTone.Error));
+            CodeAltaApp.OpenTabIndicatorKind.Error,
+            CodeAltaApp.ResolveOpenTabIndicatorKind(isBusy: false, CodeAltaApp.StatusTone.Error));
     }
 
     [TestMethod]
     public void CompactTabTitle_DoesNotChangeForSelectionState()
     {
-        var method = typeof(CodeAltaTerminalUi).GetMethod("CompactTabTitle", BindingFlags.Static | BindingFlags.NonPublic);
+        var method = typeof(CodeAltaApp).GetMethod("CompactTabTitle", BindingFlags.Static | BindingFlags.NonPublic);
         Assert.IsNotNull(method);
 
         var title = (string?)method.Invoke(null, ["Review startup"]);
@@ -44,7 +44,7 @@ public sealed class CodeAltaTerminalUiTabStripTests
     [TestMethod]
     public void CreateThreadTabPageContentPlaceholder_ReturnsHiddenDetachedVisual()
     {
-        var method = typeof(CodeAltaTerminalUi).GetMethod("CreateThreadTabPageContentPlaceholder", BindingFlags.Static | BindingFlags.NonPublic);
+        var method = typeof(CodeAltaApp).GetMethod("CreateThreadTabPageContentPlaceholder", BindingFlags.Static | BindingFlags.NonPublic);
         Assert.IsNotNull(method);
 
         var first = (Visual?)method.Invoke(null, null);
@@ -62,10 +62,10 @@ public sealed class CodeAltaTerminalUiTabStripTests
     [TestMethod]
     public void BuildDraftTabTitle_ReflectsScope()
     {
-        Assert.AreEqual("Global draft", CodeAltaTerminalUi.BuildDraftTabTitle(selectedProject: null, globalScopeSelected: true));
+        Assert.AreEqual("Global draft", CodeAltaApp.BuildDraftTabTitle(selectedProject: null, globalScopeSelected: true));
         Assert.AreEqual(
             "CodeAlta draft",
-            CodeAltaTerminalUi.BuildDraftTabTitle(
+            CodeAltaApp.BuildDraftTabTitle(
                 new ProjectDescriptor { DisplayName = "CodeAlta" },
                 globalScopeSelected: false));
     }
@@ -115,7 +115,7 @@ public sealed class CodeAltaTerminalUiTabStripTests
                 LastActiveAt = DateTimeOffset.UtcNow,
             };
 
-            var ui = new CodeAltaTerminalUi(projectCatalog, threadCatalog, runtimeService, catalogOptions, hub);
+            var ui = new CodeAltaApp(projectCatalog, threadCatalog, runtimeService, catalogOptions, hub);
             SetPrivateField(ui, "_projects", (IReadOnlyList<ProjectDescriptor>)[project]);
             SetPrivateField(ui, "_threads", (IReadOnlyList<WorkThreadDescriptor>)[thread]);
             SetPrivateField(ui, "_selectedProjectId", project.Id);
@@ -129,7 +129,7 @@ public sealed class CodeAltaTerminalUiTabStripTests
                     SelectedThreadId = thread.ThreadId,
                 });
 
-            var createTabControlMethod = typeof(CodeAltaTerminalUi).GetMethod("CreateThreadTabControl", BindingFlags.Instance | BindingFlags.NonPublic);
+            var createTabControlMethod = typeof(CodeAltaApp).GetMethod("CreateThreadTabControl", BindingFlags.Instance | BindingFlags.NonPublic);
             Assert.IsNotNull(createTabControlMethod);
             var tabControl = (TabControl?)createTabControlMethod.Invoke(ui, null);
             Assert.IsNotNull(tabControl);

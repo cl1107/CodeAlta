@@ -2,7 +2,7 @@ using CodeAlta.Agent;
 using CodeAlta.Catalog;
 using XenoAtom.Logging;
 
-internal sealed partial class CodeAltaTerminalUi
+internal sealed partial class CodeAltaApp
 {
     private void LoadConfigState()
     {

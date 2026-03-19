@@ -7,7 +7,7 @@ using XenoAtom.Terminal.UI.Extensions.Markdown;
 using XenoAtom.Terminal.UI.Geometry;
 using XenoAtom.Terminal.UI.Styling;
 
-internal sealed partial class CodeAltaTerminalUi
+internal sealed partial class CodeAltaApp
 {
     private const int UsageTooltipMinWidth = 52;
     private const int UsageTooltipMaxWidth = 76;

@@ -16,12 +16,12 @@ using XenoAtom.Terminal.UI.Hosting;
 namespace CodeAlta.Tests;
 
 [TestClass]
-public sealed class CodeAltaTerminalUiTests
+public sealed class CodeAltaAppTests
 {
     [TestMethod]
     public void CreatePendingChatMessage_CreatesStreamingMarkdownSynchronously()
     {
-        var pending = CodeAltaTerminalUi.CreatePendingChatMessage("hello, who are you?");
+        var pending = CodeAltaApp.CreatePendingChatMessage("hello, who are you?");
 
         Assert.IsInstanceOfType<MarkdownControl>(pending.StreamingMarkdown);
         Assert.AreEqual(string.Empty, pending.StreamingMarkdown.Markdown);
@@ -31,7 +31,7 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public async Task CreatePendingChatMessage_CanBeCreatedFromWorkerThread()
     {
-        var pending = await Task.Run(() => CodeAltaTerminalUi.CreatePendingChatMessage("hello"));
+        var pending = await Task.Run(() => CodeAltaApp.CreatePendingChatMessage("hello"));
 
         Assert.IsInstanceOfType<MarkdownControl>(pending.StreamingMarkdown);
         Assert.AreEqual(string.Empty, pending.StreamingMarkdown.Markdown);
@@ -40,7 +40,7 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void CopyButton_CopiesLatestStreamingMarkdown()
     {
-        var pending = CodeAltaTerminalUi.CreatePendingChatMessage("hello");
+        var pending = CodeAltaApp.CreatePendingChatMessage("hello");
         var root = new DocumentFlow();
         root.Items.Add(pending.AssistantItem);
 
@@ -82,10 +82,10 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void BuildUserPromptTimelineItems_OmitsRuleForFirstPromptAndAddsItAfterward()
     {
-        var pending = CodeAltaTerminalUi.CreatePendingChatMessage("hello");
+        var pending = CodeAltaApp.CreatePendingChatMessage("hello");
 
-        var firstItems = CodeAltaTerminalUi.BuildUserPromptTimelineItems(pending.UserItem, hasSeenUserPrompt: false);
-        var laterItems = CodeAltaTerminalUi.BuildUserPromptTimelineItems(pending.UserItem, hasSeenUserPrompt: true);
+        var firstItems = CodeAltaApp.BuildUserPromptTimelineItems(pending.UserItem, hasSeenUserPrompt: false);
+        var laterItems = CodeAltaApp.BuildUserPromptTimelineItems(pending.UserItem, hasSeenUserPrompt: true);
 
         Assert.AreEqual(1, firstItems.Count);
         Assert.AreEqual(2, laterItems.Count);
@@ -103,9 +103,9 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public async Task BuildUserPromptTimelineItems_CanBeCalledFromWorkerThread()
     {
-        var pending = CodeAltaTerminalUi.CreatePendingChatMessage("hello");
+        var pending = CodeAltaApp.CreatePendingChatMessage("hello");
 
-        var items = await Task.Run(() => CodeAltaTerminalUi.BuildUserPromptTimelineItems(pending.UserItem, hasSeenUserPrompt: true));
+        var items = await Task.Run(() => CodeAltaApp.BuildUserPromptTimelineItems(pending.UserItem, hasSeenUserPrompt: true));
 
         Assert.AreEqual(2, items.Count);
         Assert.IsInstanceOfType<FlowDocument>(items[0].Content);
@@ -114,7 +114,7 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void FormatChatContentMarkdown_PrefixesReasoningContent()
     {
-        var markdown = CodeAltaTerminalUi.FormatChatContentMarkdown(AgentContentKind.Reasoning, "Inspecting the project.");
+        var markdown = CodeAltaApp.FormatChatContentMarkdown(AgentContentKind.Reasoning, "Inspecting the project.");
 
         Assert.AreEqual("Inspecting the project.", markdown);
     }
@@ -124,8 +124,8 @@ public sealed class CodeAltaTerminalUiTests
     {
         const string content = "**Planning tool utilization**\n\nI should inspect the repository structure first.";
 
-        var markdown = CodeAltaTerminalUi.FormatChatContentMarkdown(AgentContentKind.Reasoning, content);
-        var headerSecondary = CodeAltaTerminalUi.GetChatContentHeaderSecondary(AgentContentKind.Reasoning, content);
+        var markdown = CodeAltaApp.FormatChatContentMarkdown(AgentContentKind.Reasoning, content);
+        var headerSecondary = CodeAltaApp.GetChatContentHeaderSecondary(AgentContentKind.Reasoning, content);
 
         Assert.AreEqual("I should inspect the repository structure first.", markdown);
         Assert.AreEqual("Planning tool utilization", headerSecondary);
@@ -134,7 +134,7 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void FormatChatPlanMarkdown_RendersExplanationAndStatuses()
     {
-        var markdown = CodeAltaTerminalUi.FormatChatPlanMarkdown(
+        var markdown = CodeAltaApp.FormatChatPlanMarkdown(
             new AgentPlanSnapshot(
                 AgentPlanChangeKind.Updated,
                 "Need to update the terminal timeline.",
@@ -154,7 +154,7 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void FormatChatActivityMarkdown_UsesConciseToolCallPresentation()
     {
-        var markdown = CodeAltaTerminalUi.FormatChatActivityMarkdown(
+        var markdown = CodeAltaApp.FormatChatActivityMarkdown(
             new AgentActivityEvent(
                 AgentBackendIds.Codex,
                 "session-1",
@@ -177,7 +177,7 @@ public sealed class CodeAltaTerminalUiTests
     public void FormatChatActivityMarkdown_CompactsLargeToolOutputs()
     {
         var payload = string.Join('\n', Enumerable.Range(1, 12).Select(static index => $"line {index}"));
-        var markdown = CodeAltaTerminalUi.FormatChatActivityMarkdown(
+        var markdown = CodeAltaApp.FormatChatActivityMarkdown(
             new AgentActivityEvent(
                 AgentBackendIds.Copilot,
                 "session-1",
@@ -205,7 +205,7 @@ public sealed class CodeAltaTerminalUiTests
             }
             """);
 
-        var markdown = CodeAltaTerminalUi.FormatChatActivityMarkdown(
+        var markdown = CodeAltaApp.FormatChatActivityMarkdown(
             new AgentActivityEvent(
                 AgentBackendIds.Codex,
                 "session-1",
@@ -226,7 +226,7 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void ToolCallDetailMarkdown_DoesNotRenderStatusDetail()
     {
-        var method = typeof(CodeAltaTerminalUi).GetMethod("BuildToolCallDetailMarkdown", BindingFlags.Static | BindingFlags.NonPublic);
+        var method = typeof(CodeAltaApp).GetMethod("BuildToolCallDetailMarkdown", BindingFlags.Static | BindingFlags.NonPublic);
         Assert.IsNotNull(method);
 
         var entry = new ToolCallEntryState(
@@ -252,7 +252,7 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void FormatChatSessionUpdateMarkdown_ReturnsMessageOnly()
     {
-        var markdown = CodeAltaTerminalUi.FormatChatSessionUpdateMarkdown(
+        var markdown = CodeAltaApp.FormatChatSessionUpdateMarkdown(
             new AgentSessionUpdateEvent(
                 AgentBackendIds.Codex,
                 "session-1",
@@ -262,7 +262,7 @@ public sealed class CodeAltaTerminalUiTests
                 "13116/128000 tokens"));
 
         Assert.AreEqual("13116/128000 tokens", markdown);
-        StringAssert.Contains(CodeAltaTerminalUi.GetSessionUpdateHeader(AgentSessionUpdateKind.UsageUpdated), "Usage Updated");
+        StringAssert.Contains(CodeAltaApp.GetSessionUpdateHeader(AgentSessionUpdateKind.UsageUpdated), "Usage Updated");
     }
 
     [TestMethod]
@@ -278,14 +278,14 @@ public sealed class CodeAltaTerminalUiTests
             MarkdownBody = "# CodeAlta",
         };
 
-        var globalHeader = CodeAltaTerminalUi.BuildHeaderText(
+        var globalHeader = CodeAltaApp.BuildHeaderText(
             thread: null,
             selectedProject: null,
             globalRoot: @"C:\Users\alexa\.codealta",
             preferredBackendId: AgentBackendIds.Codex.Value,
             globalScopeSelected: true);
 
-        var projectHeader = CodeAltaTerminalUi.BuildHeaderText(
+        var projectHeader = CodeAltaApp.BuildHeaderText(
             thread: null,
             selectedProject: project,
             globalRoot: @"C:\Users\alexa\.codealta",
@@ -299,8 +299,8 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void BuildDraftPromptMessage_ReflectsSelectedScope()
     {
-        Assert.AreEqual("Send the first prompt to start a global thread.", CodeAltaTerminalUi.BuildDraftPromptMessage(globalScopeSelected: true));
-        Assert.AreEqual("Send the first prompt to start a thread for the selected project.", CodeAltaTerminalUi.BuildDraftPromptMessage(globalScopeSelected: false));
+        Assert.AreEqual("Send the first prompt to start a global thread.", CodeAltaApp.BuildDraftPromptMessage(globalScopeSelected: true));
+        Assert.AreEqual("Send the first prompt to start a thread for the selected project.", CodeAltaApp.BuildDraftPromptMessage(globalScopeSelected: false));
     }
 
     [TestMethod]
@@ -311,9 +311,9 @@ public sealed class CodeAltaTerminalUiTests
             DisplayName = "CodeAlta",
         };
 
-        Assert.AreEqual("Global workspace ready for a new thread.", CodeAltaTerminalUi.BuildWelcomeSubtitle(null, globalScopeSelected: true));
-        Assert.AreEqual("Project draft selected. Choose a project or start typing below.", CodeAltaTerminalUi.BuildWelcomeSubtitle(null, globalScopeSelected: false));
-        Assert.AreEqual("Next thread will start in CodeAlta.", CodeAltaTerminalUi.BuildWelcomeSubtitle(project, globalScopeSelected: false));
+        Assert.AreEqual("Global workspace ready for a new thread.", CodeAltaApp.BuildWelcomeSubtitle(null, globalScopeSelected: true));
+        Assert.AreEqual("Project draft selected. Choose a project or start typing below.", CodeAltaApp.BuildWelcomeSubtitle(null, globalScopeSelected: false));
+        Assert.AreEqual("Next thread will start in CodeAlta.", CodeAltaApp.BuildWelcomeSubtitle(project, globalScopeSelected: false));
     }
 
     [TestMethod]
@@ -331,7 +331,7 @@ public sealed class CodeAltaTerminalUiTests
                 "Pick a project in the sidebar before sending if you want repository context.",
                 "Reopen any thread tab to continue previous work.",
             },
-            CodeAltaTerminalUi.BuildWelcomeGuidanceLines(null, globalScopeSelected: true).ToArray());
+            CodeAltaApp.BuildWelcomeGuidanceLines(null, globalScopeSelected: true).ToArray());
 
         CollectionAssert.AreEqual(
             new[]
@@ -340,14 +340,14 @@ public sealed class CodeAltaTerminalUiTests
                 "Switch projects in the sidebar before sending if you want a different scope.",
                 "Reopen any thread tab to continue previous work.",
             },
-            CodeAltaTerminalUi.BuildWelcomeGuidanceLines(project, globalScopeSelected: false).ToArray());
+            CodeAltaApp.BuildWelcomeGuidanceLines(project, globalScopeSelected: false).ToArray());
     }
 
     [TestMethod]
     public void GetWelcomeFigletFont_LoadsEmbeddedAssetAndCachesInstance()
     {
-        var first = CodeAltaTerminalUi.GetWelcomeFigletFont();
-        var second = CodeAltaTerminalUi.GetWelcomeFigletFont();
+        var first = CodeAltaApp.GetWelcomeFigletFont();
+        var second = CodeAltaApp.GetWelcomeFigletFont();
         var lines = first.RenderLines("CodeAlta", new FigletRenderOptions { LetterSpacing = 1, TrimTrailingSpaces = true });
 
         Assert.AreSame(first, second);
@@ -358,7 +358,7 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void BuildWelcomeAltaGradientStops_UseMatchingEdgeColors()
     {
-        var stops = CodeAltaTerminalUi.BuildWelcomeAltaGradientStops();
+        var stops = CodeAltaApp.BuildWelcomeAltaGradientStops();
 
         Assert.AreEqual(11, stops.Length);
         Assert.AreEqual(0.00f, stops[0].Offset);
@@ -373,9 +373,9 @@ public sealed class CodeAltaTerminalUiTests
     {
         const long cycleTicks = TimeSpan.TicksPerSecond * 5L;
 
-        var start = CodeAltaTerminalUi.ComputeLoopAnimationPhase(0, cycleTicks);
-        var midpoint = CodeAltaTerminalUi.ComputeLoopAnimationPhase(cycleTicks / 2, cycleTicks);
-        var end = CodeAltaTerminalUi.ComputeLoopAnimationPhase(cycleTicks, cycleTicks);
+        var start = CodeAltaApp.ComputeLoopAnimationPhase(0, cycleTicks);
+        var midpoint = CodeAltaApp.ComputeLoopAnimationPhase(cycleTicks / 2, cycleTicks);
+        var end = CodeAltaApp.ComputeLoopAnimationPhase(cycleTicks, cycleTicks);
 
         Assert.AreEqual(0f, start, 0.0001f);
         Assert.AreEqual(0.5f, midpoint, 0.0001f);
@@ -385,7 +385,7 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void BuildThinkingGradientStops_UseMultipleHighlightsAndLoopableEdges()
     {
-        var stops = CodeAltaTerminalUi.BuildThinkingGradientStops();
+        var stops = CodeAltaApp.BuildThinkingGradientStops();
 
         Assert.AreEqual(9, stops.Length);
         Assert.AreEqual(0.00f, stops[0].Offset);
@@ -407,7 +407,7 @@ public sealed class CodeAltaTerminalUiTests
             new AgentContentCompletedEvent(AgentBackendIds.Copilot, "session-1", timestamp, null, AgentContentKind.Assistant, "assistant-2", null, "Second reply"),
         ];
 
-        var plan = CodeAltaTerminalUi.CreateInitialThreadHistoryLoadPlan(history);
+        var plan = CodeAltaApp.CreateInitialThreadHistoryLoadPlan(history);
 
         Assert.AreEqual(3, plan.EventsToRender.Count);
         Assert.AreSame(history[3], plan.EventsToRender[0]);
@@ -417,16 +417,16 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void BuildTruncatedHistoryTexts_UseHelpfulPluralization()
     {
-        Assert.AreEqual("Load 1 previous message", CodeAltaTerminalUi.BuildTruncatedHistoryLoadButtonText(1));
-        Assert.AreEqual("Load 12 previous messages", CodeAltaTerminalUi.BuildTruncatedHistoryLoadButtonText(12));
-        Assert.AreEqual("1 previous message...", CodeAltaTerminalUi.BuildTruncatedHistorySummaryText(1));
-        Assert.AreEqual("12 previous messages...", CodeAltaTerminalUi.BuildTruncatedHistorySummaryText(12));
+        Assert.AreEqual("Load 1 previous message", CodeAltaApp.BuildTruncatedHistoryLoadButtonText(1));
+        Assert.AreEqual("Load 12 previous messages", CodeAltaApp.BuildTruncatedHistoryLoadButtonText(12));
+        Assert.AreEqual("1 previous message...", CodeAltaApp.BuildTruncatedHistorySummaryText(1));
+        Assert.AreEqual("12 previous messages...", CodeAltaApp.BuildTruncatedHistorySummaryText(12));
     }
 
     [TestMethod]
     public async Task CreateTruncatedHistoryState_CanBeCreatedFromWorkerThread()
     {
-        var state = await Task.Run(() => CodeAltaTerminalUi.CreateTruncatedHistoryState(3, static () => { }));
+        var state = await Task.Run(() => CodeAltaApp.CreateTruncatedHistoryState(3, static () => { }));
 
         Assert.IsNotNull(state);
         Assert.IsInstanceOfType<Rule>(state.Rule);
@@ -449,7 +449,7 @@ public sealed class CodeAltaTerminalUiTests
             });
 
         var invocationCount = 0;
-        var action = CodeAltaTerminalUi.CreateDeferredUiAction(() => invocationCount++);
+        var action = CodeAltaApp.CreateDeferredUiAction(() => invocationCount++);
 
         InvokeTerminalApp(app, "BeginRun");
         try
@@ -469,11 +469,11 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void BuildInitialThreadHistoryItems_PrependsTruncatedHistoryBeforeFirstLoadedPrompt()
     {
-        var pending = CodeAltaTerminalUi.CreatePendingChatMessage("hello");
-        var followup = CodeAltaTerminalUi.CreatePendingChatMessage("assistant");
-        var truncatedHistory = CodeAltaTerminalUi.CreateTruncatedHistoryState(3, static () => { });
+        var pending = CodeAltaApp.CreatePendingChatMessage("hello");
+        var followup = CodeAltaApp.CreatePendingChatMessage("assistant");
+        var truncatedHistory = CodeAltaApp.CreateTruncatedHistoryState(3, static () => { });
 
-        var items = CodeAltaTerminalUi.BuildInitialThreadHistoryItems(
+        var items = CodeAltaApp.BuildInitialThreadHistoryItems(
             [pending.UserItem, followup.AssistantItem],
             truncatedHistory.Item);
 
@@ -486,10 +486,10 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void BuildInitialThreadHistoryItems_LeavesRenderedItemsUnchangedWhenNoMarkerExists()
     {
-        var pending = CodeAltaTerminalUi.CreatePendingChatMessage("hello");
-        var followup = CodeAltaTerminalUi.CreatePendingChatMessage("assistant");
+        var pending = CodeAltaApp.CreatePendingChatMessage("hello");
+        var followup = CodeAltaApp.CreatePendingChatMessage("assistant");
 
-        var items = CodeAltaTerminalUi.BuildInitialThreadHistoryItems(
+        var items = CodeAltaApp.BuildInitialThreadHistoryItems(
             [pending.UserItem, followup.AssistantItem],
             truncatedHistoryItem: null);
 
@@ -501,7 +501,7 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void BuildWelcomePane_CreatesCenteredFigletLogo()
     {
-        var welcome = CodeAltaTerminalUi.BuildWelcomePane(null, globalScopeSelected: true);
+        var welcome = CodeAltaApp.BuildWelcomePane(null, globalScopeSelected: true);
 
         var center = Assert.IsInstanceOfType<Center>(welcome);
         var stack = Assert.IsInstanceOfType<VStack>(center.Content);
@@ -519,7 +519,7 @@ public sealed class CodeAltaTerminalUiTests
         var timestamp = DateTimeOffset.UtcNow;
 
         Assert.IsTrue(
-            CodeAltaTerminalUi.ShouldPromoteAgentEventToThinking(
+            CodeAltaApp.ShouldPromoteAgentEventToThinking(
                 new AgentContentDeltaEvent(
                     AgentBackendIds.Copilot,
                     "session-1",
@@ -531,7 +531,7 @@ public sealed class CodeAltaTerminalUiTests
                     "Inspecting reconnect state...")));
 
         Assert.IsTrue(
-            CodeAltaTerminalUi.ShouldPromoteAgentEventToThinking(
+            CodeAltaApp.ShouldPromoteAgentEventToThinking(
                 new AgentActivityEvent(
                     AgentBackendIds.Copilot,
                     "session-1",
@@ -545,7 +545,7 @@ public sealed class CodeAltaTerminalUiTests
                     "Searching...")));
 
         Assert.IsFalse(
-            CodeAltaTerminalUi.ShouldPromoteAgentEventToThinking(
+            CodeAltaApp.ShouldPromoteAgentEventToThinking(
                 new AgentSessionUpdateEvent(
                     AgentBackendIds.Copilot,
                     "session-1",
@@ -555,7 +555,7 @@ public sealed class CodeAltaTerminalUiTests
                     "Idle")));
 
         Assert.IsFalse(
-            CodeAltaTerminalUi.ShouldPromoteAgentEventToThinking(
+            CodeAltaApp.ShouldPromoteAgentEventToThinking(
                 new AgentErrorEvent(
                     AgentBackendIds.Copilot,
                     "session-1",
@@ -589,9 +589,9 @@ public sealed class CodeAltaTerminalUiTests
             LastActiveAt = DateTimeOffset.UtcNow,
         };
 
-        Assert.AreEqual("Prompt ready", CodeAltaTerminalUi.BuildReadyStatusText(null, null, globalScopeSelected: true));
-        Assert.AreEqual("Prompt ready", CodeAltaTerminalUi.BuildReadyStatusText(null, project, globalScopeSelected: false));
-        Assert.AreEqual("Prompt ready", CodeAltaTerminalUi.BuildReadyStatusText(thread, project, globalScopeSelected: false));
+        Assert.AreEqual("Prompt ready", CodeAltaApp.BuildReadyStatusText(null, null, globalScopeSelected: true));
+        Assert.AreEqual("Prompt ready", CodeAltaApp.BuildReadyStatusText(null, project, globalScopeSelected: false));
+        Assert.AreEqual("Prompt ready", CodeAltaApp.BuildReadyStatusText(thread, project, globalScopeSelected: false));
     }
 
     [TestMethod]
@@ -614,10 +614,10 @@ public sealed class CodeAltaTerminalUiTests
 
         Assert.AreEqual(
             "Waiting for Codex to reconnect...",
-            CodeAltaTerminalUi.BuildPromptUnavailablePlaceholder(thread, "Codex", ChatBackendAvailability.Connecting, anyBackendReady: false));
+            CodeAltaApp.BuildPromptUnavailablePlaceholder(thread, "Codex", ChatBackendAvailability.Connecting, anyBackendReady: false));
         Assert.AreEqual(
             "Install or connect Codex/Copilot to start a thread...",
-            CodeAltaTerminalUi.BuildPromptUnavailablePlaceholder(null, "Codex", ChatBackendAvailability.Unsupported, anyBackendReady: false));
+            CodeAltaApp.BuildPromptUnavailablePlaceholder(null, "Codex", ChatBackendAvailability.Unsupported, anyBackendReady: false));
     }
 
     [TestMethod]
@@ -640,10 +640,10 @@ public sealed class CodeAltaTerminalUiTests
 
         Assert.AreEqual(
             "Reconnecting 'Review startup' to Codex. Prompt sending is temporarily unavailable.",
-            CodeAltaTerminalUi.BuildPromptUnavailableStatusText(thread, "Codex", ChatBackendAvailability.Connecting, anyBackendReady: false));
+            CodeAltaApp.BuildPromptUnavailableStatusText(thread, "Codex", ChatBackendAvailability.Connecting, anyBackendReady: false));
         Assert.AreEqual(
             "No chat backend is connected. Browse threads and projects, but prompt sending is unavailable.",
-            CodeAltaTerminalUi.BuildPromptUnavailableStatusText(null, "Codex", ChatBackendAvailability.Unsupported, anyBackendReady: false));
+            CodeAltaApp.BuildPromptUnavailableStatusText(null, "Codex", ChatBackendAvailability.Unsupported, anyBackendReady: false));
     }
 
     [TestMethod]
@@ -651,7 +651,7 @@ public sealed class CodeAltaTerminalUiTests
     {
         var backendState = new ChatBackendState(AgentBackendIds.Codex, "Codex");
 
-        var result = CodeAltaTerminalUi.ClassifyBackendInitializationFailure(
+        var result = CodeAltaApp.ClassifyBackendInitializationFailure(
             backendState,
             new FileNotFoundException("codex executable was not found"));
 
@@ -662,10 +662,10 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void BuildStatusIconMarkup_ReturnsColoredIconsPerTone()
     {
-        StringAssert.Contains(CodeAltaTerminalUi.BuildStatusIconMarkup(CodeAltaTerminalUi.StatusTone.Ready), NerdFont.MdCheckCircleOutline.ToString());
-        StringAssert.Contains(CodeAltaTerminalUi.BuildStatusIconMarkup(CodeAltaTerminalUi.StatusTone.Warning), NerdFont.MdAlertOutline.ToString());
-        StringAssert.Contains(CodeAltaTerminalUi.BuildStatusIconMarkup(CodeAltaTerminalUi.StatusTone.Error), NerdFont.MdAlertCircleOutline.ToString());
-        StringAssert.Contains(CodeAltaTerminalUi.BuildStatusIconMarkup(CodeAltaTerminalUi.StatusTone.Info), NerdFont.OctInfo.ToString());
+        StringAssert.Contains(CodeAltaApp.BuildStatusIconMarkup(CodeAltaApp.StatusTone.Ready), NerdFont.MdCheckCircleOutline.ToString());
+        StringAssert.Contains(CodeAltaApp.BuildStatusIconMarkup(CodeAltaApp.StatusTone.Warning), NerdFont.MdAlertOutline.ToString());
+        StringAssert.Contains(CodeAltaApp.BuildStatusIconMarkup(CodeAltaApp.StatusTone.Error), NerdFont.MdAlertCircleOutline.ToString());
+        StringAssert.Contains(CodeAltaApp.BuildStatusIconMarkup(CodeAltaApp.StatusTone.Info), NerdFont.OctInfo.ToString());
     }
 
     [TestMethod]
@@ -687,13 +687,13 @@ public sealed class CodeAltaTerminalUiTests
             StartedAt = null,
         };
 
-        Assert.IsTrue(CodeAltaTerminalUi.CanLoadThreadHistory(recoverableThread));
+        Assert.IsTrue(CodeAltaApp.CanLoadThreadHistory(recoverableThread));
     }
 
     [TestMethod]
     public void TryInferCopilotToolName_InfersReadAndGlobFromCompletionPayload()
     {
-        var method = typeof(CodeAltaTerminalUi).GetMethod("TryInferCopilotToolName", BindingFlags.Static | BindingFlags.NonPublic);
+        var method = typeof(CodeAltaApp).GetMethod("TryInferCopilotToolName", BindingFlags.Static | BindingFlags.NonPublic);
         Assert.IsNotNull(method);
 
         using var globJson = JsonDocument.Parse(
@@ -728,7 +728,7 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void PreferToolDisplayName_KeepsExplicitCopilotStartNameWhenCompletionIsGeneric()
     {
-        var method = typeof(CodeAltaTerminalUi).GetMethod("PreferToolDisplayName", BindingFlags.Static | BindingFlags.NonPublic);
+        var method = typeof(CodeAltaApp).GetMethod("PreferToolDisplayName", BindingFlags.Static | BindingFlags.NonPublic);
         Assert.IsNotNull(method);
 
         using var completionJson = JsonDocument.Parse(
@@ -762,7 +762,7 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void ResolveToolArgumentText_FormatsCopilotArgumentsObject()
     {
-        var method = typeof(CodeAltaTerminalUi).GetMethod("ResolveToolArgumentText", BindingFlags.Static | BindingFlags.NonPublic);
+        var method = typeof(CodeAltaApp).GetMethod("ResolveToolArgumentText", BindingFlags.Static | BindingFlags.NonPublic);
         Assert.IsNotNull(method);
 
         using var detailsJson = JsonDocument.Parse(
@@ -800,7 +800,7 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void ResolveToolCommandText_UsesStructuredCodexFunctionArguments()
     {
-        var method = typeof(CodeAltaTerminalUi).GetMethod("ResolveToolCommandText", BindingFlags.Static | BindingFlags.NonPublic);
+        var method = typeof(CodeAltaApp).GetMethod("ResolveToolCommandText", BindingFlags.Static | BindingFlags.NonPublic);
         Assert.IsNotNull(method);
 
         using var detailsJson = JsonDocument.Parse(
@@ -836,7 +836,7 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void ResolveToolDisplayName_UsesCodexShellCommandVerb()
     {
-        var method = typeof(CodeAltaTerminalUi)
+        var method = typeof(CodeAltaApp)
             .GetMethods(BindingFlags.Static | BindingFlags.NonPublic)
             .Single(m => m.Name == "ResolveToolDisplayName" &&
                          m.GetParameters().Length == 1 &&
@@ -876,7 +876,7 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void ExtractCommandDisplayName_PreservesMeaningfulDotnetSubcommand()
     {
-        var method = typeof(CodeAltaTerminalUi).GetMethod("ExtractCommandDisplayName", BindingFlags.Static | BindingFlags.NonPublic);
+        var method = typeof(CodeAltaApp).GetMethod("ExtractCommandDisplayName", BindingFlags.Static | BindingFlags.NonPublic);
         Assert.IsNotNull(method);
 
         var displayName = (string?)method.Invoke(null, ["dotnet test CodeAlta.Tests/CodeAlta.Tests.csproj -c Release"]);
@@ -887,7 +887,7 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void ExtractCommandDisplayName_PreservesMeaningfulGitSubcommand()
     {
-        var method = typeof(CodeAltaTerminalUi).GetMethod("ExtractCommandDisplayName", BindingFlags.Static | BindingFlags.NonPublic);
+        var method = typeof(CodeAltaApp).GetMethod("ExtractCommandDisplayName", BindingFlags.Static | BindingFlags.NonPublic);
         Assert.IsNotNull(method);
 
         var displayName = (string?)method.Invoke(null, ["git status --short"]);
@@ -898,7 +898,7 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void ExtractCommandDisplayName_SkipsFlagsForSecondLevelGitCommand()
     {
-        var method = typeof(CodeAltaTerminalUi).GetMethod("ExtractCommandDisplayName", BindingFlags.Static | BindingFlags.NonPublic);
+        var method = typeof(CodeAltaApp).GetMethod("ExtractCommandDisplayName", BindingFlags.Static | BindingFlags.NonPublic);
         Assert.IsNotNull(method);
 
         var displayName = (string?)method.Invoke(null, ["git remote -v"]);
@@ -909,7 +909,7 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void ExtractCommandDisplayName_DoesNotTreatFlagsOrPathsAsSubcommands()
     {
-        var method = typeof(CodeAltaTerminalUi).GetMethod("ExtractCommandDisplayName", BindingFlags.Static | BindingFlags.NonPublic);
+        var method = typeof(CodeAltaApp).GetMethod("ExtractCommandDisplayName", BindingFlags.Static | BindingFlags.NonPublic);
         Assert.IsNotNull(method);
 
         var listDisplayName = (string?)method.Invoke(null, ["ls -al"]);
@@ -922,7 +922,7 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void BuildToolCallSummaryMarkup_OmitsRawJsonArgumentPreview()
     {
-        var method = typeof(CodeAltaTerminalUi).GetMethod("BuildToolCallSummaryMarkup", BindingFlags.Static | BindingFlags.NonPublic);
+        var method = typeof(CodeAltaApp).GetMethod("BuildToolCallSummaryMarkup", BindingFlags.Static | BindingFlags.NonPublic);
         Assert.IsNotNull(method);
 
         var entry = new ToolCallEntryState(
@@ -952,7 +952,7 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void FormatChatContentMarkdown_SanitizesInlineImagePayloads()
     {
-        var markdown = CodeAltaTerminalUi.FormatChatContentMarkdown(
+        var markdown = CodeAltaApp.FormatChatContentMarkdown(
             AgentContentKind.User,
             $"Please inspect this.{Environment.NewLine}<image>{Environment.NewLine}data:image/png;base64,AAAA");
 
@@ -965,7 +965,7 @@ public sealed class CodeAltaTerminalUiTests
     {
         var timestamp = new DateTimeOffset(2026, 03, 12, 14, 5, 6, TimeSpan.FromHours(1));
 
-        var text = CodeAltaTerminalUi.FormatChatCardTimestamp(timestamp);
+        var text = CodeAltaApp.FormatChatCardTimestamp(timestamp);
 
         Assert.AreEqual("2026-03-12 14:05:06", text);
     }
@@ -976,7 +976,7 @@ public sealed class CodeAltaTerminalUiTests
         var timestamp = new DateTimeOffset(2026, 03, 12, 14, 5, 6, TimeSpan.FromHours(1));
         var markup = new Markup();
 
-        await Task.Run(() => CodeAltaTerminalUi.ApplyChatCardTimestamp(markup, timestamp));
+        await Task.Run(() => CodeAltaApp.ApplyChatCardTimestamp(markup, timestamp));
 
         Assert.AreEqual("[dim]2026-03-12 14:05:06[/]", markup.Text);
     }
@@ -986,7 +986,7 @@ public sealed class CodeAltaTerminalUiTests
     {
         var buffer = new System.Text.StringBuilder("Streaming assistant reply");
 
-        var content = CodeAltaTerminalUi.ResolveCompletedThreadContent(string.Empty, buffer);
+        var content = CodeAltaApp.ResolveCompletedThreadContent(string.Empty, buffer);
 
         Assert.AreEqual("Streaming assistant reply", content);
     }
@@ -996,7 +996,7 @@ public sealed class CodeAltaTerminalUiTests
     {
         var buffer = new System.Text.StringBuilder("Older delta text");
 
-        var content = CodeAltaTerminalUi.ResolveCompletedThreadContent("Final assistant reply", buffer);
+        var content = CodeAltaApp.ResolveCompletedThreadContent("Final assistant reply", buffer);
 
         Assert.AreEqual("Final assistant reply", content);
     }
@@ -1004,19 +1004,19 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void ShouldRunInlineOnCurrentThread_AllowsBootstrapThreadBeforeTerminalStarts()
     {
-        Assert.IsTrue(CodeAltaTerminalUi.ShouldRunInlineOnCurrentThread(
+        Assert.IsTrue(CodeAltaApp.ShouldRunInlineOnCurrentThread(
             dispatcherHasAccess: false,
             terminalLoopStarted: false));
 
-        Assert.IsTrue(CodeAltaTerminalUi.ShouldRunInlineOnCurrentThread(
+        Assert.IsTrue(CodeAltaApp.ShouldRunInlineOnCurrentThread(
             dispatcherHasAccess: true,
             terminalLoopStarted: false));
 
-        Assert.IsTrue(CodeAltaTerminalUi.ShouldRunInlineOnCurrentThread(
+        Assert.IsTrue(CodeAltaApp.ShouldRunInlineOnCurrentThread(
             dispatcherHasAccess: true,
             terminalLoopStarted: true));
 
-        Assert.IsFalse(CodeAltaTerminalUi.ShouldRunInlineOnCurrentThread(
+        Assert.IsFalse(CodeAltaApp.ShouldRunInlineOnCurrentThread(
             dispatcherHasAccess: false,
             terminalLoopStarted: true));
     }
@@ -1024,7 +1024,7 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void CompactSidebarThreadTitle_TrimsLongTitlesToSingleLineLength()
     {
-        var compact = CodeAltaTerminalUi.CompactSidebarThreadTitle("The lunet-build action in this repository is used like this:");
+        var compact = CodeAltaApp.CompactSidebarThreadTitle("The lunet-build action in this repository is used like this:");
 
         Assert.AreEqual("The lunet-build action in this re…", compact);
         Assert.IsFalse(compact.Contains('\n'));
@@ -1049,7 +1049,7 @@ public sealed class CodeAltaTerminalUiTests
             LastActiveAt = DateTimeOffset.UtcNow,
         };
 
-        var tooltip = CodeAltaTerminalUi.BuildThreadSidebarTooltip(thread);
+        var tooltip = CodeAltaApp.BuildThreadSidebarTooltip(thread);
 
         StringAssert.Contains(tooltip, "Review Tomlyn update");
         StringAssert.Contains(tooltip, "Check the parser changes and resulting tests.");
@@ -1073,7 +1073,7 @@ public sealed class CodeAltaTerminalUiTests
             LastActiveAt = DateTimeOffset.UtcNow,
         };
 
-        var selection = CodeAltaTerminalUi.ResolveInitialSelection(
+        var selection = CodeAltaApp.ResolveInitialSelection(
             new WorkThreadViewState
             {
                 OpenThreadIds = ["thread-1"],
@@ -1089,7 +1089,7 @@ public sealed class CodeAltaTerminalUiTests
     public void FormatChatRawEventMarkdown_RendersBackendEventTypeAndPayload()
     {
         using var payloadJson = JsonDocument.Parse("""{"kind":"shell","toolCallId":"call-1"}""");
-        var markdown = CodeAltaTerminalUi.FormatChatRawEventMarkdown(
+        var markdown = CodeAltaApp.FormatChatRawEventMarkdown(
             new AgentRawEvent(
                 AgentBackendIds.Copilot,
                 "session-1",
@@ -1140,9 +1140,9 @@ public sealed class CodeAltaTerminalUiTests
             "view",
             "Done");
 
-        Assert.IsFalse(CodeAltaTerminalUi.ShouldDisplayActivity(turn));
-        Assert.IsFalse(CodeAltaTerminalUi.ShouldDisplayActivity(toolStart));
-        Assert.IsFalse(CodeAltaTerminalUi.ShouldDisplayActivity(toolCompleted));
+        Assert.IsFalse(CodeAltaApp.ShouldDisplayActivity(turn));
+        Assert.IsFalse(CodeAltaApp.ShouldDisplayActivity(toolStart));
+        Assert.IsFalse(CodeAltaApp.ShouldDisplayActivity(toolCompleted));
     }
 
     [TestMethod]
@@ -1171,8 +1171,8 @@ public sealed class CodeAltaTerminalUiTests
             null,
             "Compaction completed.");
 
-        Assert.IsFalse(CodeAltaTerminalUi.ShouldDisplayActivity(subagent));
-        Assert.IsTrue(CodeAltaTerminalUi.ShouldDisplayActivity(compaction));
+        Assert.IsFalse(CodeAltaApp.ShouldDisplayActivity(subagent));
+        Assert.IsTrue(CodeAltaApp.ShouldDisplayActivity(compaction));
     }
 
     [TestMethod]
@@ -1186,7 +1186,7 @@ public sealed class CodeAltaTerminalUiTests
             "tool.started",
             payloadJson.RootElement.Clone());
 
-        Assert.IsFalse(CodeAltaTerminalUi.ShouldDisplayRawEvent(raw));
+        Assert.IsFalse(CodeAltaApp.ShouldDisplayRawEvent(raw));
     }
 
     [TestMethod]
@@ -1221,17 +1221,17 @@ public sealed class CodeAltaTerminalUiTests
             AgentSessionUpdateKind.UsageUpdated,
             "token usage");
 
-        Assert.IsFalse(CodeAltaTerminalUi.ShouldDisplaySessionUpdate(copilotUsage));
-        Assert.IsFalse(CodeAltaTerminalUi.ShouldDisplaySessionUpdate(copilotResumed));
-        Assert.IsTrue(CodeAltaTerminalUi.ShouldDisplaySessionUpdate(copilotWarning));
-        Assert.IsFalse(CodeAltaTerminalUi.ShouldDisplaySessionUpdate(codexUsage));
+        Assert.IsFalse(CodeAltaApp.ShouldDisplaySessionUpdate(copilotUsage));
+        Assert.IsFalse(CodeAltaApp.ShouldDisplaySessionUpdate(copilotResumed));
+        Assert.IsTrue(CodeAltaApp.ShouldDisplaySessionUpdate(copilotWarning));
+        Assert.IsFalse(CodeAltaApp.ShouldDisplaySessionUpdate(codexUsage));
     }
 
     [TestMethod]
     public void ShouldDisplayPermissionRequest_HidesAutoApprovedPermissions()
     {
-        Assert.IsFalse(CodeAltaTerminalUi.ShouldDisplayPermissionRequest(autoApproveEnabled: true));
-        Assert.IsTrue(CodeAltaTerminalUi.ShouldDisplayPermissionRequest(autoApproveEnabled: false));
+        Assert.IsFalse(CodeAltaApp.ShouldDisplayPermissionRequest(autoApproveEnabled: true));
+        Assert.IsTrue(CodeAltaApp.ShouldDisplayPermissionRequest(autoApproveEnabled: false));
     }
 
     [TestMethod]
@@ -1254,15 +1254,15 @@ public sealed class CodeAltaTerminalUiTests
             "interaction-2",
             "Input resolved.");
 
-        Assert.IsFalse(CodeAltaTerminalUi.ShouldDisplayInteraction(permissionResolved, autoApproveEnabled: true));
-        Assert.IsTrue(CodeAltaTerminalUi.ShouldDisplayInteraction(permissionResolved, autoApproveEnabled: false));
-        Assert.IsTrue(CodeAltaTerminalUi.ShouldDisplayInteraction(userInputResolved, autoApproveEnabled: true));
+        Assert.IsFalse(CodeAltaApp.ShouldDisplayInteraction(permissionResolved, autoApproveEnabled: true));
+        Assert.IsTrue(CodeAltaApp.ShouldDisplayInteraction(permissionResolved, autoApproveEnabled: false));
+        Assert.IsTrue(CodeAltaApp.ShouldDisplayInteraction(userInputResolved, autoApproveEnabled: true));
     }
 
     [TestMethod]
     public void FormatChatPermissionRequestMarkdown_RendersTypedAndGenericDetails()
     {
-        var typedMarkdown = CodeAltaTerminalUi.FormatChatPermissionRequestMarkdown(
+        var typedMarkdown = CodeAltaApp.FormatChatPermissionRequestMarkdown(
             new AgentCommandPermissionRequest(
                 AgentBackendIds.Codex,
                 "session-1",
@@ -1285,7 +1285,7 @@ public sealed class CodeAltaTerminalUiTests
         StringAssert.Contains(typedMarkdown, "https://api.github.com");
 
         using var rawJson = JsonDocument.Parse("""{"toolName":"search_workspace"}""");
-        var genericMarkdown = CodeAltaTerminalUi.FormatChatPermissionRequestMarkdown(
+        var genericMarkdown = CodeAltaApp.FormatChatPermissionRequestMarkdown(
             new AgentGenericPermissionRequest(
                 AgentBackendIds.Copilot,
                 "session-2",
@@ -1302,7 +1302,7 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void FormatChatUserInputRequestMarkdown_ByDefault_DescribesCodeAltaAutoAnswering()
     {
-        var markdown = CodeAltaTerminalUi.FormatChatUserInputRequestMarkdown(
+        var markdown = CodeAltaApp.FormatChatUserInputRequestMarkdown(
             new AgentUserInputRequest(
                 AgentBackendIds.Copilot,
                 "session-1",
@@ -1333,7 +1333,7 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void FormatChatUserInputRequestMarkdown_WhenAutoApproveDisabled_DescribesImplementationGap()
     {
-        var markdown = CodeAltaTerminalUi.FormatChatUserInputRequestMarkdown(
+        var markdown = CodeAltaApp.FormatChatUserInputRequestMarkdown(
             new AgentUserInputRequest(
                 AgentBackendIds.Copilot,
                 "session-1",
@@ -1356,7 +1356,7 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void CreateChatUserInputResponse_WhenAutoApproveEnabled_SelectsDefaultAnswers()
     {
-        var response = CodeAltaTerminalUi.CreateChatUserInputResponse(
+        var response = CodeAltaApp.CreateChatUserInputResponse(
             new AgentUserInputRequest(
                 AgentBackendIds.Copilot,
                 "session-1",
@@ -1390,7 +1390,7 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void CreateChatUserInputResponse_WhenChoicesIncludePositiveAndNegativeOptions_PrefersProceeding()
     {
-        var response = CodeAltaTerminalUi.CreateChatUserInputResponse(
+        var response = CodeAltaApp.CreateChatUserInputResponse(
             new AgentUserInputRequest(
                 AgentBackendIds.Copilot,
                 "session-1",
@@ -1418,7 +1418,7 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void CreateChatUserInputResponse_WhenAutoApproveDisabled_ReturnsEmptyAnswers()
     {
-        var response = CodeAltaTerminalUi.CreateChatUserInputResponse(
+        var response = CodeAltaApp.CreateChatUserInputResponse(
             new AgentUserInputRequest(
                 AgentBackendIds.Copilot,
                 "session-1",
@@ -1442,7 +1442,7 @@ public sealed class CodeAltaTerminalUiTests
     public void FormatChatInteractionResolutionMarkdown_CanProduceFooter()
     {
         using var detailsJson = JsonDocument.Parse("""{"decisionKind":"AllowOnce"}""");
-        var markdown = CodeAltaTerminalUi.FormatChatInteractionResolutionMarkdown(
+        var markdown = CodeAltaApp.FormatChatInteractionResolutionMarkdown(
             new AgentInteractionEvent(
                 AgentBackendIds.Copilot,
                 "session-1",
@@ -1461,7 +1461,7 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void FormatChatImmediatePermissionDecisionMarkdown_ShowsCodeAltaResponse()
     {
-        var markdown = CodeAltaTerminalUi.FormatChatImmediatePermissionDecisionMarkdown(
+        var markdown = CodeAltaApp.FormatChatImmediatePermissionDecisionMarkdown(
             new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce),
             autoApprove: true);
 
@@ -1472,7 +1472,7 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void FormatChatImmediateUserInputResponseMarkdown_ShowsReturnedAnswer()
     {
-        var markdown = CodeAltaTerminalUi.FormatChatImmediateUserInputResponseMarkdown(
+        var markdown = CodeAltaApp.FormatChatImmediateUserInputResponseMarkdown(
             new AgentUserInputResponse(
                 new Dictionary<string, string>(StringComparer.Ordinal)
                 {
@@ -1489,7 +1489,7 @@ public sealed class CodeAltaTerminalUiTests
     public void FormatChatInteractionResolutionMarkdown_NotesBlankUserInputAnswers()
     {
         using var detailsJson = JsonDocument.Parse("""{"answerCount":1,"answers":{"answer":""}}""");
-        var markdown = CodeAltaTerminalUi.FormatChatInteractionResolutionMarkdown(
+        var markdown = CodeAltaApp.FormatChatInteractionResolutionMarkdown(
             new AgentInteractionEvent(
                 AgentBackendIds.Copilot,
                 "session-1",
@@ -1510,7 +1510,7 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void BuildChatReasoningOptions_UsesSupportedEffortsOnly()
     {
-        var options = CodeAltaTerminalUi.BuildChatReasoningOptions(
+        var options = CodeAltaApp.BuildChatReasoningOptions(
             new AgentModelInfo(
                 "model-a",
                 SupportedReasoningEfforts: [AgentReasoningEffort.Minimal, AgentReasoningEffort.High]));
@@ -1523,7 +1523,7 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void ResolvePreferredReasoningEffort_PrefersHighWhenSupportedAndNoPreferenceIsSet()
     {
-        var effort = CodeAltaTerminalUi.ResolvePreferredReasoningEffort(
+        var effort = CodeAltaApp.ResolvePreferredReasoningEffort(
             new AgentModelInfo(
                 "gpt-5.4",
                 DefaultReasoningEffort: AgentReasoningEffort.Medium,
@@ -1536,7 +1536,7 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void ResolvePreferredReasoningEffort_PreservesRequestedEffortWhenSupported()
     {
-        var effort = CodeAltaTerminalUi.ResolvePreferredReasoningEffort(
+        var effort = CodeAltaApp.ResolvePreferredReasoningEffort(
             new AgentModelInfo(
                 "gpt-5.4",
                 DefaultReasoningEffort: AgentReasoningEffort.High,
@@ -1555,7 +1555,7 @@ public sealed class CodeAltaTerminalUiTests
             new("gpt-5-mini"),
         ];
 
-        var selectedModelId = CodeAltaTerminalUi.ResolvePreferredModelId(models, "missing-model");
+        var selectedModelId = CodeAltaApp.ResolvePreferredModelId(models, "missing-model");
 
         Assert.AreEqual("gpt-5.4", selectedModelId);
     }
@@ -1573,7 +1573,7 @@ public sealed class CodeAltaTerminalUiTests
             null,
             string.Empty);
 
-        Assert.IsFalse(CodeAltaTerminalUi.ShouldDisplayCompletedContent(completed));
+        Assert.IsFalse(CodeAltaApp.ShouldDisplayCompletedContent(completed));
     }
 
     [TestMethod]
@@ -1589,7 +1589,7 @@ public sealed class CodeAltaTerminalUiTests
             null,
             "Exit code: 0");
 
-        Assert.IsFalse(CodeAltaTerminalUi.ShouldDisplayCompletedContent(completed));
+        Assert.IsFalse(CodeAltaApp.ShouldDisplayCompletedContent(completed));
     }
 
     [TestMethod]
@@ -1605,7 +1605,7 @@ public sealed class CodeAltaTerminalUiTests
             null,
             "partial output");
 
-        Assert.IsFalse(CodeAltaTerminalUi.ShouldDisplayContentDelta(delta));
+        Assert.IsFalse(CodeAltaApp.ShouldDisplayContentDelta(delta));
     }
 
     [TestMethod]
@@ -1625,7 +1625,7 @@ public sealed class CodeAltaTerminalUiTests
             },
         };
 
-        var markup = CodeAltaTerminalUi.BuildChatBackendStatusMarkup(states, AgentBackendIds.Codex, isInitializing: false);
+        var markup = CodeAltaApp.BuildChatBackendStatusMarkup(states, AgentBackendIds.Codex, isInitializing: false);
 
         StringAssert.Contains(markup, "Codex");
         StringAssert.Contains(markup, "Copilot");
@@ -1648,8 +1648,8 @@ public sealed class CodeAltaTerminalUiTests
                 Source: AgentUsageSource.CopilotSessionUsageInfo,
                 UpdatedAt: DateTimeOffset.Parse("2026-03-18T21:00:00+00:00"));
 
-            var indicator = CodeAltaTerminalUi.BuildSessionUsageIndicatorMarkup(usage);
-            var summary = CodeAltaTerminalUi.FormatSessionUsageSummary(usage);
+            var indicator = CodeAltaApp.BuildSessionUsageIndicatorMarkup(usage);
+            var summary = CodeAltaApp.FormatSessionUsageSummary(usage);
 
             Assert.AreEqual("[dim]Context[/] [success]42%[/]", indicator);
             Assert.AreEqual("50,000 / 120,000 tokens (41.7%)", summary);
@@ -1674,8 +1674,8 @@ public sealed class CodeAltaTerminalUiTests
                 TotalUsage: new CodexTokenUsage(32809344, 35409515, 161773, 67166, 35571288),
                 ModelContextWindow: 258400));
 
-        var indicator = CodeAltaTerminalUi.BuildSessionUsageIndicatorMarkup(usage);
-        var summary = CodeAltaTerminalUi.FormatSessionUsageSummary(usage);
+        var indicator = CodeAltaApp.BuildSessionUsageIndicatorMarkup(usage);
+        var summary = CodeAltaApp.FormatSessionUsageSummary(usage);
 
         Assert.AreEqual("[dim]Context[/] [success]16%[/]", indicator);
         Assert.AreEqual("40,473 / 258,400 tokens (15.7%)", summary);
@@ -1700,8 +1700,8 @@ public sealed class CodeAltaTerminalUiTests
                 TotalUsage: new CodexTokenUsage(31249920, 33493301, 148132, 61352, 33641433),
                 ModelContextWindow: 258400));
 
-        var indicator = CodeAltaTerminalUi.BuildSessionUsageIndicatorMarkup(usage);
-        var markdown = CodeAltaTerminalUi.BuildSessionUsageMarkdown(usage, "Codex", "gpt-5.4");
+        var indicator = CodeAltaApp.BuildSessionUsageIndicatorMarkup(usage);
+        var markdown = CodeAltaApp.BuildSessionUsageMarkdown(usage, "Codex", "gpt-5.4");
 
         Assert.AreEqual("[dim]Context[/] [warning]78%[/]", indicator);
         StringAssert.Contains(markdown, "Window: 200,535 / 258,400 tokens (77.6%)");
@@ -1717,7 +1717,7 @@ public sealed class CodeAltaTerminalUiTests
             Source: AgentUsageSource.CopilotSessionUsageInfo,
             UpdatedAt: DateTimeOffset.Parse("2026-03-19T08:00:00+00:00"));
 
-        var indicator = CodeAltaTerminalUi.BuildSessionUsageIndicatorMarkup(usage);
+        var indicator = CodeAltaApp.BuildSessionUsageIndicatorMarkup(usage);
 
         Assert.AreEqual("[dim]Context[/] [error]95%[/]", indicator);
     }
@@ -1756,7 +1756,7 @@ public sealed class CodeAltaTerminalUiTests
                     new CodexRateLimitWindow(61, null, 60),
                     null)));
 
-        var merged = CodeAltaTerminalUi.MergeSessionUsage(current, incoming);
+        var merged = CodeAltaApp.MergeSessionUsage(current, incoming);
 
         Assert.AreEqual(4096L, merged.CurrentTokens);
         Assert.AreEqual(128000L, merged.TokenLimit);
@@ -1799,7 +1799,7 @@ public sealed class CodeAltaTerminalUiTests
                         new CopilotRequestQuotaDetails(EntitlementRequests: 1500, UsedRequests: 477)),
                 ]));
 
-        var merged = CodeAltaTerminalUi.MergeSessionUsage(current, incoming);
+        var merged = CodeAltaApp.MergeSessionUsage(current, incoming);
 
         Assert.AreEqual(12345L, merged.CurrentTokens);
         Assert.AreEqual(200000L, merged.TokenLimit);
@@ -1822,7 +1822,7 @@ public sealed class CodeAltaTerminalUiTests
             CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("fr-FR");
             CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("fr-FR");
 
-            var markdown = CodeAltaTerminalUi.BuildSessionUsageMarkdown(
+            var markdown = CodeAltaApp.BuildSessionUsageMarkdown(
                 new AgentSessionUsage(
                     Window: new AgentWindowUsageSnapshot(50000, 120000, 12, "Active context window"),
                     LastOperation: new AgentOperationUsageSnapshot(
@@ -1871,7 +1871,7 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void BuildSessionUsageMarkdown_CopilotQuotaSnapshotsUseTypedSummaries()
     {
-        var markdown = CodeAltaTerminalUi.BuildSessionUsageMarkdown(
+        var markdown = CodeAltaApp.BuildSessionUsageMarkdown(
             new AgentSessionUsage(
                 Window: new AgentWindowUsageSnapshot(49652, 272000, 54, "Active context window"),
                 LastOperation: new AgentOperationUsageSnapshot(
@@ -1922,7 +1922,7 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void FormatOperationPopupText_UsesMetadataOnlyWhenChartExists()
     {
-        var popupText = CodeAltaTerminalUi.FormatOperationPopupText(
+        var popupText = CodeAltaApp.FormatOperationPopupText(
             new AgentOperationUsageSnapshot(
                 Model: "gpt-5.4",
                 ReasoningEffort: "high",
@@ -1940,7 +1940,7 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void FormatOperationPopupText_OmitsCodexTokenSummaryWhenChartExists()
     {
-        var popupText = CodeAltaTerminalUi.FormatOperationPopupText(
+        var popupText = CodeAltaApp.FormatOperationPopupText(
             new AgentOperationUsageSnapshot(
                 InputTokens: 103252,
                 OutputTokens: 234,
@@ -1954,7 +1954,7 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void ResolveChatBackendSelection_CanPreserveCurrentSelection()
     {
-        var selected = CodeAltaTerminalUi.ResolveChatBackendSelection(
+        var selected = CodeAltaApp.ResolveChatBackendSelection(
             AgentBackendIds.Copilot,
             AgentBackendIds.Codex,
             adoptRequestedBackend: false);
@@ -2029,8 +2029,8 @@ public sealed class CodeAltaTerminalUiTests
             },
         ];
 
-        var filteredWithoutInternal = CodeAltaTerminalUi.FilterThreadsForProject(threads, project1, includeInternal: false);
-        var filteredWithInternal = CodeAltaTerminalUi.FilterThreadsForProject(threads, project1, includeInternal: true);
+        var filteredWithoutInternal = CodeAltaApp.FilterThreadsForProject(threads, project1, includeInternal: false);
+        var filteredWithInternal = CodeAltaApp.FilterThreadsForProject(threads, project1, includeInternal: true);
 
         CollectionAssert.AreEqual(new[] { "thread-a" }, filteredWithoutInternal.Select(static thread => thread.ThreadId).ToArray());
         CollectionAssert.AreEqual(new[] { "thread-b", "thread-a" }, filteredWithInternal.Select(static thread => thread.ThreadId).ToArray());
@@ -2051,7 +2051,7 @@ public sealed class CodeAltaTerminalUiTests
             },
         ];
 
-        var globalSummary = CodeAltaTerminalUi.BuildThreadScopeSummary(
+        var globalSummary = CodeAltaApp.BuildThreadScopeSummary(
             new WorkThreadDescriptor
             {
                 ThreadId = "global",
@@ -2068,7 +2068,7 @@ public sealed class CodeAltaTerminalUiTests
             projects,
             @"C:\Users\alexa\.codealta");
 
-        var projectSummary = CodeAltaTerminalUi.BuildThreadScopeSummary(
+        var projectSummary = CodeAltaApp.BuildThreadScopeSummary(
             new WorkThreadDescriptor
             {
                 ThreadId = "project",
@@ -2086,7 +2086,7 @@ public sealed class CodeAltaTerminalUiTests
             projects,
             @"C:\Users\alexa\.codealta");
 
-        var internalSummary = CodeAltaTerminalUi.BuildThreadScopeSummary(
+        var internalSummary = CodeAltaApp.BuildThreadScopeSummary(
             new WorkThreadDescriptor
             {
                 ThreadId = "internal",
@@ -2112,17 +2112,17 @@ public sealed class CodeAltaTerminalUiTests
     [TestMethod]
     public void ResolveSidebarThreadAccent_UsesCopilotAccentForCopilotThreads()
     {
-        var accent = CodeAltaTerminalUi.ResolveSidebarThreadAccent(AgentBackendIds.Copilot.Value, WorkThreadKind.ProjectThread);
+        var accent = CodeAltaApp.ResolveSidebarThreadAccent(AgentBackendIds.Copilot.Value, WorkThreadKind.ProjectThread);
 
-        Assert.AreEqual(CodeAltaTerminalUi.SidebarAccent.CopilotThread, accent);
+        Assert.AreEqual(CodeAltaApp.SidebarAccent.CopilotThread, accent);
     }
 
     [TestMethod]
     public void ResolveSidebarThreadAccent_UsesKindAccentForCodexThreads()
     {
-        var accent = CodeAltaTerminalUi.ResolveSidebarThreadAccent(AgentBackendIds.Codex.Value, WorkThreadKind.ProjectThread);
+        var accent = CodeAltaApp.ResolveSidebarThreadAccent(AgentBackendIds.Codex.Value, WorkThreadKind.ProjectThread);
 
-        Assert.AreEqual(CodeAltaTerminalUi.SidebarAccent.ProjectThread, accent);
+        Assert.AreEqual(CodeAltaApp.SidebarAccent.ProjectThread, accent);
     }
 
     [TestMethod]
