@@ -7,18 +7,18 @@ This is the implementation checklist for the lighter post-refactor cleanup pass.
 ## Phase 1: Add typed collaboration contexts
 
 - [x] Add a small app-owned context area such as `src/CodeAlta/App/Context/` or `src/CodeAlta/App/State/`.
-- [ ] Introduce typed collaborators for the highest-traffic app interactions instead of passing raw callback lists everywhere.
+- [x] Introduce typed collaborators for the highest-traffic app interactions instead of passing raw callback lists everywhere.
 - [x] Prefer a few focused internal facades or context objects over many tiny interfaces.
 - [x] Keep the initial scope narrow: only cover the dependencies actually needed by the callback-heavy coordinators.
-- [ ] Do not change behavior in this phase.
+- [x] Do not change behavior in this phase.
 
 ## Phase 2: Refactor the callback-heavy coordinators
 
-- [ ] Update `ThreadCommandCoordinator` to consume typed contexts instead of its current long callback constructor.
+- [x] Update `ThreadCommandCoordinator` to consume typed contexts instead of its current long callback constructor.
 - [x] Update `ShellWorkspaceCoordinator` to consume typed contexts instead of its current long callback constructor.
 - [x] Update `ChatSelectorCoordinator` to consume typed contexts instead of its current long callback constructor.
 - [x] Update `ThreadTabStripCoordinator` to consume typed contexts instead of its current long callback constructor.
-- [ ] Keep each coordinator migration self-contained and behavior-preserving.
+- [x] Keep each coordinator migration self-contained and behavior-preserving.
 
 ## Phase 3: Shrink the `CodeAltaApp` relay surface
 

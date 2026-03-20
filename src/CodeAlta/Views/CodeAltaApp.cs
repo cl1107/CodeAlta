@@ -205,6 +205,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             () => ChatModelSelect,
             () => ChatReasoningSelect,
             () => ChatAutoScrollCheckBox,
+            () => ThreadInput,
             GetUiDispatcher,
             VerifyBindableAccess);
         _chatPreferenceContext = new ChatPreferenceContext(
@@ -297,34 +298,22 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             _runtimeService,
             _catalogOptions,
             _chatBackendStates,
-            GetUiDispatcher,
-            () => ThreadInput,
-            () => ChatBackendSelect,
-            () => ChatModelSelect,
-            () => ChatReasoningSelect,
-            GetSelectedThread,
-            GetSelectedProject,
-            projectId => GetProjectById(projectId),
-            EnsureThreadTab,
-            threadId => _threadStateCoordinator.FindOpenThread(threadId),
-            EnsureThreadHistoryLoadedAsync,
-            () => _globalScopeSelected,
-            () => _selectedProjectId,
-            GetPreferredBackendId,
-            () => TrySetPromptUnavailableStatus(),
-            () => _threadCreationCoordinator.CreateGlobalThreadAsync(),
-            () => _threadCreationCoordinator.CreateProjectThreadAsync(),
-            RegisterDelegatedThread,
-            PersistViewStateAsync,
-            GetAutoApproveEnabled,
-            RememberThreadPreference,
-            SetReadyStatusForCurrentSelection,
-            ClearThreadInput,
-            RefreshHeaderAndThreadWorkspace,
-            RefreshCatalogAndThreadWorkspace,
-            SetStatus,
-            (tab, message, showSpinner, tone) => SetThreadStatus(tab, message, showSpinner, tone),
-            _threadRuntimeEventCoordinator.TryRenderInteraction);
+            _threadSelectionContext,
+            _chatSelectorUiContext,
+            _chatPreferenceContext,
+            new ThreadCommandContext(
+                TrySetPromptUnavailableStatus,
+                () => _threadCreationCoordinator.CreateGlobalThreadAsync(),
+                () => _threadCreationCoordinator.CreateProjectThreadAsync(),
+                PersistViewStateAsync,
+                () => DefaultAutoApproveEnabled,
+                SetReadyStatusForCurrentSelection,
+                ClearThreadInput,
+                RefreshHeaderAndThreadWorkspace,
+                RefreshCatalogAndThreadWorkspace,
+                SetStatus,
+                (tab, message, showSpinner, tone) => SetThreadStatus(tab, message, showSpinner, tone),
+                _threadRuntimeEventCoordinator.TryRenderInteraction));
         _threadHistoryCoordinator = new ThreadHistoryCoordinator(
             _runtimeService,
             EnsureThreadTab,
@@ -755,9 +744,6 @@ internal sealed class CodeAltaApp : IAsyncDisposable
     private async Task RegisterCreatedThreadAsync(WorkThreadDescriptor thread)
         => await _threadStateCoordinator.RegisterCreatedThreadAsync(thread).ConfigureAwait(false);
 
-    private OpenThreadState RegisterDelegatedThread(WorkThreadDescriptor child, OpenThreadState sourceTab)
-        => _threadStateCoordinator.RegisterDelegatedThread(child, sourceTab);
-
     internal void OpenThread(string threadId)
         => _threadStateCoordinator.OpenThread(threadId);
 
@@ -799,8 +785,5 @@ internal sealed class CodeAltaApp : IAsyncDisposable
 
     private WorkThreadDescriptor? FindThread(string? threadId)
         => _threadStateCoordinator.FindThread(threadId);
-
-    private WorkThreadDescriptor[] GetThreadsForProject(string projectId, bool includeInternal)
-        => _threadStateCoordinator.GetThreadsForProject(projectId, includeInternal);
 
 }

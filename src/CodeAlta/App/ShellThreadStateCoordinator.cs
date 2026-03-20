@@ -420,17 +420,6 @@ internal sealed class ShellThreadStateCoordinator
         return _threads.FirstOrDefault(thread => string.Equals(thread.ThreadId, threadId, StringComparison.OrdinalIgnoreCase));
     }
 
-    public WorkThreadDescriptor[] GetThreadsForProject(string projectId, bool includeInternal)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
-
-        return _threads
-            .Where(thread => string.Equals(thread.ProjectRef, projectId, StringComparison.OrdinalIgnoreCase))
-            .Where(thread => includeInternal || thread.Kind == WorkThreadKind.ProjectThread)
-            .OrderByDescending(static thread => thread.LastActiveAt)
-            .ToArray();
-    }
-
     public async Task RestoreStartupThreadHistoryAsync(string? threadId, CancellationToken cancellationToken)
     {
         var thread = FindThread(threadId);
