@@ -40,7 +40,8 @@ internal sealed class ThreadWorkspaceView
         Action<int> onChatBackendSelectionChanged,
         Action<int> onChatModelSelectionChanged,
         Action<int> onChatReasoningSelectionChanged,
-        Action onAutoScrollChanged)
+        Action onAutoScrollChanged,
+        Action onAlwaysEnqueueChanged)
     {
         ArgumentNullException.ThrowIfNull(shellViewModel);
         ArgumentNullException.ThrowIfNull(workspaceViewModel);
@@ -61,6 +62,7 @@ internal sealed class ThreadWorkspaceView
         ArgumentNullException.ThrowIfNull(onChatModelSelectionChanged);
         ArgumentNullException.ThrowIfNull(onChatReasoningSelectionChanged);
         ArgumentNullException.ThrowIfNull(onAutoScrollChanged);
+        ArgumentNullException.ThrowIfNull(onAlwaysEnqueueChanged);
 
         ThreadCommandBar = new CommandBar
         {
@@ -103,6 +105,9 @@ internal sealed class ThreadWorkspaceView
         ChatAutoScrollCheckBox = new CheckBox("AutoScroll", isChecked: true);
         ChatAutoScrollCheckBox.RegisterDynamicUpdate(_ => onAutoScrollChanged());
         ChatAutoScrollCheckBox.RegisterDynamicUpdate(_ => ChatAutoScrollCheckBox.IsEnabled = workspaceViewModel.CanToggleAutoScroll);
+        AlwaysEnqueueCheckBox = new CheckBox("AlwaysQueue", isChecked: false);
+        AlwaysEnqueueCheckBox.RegisterDynamicUpdate(_ => onAlwaysEnqueueChanged());
+        AlwaysEnqueueCheckBox.RegisterDynamicUpdate(_ => AlwaysEnqueueCheckBox.IsEnabled = promptComposerViewModel.CanAlwaysEnqueue);
 
         var statusSpinner = new Spinner().Style(SpinnerStyles.Arc);
         statusSpinner.IsActive(() => shellViewModel.StatusBusy);
@@ -153,6 +158,7 @@ internal sealed class ThreadWorkspaceView
             ChatModelSelect,
             ChatReasoningSelect,
             ChatAutoScrollCheckBox,
+            AlwaysEnqueueCheckBox,
         ])
         {
             Spacing = 2,
@@ -230,6 +236,8 @@ internal sealed class ThreadWorkspaceView
     public Select<ChatReasoningOption> ChatReasoningSelect { get; }
 
     public CheckBox ChatAutoScrollCheckBox { get; }
+
+    public CheckBox AlwaysEnqueueCheckBox { get; }
 
     public TabControl ThreadTabControl { get; }
 

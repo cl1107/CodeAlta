@@ -59,6 +59,7 @@ internal sealed class ChatSelectorCoordinator
             var modelSelect = _uiContext.GetChatModelSelect()!;
             var reasoningSelect = _uiContext.GetChatReasoningSelect()!;
             var autoScrollCheckBox = _uiContext.GetChatAutoScrollCheckBox()!;
+            var alwaysEnqueueCheckBox = _uiContext.GetAlwaysEnqueueCheckBox()!;
             var backendOptions = ChatBackendPresentation.BuildBackendOptions();
             ChatBackendPresentation.ReplaceSelectItems(backendSelect, backendOptions);
 
@@ -88,6 +89,8 @@ internal sealed class ChatSelectorCoordinator
             reasoningSelect.IsEnabled = backendState.Availability == ChatBackendAvailability.Ready;
             autoScrollCheckBox.IsChecked = true;
             autoScrollCheckBox.IsEnabled = false;
+            alwaysEnqueueCheckBox.IsChecked = _promptComposerViewModel.AlwaysEnqueue;
+            alwaysEnqueueCheckBox.IsEnabled = false;
 
             _workspaceViewModel.BackendStatusMarkup = ChatBackendPresentation.BuildBackendStatusMarkup(_chatBackendStates.Values, backendOptions[backendIndex].BackendId, isInitializing: false);
             _workspaceViewModel.CanSelectBackend = true;
@@ -113,6 +116,7 @@ internal sealed class ChatSelectorCoordinator
             var modelSelect = _uiContext.GetChatModelSelect()!;
             var reasoningSelect = _uiContext.GetChatReasoningSelect()!;
             var autoScrollCheckBox = _uiContext.GetChatAutoScrollCheckBox()!;
+            var alwaysEnqueueCheckBox = _uiContext.GetAlwaysEnqueueCheckBox()!;
             var backendOptions = ChatBackendPresentation.BuildBackendOptions();
             ChatBackendPresentation.ReplaceSelectItems(backendSelect, backendOptions);
             backendSelect.SelectedIndex = Math.Clamp(
@@ -143,6 +147,8 @@ internal sealed class ChatSelectorCoordinator
             reasoningSelect.IsEnabled = backendState.Availability == ChatBackendAvailability.Ready;
             autoScrollCheckBox.IsChecked = tab.AutoScroll;
             autoScrollCheckBox.IsEnabled = true;
+            alwaysEnqueueCheckBox.IsChecked = _promptComposerViewModel.AlwaysEnqueue;
+            alwaysEnqueueCheckBox.IsEnabled = true;
 
             backendSelect.IsEnabled = false;
             _workspaceViewModel.BackendStatusMarkup = ChatBackendPresentation.BuildBackendStatusMarkup(_chatBackendStates.Values, tab.BackendId, isInitializing: false);
@@ -303,6 +309,27 @@ internal sealed class ChatSelectorCoordinator
         _preferences.RememberThreadPreference(tab.Thread.ThreadId, tab.ModelId, tab.ReasoningEffort, tab.AutoScroll, true);
     }
 
+    public void OnAlwaysEnqueueChanged()
+    {
+        if (_selectorsRefreshing)
+        {
+            return;
+        }
+
+        var alwaysEnqueueCheckBox = _uiContext.GetAlwaysEnqueueCheckBox();
+        if (alwaysEnqueueCheckBox is null)
+        {
+            return;
+        }
+
+        if (_promptComposerViewModel.AlwaysEnqueue == alwaysEnqueueCheckBox.IsChecked)
+        {
+            return;
+        }
+
+        _promptComposerViewModel.AlwaysEnqueue = alwaysEnqueueCheckBox.IsChecked;
+    }
+
     public AgentBackendId GetPreferredBackendId()
     {
         return UiDispatch.Invoke(
@@ -360,6 +387,7 @@ internal sealed class ChatSelectorCoordinator
         _promptComposerViewModel.CanAbort = projection.CanAbort;
         _promptComposerViewModel.CanCloseTab = projection.CanCloseTab;
         _promptComposerViewModel.CanClearQueue = projection.CanClearQueue;
+        _promptComposerViewModel.CanAlwaysEnqueue = projection.CanAlwaysEnqueue;
     }
 
     private AgentBackendId GetPreferredDraftBackendId(IReadOnlyList<ChatBackendOption> backendOptions)
@@ -410,6 +438,7 @@ internal sealed class ChatSelectorCoordinator
             _threadSelection.SelectedThreadId,
             selectedThread is not null &&
             _threadSelection.FindOpenThread(selectedThread.ThreadId) is { } selectedTab &&
-            selectedTab.QueuedPrompts.Count > 0);
+            selectedTab.QueuedPrompts.Count > 0,
+            selectedThread is not null);
     }
 }

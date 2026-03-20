@@ -8,6 +8,7 @@ using CodeAlta.Orchestration.Runtime;
 using CodeAlta.Presentation.Chat;
 using CodeAlta.Presentation.Formatting;
 using CodeAlta.Presentation.Shell;
+using CodeAlta.ViewModels;
 using CodeAlta.Views;
 using XenoAtom.Logging;
 using XenoAtom.Terminal.UI.Controls;
@@ -24,6 +25,7 @@ internal sealed class ThreadCommandCoordinator
     private readonly ChatPreferenceContext _preferences;
     private readonly ThreadCommandContext _commandContext;
     private readonly ThreadPromptQueueCoordinator _queueCoordinator;
+    private readonly PromptComposerViewModel _promptComposerViewModel;
 
     public ThreadCommandCoordinator(
         WorkThreadRuntimeService runtimeService,
@@ -33,7 +35,8 @@ internal sealed class ThreadCommandCoordinator
         ChatSelectorUiContext selectorUi,
         ChatPreferenceContext preferences,
         ThreadCommandContext commandContext,
-        ThreadPromptQueueCoordinator queueCoordinator)
+        ThreadPromptQueueCoordinator queueCoordinator,
+        PromptComposerViewModel promptComposerViewModel)
     {
         ArgumentNullException.ThrowIfNull(runtimeService);
         ArgumentNullException.ThrowIfNull(catalogOptions);
@@ -43,6 +46,7 @@ internal sealed class ThreadCommandCoordinator
         ArgumentNullException.ThrowIfNull(preferences);
         ArgumentNullException.ThrowIfNull(commandContext);
         ArgumentNullException.ThrowIfNull(queueCoordinator);
+        ArgumentNullException.ThrowIfNull(promptComposerViewModel);
 
         _runtimeService = runtimeService;
         _catalogOptions = catalogOptions;
@@ -52,11 +56,13 @@ internal sealed class ThreadCommandCoordinator
         _preferences = preferences;
         _commandContext = commandContext;
         _queueCoordinator = queueCoordinator;
+        _promptComposerViewModel = promptComposerViewModel;
     }
 
     public async Task SendSelectedThreadPromptAsync(bool steer)
     {
         var thread = _threadSelection.GetSelectedThread();
+        var hadExistingThread = thread is not null;
         if (thread is null)
         {
             if (steer)
@@ -100,7 +106,9 @@ internal sealed class ThreadCommandCoordinator
         await _threadSelection.EnsureThreadHistoryLoadedAsync(thread, CancellationToken.None).ConfigureAwait(false);
         tab.Timeline.ReplaceTruncatedHistoryLoadButton();
 
-        if (!steer && tab.StatusBusy)
+        var alwaysEnqueue = hadExistingThread &&
+            UiDispatch.Invoke(_selectorUi.GetUiDispatcher(), () => _promptComposerViewModel.AlwaysEnqueue);
+        if (!steer && (tab.StatusBusy || alwaysEnqueue))
         {
             _queueCoordinator.EnqueuePrompt(tab, prompt);
             _commandContext.ClearThreadInput();

@@ -112,11 +112,9 @@ internal sealed class CodeAltaApp : IAsyncDisposable
     private Select<ChatBackendOption>? ChatBackendSelect => _threadWorkspaceView?.ChatBackendSelect;
 
     private Select<ChatModelOption>? ChatModelSelect => _threadWorkspaceView?.ChatModelSelect;
-
     private Select<ChatReasoningOption>? ChatReasoningSelect => _threadWorkspaceView?.ChatReasoningSelect;
-
     private CheckBox? ChatAutoScrollCheckBox => _threadWorkspaceView?.ChatAutoScrollCheckBox;
-
+    private CheckBox? AlwaysEnqueueCheckBox => _threadWorkspaceView?.AlwaysEnqueueCheckBox;
     private TabControl? ThreadTabControl => _threadWorkspaceView?.ThreadTabControl;
 
     /// <summary>
@@ -208,6 +206,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             () => ChatModelSelect,
             () => ChatReasoningSelect,
             () => ChatAutoScrollCheckBox,
+            () => AlwaysEnqueueCheckBox,
             () => ThreadInput,
             GetUiDispatcher,
             VerifyBindableAccess);
@@ -327,7 +326,8 @@ internal sealed class CodeAltaApp : IAsyncDisposable
                 SetStatus,
                 (tab, message, showSpinner, tone) => SetThreadStatus(tab, message, showSpinner, tone),
                 _threadRuntimeEventCoordinator.TryRenderInteraction),
-            _threadPromptQueueCoordinator);
+            _threadPromptQueueCoordinator,
+            _promptComposerViewModel);
         _threadHistoryCoordinator = new ThreadHistoryCoordinator(
             _runtimeService,
             EnsureThreadTab,
@@ -455,6 +455,9 @@ internal sealed class CodeAltaApp : IAsyncDisposable
     private void OnChatAutoScrollChanged()
         => _chatSelectorCoordinator.OnAutoScrollChanged();
 
+    private void OnAlwaysEnqueueChanged()
+        => _chatSelectorCoordinator.OnAlwaysEnqueueChanged();
+
     private AgentBackendId GetPreferredBackendId()
         => _chatSelectorCoordinator.GetPreferredBackendId();
 
@@ -466,11 +469,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
 
     private bool TrySetPromptUnavailableStatus()
     {
-        if (!TryGetPromptUnavailableStatus(out var message, out var tone))
-        {
-            return false;
-        }
-
+        if (!TryGetPromptUnavailableStatus(out var message, out var tone)) return false;
         SetStatus(message, tone: tone);
         return true;
     }
@@ -508,7 +507,8 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             OnChatBackendSelectionChanged,
             OnChatModelSelectionChanged,
             OnChatReasoningSelectionChanged,
-            OnChatAutoScrollChanged);
+            OnChatAutoScrollChanged,
+            OnAlwaysEnqueueChanged);
 
         RefreshCatalogAndThreadWorkspace();
 

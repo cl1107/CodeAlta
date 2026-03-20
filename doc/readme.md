@@ -113,6 +113,7 @@ Current terminal shell capabilities:
   - Thread-specific model and reasoning selections are preserved for reopened tabs through `~/.codealta/machine/ui-state.yaml`, so an existing thread keeps its model by default even after global or project defaults change.
   - The reasoning selector only shows concrete effort values. When a selected model supports `high`, CodeAlta prefers `high` by default.
   - Sending a prompt now follows an enqueue-first workflow for busy threads: `Ctrl+J`/`Ctrl+Enter` adds the prompt to a waiting list above the status line, where queued prompts can be edited, repeated, steered immediately, deleted, or cleared with `F10`.
+  - A temporary `AlwaysQueue` checkbox next to `AutoScroll` forces normal sends to enqueue for the selected thread even when it is idle, which is useful for exercising the waiting-list controls without dispatching work immediately.
   - Pressing `F5` with an empty draft now steers the first queued prompt immediately when the selected thread has queued work.
   - The footer usage indicator stays compact as `ctx --` or `ctx NN%`, while the usage popup is split into Summary, Usage breakdown, Limits and quotas, and Backend-specific details with explicit source/scope metadata.
   - Copilot sessions are started with `codealta.*` MCP tools bridged into the backend via `McpToolBridge` (tool calls execute against the in-process MCP server, with MCP tool ids normalized to Copilot-compatible function names).

@@ -12,6 +12,7 @@ namespace CodeAlta.Presentation.Prompting
         bool CanAbort,
         bool CanCloseTab,
         bool CanClearQueue,
+        bool CanAlwaysEnqueue,
         string? UnavailableStatusMessage,
         StatusTone UnavailableStatusTone)
     {
@@ -30,7 +31,8 @@ namespace CodeAlta.Presentation.Prompting
             bool anyBackendReady,
             bool draftTabOpen,
             string? selectedThreadId,
-            bool selectedThreadHasQueuedPrompts)
+            bool selectedThreadHasQueuedPrompts,
+            bool selectedThreadCanAlwaysEnqueue)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(backendDisplayName);
 
@@ -55,6 +57,7 @@ namespace CodeAlta.Presentation.Prompting
                 CanAbort: hasThread,
                 CanCloseTab: hasThread || (draftTabOpen && string.IsNullOrWhiteSpace(selectedThreadId)),
                 CanClearQueue: hasThread && selectedThreadHasQueuedPrompts,
+                CanAlwaysEnqueue: hasThread && selectedThreadCanAlwaysEnqueue,
                 UnavailableStatusMessage: unavailableStatusMessage,
                 UnavailableStatusTone: unavailableStatusTone);
         }
