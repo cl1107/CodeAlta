@@ -1,5 +1,6 @@
 using CodeAlta.Agent;
 using CodeAlta.App;
+using CodeAlta.App.Context;
 using CodeAlta.Catalog;
 using CodeAlta.Models;
 using CodeAlta.Presentation.Chat;
@@ -14,104 +15,48 @@ internal sealed class ChatSelectorCoordinator
     private readonly ThreadWorkspaceViewModel _workspaceViewModel;
     private readonly PromptComposerViewModel _promptComposerViewModel;
     private readonly Dictionary<string, ChatBackendState> _chatBackendStates;
-    private readonly Func<Select<ChatBackendOption>?> _getChatBackendSelect;
-    private readonly Func<Select<ChatModelOption>?> _getChatModelSelect;
-    private readonly Func<Select<ChatReasoningOption>?> _getChatReasoningSelect;
-    private readonly Func<CheckBox?> _getChatAutoScrollCheckBox;
-    private readonly Func<WorkThreadDescriptor?> _getSelectedThread;
-    private readonly Func<ProjectDescriptor?> _getSelectedProject;
-    private readonly Func<WorkThreadDescriptor, OpenThreadState> _ensureThreadTab;
-    private readonly Func<bool> _getGlobalScopeSelected;
-    private readonly Func<bool> _getDraftTabOpen;
-    private readonly Func<string?> _getSelectedThreadId;
-    private readonly Action<ChatBackendState> _applyDraftBackendPreference;
-    private readonly Action<OpenThreadState> _applyThreadPreference;
-    private readonly Action<AgentBackendId, string?, AgentReasoningEffort?> _rememberGlobalBackendPreference;
-    private readonly Action<string, string?, AgentReasoningEffort?, bool, bool> _rememberThreadPreference;
-    private readonly Action _invalidateSelectedSessionUsage;
-    private readonly Action _refreshHeaderAndThreadWorkspace;
-    private readonly Action _verifyBindableAccess;
-    private readonly Func<IUiDispatcher> _getUiDispatcher;
+    private readonly ChatSelectorUiContext _uiContext;
+    private readonly ThreadSelectionContext _threadSelection;
+    private readonly ChatPreferenceContext _preferences;
+    private readonly WorkspaceRefreshContext _workspaceRefresh;
     private bool _selectorsRefreshing;
 
     public ChatSelectorCoordinator(
         ThreadWorkspaceViewModel workspaceViewModel,
         PromptComposerViewModel promptComposerViewModel,
         Dictionary<string, ChatBackendState> chatBackendStates,
-        Func<Select<ChatBackendOption>?> getChatBackendSelect,
-        Func<Select<ChatModelOption>?> getChatModelSelect,
-        Func<Select<ChatReasoningOption>?> getChatReasoningSelect,
-        Func<CheckBox?> getChatAutoScrollCheckBox,
-        Func<WorkThreadDescriptor?> getSelectedThread,
-        Func<ProjectDescriptor?> getSelectedProject,
-        Func<WorkThreadDescriptor, OpenThreadState> ensureThreadTab,
-        Func<bool> getGlobalScopeSelected,
-        Func<bool> getDraftTabOpen,
-        Func<string?> getSelectedThreadId,
-        Action<ChatBackendState> applyDraftBackendPreference,
-        Action<OpenThreadState> applyThreadPreference,
-        Action<AgentBackendId, string?, AgentReasoningEffort?> rememberGlobalBackendPreference,
-        Action<string, string?, AgentReasoningEffort?, bool, bool> rememberThreadPreference,
-        Action invalidateSelectedSessionUsage,
-        Action refreshHeaderAndThreadWorkspace,
-        Action verifyBindableAccess,
-        Func<IUiDispatcher> getUiDispatcher)
+        ChatSelectorUiContext uiContext,
+        ThreadSelectionContext threadSelection,
+        ChatPreferenceContext preferences,
+        WorkspaceRefreshContext workspaceRefresh)
     {
         ArgumentNullException.ThrowIfNull(workspaceViewModel);
         ArgumentNullException.ThrowIfNull(promptComposerViewModel);
         ArgumentNullException.ThrowIfNull(chatBackendStates);
-        ArgumentNullException.ThrowIfNull(getChatBackendSelect);
-        ArgumentNullException.ThrowIfNull(getChatModelSelect);
-        ArgumentNullException.ThrowIfNull(getChatReasoningSelect);
-        ArgumentNullException.ThrowIfNull(getChatAutoScrollCheckBox);
-        ArgumentNullException.ThrowIfNull(getSelectedThread);
-        ArgumentNullException.ThrowIfNull(getSelectedProject);
-        ArgumentNullException.ThrowIfNull(ensureThreadTab);
-        ArgumentNullException.ThrowIfNull(getGlobalScopeSelected);
-        ArgumentNullException.ThrowIfNull(getDraftTabOpen);
-        ArgumentNullException.ThrowIfNull(getSelectedThreadId);
-        ArgumentNullException.ThrowIfNull(applyDraftBackendPreference);
-        ArgumentNullException.ThrowIfNull(applyThreadPreference);
-        ArgumentNullException.ThrowIfNull(rememberGlobalBackendPreference);
-        ArgumentNullException.ThrowIfNull(rememberThreadPreference);
-        ArgumentNullException.ThrowIfNull(invalidateSelectedSessionUsage);
-        ArgumentNullException.ThrowIfNull(refreshHeaderAndThreadWorkspace);
-        ArgumentNullException.ThrowIfNull(verifyBindableAccess);
-        ArgumentNullException.ThrowIfNull(getUiDispatcher);
+        ArgumentNullException.ThrowIfNull(uiContext);
+        ArgumentNullException.ThrowIfNull(threadSelection);
+        ArgumentNullException.ThrowIfNull(preferences);
+        ArgumentNullException.ThrowIfNull(workspaceRefresh);
 
         _workspaceViewModel = workspaceViewModel;
         _promptComposerViewModel = promptComposerViewModel;
         _chatBackendStates = chatBackendStates;
-        _getChatBackendSelect = getChatBackendSelect;
-        _getChatModelSelect = getChatModelSelect;
-        _getChatReasoningSelect = getChatReasoningSelect;
-        _getChatAutoScrollCheckBox = getChatAutoScrollCheckBox;
-        _getSelectedThread = getSelectedThread;
-        _getSelectedProject = getSelectedProject;
-        _ensureThreadTab = ensureThreadTab;
-        _getGlobalScopeSelected = getGlobalScopeSelected;
-        _getDraftTabOpen = getDraftTabOpen;
-        _getSelectedThreadId = getSelectedThreadId;
-        _applyDraftBackendPreference = applyDraftBackendPreference;
-        _applyThreadPreference = applyThreadPreference;
-        _rememberGlobalBackendPreference = rememberGlobalBackendPreference;
-        _rememberThreadPreference = rememberThreadPreference;
-        _invalidateSelectedSessionUsage = invalidateSelectedSessionUsage;
-        _refreshHeaderAndThreadWorkspace = refreshHeaderAndThreadWorkspace;
-        _verifyBindableAccess = verifyBindableAccess;
-        _getUiDispatcher = getUiDispatcher;
+        _uiContext = uiContext;
+        _threadSelection = threadSelection;
+        _preferences = preferences;
+        _workspaceRefresh = workspaceRefresh;
     }
 
     public void RefreshForDraftScope(AgentBackendId? preferredBackendId = null)
     {
-        _verifyBindableAccess();
+        _uiContext.VerifyBindableAccess();
         _selectorsRefreshing = true;
         try
         {
-            var backendSelect = _getChatBackendSelect()!;
-            var modelSelect = _getChatModelSelect()!;
-            var reasoningSelect = _getChatReasoningSelect()!;
-            var autoScrollCheckBox = _getChatAutoScrollCheckBox()!;
+            var backendSelect = _uiContext.GetChatBackendSelect()!;
+            var modelSelect = _uiContext.GetChatModelSelect()!;
+            var reasoningSelect = _uiContext.GetChatReasoningSelect()!;
+            var autoScrollCheckBox = _uiContext.GetChatAutoScrollCheckBox()!;
             var backendOptions = ChatBackendPresentation.BuildBackendOptions();
             ChatBackendPresentation.ReplaceSelectItems(backendSelect, backendOptions);
 
@@ -121,7 +66,7 @@ internal sealed class ChatSelectorCoordinator
             backendSelect.IsEnabled = true;
 
             var backendState = _chatBackendStates[backendOptions[backendIndex].BackendId.Value];
-            _applyDraftBackendPreference(backendState);
+            _preferences.ApplyDraftBackendPreference(backendState);
             var modelOptions = ChatBackendPresentation.BuildModelOptions(backendState);
             ChatBackendPresentation.ReplaceSelectItems(modelSelect, modelOptions);
             modelSelect.SelectedIndex = Math.Clamp(
@@ -158,14 +103,14 @@ internal sealed class ChatSelectorCoordinator
     {
         ArgumentNullException.ThrowIfNull(tab);
 
-        _verifyBindableAccess();
+        _uiContext.VerifyBindableAccess();
         _selectorsRefreshing = true;
         try
         {
-            var backendSelect = _getChatBackendSelect()!;
-            var modelSelect = _getChatModelSelect()!;
-            var reasoningSelect = _getChatReasoningSelect()!;
-            var autoScrollCheckBox = _getChatAutoScrollCheckBox()!;
+            var backendSelect = _uiContext.GetChatBackendSelect()!;
+            var modelSelect = _uiContext.GetChatModelSelect()!;
+            var reasoningSelect = _uiContext.GetChatReasoningSelect()!;
+            var autoScrollCheckBox = _uiContext.GetChatAutoScrollCheckBox()!;
             var backendOptions = ChatBackendPresentation.BuildBackendOptions();
             ChatBackendPresentation.ReplaceSelectItems(backendSelect, backendOptions);
             backendSelect.SelectedIndex = Math.Clamp(
@@ -174,7 +119,7 @@ internal sealed class ChatSelectorCoordinator
                 Math.Max(0, backendOptions.Count - 1));
 
             var backendState = _chatBackendStates[tab.BackendId.Value];
-            _applyThreadPreference(tab);
+            _preferences.ApplyThreadPreference(tab);
 
             var modelOptions = ChatBackendPresentation.BuildModelOptions(backendState);
             ChatBackendPresentation.ReplaceSelectItems(modelSelect, modelOptions);
@@ -223,11 +168,11 @@ internal sealed class ChatSelectorCoordinator
             return;
         }
 
-        var thread = _getSelectedThread();
+        var thread = _threadSelection.GetSelectedThread();
         if (thread is null)
         {
             RefreshForDraftScope(options[newIndex].BackendId);
-            _invalidateSelectedSessionUsage();
+            _workspaceRefresh.InvalidateSelectedSessionUsage();
             return;
         }
 
@@ -236,9 +181,9 @@ internal sealed class ChatSelectorCoordinator
             return;
         }
 
-        var tab = _ensureThreadTab(thread);
+        var tab = _threadSelection.EnsureThreadTab(thread);
         tab.BackendId = options[newIndex].BackendId;
-        _refreshHeaderAndThreadWorkspace();
+        _workspaceRefresh.RefreshHeaderAndThreadWorkspace();
     }
 
     public void OnModelSelectionChanged(int newIndex)
@@ -248,7 +193,7 @@ internal sealed class ChatSelectorCoordinator
             return;
         }
 
-        var thread = _getSelectedThread();
+        var thread = _threadSelection.GetSelectedThread();
         if (thread is null)
         {
             var backendId = GetPreferredBackendId();
@@ -262,13 +207,13 @@ internal sealed class ChatSelectorCoordinator
             draftBackendState.SelectedModelId = draftOptions[newIndex].ModelId;
             var preferredModel = ChatBackendPreferenceCoordinator.FindModel(draftBackendState.Models, draftBackendState.SelectedModelId);
             draftBackendState.SelectedReasoningEffort = ChatBackendPresentation.ResolvePreferredReasoningEffort(preferredModel, preferredReasoningEffort: null);
-            _rememberGlobalBackendPreference(backendId, draftBackendState.SelectedModelId, draftBackendState.SelectedReasoningEffort);
+            _preferences.RememberGlobalBackendPreference(backendId, draftBackendState.SelectedModelId, draftBackendState.SelectedReasoningEffort);
             RefreshForDraftScope(backendId);
-            _invalidateSelectedSessionUsage();
+            _workspaceRefresh.InvalidateSelectedSessionUsage();
             return;
         }
 
-        var tab = _ensureThreadTab(thread);
+        var tab = _threadSelection.EnsureThreadTab(thread);
         var backendState = _chatBackendStates[tab.BackendId.Value];
         var options = ChatBackendPresentation.BuildModelOptions(backendState);
         if ((uint)newIndex >= (uint)options.Count)
@@ -279,11 +224,11 @@ internal sealed class ChatSelectorCoordinator
         tab.ModelId = options[newIndex].ModelId;
         var selectedModel = ChatBackendPreferenceCoordinator.FindModel(backendState.Models, tab.ModelId);
         tab.ReasoningEffort = ChatBackendPresentation.ResolvePreferredReasoningEffort(selectedModel, preferredReasoningEffort: null);
-        _rememberThreadPreference(tab.Thread.ThreadId, tab.ModelId, tab.ReasoningEffort, tab.AutoScroll, true);
+        _preferences.RememberThreadPreference(tab.Thread.ThreadId, tab.ModelId, tab.ReasoningEffort, tab.AutoScroll, true);
         backendState.SelectedModelId = tab.ModelId;
         backendState.SelectedReasoningEffort = tab.ReasoningEffort;
-        _rememberGlobalBackendPreference(tab.BackendId, tab.ModelId, tab.ReasoningEffort);
-        _refreshHeaderAndThreadWorkspace();
+        _preferences.RememberGlobalBackendPreference(tab.BackendId, tab.ModelId, tab.ReasoningEffort);
+        _workspaceRefresh.RefreshHeaderAndThreadWorkspace();
     }
 
     public void OnReasoningSelectionChanged(int newIndex)
@@ -293,7 +238,7 @@ internal sealed class ChatSelectorCoordinator
             return;
         }
 
-        var thread = _getSelectedThread();
+        var thread = _threadSelection.GetSelectedThread();
         if (thread is null)
         {
             var backendId = GetPreferredBackendId();
@@ -306,12 +251,12 @@ internal sealed class ChatSelectorCoordinator
             }
 
             draftBackendState.SelectedReasoningEffort = draftOptions[newIndex].Effort;
-            _rememberGlobalBackendPreference(backendId, draftBackendState.SelectedModelId, draftBackendState.SelectedReasoningEffort);
-            _invalidateSelectedSessionUsage();
+            _preferences.RememberGlobalBackendPreference(backendId, draftBackendState.SelectedModelId, draftBackendState.SelectedReasoningEffort);
+            _workspaceRefresh.InvalidateSelectedSessionUsage();
             return;
         }
 
-        var tab = _ensureThreadTab(thread);
+        var tab = _threadSelection.EnsureThreadTab(thread);
         var backendState = _chatBackendStates[tab.BackendId.Value];
         var selectedModel = backendState.Models.FirstOrDefault(model => string.Equals(model.Id, tab.ModelId, StringComparison.Ordinal));
         var options = ChatBackendPresentation.BuildReasoningOptions(selectedModel);
@@ -321,10 +266,10 @@ internal sealed class ChatSelectorCoordinator
         }
 
         tab.ReasoningEffort = options[newIndex].Effort;
-        _rememberThreadPreference(tab.Thread.ThreadId, tab.ModelId, tab.ReasoningEffort, tab.AutoScroll, true);
+        _preferences.RememberThreadPreference(tab.Thread.ThreadId, tab.ModelId, tab.ReasoningEffort, tab.AutoScroll, true);
         backendState.SelectedModelId = tab.ModelId;
         backendState.SelectedReasoningEffort = tab.ReasoningEffort;
-        _rememberGlobalBackendPreference(tab.BackendId, tab.ModelId, tab.ReasoningEffort);
+        _preferences.RememberGlobalBackendPreference(tab.BackendId, tab.ModelId, tab.ReasoningEffort);
     }
 
     public void OnAutoScrollChanged()
@@ -334,36 +279,36 @@ internal sealed class ChatSelectorCoordinator
             return;
         }
 
-        var autoScrollCheckBox = _getChatAutoScrollCheckBox();
+        var autoScrollCheckBox = _uiContext.GetChatAutoScrollCheckBox();
         if (autoScrollCheckBox is null)
         {
             return;
         }
 
-        var thread = _getSelectedThread();
+        var thread = _threadSelection.GetSelectedThread();
         if (thread is null)
         {
             return;
         }
 
-        var tab = _ensureThreadTab(thread);
+        var tab = _threadSelection.EnsureThreadTab(thread);
         if (tab.AutoScroll == autoScrollCheckBox.IsChecked)
         {
             return;
         }
 
         tab.AutoScroll = autoScrollCheckBox.IsChecked;
-        _rememberThreadPreference(tab.Thread.ThreadId, tab.ModelId, tab.ReasoningEffort, tab.AutoScroll, true);
+        _preferences.RememberThreadPreference(tab.Thread.ThreadId, tab.ModelId, tab.ReasoningEffort, tab.AutoScroll, true);
     }
 
     public AgentBackendId GetPreferredBackendId()
     {
         return UiDispatch.Invoke(
-            _getUiDispatcher(),
+            _uiContext.GetUiDispatcher(),
             () =>
             {
                 var options = ChatBackendPresentation.BuildBackendOptions();
-                var chatBackendSelect = _getChatBackendSelect();
+                var chatBackendSelect = _uiContext.GetChatBackendSelect();
                 if (chatBackendSelect is not null &&
                     (uint)chatBackendSelect.SelectedIndex < (uint)options.Count)
                 {
@@ -403,7 +348,7 @@ internal sealed class ChatSelectorCoordinator
 
     public void UpdatePromptAvailabilityUi()
     {
-        _verifyBindableAccess();
+        _uiContext.VerifyBindableAccess();
         var projection = BuildPromptComposerProjection();
         _promptComposerViewModel.Placeholder = projection.Placeholder;
         _promptComposerViewModel.IsEnabled = projection.IsEnabled;
@@ -416,7 +361,7 @@ internal sealed class ChatSelectorCoordinator
 
     private AgentBackendId GetPreferredDraftBackendId(IReadOnlyList<ChatBackendOption> backendOptions)
     {
-        var chatBackendSelect = _getChatBackendSelect();
+        var chatBackendSelect = _uiContext.GetChatBackendSelect();
         if (chatBackendSelect is not null &&
             (uint)chatBackendSelect.SelectedIndex < (uint)backendOptions.Count)
         {
@@ -443,7 +388,7 @@ internal sealed class ChatSelectorCoordinator
 
     private PromptComposerProjection BuildPromptComposerProjection()
     {
-        var selectedThread = _getSelectedThread();
+        var selectedThread = _threadSelection.GetSelectedThread();
         var backendId = selectedThread is not null ? new AgentBackendId(selectedThread.BackendId) : GetPreferredBackendId();
         if (!_chatBackendStates.TryGetValue(backendId.Value, out var backendState) ||
             string.IsNullOrWhiteSpace(backendState.DisplayName))
@@ -453,12 +398,12 @@ internal sealed class ChatSelectorCoordinator
 
         return PromptComposerProjectionBuilder.Build(
             selectedThread,
-            _getSelectedProject(),
-            _getGlobalScopeSelected(),
+            _threadSelection.GetSelectedProject(),
+            _threadSelection.GlobalScopeSelected,
             backendState.DisplayName,
             backendState.Availability,
             HasAnyReadyChatBackend(),
-            _getDraftTabOpen(),
-            _getSelectedThreadId());
+            _threadSelection.DraftTabOpen,
+            _threadSelection.SelectedThreadId);
     }
 }

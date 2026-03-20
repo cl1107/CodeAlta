@@ -1,4 +1,5 @@
 using CodeAlta.App;
+using CodeAlta.App.Context;
 using CodeAlta.Catalog;
 using CodeAlta.Models;
 using CodeAlta.Presentation.Shell;
@@ -10,78 +11,26 @@ namespace CodeAlta.Presentation.Tabs;
 
 internal sealed class ThreadTabStripCoordinator
 {
-    private readonly Func<TabControl?> _getTabControl;
-    private readonly Func<ThreadWorkspaceView?> _getWorkspaceView;
-    private readonly Func<IReadOnlyList<string>> _getOpenThreadIds;
-    private readonly Func<bool> _getDraftTabOpen;
-    private readonly Func<string?> _getSelectedThreadId;
-    private readonly Func<bool> _getGlobalScopeSelected;
-    private readonly Func<ProjectDescriptor?> _getSelectedProject;
-    private readonly Func<string, WorkThreadDescriptor?> _findThread;
-    private readonly Func<WorkThreadDescriptor, OpenThreadState> _ensureThreadTab;
-    private readonly Func<Func<Visual>, ComputedVisual> _createComputedVisual;
-    private readonly Func<IUiDispatcher> _getUiDispatcher;
-    private readonly Action _activateDraftTab;
-    private readonly Action<string> _closeThread;
-    private readonly Action _closeDraftTab;
-    private readonly Action<string> _openThread;
+    private readonly ThreadSelectionContext _threadSelection;
+    private readonly ThreadTabContext _threadTabs;
     private bool _syncingSelection;
     private bool _syncingPages;
     private string? _pendingThreadSelectionThreadId;
 
     public ThreadTabStripCoordinator(
-        Func<TabControl?> getTabControl,
-        Func<ThreadWorkspaceView?> getWorkspaceView,
-        Func<IReadOnlyList<string>> getOpenThreadIds,
-        Func<bool> getDraftTabOpen,
-        Func<string?> getSelectedThreadId,
-        Func<bool> getGlobalScopeSelected,
-        Func<ProjectDescriptor?> getSelectedProject,
-        Func<string, WorkThreadDescriptor?> findThread,
-        Func<WorkThreadDescriptor, OpenThreadState> ensureThreadTab,
-        Func<Func<Visual>, ComputedVisual> createComputedVisual,
-        Func<IUiDispatcher> getUiDispatcher,
-        Action activateDraftTab,
-        Action<string> closeThread,
-        Action closeDraftTab,
-        Action<string> openThread)
+        ThreadSelectionContext threadSelection,
+        ThreadTabContext threadTabs)
     {
-        ArgumentNullException.ThrowIfNull(getTabControl);
-        ArgumentNullException.ThrowIfNull(getWorkspaceView);
-        ArgumentNullException.ThrowIfNull(getOpenThreadIds);
-        ArgumentNullException.ThrowIfNull(getDraftTabOpen);
-        ArgumentNullException.ThrowIfNull(getSelectedThreadId);
-        ArgumentNullException.ThrowIfNull(getGlobalScopeSelected);
-        ArgumentNullException.ThrowIfNull(getSelectedProject);
-        ArgumentNullException.ThrowIfNull(findThread);
-        ArgumentNullException.ThrowIfNull(ensureThreadTab);
-        ArgumentNullException.ThrowIfNull(createComputedVisual);
-        ArgumentNullException.ThrowIfNull(getUiDispatcher);
-        ArgumentNullException.ThrowIfNull(activateDraftTab);
-        ArgumentNullException.ThrowIfNull(closeThread);
-        ArgumentNullException.ThrowIfNull(closeDraftTab);
-        ArgumentNullException.ThrowIfNull(openThread);
+        ArgumentNullException.ThrowIfNull(threadSelection);
+        ArgumentNullException.ThrowIfNull(threadTabs);
 
-        _getTabControl = getTabControl;
-        _getWorkspaceView = getWorkspaceView;
-        _getOpenThreadIds = getOpenThreadIds;
-        _getDraftTabOpen = getDraftTabOpen;
-        _getSelectedThreadId = getSelectedThreadId;
-        _getGlobalScopeSelected = getGlobalScopeSelected;
-        _getSelectedProject = getSelectedProject;
-        _findThread = findThread;
-        _ensureThreadTab = ensureThreadTab;
-        _createComputedVisual = createComputedVisual;
-        _getUiDispatcher = getUiDispatcher;
-        _activateDraftTab = activateDraftTab;
-        _closeThread = closeThread;
-        _closeDraftTab = closeDraftTab;
-        _openThread = openThread;
+        _threadSelection = threadSelection;
+        _threadTabs = threadTabs;
     }
 
     public void SyncControl()
     {
-        var tabControl = _getTabControl();
+        var tabControl = _threadTabs.GetTabControl();
         if (tabControl is null)
         {
             return;
@@ -132,7 +81,7 @@ internal sealed class ThreadTabStripCoordinator
 
     public void OnSelectionChanged(int selectedIndex)
     {
-        var tabControl = _getTabControl();
+        var tabControl = _threadTabs.GetTabControl();
         if (_syncingSelection || _syncingPages || tabControl is null)
         {
             return;
@@ -145,17 +94,17 @@ internal sealed class ThreadTabStripCoordinator
 
         if (string.Equals(tabControl.Tabs[selectedIndex].Data as string, CodeAltaApp.DraftTabId, StringComparison.Ordinal))
         {
-            if (string.IsNullOrWhiteSpace(_getSelectedThreadId()))
+            if (string.IsNullOrWhiteSpace(_threadSelection.SelectedThreadId))
             {
                 return;
             }
 
-            _activateDraftTab();
+            _threadTabs.ActivateDraftTab();
             return;
         }
 
         if (tabControl.Tabs[selectedIndex].Data is not string threadId ||
-            string.Equals(threadId, _getSelectedThreadId(), StringComparison.OrdinalIgnoreCase))
+            string.Equals(threadId, _threadSelection.SelectedThreadId, StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
@@ -166,7 +115,7 @@ internal sealed class ThreadTabStripCoordinator
         }
 
         _pendingThreadSelectionThreadId = threadId;
-        _getUiDispatcher().Post(
+        _threadTabs.GetUiDispatcher().Post(
             () =>
             {
                 if (!string.Equals(threadId, _pendingThreadSelectionThreadId, StringComparison.OrdinalIgnoreCase))
@@ -175,7 +124,7 @@ internal sealed class ThreadTabStripCoordinator
                 }
 
                 _pendingThreadSelectionThreadId = null;
-                _openThread(threadId);
+                _threadTabs.OpenThread(threadId);
             });
     }
 
@@ -186,22 +135,22 @@ internal sealed class ThreadTabStripCoordinator
 
     private ThreadTabStripProjection BuildProjection()
     {
-        var availableThreadIds = _getOpenThreadIds()
-            .Select(_findThread)
+        var availableThreadIds = _threadSelection.OpenThreadIds
+            .Select(_threadSelection.FindThread)
             .Where(static thread => thread is not null)
             .Select(thread =>
             {
                 var current = thread!;
-                _ensureThreadTab(current);
+                _threadSelection.EnsureThreadTab(current);
                 return current.ThreadId;
             })
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         return ThreadTabStripProjectionBuilder.Build(
-            _getOpenThreadIds(),
+            _threadSelection.OpenThreadIds,
             availableThreadIds,
-            _getDraftTabOpen(),
+            _threadSelection.DraftTabOpen,
             CodeAltaApp.DraftTabId,
-            _getSelectedThreadId());
+            _threadSelection.SelectedThreadId);
     }
 
     private List<TabPage> BuildDesiredPages(ThreadTabStripProjection projection)
@@ -222,7 +171,7 @@ internal sealed class ThreadTabStripCoordinator
     private TabPage EnsureThreadPage(string threadId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
-        var workspaceView = _getWorkspaceView() ?? throw new InvalidOperationException("Thread workspace view is not initialized.");
+        var workspaceView = _threadTabs.GetWorkspaceView() ?? throw new InvalidOperationException("Thread workspace view is not initialized.");
 
         if (workspaceView.TryGetTabPage(threadId, out var existingPage))
         {
@@ -230,14 +179,14 @@ internal sealed class ThreadTabStripCoordinator
             return existingPage;
         }
 
-        var thread = _findThread(threadId);
+        var thread = _threadSelection.FindThread(threadId);
         if (thread is null)
         {
             throw new InvalidOperationException($"Thread '{threadId}' was not found when creating a tab page.");
         }
 
-        var tab = _ensureThreadTab(thread);
-        var header = _createComputedVisual(
+        var tab = _threadSelection.EnsureThreadTab(thread);
+        var header = _threadTabs.CreateComputedVisual(
             () =>
             {
                 var current = tab.Thread;
@@ -264,7 +213,7 @@ internal sealed class ThreadTabStripCoordinator
             }
 
             e.Cancel = true;
-            _closeThread(currentThreadId);
+            _threadTabs.CloseThread(currentThreadId);
         };
 
         workspaceView.RememberTabPage(thread.ThreadId, page);
@@ -273,18 +222,18 @@ internal sealed class ThreadTabStripCoordinator
 
     private TabPage EnsureDraftPage()
     {
-        var workspaceView = _getWorkspaceView() ?? throw new InvalidOperationException("Thread workspace view is not initialized.");
+        var workspaceView = _threadTabs.GetWorkspaceView() ?? throw new InvalidOperationException("Thread workspace view is not initialized.");
         if (workspaceView.TryGetTabPage(CodeAltaApp.DraftTabId, out var existingPage))
         {
             existingPage.Data = CodeAltaApp.DraftTabId;
             return existingPage;
         }
 
-        var header = _createComputedVisual(
+        var header = _threadTabs.CreateComputedVisual(
             () => new HStack(
             [
                 ThreadTabVisualFactory.CreateIndicator(isBusy: false, StatusTone.Info),
-                ThreadTabVisualFactory.CreateTitle(ShellTextFormatter.BuildDraftTabTitle(_getSelectedProject(), _getGlobalScopeSelected())),
+                ThreadTabVisualFactory.CreateTitle(ShellTextFormatter.BuildDraftTabTitle(_threadSelection.GetSelectedProject(), _threadSelection.GlobalScopeSelected)),
             ])
             {
                 Spacing = 1,
@@ -303,7 +252,7 @@ internal sealed class ThreadTabStripCoordinator
             }
 
             e.Cancel = true;
-            _closeDraftTab();
+            _threadTabs.CloseDraftTab();
         };
 
         workspaceView.RememberTabPage(CodeAltaApp.DraftTabId, page);

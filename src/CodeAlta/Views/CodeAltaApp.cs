@@ -1,5 +1,6 @@
 using CodeAlta.Agent;
 using CodeAlta.App;
+using CodeAlta.App.Context;
 using CodeAlta.Catalog;
 using CodeAlta.Models;
 using CodeAlta.Orchestration.Runtime;
@@ -49,6 +50,11 @@ internal sealed class CodeAltaApp : IAsyncDisposable
     private readonly SidebarCoordinator _sidebarCoordinator;
     private readonly ChatSelectorCoordinator _chatSelectorCoordinator;
     private readonly ThreadTabStripCoordinator _threadTabStripCoordinator;
+    private readonly ChatPreferenceContext _chatPreferenceContext;
+    private readonly ChatSelectorUiContext _chatSelectorUiContext;
+    private readonly ThreadSelectionContext _threadSelectionContext;
+    private readonly ThreadTabContext _threadTabContext;
+    private readonly WorkspaceRefreshContext _workspaceRefreshContext;
 
     private CodeAltaShellView? _shellView;
     private ThreadWorkspaceView? _threadWorkspaceView;
@@ -189,6 +195,25 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             ResetPendingThreadTabSelection,
             threadId => _threadWorkspaceView?.RemoveTabPage(threadId),
             SetStatus);
+        _threadSelectionContext = new ThreadSelectionContext(
+            _threadStateCoordinator,
+            EnsureThreadHistoryLoadedAsync,
+            IsSelectedThread);
+        _chatSelectorUiContext = new ChatSelectorUiContext(
+            () => ChatBackendSelect,
+            () => ChatModelSelect,
+            () => ChatReasoningSelect,
+            () => ChatAutoScrollCheckBox,
+            GetUiDispatcher,
+            VerifyBindableAccess);
+        _chatPreferenceContext = new ChatPreferenceContext(
+            ApplyDraftBackendPreference,
+            ApplyThreadPreference,
+            RememberGlobalBackendPreference,
+            RememberThreadPreference);
+        _workspaceRefreshContext = new WorkspaceRefreshContext(
+            InvalidateSelectedSessionUsage,
+            RefreshHeaderAndThreadWorkspace);
         _sidebarCoordinator = new SidebarCoordinator(
             _sidebarViewModel,
             _catalogOptions,
@@ -198,24 +223,10 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             _threadWorkspaceViewModel,
             _promptComposerViewModel,
             _chatBackendStates,
-            () => ChatBackendSelect,
-            () => ChatModelSelect,
-            () => ChatReasoningSelect,
-            () => ChatAutoScrollCheckBox,
-            GetSelectedThread,
-            GetSelectedProject,
-            thread => EnsureThreadTab(thread),
-            () => _globalScopeSelected,
-            () => _draftTabOpen,
-            () => _selectedThreadId,
-            ApplyDraftBackendPreference,
-            ApplyThreadPreference,
-            RememberGlobalBackendPreference,
-            RememberThreadPreference,
-            InvalidateSelectedSessionUsage,
-            RefreshHeaderAndThreadWorkspace,
-            VerifyBindableAccess,
-            GetUiDispatcher);
+            _chatSelectorUiContext,
+            _threadSelectionContext,
+            _chatPreferenceContext,
+            _workspaceRefreshContext);
         _workspaceCoordinator = new ShellWorkspaceCoordinator(
             _shellViewModel,
             _sessionUsageViewModel,
@@ -249,22 +260,18 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             _chatBackendStates,
             DispatchToUi,
             RefreshHeaderAndThreadWorkspace);
-        _threadTabStripCoordinator = new ThreadTabStripCoordinator(
+        _threadTabContext = new ThreadTabContext(
             () => ThreadTabControl,
             () => _threadWorkspaceView,
-            () => _viewState.OpenThreadIds,
-            () => _draftTabOpen,
-            () => _selectedThreadId,
-            () => _globalScopeSelected,
-            GetSelectedProject,
-            threadId => FindThread(threadId),
-            thread => EnsureThreadTab(thread),
             build => CreateComputedVisual(build),
             GetUiDispatcher,
             () => _ = ActivateDraftTabAsync(),
             threadId => _ = CloseThreadAsync(threadId),
             () => _ = CloseDraftTabAsync(),
             threadId => _ = _shellController.OpenThreadAsync(threadId, CancellationToken.None));
+        _threadTabStripCoordinator = new ThreadTabStripCoordinator(
+            _threadSelectionContext,
+            _threadTabContext);
         _threadRuntimeEventCoordinator = new ThreadRuntimeEventCoordinator(
             threadId => FindThread(threadId),
             threadId => _threadStateCoordinator.FindOpenThread(threadId),
