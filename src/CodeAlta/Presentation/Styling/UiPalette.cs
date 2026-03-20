@@ -45,6 +45,7 @@ namespace CodeAlta.Presentation.Styling
         private static readonly Color ToolChipNeutral = Color.FromOklch(0.56f, 0.02f, 255f);
         private static readonly Color ToolGroupBorder = Color.Mix(ActivityBorder, AssistantBorder, 0.30f, ColorMixSpace.Oklch);
         private static readonly Color ToolGroupBackground = Color.Mix(Colors.Black, ToolGroupBorder, 0.48f, ColorMixSpace.Oklch).WithOpacity(0.28f);
+        private static readonly Color QueuedPromptBackground = Color.Mix(Colors.Black, UserBorder, 0.34f, ColorMixSpace.Oklch).WithOpacity(0.36f);
 
         internal static GroupStyle GetChatGroupStyle(ChatTimelineTone tone)
         {
@@ -139,6 +140,8 @@ namespace CodeAlta.Presentation.Styling
 
             return Style.None.WithForeground(color);
         }
+
+        internal static Color QueuedPromptBackgroundColor => QueuedPromptBackground;
 
         internal static string MutedMarkup => GetMarkupColor(StatusMuted);
 

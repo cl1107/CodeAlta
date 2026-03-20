@@ -1,5 +1,6 @@
 using CodeAlta.Presentation.Chat;
 using CodeAlta.Presentation.Prompting;
+using CodeAlta.Presentation.Styling;
 using CodeAlta.ViewModels;
 using XenoAtom.Terminal;
 using XenoAtom.Terminal.UI;
@@ -32,17 +33,25 @@ internal static class QueuedPromptListView
             return new Placeholder { IsVisible = false };
         }
 
-        return new VStack(
-            workspaceViewModel.QueuedPrompts
-                .Select(
-                    queuedPrompt => BuildRow(
-                        queuedPrompt,
-                        convertQueuedPromptToSteer,
-                        deleteQueuedPrompt,
-                        updateQueuedPromptCount,
-                        updateQueuedPromptText,
-                        createPromptEditor))
-                .ToArray())
+        var rows = new List<Visual>(workspaceViewModel.QueuedPrompts.Count * 2);
+        for (var index = 0; index < workspaceViewModel.QueuedPrompts.Count; index++)
+        {
+            rows.Add(
+                BuildRow(
+                    workspaceViewModel.QueuedPrompts[index],
+                    convertQueuedPromptToSteer,
+                    deleteQueuedPrompt,
+                    updateQueuedPromptCount,
+                    updateQueuedPromptText,
+                    createPromptEditor));
+
+            if (index < workspaceViewModel.QueuedPrompts.Count - 1)
+            {
+                rows.Add(CreateSeparator());
+            }
+        }
+
+        return new VStack(rows.ToArray())
         {
             Spacing = 0,
             HorizontalAlignment = Align.Stretch,
@@ -95,11 +104,25 @@ internal static class QueuedPromptListView
         ])
         {
             Spacing = 1,
+            HorizontalAlignment = Align.End,
         };
 
-        return new StatusBar()
-            .LeftText(left)
-            .RightText(actions);
+        var row = new Grid
+            {
+                HorizontalAlignment = Align.Stretch,
+            }
+            .Rows(new RowDefinition { Height = GridLength.Auto })
+            .Columns(
+                new ColumnDefinition { Width = GridLength.Star(1) },
+                new ColumnDefinition { Width = GridLength.Auto });
+        row.Cell(left, 0, 0);
+        row.Cell(actions, 0, 1);
+        return new ZStack(
+            new Placeholder()
+                .HorizontalAlignment(Align.Stretch)
+                .VerticalAlignment(Align.Stretch)
+                .Style(PlaceholderStyle.Default with { Background = UiPalette.QueuedPromptBackgroundColor }),
+            row.Padding(new Thickness(1, 0, 1, 0)));
     }
 
     private static Visual CreateCounter(
@@ -159,10 +182,18 @@ internal static class QueuedPromptListView
         ArgumentNullException.ThrowIfNull(onClick);
 
         var button = new Button(new TextBlock(icon) { Wrap = false, IsSelectable = false })
-            .Click(onClick)
-            .Style(ButtonStyle.Default with { Padding = new Thickness(0) });
+            .Click(onClick);
         button.IsEnabled = isEnabled;
         return button.Tooltip(new TextBlock(tooltipText));
+    }
+
+    private static Visual CreateSeparator()
+    {
+        return new TextBlock(new string('─', 256))
+        {
+            Wrap = false,
+            IsSelectable = false,
+        };
     }
 
     private static void ShowEditorDialog(
