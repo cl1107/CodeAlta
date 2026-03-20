@@ -46,6 +46,7 @@ internal sealed class TerminalLoopCoordinator
             _runtimeEventPump.Start(cancellationToken);
         }
 
+        _shellController.DrainPendingRuntimeEvents();
         _applyPendingSidebarSelection();
         _syncSidebarSelection();
         return TerminalLoopResult.Continue;

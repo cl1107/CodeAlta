@@ -310,8 +310,14 @@ internal sealed class ThreadRuntimeEventCoordinator
 
         return @event switch
         {
-            AgentContentDeltaEvent { Delta.Length: > 0 } => true,
-            AgentContentCompletedEvent completed when !string.IsNullOrWhiteSpace(completed.Content) => true,
+            AgentContentDeltaEvent
+            {
+                Delta.Length: > 0,
+                Kind: not (AgentContentKind.CommandOutput or AgentContentKind.FileChangeOutput or AgentContentKind.ToolOutput)
+            } => true,
+            AgentContentCompletedEvent completed
+                when !string.IsNullOrWhiteSpace(completed.Content) &&
+                     completed.Kind is not (AgentContentKind.CommandOutput or AgentContentKind.FileChangeOutput or AgentContentKind.ToolOutput) => true,
             AgentPlanSnapshotEvent => true,
             AgentActivityEvent { Phase: AgentActivityPhase.Requested or AgentActivityPhase.Started or AgentActivityPhase.Progressed or AgentActivityPhase.Completed } => true,
             AgentSessionUpdateEvent
@@ -329,12 +335,26 @@ internal sealed class ThreadRuntimeEventCoordinator
     {
         ArgumentNullException.ThrowIfNull(runtimeEvent);
 
-        return runtimeEvent is not WorkThreadAgentEvent
+        return runtimeEvent switch
         {
-            Event: AgentSessionUpdateEvent
+            WorkThreadHostEvent => true,
+            WorkThreadAgentEvent
             {
-                Kind: AgentSessionUpdateKind.UsageUpdated
-            }
+                Event: AgentContentCompletedEvent
+                {
+                    Kind: AgentContentKind.Assistant,
+                    Content.Length: > 0
+                }
+            } => true,
+            WorkThreadAgentEvent
+            {
+                Event: AgentSessionUpdateEvent
+                {
+                    Kind: not AgentSessionUpdateKind.UsageUpdated
+                }
+            } => true,
+            WorkThreadAgentEvent { Event: AgentErrorEvent } => true,
+            _ => false,
         };
     }
 

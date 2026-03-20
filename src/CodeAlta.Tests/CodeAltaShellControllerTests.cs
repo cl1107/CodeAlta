@@ -121,6 +121,59 @@ public sealed class CodeAltaShellControllerTests
     }
 
     [TestMethod]
+    public void QueueRuntimeEvent_DrainAppliesQueuedEventsWithoutDispatcherRoundTrip()
+    {
+        var log = new List<string>();
+        var shell = new FakeShell(log);
+        var dispatcher = new FakeUiDispatcher();
+        var controller = new CodeAltaShellController(
+            shell,
+            new FakeImporter(log),
+            new FakeProjectCatalogLoader(log, []),
+            new FakeRecoverableThreadSource(log, []));
+        controller.AttachUiDispatcher(dispatcher);
+
+        controller.QueueRuntimeEvent(CreateHostEvent("thread-1"), CancellationToken.None);
+        controller.QueueRuntimeEvent(CreateHostEvent("thread-2"), CancellationToken.None);
+
+        var drained = controller.DrainPendingRuntimeEvents();
+
+        Assert.AreEqual(2, drained);
+        Assert.AreEqual(0, dispatcher.InvokeCallCount);
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "Shell.HandleRuntimeEvent:thread-1",
+                "Shell.HandleRuntimeEvent:thread-2",
+            },
+            log);
+    }
+
+    [TestMethod]
+    public void DrainPendingRuntimeEvents_MergesCompatibleContentDeltas()
+    {
+        var log = new List<string>();
+        var shell = new FakeShell(log);
+        var controller = new CodeAltaShellController(
+            shell,
+            new FakeImporter(log),
+            new FakeProjectCatalogLoader(log, []),
+            new FakeRecoverableThreadSource(log, []));
+        controller.AttachUiDispatcher(new FakeUiDispatcher());
+
+        controller.QueueRuntimeEvent(CreateToolDeltaEvent("thread-1", "tool-1", "alpha"), CancellationToken.None);
+        controller.QueueRuntimeEvent(CreateToolDeltaEvent("thread-1", "tool-1", "beta"), CancellationToken.None);
+
+        var drained = controller.DrainPendingRuntimeEvents();
+
+        Assert.AreEqual(2, drained);
+        Assert.AreEqual(1, log.Count);
+        var runtimeEvent = Assert.IsInstanceOfType<WorkThreadAgentEvent>(shell.LastRuntimeEvent);
+        var delta = Assert.IsInstanceOfType<AgentContentDeltaEvent>(runtimeEvent.Event);
+        Assert.AreEqual("alphabeta", delta.Delta);
+    }
+
+    [TestMethod]
     public async Task SelectGlobalScopeAsync_RoutesSelectionThroughDispatcher()
     {
         var log = new List<string>();
@@ -179,6 +232,22 @@ public sealed class CodeAltaShellControllerTests
 
     private static WorkThreadHostEvent CreateHostEvent(string threadId)
         => new(threadId, DateTimeOffset.UtcNow, AgentSessionUpdateKind.Info, "Updated");
+
+    private static WorkThreadAgentEvent CreateToolDeltaEvent(string threadId, string contentId, string delta)
+    {
+        var timestamp = DateTimeOffset.UtcNow;
+        return new WorkThreadAgentEvent(
+            threadId,
+            new AgentContentDeltaEvent(
+                AgentBackendIds.Codex,
+                "session-1",
+                timestamp,
+                null,
+                AgentContentKind.ToolOutput,
+                contentId,
+                "activity-1",
+                delta));
+    }
 
     private static WorkThreadDescriptor CreateThread(string threadId)
     {

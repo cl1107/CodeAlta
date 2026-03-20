@@ -60,7 +60,7 @@ internal sealed class RuntimeEventPump : IAsyncDisposable
         {
             await foreach (var runtimeEvent in _runtimeService.StreamEventsAsync(cancellationToken).ConfigureAwait(false))
             {
-                await _shellController.ApplyRuntimeEventAsync(runtimeEvent, cancellationToken).ConfigureAwait(false);
+                _shellController.QueueRuntimeEvent(runtimeEvent, cancellationToken);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

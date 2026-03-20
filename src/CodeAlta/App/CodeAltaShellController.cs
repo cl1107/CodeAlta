@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using CodeAlta.Agent;
 using CodeAlta.Models;
 using CodeAlta.Orchestration.Runtime;
 using CodeAlta.Views;
@@ -12,6 +14,7 @@ internal sealed class CodeAltaShellController : IAsyncDisposable
     private readonly IProjectCatalogLoader _projectCatalog;
     private readonly IRecoverableThreadSource _recoverableThreadSource;
     private readonly CancellationTokenSource _disposeCts = new();
+    private readonly ConcurrentQueue<WorkThreadRuntimeEvent> _pendingRuntimeEvents = new();
     private IUiDispatcher? _uiDispatcher;
     private CancellationTokenSource? _initializationCts;
     private Task? _initializationTask;
@@ -88,6 +91,46 @@ internal sealed class CodeAltaShellController : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(runtimeEvent);
         cancellationToken.ThrowIfCancellationRequested();
         return UiDispatcher.InvokeAsync(() => _shell.HandleRuntimeEvent(runtimeEvent));
+    }
+
+    public void QueueRuntimeEvent(WorkThreadRuntimeEvent runtimeEvent, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(runtimeEvent);
+        cancellationToken.ThrowIfCancellationRequested();
+        _pendingRuntimeEvents.Enqueue(runtimeEvent);
+    }
+
+    public int DrainPendingRuntimeEvents(int maxEvents = 512)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxEvents);
+
+        var drainedEvents = 0;
+        WorkThreadRuntimeEvent? pendingEvent = null;
+        while (drainedEvents < maxEvents && _pendingRuntimeEvents.TryDequeue(out var runtimeEvent))
+        {
+            drainedEvents++;
+            if (pendingEvent is null)
+            {
+                pendingEvent = runtimeEvent;
+                continue;
+            }
+
+            if (TryMergeRuntimeEvents(pendingEvent, runtimeEvent, out var mergedEvent))
+            {
+                pendingEvent = mergedEvent;
+                continue;
+            }
+
+            _shell.HandleRuntimeEvent(pendingEvent);
+            pendingEvent = runtimeEvent;
+        }
+
+        if (pendingEvent is not null)
+        {
+            _shell.HandleRuntimeEvent(pendingEvent);
+        }
+
+        return drainedEvents;
     }
 
     public Task SelectGlobalScopeAsync(CancellationToken cancellationToken)
@@ -185,5 +228,41 @@ internal sealed class CodeAltaShellController : IAsyncDisposable
                 CodeAltaApp.UiLogger.Error(ex, "Failed to refresh backend startup state.");
             }
         }
+    }
+
+    internal static bool TryMergeRuntimeEvents(
+        WorkThreadRuntimeEvent first,
+        WorkThreadRuntimeEvent second,
+        out WorkThreadRuntimeEvent? merged)
+    {
+        ArgumentNullException.ThrowIfNull(first);
+        ArgumentNullException.ThrowIfNull(second);
+
+        if (first is WorkThreadAgentEvent { Event: AgentContentDeltaEvent firstDelta } firstAgent &&
+            second is WorkThreadAgentEvent { Event: AgentContentDeltaEvent secondDelta } secondAgent &&
+            string.Equals(firstAgent.ThreadId, secondAgent.ThreadId, StringComparison.Ordinal) &&
+            firstDelta.Kind == secondDelta.Kind &&
+            string.Equals(firstDelta.ContentId, secondDelta.ContentId, StringComparison.Ordinal) &&
+            string.Equals(firstDelta.ParentActivityId, secondDelta.ParentActivityId, StringComparison.Ordinal) &&
+            string.Equals(firstDelta.SessionId, secondDelta.SessionId, StringComparison.Ordinal) &&
+            firstDelta.BackendId == secondDelta.BackendId &&
+            firstDelta.RunId == secondDelta.RunId)
+        {
+            merged = new WorkThreadAgentEvent(
+                firstAgent.ThreadId,
+                new AgentContentDeltaEvent(
+                    firstDelta.BackendId,
+                    firstDelta.SessionId,
+                    secondDelta.Timestamp,
+                    firstDelta.RunId,
+                    firstDelta.Kind,
+                    firstDelta.ContentId,
+                    firstDelta.ParentActivityId,
+                    string.Concat(firstDelta.Delta, secondDelta.Delta)));
+            return true;
+        }
+
+        merged = null;
+        return false;
     }
 }
