@@ -30,6 +30,9 @@ public sealed partial class PromptComposerViewModel
     public partial bool CanAbort { get; set; }
 
     [Bindable]
+    public partial bool CanCompact { get; set; }
+
+    [Bindable]
     public partial bool CanCloseTab { get; set; }
 
     [Bindable]

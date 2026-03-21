@@ -255,8 +255,20 @@ internal sealed class ThreadRuntimeEventCoordinator
                     }
                 }
 
+                if (update.Kind == AgentSessionUpdateKind.CompactionStarted && tab.PendingManualCompaction)
+                {
+                    _setThreadStatus(tab, $"Compacting '{thread.Title}'...", true, StatusTone.Info);
+                }
+
+                if (update.Kind == AgentSessionUpdateKind.CompactionCompleted && tab.PendingManualCompaction)
+                {
+                    tab.PendingManualCompaction = false;
+                    _clearThreadStatus(tab);
+                }
+
                 if (update.Kind == AgentSessionUpdateKind.Idle)
                 {
+                    tab.PendingManualCompaction = false;
                     _clearThreadStatus(tab);
                     if (tab.QueuedPrompts.Count > 0)
                     {
@@ -285,6 +297,7 @@ internal sealed class ThreadRuntimeEventCoordinator
                 break;
 
             case AgentErrorEvent error:
+                tab.PendingManualCompaction = false;
                 tab.Timeline.RenderError(error.Message, error.Timestamp);
                 thread.LatestSummary = SummarizeContent(error.Message);
                 _setThreadStatus(tab, error.Message, false, StatusTone.Error);

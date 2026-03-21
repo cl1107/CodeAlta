@@ -274,6 +274,8 @@ public sealed class ChatAgentConnectionTests
 
             public Task AbortAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
+            public Task CompactAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
             public Task<IReadOnlyList<AgentEvent>> GetHistoryAsync(CancellationToken cancellationToken = default)
                 => Task.FromResult<IReadOnlyList<AgentEvent>>([]);
 

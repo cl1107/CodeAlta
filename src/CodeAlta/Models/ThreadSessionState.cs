@@ -16,6 +16,8 @@ internal sealed class ThreadSessionState
 
     public bool HistoryLoading { get; set; }
 
+    public bool PendingManualCompaction { get; set; }
+
     public Task? HistoryLoadTask { get; set; }
 
     public List<AgentEvent>? HistoryEvents { get; set; }

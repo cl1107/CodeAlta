@@ -17,6 +17,7 @@ An agentic AI coding CLI assistant developed in .NET.
 - Interactive terminal shell wired to workspace/task/search/.NET/MCP services, with explicit shell-controller/UI-dispatcher/view-presenter seams, rich agent timelines, chat backend/model/reasoning selectors, a live `ctx --` / `ctx NN%` context-window indicator with normalized usage popup sections and backend-specific detail, and asynchronous Codex/Copilot probing so the TUI starts immediately even when a backend is missing (`CodeAlta`)
 - Busy-thread prompt queueing with an editable waiting list, per-entry repeat counts, immediate steer conversion, and an `F10` clear-queue shortcut (`CodeAlta`)
 - A temporary `AlwaysQueue` toggle beside `AutoScroll` lets you enqueue prompts on an idle selected thread to exercise the waiting-list UI without sending immediately (`CodeAlta`)
+- Idle started threads can be compacted manually from the footer bar or with `F11`, using the thread's current backend/model/reasoning configuration (`CodeAlta`)
 - Codex backend sessions default to no sandbox in CodeAlta, so prompts can inspect sibling projects outside the current working directory without requiring the session cwd to be moved first
 - CodeAlta writes a persistent diagnostic log to `~/.codealta/logs/codealta.log` for chat/backend troubleshooting
 - `CodeAlta --test` runs the real terminal app for a short smoke-test window and exits automatically after 10 seconds by default

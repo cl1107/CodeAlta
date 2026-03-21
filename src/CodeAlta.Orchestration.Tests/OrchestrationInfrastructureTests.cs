@@ -413,6 +413,64 @@ public sealed class OrchestrationInfrastructureTests
     }
 
     [TestMethod]
+    public async Task WorkThreadRuntimeService_CompactAsync_InvokesSessionCompaction()
+    {
+        using var temp = TempDirectory.Create();
+        var catalogOptions = new CatalogOptions { GlobalRoot = temp.Path };
+        var projectCatalog = new ProjectCatalog(catalogOptions);
+        var threadCatalog = new WorkThreadCatalog(catalogOptions);
+        var roleStore = new RoleProfileStore();
+        var instructionProvider = new AgentInstructionTemplateProvider();
+
+        var project = new ProjectDescriptor
+        {
+            Id = ProjectId.NewVersion7().ToString(),
+            Slug = "repo-main",
+            DisplayName = "Main Repo",
+            ProjectPath = Path.Combine(temp.Path, "repo-main"),
+            DefaultBranch = "main",
+        };
+        Directory.CreateDirectory(project.ProjectPath);
+        await projectCatalog.SaveAsync(project).ConfigureAwait(false);
+
+        var agentsRoot = Path.Combine(temp.Path, "agents");
+        Directory.CreateDirectory(agentsRoot);
+        await File.WriteAllTextAsync(
+            Path.Combine(agentsRoot, "coordinator.agent.md"),
+            """
+            ---
+            name: coordinator
+            description: Coordinates thread work.
+            ---
+            Keep thread state compact.
+            """).ConfigureAwait(false);
+
+        var backendFactory = new AgentBackendFactory();
+        var fakeBackend = new FakeBackend();
+        backendFactory.Register("fake", () => fakeBackend);
+
+        var db = await CreateDbAsync(temp.Path).ConfigureAwait(false);
+        var repository = new AgentRepository(db);
+        await using var hub = new AgentHub(backendFactory, repository);
+        await using var runtime = new WorkThreadRuntimeService(
+            hub,
+            projectCatalog,
+            threadCatalog,
+            roleStore,
+            instructionProvider,
+            catalogOptions);
+
+        var thread = await runtime.CreateProjectThreadAsync(
+            project,
+            CreateExecutionOptions(project.ProjectPath),
+            "Compact Thread").ConfigureAwait(false);
+
+        await runtime.CompactAsync(thread, CreateExecutionOptions(project.ProjectPath)).ConfigureAwait(false);
+
+        Assert.AreEqual(1, fakeBackend.CompactCallCount);
+    }
+
+    [TestMethod]
     public async Task WorkThreadRuntimeService_CreateInternalThreadAsync_PersistsRecoverableChildThread()
     {
         using var temp = TempDirectory.Create();
@@ -716,6 +774,8 @@ public sealed class OrchestrationInfrastructureTests
 
         public AgentSessionCreateOptions? LastCreateOptions { get; private set; }
 
+        public int CompactCallCount { get; private set; }
+
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
         public Task StartAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
@@ -817,6 +877,12 @@ public sealed class OrchestrationInfrastructureTests
                 => Task.FromResult(options.ExpectedRunId ?? new AgentRunId("fake-run-1"));
 
             public Task AbortAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+            public Task CompactAsync(CancellationToken cancellationToken = default)
+            {
+                _backend.CompactCallCount++;
+                return Task.CompletedTask;
+            }
 
             public Task<IReadOnlyList<AgentEvent>> GetHistoryAsync(CancellationToken cancellationToken = default)
                 => Task.FromResult<IReadOnlyList<AgentEvent>>(_events.ToArray());

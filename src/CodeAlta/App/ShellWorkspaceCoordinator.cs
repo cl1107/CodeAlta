@@ -117,6 +117,7 @@ internal sealed class ShellWorkspaceCoordinator
 
         if (_threadSelection.IsSelectedThread(tab.Thread.ThreadId))
         {
+            _workspaceContext.DispatchToUi(_workspaceContext.UpdatePromptAvailabilityUi);
             SetReadyStatusForCurrentSelection();
         }
 

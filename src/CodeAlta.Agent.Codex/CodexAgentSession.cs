@@ -176,6 +176,13 @@ public sealed class CodexAgentSession : ICodexAgentSession
     }
 
     /// <inheritdoc />
+    public Task CompactAsync(CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        return _backend.Client.ThreadCompactStartAsync(ThreadId, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<AgentEvent>> GetHistoryAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);

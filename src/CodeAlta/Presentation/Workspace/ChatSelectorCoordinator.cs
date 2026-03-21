@@ -380,6 +380,7 @@ internal sealed class ChatSelectorCoordinator
         _promptComposerViewModel.CanSteer = projection.CanSteer;
         _promptComposerViewModel.CanDelegate = projection.CanDelegate;
         _promptComposerViewModel.CanAbort = projection.CanAbort;
+        _promptComposerViewModel.CanCompact = projection.CanCompact;
         _promptComposerViewModel.CanCloseTab = projection.CanCloseTab;
         _promptComposerViewModel.CanClearQueue = projection.CanClearQueue;
         _promptComposerViewModel.CanAlwaysEnqueue = projection.CanAlwaysEnqueue;
@@ -434,6 +435,10 @@ internal sealed class ChatSelectorCoordinator
             selectedThread is not null &&
             _threadSelection.FindOpenThread(selectedThread.ThreadId) is { } selectedTab &&
             selectedTab.QueuedPrompts.Count > 0,
-            selectedThread is not null);
+            selectedThread is not null,
+            selectedThread is not null &&
+            _threadSelection.FindOpenThread(selectedThread.ThreadId) is { } selectedThreadTab &&
+            selectedThread.StartedAt is not null &&
+            !selectedThreadTab.StatusBusy);
     }
 }

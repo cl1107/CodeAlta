@@ -439,31 +439,22 @@ internal sealed class CodeAltaApp : IAsyncDisposable
 
     private void RefreshChatSelectorsForDraftScope(AgentBackendId? preferredBackendId = null)
         => _chatSelectorCoordinator.RefreshForDraftScope(preferredBackendId);
-
     private void RefreshChatSelectorsForThread(OpenThreadState tab)
         => _chatSelectorCoordinator.RefreshForThread(tab);
-
     private void OnChatBackendSelectionChanged(int newIndex)
         => _chatSelectorCoordinator.OnBackendSelectionChanged(newIndex);
-
     private void OnChatModelSelectionChanged(int newIndex)
         => _chatSelectorCoordinator.OnModelSelectionChanged(newIndex);
-
     private void OnChatReasoningSelectionChanged(int newIndex)
         => _chatSelectorCoordinator.OnReasoningSelectionChanged(newIndex);
-
     private void OnChatAutoScrollChanged()
         => _chatSelectorCoordinator.OnAutoScrollChanged();
-
     private void OnAlwaysEnqueueChanged()
         => _chatSelectorCoordinator.OnAlwaysEnqueueChanged();
-
     private AgentBackendId GetPreferredBackendId()
         => _chatSelectorCoordinator.GetPreferredBackendId();
-
     private bool IsChatBackendReady(AgentBackendId backendId)
         => _chatSelectorCoordinator.IsChatBackendReady(backendId);
-
     private bool TryGetPromptUnavailableStatus(out string message, out StatusTone tone)
         => _chatSelectorCoordinator.TryGetPromptUnavailableStatus(out message, out tone);
 
@@ -476,13 +467,10 @@ internal sealed class CodeAltaApp : IAsyncDisposable
 
     private void UpdatePromptAvailabilityUi()
         => _chatSelectorCoordinator.UpdatePromptAvailabilityUi();
-
     private void SyncThreadTabControl()
         => _threadTabStripCoordinator.SyncControl();
-
     private void OnThreadTabControlSelectionChanged(int selectedIndex)
         => _threadTabStripCoordinator.OnSelectionChanged(selectedIndex);
-
     private void ResetPendingThreadTabSelection()
         => _threadTabStripCoordinator.ResetPendingSelection();
 
@@ -502,6 +490,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             (queuedPromptId, text) => _threadCommandCoordinator.UpdateSelectedThreadQueuedPromptText(queuedPromptId, text),
             () => _ = _threadCommandCoordinator.DelegateSelectedThreadAsync(),
             () => _ = _threadCommandCoordinator.AbortSelectedThreadAsync(),
+            () => _ = _threadCommandCoordinator.CompactSelectedThreadAsync(),
             () => _ = GetSelectedThread() is not null ? CloseSelectedThreadAsync() : CloseDraftTabAsync(),
             OnThreadTabControlSelectionChanged,
             OnChatBackendSelectionChanged,
@@ -529,28 +518,20 @@ internal sealed class CodeAltaApp : IAsyncDisposable
 
     private void RefreshShellChrome()
         => _workspaceCoordinator.RefreshShellChrome();
-
     internal void RefreshCatalogAndThreadWorkspace()
         => _workspaceCoordinator.RefreshCatalogAndThreadWorkspace();
-
     private void RefreshHeaderAndThreadWorkspace()
         => _workspaceCoordinator.RefreshHeaderAndThreadWorkspace();
-
     private void RefreshSelectionAndThreadWorkspace()
         => _workspaceCoordinator.RefreshSelectionAndThreadWorkspace();
-
     internal void SelectGlobalScope()
         => _threadStateCoordinator.SelectGlobalScope();
-
     internal void SelectProjectScope(string projectId)
         => _threadStateCoordinator.SelectProjectScope(projectId);
-
     private void EnsureSelectionDefaults()
         => _threadStateCoordinator.EnsureSelectionDefaults();
-
     private string BuildHeaderText()
         => _workspaceCoordinator.BuildHeaderText();
-
     internal void SetStatus(string message, bool showSpinner = false, StatusTone tone = StatusTone.Info)
         => _workspaceCoordinator.SetStatus(message, showSpinner, tone);
 
@@ -561,20 +542,16 @@ internal sealed class CodeAltaApp : IAsyncDisposable
         StatusTone tone = StatusTone.Info,
         bool hasCustomStatus = true)
         => _workspaceCoordinator.SetThreadStatus(tab, message, showSpinner, tone, hasCustomStatus);
-
     private void ClearThreadStatus(OpenThreadState tab)
         => _workspaceCoordinator.ClearThreadStatus(tab);
-
     private void InvalidateThreadChrome()
         => _workspaceCoordinator.InvalidateThreadChrome();
-
     private void InvalidateSelectedSessionUsage()
         => _workspaceCoordinator.InvalidateSelectedSessionUsage();
 
     private bool IsSelectedThread(string threadId)
         => !string.IsNullOrWhiteSpace(threadId) &&
            string.Equals(_selectedThreadId, threadId, StringComparison.OrdinalIgnoreCase);
-
     internal void SetReadyStatusForCurrentSelection()
         => _workspaceCoordinator.SetReadyStatusForCurrentSelection();
 

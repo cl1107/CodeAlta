@@ -103,6 +103,13 @@ public sealed class CopilotAgentSession : ICopilotAgentSession
     }
 
     /// <inheritdoc />
+    public Task CompactAsync(CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        return Session.Rpc.Compaction.CompactAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<AgentEvent>> GetHistoryAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);

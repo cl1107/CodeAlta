@@ -61,6 +61,13 @@ public interface IAgentSession : IAsyncDisposable
     Task AbortAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Triggers a manual session/thread compaction when supported by the backend.
+    /// </summary>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <exception cref="NotSupportedException">Thrown when the backend does not support manual compaction.</exception>
+    Task CompactAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Gets the stored history for the session (best effort).
     /// </summary>
     /// <param name="cancellationToken">A token to cancel the operation.</param>

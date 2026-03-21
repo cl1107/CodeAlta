@@ -35,6 +35,7 @@ internal sealed class ThreadWorkspaceView
         Action<string, string> updateQueuedPromptText,
         Action delegateThread,
         Action abortThread,
+        Action compactThread,
         Action closeTab,
         Action<int> onThreadTabSelectionChanged,
         Action<int> onChatBackendSelectionChanged,
@@ -56,6 +57,7 @@ internal sealed class ThreadWorkspaceView
         ArgumentNullException.ThrowIfNull(updateQueuedPromptText);
         ArgumentNullException.ThrowIfNull(delegateThread);
         ArgumentNullException.ThrowIfNull(abortThread);
+        ArgumentNullException.ThrowIfNull(compactThread);
         ArgumentNullException.ThrowIfNull(closeTab);
         ArgumentNullException.ThrowIfNull(onThreadTabSelectionChanged);
         ArgumentNullException.ThrowIfNull(onChatBackendSelectionChanged);
@@ -80,6 +82,7 @@ internal sealed class ThreadWorkspaceView
             clearQueuedPrompts,
             delegateThread,
             abortThread,
+            compactThread,
             closeTab);
         ThreadInput.RegisterDynamicUpdate(_ => ThreadInput.IsEnabled = promptComposerViewModel.IsEnabled);
         ThreadInputView = ThreadInput.Scrollable();
@@ -108,6 +111,9 @@ internal sealed class ThreadWorkspaceView
         AlwaysEnqueueCheckBox = new CheckBox("AlwaysQueue", isChecked: false);
         AlwaysEnqueueCheckBox.RegisterDynamicUpdate(_ => onAlwaysEnqueueChanged());
         AlwaysEnqueueCheckBox.RegisterDynamicUpdate(_ => AlwaysEnqueueCheckBox.IsEnabled = promptComposerViewModel.CanAlwaysEnqueue);
+        var compactThreadButton = CreateIconButton($"{NerdFont.MdSelectCompare}", compactThread);
+        compactThreadButton.RegisterDynamicUpdate(_ => compactThreadButton.IsEnabled = promptComposerViewModel.CanCompact);
+        var compactThreadButtonView = compactThreadButton.Tooltip(new TextBlock("Compact the selected thread session (F11)."));
 
         var statusSpinner = new Spinner().Style(SpinnerStyles.Arc);
         statusSpinner.IsActive(() => shellViewModel.StatusBusy);
@@ -161,6 +167,7 @@ internal sealed class ThreadWorkspaceView
             ChatBackendSelect,
             ChatModelSelect,
             ChatReasoningSelect,
+            compactThreadButtonView,
             ChatAutoScrollCheckBox,
             AlwaysEnqueueCheckBox,
         ])
@@ -271,6 +278,7 @@ internal sealed class ThreadWorkspaceView
         Action clearQueuedPrompts,
         Action delegateThread,
         Action abortThread,
+        Action compactThread,
         Action closeTab)
     {
         ArgumentNullException.ThrowIfNull(promptComposerViewModel);
@@ -279,6 +287,7 @@ internal sealed class ThreadWorkspaceView
         ArgumentNullException.ThrowIfNull(clearQueuedPrompts);
         ArgumentNullException.ThrowIfNull(delegateThread);
         ArgumentNullException.ThrowIfNull(abortThread);
+        ArgumentNullException.ThrowIfNull(compactThread);
         ArgumentNullException.ThrowIfNull(closeTab);
 
         var editor = CreateStyledPromptEditor(_ => sendPrompt(), placeholder: null)
@@ -331,6 +340,17 @@ internal sealed class ThreadWorkspaceView
 
         editor.AddCommand(new Command
         {
+            Id = "CodeAlta.Thread.Compact",
+            LabelMarkup = "Compact",
+            DescriptionMarkup = "Compact the selected thread session when it is idle.",
+            Gesture = new KeyGesture(TerminalKey.F11),
+            Presentation = CommandPresentation.CommandBar,
+            Execute = _visual => compactThread(),
+            CanExecute = _visual => promptComposerViewModel.CanCompact,
+        });
+
+        editor.AddCommand(new Command
+        {
             Id = "CodeAlta.Thread.CloseTab",
             LabelMarkup = "Close Tab",
             DescriptionMarkup = "Close the current thread tab.",
@@ -341,6 +361,15 @@ internal sealed class ThreadWorkspaceView
         });
 
         return editor;
+    }
+
+    private static Button CreateIconButton(string icon, Action onClick)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(icon);
+        ArgumentNullException.ThrowIfNull(onClick);
+
+        return new Button(new TextBlock(icon) { Wrap = false, IsSelectable = false })
+            .Click(onClick);
     }
 
     internal static ChatPromptEditor CreateStyledPromptEditor(Action<string> onAccepted, string? placeholder)

@@ -10,6 +10,7 @@ namespace CodeAlta.Presentation.Prompting
         bool CanSteer,
         bool CanDelegate,
         bool CanAbort,
+        bool CanCompact,
         bool CanCloseTab,
         bool CanClearQueue,
         bool CanAlwaysEnqueue,
@@ -32,7 +33,8 @@ namespace CodeAlta.Presentation.Prompting
             bool draftTabOpen,
             string? selectedThreadId,
             bool selectedThreadHasQueuedPrompts,
-            bool selectedThreadCanAlwaysEnqueue)
+            bool selectedThreadCanAlwaysEnqueue,
+            bool selectedThreadCanCompact)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(backendDisplayName);
 
@@ -55,6 +57,7 @@ namespace CodeAlta.Presentation.Prompting
                 CanSteer: hasThread && !isUnavailable,
                 CanDelegate: hasThread && !isUnavailable,
                 CanAbort: hasThread,
+                CanCompact: hasThread && selectedThreadCanCompact && !isUnavailable,
                 CanCloseTab: hasThread || (draftTabOpen && string.IsNullOrWhiteSpace(selectedThreadId)),
                 CanClearQueue: hasThread && selectedThreadHasQueuedPrompts,
                 CanAlwaysEnqueue: hasThread && selectedThreadCanAlwaysEnqueue,

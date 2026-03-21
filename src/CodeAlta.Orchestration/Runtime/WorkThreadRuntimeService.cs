@@ -413,6 +413,21 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
     }
 
     /// <summary>
+    /// Triggers a manual compaction for a thread coordinator session.
+    /// </summary>
+    public async Task CompactAsync(
+        WorkThreadDescriptor thread,
+        WorkThreadExecutionOptions options,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(thread);
+        ArgumentNullException.ThrowIfNull(options);
+
+        var agentId = await EnsureCoordinatorSessionAsync(thread, options, cancellationToken).ConfigureAwait(false);
+        await _agentHub.CompactAsync(agentId, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Gets sanitized history for an active thread session.
     /// </summary>
     public async Task<IReadOnlyList<AgentEvent>> GetHistoryAsync(string threadId, CancellationToken cancellationToken = default)

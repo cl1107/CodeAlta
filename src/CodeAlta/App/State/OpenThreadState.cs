@@ -64,6 +64,12 @@ internal sealed class OpenThreadState
         set => Session.HistoryLoading = value;
     }
 
+    public bool PendingManualCompaction
+    {
+        get => Session.PendingManualCompaction;
+        set => Session.PendingManualCompaction = value;
+    }
+
     public Task? HistoryLoadTask
     {
         get => Session.HistoryLoadTask;

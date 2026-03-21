@@ -465,6 +465,39 @@ public sealed class AgentHub : IAsyncDisposable
     }
 
     /// <summary>
+    /// Triggers a manual compaction in the active agent session.
+    /// </summary>
+    /// <param name="agentId">Agent id.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <exception cref="InvalidOperationException">Thrown when the agent has no active session.</exception>
+    public async Task CompactAsync(AgentId agentId, CancellationToken cancellationToken = default)
+    {
+        SessionEntry entry;
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (!_sessions.TryGetValue(agentId, out entry!))
+            {
+                throw new InvalidOperationException($"Agent '{agentId}' does not have an active session.");
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        await entry.RunGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await entry.Session.CompactAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            entry.RunGate.Release();
+        }
+    }
+
+    /// <summary>
     /// Stops and disposes the active session for an agent, if present.
     /// </summary>
     /// <param name="agentId">Agent id.</param>

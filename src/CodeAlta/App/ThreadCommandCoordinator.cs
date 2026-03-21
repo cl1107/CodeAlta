@@ -228,6 +228,47 @@ internal sealed class ThreadCommandCoordinator
         }
     }
 
+    public async Task CompactSelectedThreadAsync()
+    {
+        var thread = _threadSelection.GetSelectedThread();
+        if (thread is null)
+        {
+            _commandContext.SetShellStatus("Open a thread before compacting it.", false, StatusTone.Warning);
+            return;
+        }
+
+        if (!IsChatBackendReady(new AgentBackendId(thread.BackendId)))
+        {
+            _commandContext.SetReadyStatusForCurrentSelection();
+            return;
+        }
+
+        var tab = _threadSelection.EnsureThreadTab(thread);
+        if (tab.StatusBusy)
+        {
+            _commandContext.SetShellStatus($"Wait for '{thread.Title}' to become idle before compacting it.", false, StatusTone.Warning);
+            return;
+        }
+
+        if (thread.StartedAt is null)
+        {
+            _commandContext.SetThreadStatus(tab, "Compaction is available after the thread has completed at least one run.", false, StatusTone.Warning);
+            return;
+        }
+
+        try
+        {
+            tab.PendingManualCompaction = true;
+            _commandContext.SetThreadStatus(tab, $"Compacting '{thread.Title}'...", true, StatusTone.Info);
+            await _runtimeService.CompactAsync(thread, BuildExecutionOptions(thread, tab), CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            tab.PendingManualCompaction = false;
+            _commandContext.SetThreadStatus(tab, $"Failed to compact '{thread.Title}': {ex.Message}", false, StatusTone.Error);
+        }
+    }
+
     public Task ClearSelectedThreadQueueAsync()
     {
         _queueCoordinator.ClearSelectedThreadQueue();

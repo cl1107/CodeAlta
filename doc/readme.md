@@ -115,6 +115,7 @@ Current terminal shell capabilities:
   - Sending a prompt now follows an enqueue-first workflow for busy threads: `Ctrl+J`/`Ctrl+Enter` adds the prompt to a waiting list above the status line, where queued prompts can be edited, repeated, steered immediately, deleted, or cleared with `F10`.
   - A temporary `AlwaysQueue` checkbox next to `AutoScroll` forces normal sends to enqueue for the selected thread even when it is idle, which is useful for exercising the waiting-list controls without dispatching work immediately.
   - Pressing `F5` with an empty draft now steers the first queued prompt immediately when the selected thread has queued work.
+  - A compact button now sits beside the backend/model/reasoning selectors. Press `F11` or click it to trigger a manual session compaction when the selected thread has already started and is currently idle.
   - The footer usage indicator stays compact as `ctx --` or `ctx NN%`, while the usage popup is split into Summary, Usage breakdown, Limits and quotas, and Backend-specific details with explicit source/scope metadata.
   - Copilot sessions are started with `codealta.*` MCP tools bridged into the backend via `McpToolBridge` (tool calls execute against the in-process MCP server, with MCP tool ids normalized to Copilot-compatible function names).
   - CodeAlta now auto-approves backend permission requests and auto-resolves `ask_user` prompts by preferring continue/inspect-style choices (or a neutral fallback for freeform prompts).
