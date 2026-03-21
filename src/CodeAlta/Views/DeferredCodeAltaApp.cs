@@ -31,12 +31,12 @@ internal sealed class DeferredCodeAltaApp : IAsyncDisposable
                 _commandBarHost).Root);
     }
 
-    public TerminalInstance Run(CancellationToken cancellationToken)
-    {
-        return Terminal.Run(
+    public ValueTask<TerminalInstance> RunAsync(CancellationToken cancellationToken)
+        => Terminal.RunAsync(
             _rootHost,
-            _ => OnIteration(cancellationToken), new TerminalRunOptions() { UpdateWaitDuration = new TimeSpan(0) });
-    }
+            _ => OnIteration(cancellationToken),
+            new TerminalRunOptions { UpdateWaitDuration = TimeSpan.Zero },
+            cancellationToken);
 
     public async ValueTask DisposeAsync()
     {

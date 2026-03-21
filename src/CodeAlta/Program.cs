@@ -34,7 +34,7 @@ if (options.TestMode)
     Console.WriteLine($"[CodeAlta] Starting terminal smoke test for {testDurationText}s.");
 }
 
-app.Run(cancellationTokenSource.Token);
+await app.RunAsync(cancellationTokenSource.Token);
 
 if (options.TestMode)
 {
