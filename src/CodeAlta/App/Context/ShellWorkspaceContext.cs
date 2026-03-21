@@ -20,6 +20,7 @@ internal sealed class ShellWorkspaceContext
     private readonly Action _refreshQueuedPromptList;
     private readonly Action _refreshChatSelectorsForDraftScope;
     private readonly Action<OpenThreadState> _refreshChatSelectorsForThread;
+    private readonly Action<ThreadSessionState?> _syncPromptDraftText;
     private readonly Action _updatePromptAvailabilityUi;
     private readonly Action _syncThreadTabControl;
     private readonly Action<Action> _dispatchToUi;
@@ -37,6 +38,7 @@ internal sealed class ShellWorkspaceContext
         Action refreshQueuedPromptList,
         Action refreshChatSelectorsForDraftScope,
         Action<OpenThreadState> refreshChatSelectorsForThread,
+        Action<ThreadSessionState?> syncPromptDraftText,
         Action updatePromptAvailabilityUi,
         Action syncThreadTabControl,
         Action<Action> dispatchToUi,
@@ -53,6 +55,7 @@ internal sealed class ShellWorkspaceContext
         ArgumentNullException.ThrowIfNull(refreshQueuedPromptList);
         ArgumentNullException.ThrowIfNull(refreshChatSelectorsForDraftScope);
         ArgumentNullException.ThrowIfNull(refreshChatSelectorsForThread);
+        ArgumentNullException.ThrowIfNull(syncPromptDraftText);
         ArgumentNullException.ThrowIfNull(updatePromptAvailabilityUi);
         ArgumentNullException.ThrowIfNull(syncThreadTabControl);
         ArgumentNullException.ThrowIfNull(dispatchToUi);
@@ -69,6 +72,7 @@ internal sealed class ShellWorkspaceContext
         _refreshQueuedPromptList = refreshQueuedPromptList;
         _refreshChatSelectorsForDraftScope = refreshChatSelectorsForDraftScope;
         _refreshChatSelectorsForThread = refreshChatSelectorsForThread;
+        _syncPromptDraftText = syncPromptDraftText;
         _updatePromptAvailabilityUi = updatePromptAvailabilityUi;
         _syncThreadTabControl = syncThreadTabControl;
         _dispatchToUi = dispatchToUi;
@@ -110,6 +114,9 @@ internal sealed class ShellWorkspaceContext
         ArgumentNullException.ThrowIfNull(tab);
         _refreshChatSelectorsForThread(tab);
     }
+
+    public void SyncPromptDraftText(ThreadSessionState? session)
+        => _syncPromptDraftText(session);
 
     public void UpdatePromptAvailabilityUi()
         => _updatePromptAvailabilityUi();

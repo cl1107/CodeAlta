@@ -11,6 +11,7 @@ internal sealed class SidebarCoordinator
     private readonly SidebarViewModel _viewModel;
     private readonly CatalogOptions _catalogOptions;
     private readonly int _maxRecentThreadsPerProject;
+    private readonly CodeAltaShellController _shellController;
     private readonly SidebarView _view;
     private bool _selectionSyncEnabled = true;
     private SidebarTreeProjection? _projection;
@@ -30,9 +31,11 @@ internal sealed class SidebarCoordinator
         _viewModel = viewModel;
         _catalogOptions = catalogOptions;
         _maxRecentThreadsPerProject = maxRecentThreadsPerProject;
+        _shellController = shellController;
         _view = new SidebarView(
             viewModel,
-            () => _ = shellController.ReloadCatalogAsync(CancellationToken.None));
+            () => _ = shellController.ReloadCatalogAsync(CancellationToken.None),
+            OnSelectedTargetChanged);
     }
 
     public SidebarView View => _view;
@@ -78,6 +81,8 @@ internal sealed class SidebarCoordinator
         {
             _selectionSyncEnabled = true;
         }
+
+        ApplyPendingSelection();
     }
 
     public void SyncSelectionToCurrentState(SidebarSelectionTarget currentTarget)
@@ -108,36 +113,29 @@ internal sealed class SidebarCoordinator
         _pendingSelectionTarget = null;
     }
 
-    public void SyncSelection(
-        Action selectGlobalScope,
-        Action<string> selectProjectScope,
-        Action<string> openThread)
+    private void OnSelectedTargetChanged(SidebarSelectionTarget? target)
     {
-        ArgumentNullException.ThrowIfNull(selectGlobalScope);
-        ArgumentNullException.ThrowIfNull(selectProjectScope);
-        ArgumentNullException.ThrowIfNull(openThread);
-
         if (!_selectionSyncEnabled || _pendingSelectionTarget is not null)
         {
             return;
         }
 
-        if (_view.SelectedTarget is not { } target || target == _lastSelectedTarget)
+        if (target is not { } currentTarget || currentTarget == _lastSelectedTarget)
         {
             return;
         }
 
-        _lastSelectedTarget = target;
-        switch (target.Kind)
+        _lastSelectedTarget = currentTarget;
+        switch (currentTarget.Kind)
         {
             case SidebarSelectionKind.GlobalScope:
-                selectGlobalScope();
+                _ = _shellController.SelectGlobalScopeAsync(CancellationToken.None);
                 break;
-            case SidebarSelectionKind.ProjectScope when target.ProjectId is not null:
-                selectProjectScope(target.ProjectId);
+            case SidebarSelectionKind.ProjectScope when currentTarget.ProjectId is not null:
+                _ = _shellController.SelectProjectScopeAsync(currentTarget.ProjectId, CancellationToken.None);
                 break;
-            case SidebarSelectionKind.Thread when target.ThreadId is not null:
-                openThread(target.ThreadId);
+            case SidebarSelectionKind.Thread when currentTarget.ThreadId is not null:
+                _ = _shellController.OpenThreadAsync(currentTarget.ThreadId, CancellationToken.None);
                 break;
         }
     }

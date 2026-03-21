@@ -730,6 +730,16 @@ public sealed class CopilotAgentMapperTests
     public void ToAgentEvent_MapsCompactionAndTruncationIntoNormalizedWindowSnapshots()
     {
         var timestamp = DateTimeOffset.Parse("2026-02-25T12:10:00+00:00");
+        var compactionStarted = new SessionCompactionStartEvent
+        {
+            Timestamp = timestamp,
+            Data = new SessionCompactionStartData
+            {
+                SystemTokens = 1000,
+                ConversationTokens = 87500,
+                ToolDefinitionsTokens = 1500
+            }
+        };
         var compactionEvent = new SessionCompactionCompleteEvent
         {
             Timestamp = timestamp,
@@ -750,8 +760,14 @@ public sealed class CopilotAgentMapperTests
             }
         };
 
+        var mappedCompactionStarted = (AgentSessionUpdateEvent)CopilotAgentMapper.ToAgentEvent("session-1", compactionStarted);
         var mappedCompaction = (AgentSessionUpdateEvent)CopilotAgentMapper.ToAgentEvent("session-1", compactionEvent);
 
+        Assert.AreEqual(AgentSessionUpdateKind.CompactionStarted, mappedCompactionStarted.Kind);
+        Assert.AreEqual("Compaction started at 90000 tokens.", mappedCompactionStarted.Message);
+        Assert.AreEqual(
+            "Compaction completed (90000 -> 45000 tokens, 10 messages removed).",
+            mappedCompaction.Message);
         Assert.AreEqual(AgentUsageScope.Compaction, mappedCompaction.Usage!.Scope);
         Assert.AreEqual(AgentUsageSource.CopilotCompactionComplete, mappedCompaction.Usage.Source);
         Assert.AreEqual("Post-compaction window", mappedCompaction.Usage.Window!.Label);

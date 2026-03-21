@@ -1027,31 +1027,6 @@ public sealed class CodeAltaAppTests
     }
 
     [TestMethod]
-    public void BuildThreadSidebarTooltip_PreservesFullTitleAndSummary()
-    {
-        var thread = new WorkThreadDescriptor
-        {
-            ThreadId = "thread-1",
-            Kind = WorkThreadKind.ProjectThread,
-            BackendId = AgentBackendIds.Codex.Value,
-            BackendSessionId = "backend-thread-1",
-            ProjectRef = "project-1",
-            WorkingDirectory = @"C:\code\CodeAlta",
-            Title = "Review Tomlyn update",
-            LatestSummary = "Check the parser changes and resulting tests.",
-            Status = WorkThreadStatus.Active,
-            CreatedAt = DateTimeOffset.UtcNow,
-            UpdatedAt = DateTimeOffset.UtcNow,
-            LastActiveAt = DateTimeOffset.UtcNow,
-        };
-
-        var tooltip = SidebarThreadPresentation.BuildThreadTooltip(thread);
-
-        StringAssert.Contains(tooltip, "Review Tomlyn update");
-        StringAssert.Contains(tooltip, "Check the parser changes and resulting tests.");
-    }
-
-    [TestMethod]
     public void ResolveInitialSelection_DefersSelectedThreadRestoreUntilUiLoopStarts()
     {
         var thread = new WorkThreadDescriptor
@@ -1186,7 +1161,7 @@ public sealed class CodeAltaAppTests
     }
 
     [TestMethod]
-    public void ShouldDisplaySessionUpdate_OnlyShowsWarnings()
+    public void ShouldDisplaySessionUpdate_ShowsWarningsAndCompactionLifecycle()
     {
         var copilotUsage = new AgentSessionUpdateEvent(
             AgentBackendIds.Copilot,
@@ -1209,6 +1184,20 @@ public sealed class CodeAltaAppTests
             null,
             AgentSessionUpdateKind.Warning,
             "warning");
+        var copilotCompactionStarted = new AgentSessionUpdateEvent(
+            AgentBackendIds.Copilot,
+            "session-1",
+            DateTimeOffset.UtcNow,
+            null,
+            AgentSessionUpdateKind.CompactionStarted,
+            "Compaction started.");
+        var copilotCompactionCompleted = new AgentSessionUpdateEvent(
+            AgentBackendIds.Copilot,
+            "session-1",
+            DateTimeOffset.UtcNow,
+            null,
+            AgentSessionUpdateKind.CompactionCompleted,
+            "Compaction completed.");
         var codexUsage = new AgentSessionUpdateEvent(
             AgentBackendIds.Codex,
             "session-1",
@@ -1220,6 +1209,8 @@ public sealed class CodeAltaAppTests
         Assert.IsFalse(ChatMarkdownFormatter.ShouldDisplaySessionUpdate(copilotUsage));
         Assert.IsFalse(ChatMarkdownFormatter.ShouldDisplaySessionUpdate(copilotResumed));
         Assert.IsTrue(ChatMarkdownFormatter.ShouldDisplaySessionUpdate(copilotWarning));
+        Assert.IsTrue(ChatMarkdownFormatter.ShouldDisplaySessionUpdate(copilotCompactionStarted));
+        Assert.IsTrue(ChatMarkdownFormatter.ShouldDisplaySessionUpdate(copilotCompactionCompleted));
         Assert.IsFalse(ChatMarkdownFormatter.ShouldDisplaySessionUpdate(codexUsage));
     }
 
@@ -2130,6 +2121,58 @@ public sealed class CodeAltaAppTests
         FlowScrollExtensions.ScrollToTailIfFollowing(flow);
 
         Assert.IsNotNull(flow);
+    }
+
+    [TestMethod]
+    public void PromptDraftCoordinator_PreservesSeparateDraftsPerThread()
+    {
+        var coordinator = new PromptDraftCoordinator();
+        var first = new ThreadSessionState();
+        var second = new ThreadSessionState();
+
+        coordinator.RememberPrompt(first, "first prompt");
+        coordinator.RememberPrompt(second, "second prompt");
+        coordinator.RememberPrompt(session: null, "draft prompt");
+
+        Assert.AreEqual("first prompt", coordinator.GetPrompt(first));
+        Assert.AreEqual("second prompt", coordinator.GetPrompt(second));
+        Assert.AreEqual("draft prompt", coordinator.GetPrompt(session: null));
+    }
+
+    [TestMethod]
+    public void PromptDraftUiCoordinator_PreservesPromptTextPerSelection()
+    {
+        var coordinator = new PromptDraftUiCoordinator(new PromptDraftCoordinator());
+        var first = new ThreadSessionState();
+        var second = new ThreadSessionState();
+
+        coordinator.SyncPromptText(first);
+        coordinator.PromptText = "first prompt";
+        coordinator.SyncPromptText(second);
+        Assert.AreEqual(string.Empty, coordinator.PromptText);
+
+        coordinator.PromptText = "second prompt";
+        coordinator.SyncPromptText(session: null);
+        Assert.AreEqual(string.Empty, coordinator.PromptText);
+
+        coordinator.PromptText = "draft prompt";
+        coordinator.SyncPromptText(first);
+        Assert.AreEqual("first prompt", coordinator.PromptText);
+
+        coordinator.SyncPromptText(second);
+        Assert.AreEqual("second prompt", coordinator.PromptText);
+
+        coordinator.SyncPromptText(session: null);
+        Assert.AreEqual("draft prompt", coordinator.PromptText);
+    }
+
+    [TestMethod]
+    public void CreateStyledPromptEditor_PreservesMarkdownHighlighting()
+    {
+        var editor = ThreadWorkspaceView.CreateStyledPromptEditor(_ => { }, placeholder: "Prompt");
+
+        Assert.IsFalse(editor.Highlighter.IsEmpty);
+        Assert.IsTrue(editor.EnableWordHints);
     }
 
     private static void TickTerminalApp(TerminalApp app)

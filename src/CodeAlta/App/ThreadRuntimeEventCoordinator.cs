@@ -85,6 +85,17 @@ internal sealed class ThreadRuntimeEventCoordinator
                 UpdateThreadSummary(thread, hostEvent.Message, hostEvent.Timestamp);
                 if (_findOpenThread(thread.ThreadId) is { } hostTab)
                 {
+                    if (hostEvent.Kind == AgentSessionUpdateKind.CompactionStarted && hostTab.PendingManualCompaction)
+                    {
+                        _setThreadStatus(hostTab, $"Compacting '{thread.Title}'...", true, StatusTone.Info);
+                    }
+
+                    if (hostEvent.Kind == AgentSessionUpdateKind.CompactionCompleted && hostTab.PendingManualCompaction)
+                    {
+                        hostTab.PendingManualCompaction = false;
+                        _clearThreadStatus(hostTab);
+                    }
+
                     TryRenderInteraction(
                         hostTab,
                         () => hostTab.Timeline.AddStatus(
@@ -111,7 +122,7 @@ internal sealed class ThreadRuntimeEventCoordinator
         ArgumentNullException.ThrowIfNull(tab);
         ArgumentNullException.ThrowIfNull(@event);
 
-        if (!tab.HistoryLoading && ShouldPromoteAgentEventToThinking(@event))
+        if (!tab.HistoryLoading && !tab.PendingManualCompaction && ShouldPromoteAgentEventToThinking(@event))
         {
             _setThreadStatus(tab, StatusVisualFormatter.BuildThinkingStatusText(), true, StatusTone.Info);
         }

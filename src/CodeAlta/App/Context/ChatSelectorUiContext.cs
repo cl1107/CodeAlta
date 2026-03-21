@@ -11,8 +11,6 @@ internal sealed class ChatSelectorUiContext
     private readonly Func<Select<ChatBackendOption>?> _getChatBackendSelect;
     private readonly Func<Select<ChatModelOption>?> _getChatModelSelect;
     private readonly Func<Select<ChatReasoningOption>?> _getChatReasoningSelect;
-    private readonly Func<CheckBox?> _getChatAutoScrollCheckBox;
-    private readonly Func<CheckBox?> _getAlwaysEnqueueCheckBox;
     private readonly Func<ChatPromptEditor?> _getThreadInput;
     private readonly Func<IUiDispatcher> _getUiDispatcher;
     private readonly Action _verifyBindableAccess;
@@ -21,8 +19,6 @@ internal sealed class ChatSelectorUiContext
         Func<Select<ChatBackendOption>?> getChatBackendSelect,
         Func<Select<ChatModelOption>?> getChatModelSelect,
         Func<Select<ChatReasoningOption>?> getChatReasoningSelect,
-        Func<CheckBox?> getChatAutoScrollCheckBox,
-        Func<CheckBox?> getAlwaysEnqueueCheckBox,
         Func<ChatPromptEditor?> getThreadInput,
         Func<IUiDispatcher> getUiDispatcher,
         Action verifyBindableAccess)
@@ -30,8 +26,6 @@ internal sealed class ChatSelectorUiContext
         ArgumentNullException.ThrowIfNull(getChatBackendSelect);
         ArgumentNullException.ThrowIfNull(getChatModelSelect);
         ArgumentNullException.ThrowIfNull(getChatReasoningSelect);
-        ArgumentNullException.ThrowIfNull(getChatAutoScrollCheckBox);
-        ArgumentNullException.ThrowIfNull(getAlwaysEnqueueCheckBox);
         ArgumentNullException.ThrowIfNull(getThreadInput);
         ArgumentNullException.ThrowIfNull(getUiDispatcher);
         ArgumentNullException.ThrowIfNull(verifyBindableAccess);
@@ -39,8 +33,6 @@ internal sealed class ChatSelectorUiContext
         _getChatBackendSelect = getChatBackendSelect;
         _getChatModelSelect = getChatModelSelect;
         _getChatReasoningSelect = getChatReasoningSelect;
-        _getChatAutoScrollCheckBox = getChatAutoScrollCheckBox;
-        _getAlwaysEnqueueCheckBox = getAlwaysEnqueueCheckBox;
         _getThreadInput = getThreadInput;
         _getUiDispatcher = getUiDispatcher;
         _verifyBindableAccess = verifyBindableAccess;
@@ -54,12 +46,6 @@ internal sealed class ChatSelectorUiContext
 
     public Select<ChatReasoningOption>? GetChatReasoningSelect()
         => _getChatReasoningSelect();
-
-    public CheckBox? GetChatAutoScrollCheckBox()
-        => _getChatAutoScrollCheckBox();
-
-    public CheckBox? GetAlwaysEnqueueCheckBox()
-        => _getAlwaysEnqueueCheckBox();
 
     public ChatPromptEditor? GetThreadInput()
         => _getThreadInput();

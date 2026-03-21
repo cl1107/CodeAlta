@@ -12,6 +12,8 @@ internal sealed class ThreadSessionState
 
     public bool AutoScroll { get; set; } = true;
 
+    public string PromptDraftText { get; set; } = string.Empty;
+
     public bool HistoryLoaded { get; set; }
 
     public bool HistoryLoading { get; set; }

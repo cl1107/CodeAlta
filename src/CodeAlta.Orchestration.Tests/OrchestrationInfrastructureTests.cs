@@ -471,6 +471,152 @@ public sealed class OrchestrationInfrastructureTests
     }
 
     [TestMethod]
+    public async Task WorkThreadRuntimeService_CompactAsync_ResumesAfterLiveShutdown()
+    {
+        using var temp = TempDirectory.Create();
+        var catalogOptions = new CatalogOptions { GlobalRoot = temp.Path };
+        var projectCatalog = new ProjectCatalog(catalogOptions);
+        var threadCatalog = new WorkThreadCatalog(catalogOptions);
+        var roleStore = new RoleProfileStore();
+        var instructionProvider = new AgentInstructionTemplateProvider();
+
+        var project = new ProjectDescriptor
+        {
+            Id = ProjectId.NewVersion7().ToString(),
+            Slug = "repo-main",
+            DisplayName = "Main Repo",
+            ProjectPath = Path.Combine(temp.Path, "repo-main"),
+            DefaultBranch = "main",
+        };
+        Directory.CreateDirectory(project.ProjectPath);
+        await projectCatalog.SaveAsync(project).ConfigureAwait(false);
+
+        var agentsRoot = Path.Combine(temp.Path, "agents");
+        Directory.CreateDirectory(agentsRoot);
+        await File.WriteAllTextAsync(
+            Path.Combine(agentsRoot, "coordinator.agent.md"),
+            """
+            ---
+            name: coordinator
+            description: Coordinates thread work.
+            ---
+            Keep thread state compact.
+            """).ConfigureAwait(false);
+
+        var backendFactory = new AgentBackendFactory();
+        var fakeBackend = new FakeBackend();
+        backendFactory.Register("fake", () => fakeBackend);
+
+        var db = await CreateDbAsync(temp.Path).ConfigureAwait(false);
+        var repository = new AgentRepository(db);
+        await using var hub = new AgentHub(backendFactory, repository);
+        await using var runtime = new WorkThreadRuntimeService(
+            hub,
+            projectCatalog,
+            threadCatalog,
+            roleStore,
+            instructionProvider,
+            catalogOptions);
+
+        var thread = await runtime.CreateProjectThreadAsync(
+            project,
+            CreateExecutionOptions(project.ProjectPath),
+            "Compact Thread").ConfigureAwait(false);
+
+        Assert.AreEqual(1, fakeBackend.ResumeSessionCount + fakeBackend.CreateSessionCount);
+
+        fakeBackend.LastSession!.Publish(
+            new AgentSessionUpdateEvent(
+                fakeBackend.BackendId,
+                thread.BackendSessionId,
+                DateTimeOffset.UtcNow,
+                null,
+                AgentSessionUpdateKind.Shutdown,
+                "routine"));
+
+        await runtime.CompactAsync(thread, CreateExecutionOptions(project.ProjectPath)).ConfigureAwait(false);
+
+        Assert.AreEqual(1, fakeBackend.ResumeSessionCount);
+        Assert.AreEqual(1, fakeBackend.CompactCallCount);
+    }
+
+    [TestMethod]
+    public async Task WorkThreadRuntimeService_CompactAsync_EmitsManualLifecycleHostEventsWhenOutcomeIsSynchronous()
+    {
+        using var temp = TempDirectory.Create();
+        var catalogOptions = new CatalogOptions { GlobalRoot = temp.Path };
+        var projectCatalog = new ProjectCatalog(catalogOptions);
+        var threadCatalog = new WorkThreadCatalog(catalogOptions);
+        var roleStore = new RoleProfileStore();
+        var instructionProvider = new AgentInstructionTemplateProvider();
+
+        var project = new ProjectDescriptor
+        {
+            Id = ProjectId.NewVersion7().ToString(),
+            Slug = "repo-main",
+            DisplayName = "Main Repo",
+            ProjectPath = Path.Combine(temp.Path, "repo-main"),
+            DefaultBranch = "main",
+        };
+        Directory.CreateDirectory(project.ProjectPath);
+        await projectCatalog.SaveAsync(project).ConfigureAwait(false);
+
+        var agentsRoot = Path.Combine(temp.Path, "agents");
+        Directory.CreateDirectory(agentsRoot);
+        await File.WriteAllTextAsync(
+            Path.Combine(agentsRoot, "coordinator.agent.md"),
+            """
+            ---
+            name: coordinator
+            description: Coordinates thread work.
+            ---
+            Keep thread state compact.
+            """).ConfigureAwait(false);
+
+        var backendFactory = new AgentBackendFactory();
+        var fakeBackend = new FakeBackend
+        {
+            CompactionOutcome = new AgentCompactionOutcome(
+                Success: true,
+                Message: "Manual compaction completed (1200 tokens and 3 messages removed).",
+                MessagesRemoved: 3,
+                TokensRemoved: 1200)
+        };
+        backendFactory.Register("fake", () => fakeBackend);
+
+        var db = await CreateDbAsync(temp.Path).ConfigureAwait(false);
+        var repository = new AgentRepository(db);
+        await using var hub = new AgentHub(backendFactory, repository);
+        await using var runtime = new WorkThreadRuntimeService(
+            hub,
+            projectCatalog,
+            threadCatalog,
+            roleStore,
+            instructionProvider,
+            catalogOptions);
+
+        var thread = await runtime.CreateProjectThreadAsync(
+            project,
+            CreateExecutionOptions(project.ProjectPath),
+            "Compact Thread").ConfigureAwait(false);
+
+        await using var enumerator = runtime.StreamEventsAsync().GetAsyncEnumerator();
+
+        await runtime.CompactAsync(thread, CreateExecutionOptions(project.ProjectPath)).ConfigureAwait(false);
+
+        var received = new List<WorkThreadRuntimeEvent>();
+        while (received.Count < 2 && await enumerator.MoveNextAsync().ConfigureAwait(false))
+        {
+            received.Add(enumerator.Current);
+        }
+
+        Assert.AreEqual(2, received.Count);
+        Assert.AreEqual(AgentSessionUpdateKind.CompactionStarted, Assert.IsInstanceOfType<WorkThreadHostEvent>(received[0]).Kind);
+        Assert.AreEqual(AgentSessionUpdateKind.CompactionCompleted, Assert.IsInstanceOfType<WorkThreadHostEvent>(received[1]).Kind);
+        Assert.AreEqual("Manual compaction completed (1200 tokens and 3 messages removed).", ((WorkThreadHostEvent)received[1]).Message);
+    }
+
+    [TestMethod]
     public async Task WorkThreadRuntimeService_CreateInternalThreadAsync_PersistsRecoverableChildThread()
     {
         using var temp = TempDirectory.Create();
@@ -776,6 +922,14 @@ public sealed class OrchestrationInfrastructureTests
 
         public int CompactCallCount { get; private set; }
 
+        public int CreateSessionCount { get; private set; }
+
+        public int ResumeSessionCount { get; private set; }
+
+        public AgentCompactionOutcome? CompactionOutcome { get; set; }
+
+        public FakeSession? LastSession { get; private set; }
+
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
         public Task StartAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
@@ -796,7 +950,9 @@ public sealed class OrchestrationInfrastructureTests
         {
             ArgumentNullException.ThrowIfNull(options);
             LastCreateOptions = options;
-            return Task.FromResult<IAgentSession>(new FakeSession(this));
+            CreateSessionCount++;
+            LastSession = new FakeSession(this);
+            return Task.FromResult<IAgentSession>(LastSession);
         }
 
         public Task<IAgentSession> ResumeSessionAsync(
@@ -805,10 +961,12 @@ public sealed class OrchestrationInfrastructureTests
             CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(options);
-            return Task.FromResult<IAgentSession>(new FakeSession(this, sessionId));
+            ResumeSessionCount++;
+            LastSession = new FakeSession(this, sessionId);
+            return Task.FromResult<IAgentSession>(LastSession);
         }
 
-        private sealed class FakeSession : IAgentSession
+        public sealed class FakeSession : IAgentSession, IAgentCompactionOutcomeProvider
         {
             private readonly FakeBackend _backend;
             private readonly List<AgentEvent> _events = [];
@@ -884,10 +1042,16 @@ public sealed class OrchestrationInfrastructureTests
                 return Task.CompletedTask;
             }
 
+            public Task<AgentCompactionOutcome?> CompactWithOutcomeAsync(CancellationToken cancellationToken = default)
+            {
+                _backend.CompactCallCount++;
+                return Task.FromResult(_backend.CompactionOutcome);
+            }
+
             public Task<IReadOnlyList<AgentEvent>> GetHistoryAsync(CancellationToken cancellationToken = default)
                 => Task.FromResult<IReadOnlyList<AgentEvent>>(_events.ToArray());
 
-            private void Publish(AgentEvent @event)
+            public void Publish(AgentEvent @event)
             {
                 Action<AgentEvent>[] subscribers;
                 lock (_subscriberLock)

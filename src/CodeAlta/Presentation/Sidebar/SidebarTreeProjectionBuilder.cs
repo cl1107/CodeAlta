@@ -20,14 +20,13 @@ internal static class SidebarTreeProjectionBuilder
 
         return new SidebarTreeProjection(
         [
-            CreateGlobalNode(threads, globalRoot, maxRecentThreadsPerProject),
+            CreateGlobalNode(threads, maxRecentThreadsPerProject),
             CreateProjectsNode(projects, threads, expandedProjectId, maxRecentThreadsPerProject),
         ]);
     }
 
     private static SidebarTreeNodeProjection CreateGlobalNode(
         IReadOnlyList<WorkThreadDescriptor> threads,
-        string globalRoot,
         int maxRecentThreadsPerProject)
     {
         var children = threads
@@ -39,7 +38,6 @@ internal static class SidebarTreeProjectionBuilder
 
         return new SidebarTreeNodeProjection(
             Title: "Global",
-            Tooltip: globalRoot,
             Icon: NerdFont.MdHomeOutline,
             Accent: SidebarAccent.Global,
             SelectionTarget: SidebarSelectionTarget.Global(),
@@ -60,7 +58,6 @@ internal static class SidebarTreeProjectionBuilder
 
         return new SidebarTreeNodeProjection(
             Title: "Projects",
-            Tooltip: $"{projects.Count} known projects",
             Icon: NerdFont.MdFolderMultipleOutline,
             Accent: SidebarAccent.Projects,
             SelectionTarget: null,
@@ -81,7 +78,6 @@ internal static class SidebarTreeProjectionBuilder
 
         return new SidebarTreeNodeProjection(
             Title: project.DisplayName,
-            Tooltip: project.ProjectPath,
             Icon: NerdFont.MdFolderOutline,
             Accent: SidebarAccent.Projects,
             SelectionTarget: SidebarSelectionTarget.Project(project.Id),
@@ -103,7 +99,6 @@ internal static class SidebarTreeProjectionBuilder
 
         return new SidebarTreeNodeProjection(
             Title: SidebarThreadPresentation.CompactThreadTitle(thread.Title),
-            Tooltip: SidebarThreadPresentation.BuildThreadTooltip(thread),
             Icon: icon,
             Accent: SidebarThreadPresentation.ResolveThreadAccent(thread.BackendId, thread.Kind),
             SelectionTarget: SidebarSelectionTarget.Thread(thread.ThreadId),

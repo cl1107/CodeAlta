@@ -21,7 +21,7 @@ if (options!.TestDuration is { } testDuration)
     cancellationTokenSource.CancelAfter(testDuration);
 }
 
-await using var app = await CodeAltaApp.CreateAsync(cancellationTokenSource.Token).ConfigureAwait(false);
+await using var app = new DeferredCodeAltaApp();
 if (options.TestMode)
 {
     var logger = LogManager.GetLogger("CodeAlta.Program");
@@ -34,7 +34,7 @@ if (options.TestMode)
     Console.WriteLine($"[CodeAlta] Starting terminal smoke test for {testDurationText}s.");
 }
 
-await app.RunAsync(cancellationTokenSource.Token).ConfigureAwait(false);
+app.Run(cancellationTokenSource.Token);
 
 if (options.TestMode)
 {

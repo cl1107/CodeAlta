@@ -12,10 +12,10 @@ using XenoAtom.Terminal.UI.Styling;
 
 namespace CodeAlta.Views;
 
-internal static class QueuedPromptListView
+internal static partial class QueuedPromptListView
 {
     public static Visual Build(
-        ThreadWorkspaceViewModel workspaceViewModel,
+        IReadOnlyList<QueuedPromptListItem> queuedPrompts,
         Action<string> copyQueuedPromptMarkdown,
         Action<string> convertQueuedPromptToSteer,
         Action<string> deleteQueuedPrompt,
@@ -23,7 +23,7 @@ internal static class QueuedPromptListView
         Action<string, string> updateQueuedPromptText,
         Func<Action<string>, string?, ChatPromptEditor> createPromptEditor)
     {
-        ArgumentNullException.ThrowIfNull(workspaceViewModel);
+        ArgumentNullException.ThrowIfNull(queuedPrompts);
         ArgumentNullException.ThrowIfNull(copyQueuedPromptMarkdown);
         ArgumentNullException.ThrowIfNull(convertQueuedPromptToSteer);
         ArgumentNullException.ThrowIfNull(deleteQueuedPrompt);
@@ -31,18 +31,17 @@ internal static class QueuedPromptListView
         ArgumentNullException.ThrowIfNull(updateQueuedPromptText);
         ArgumentNullException.ThrowIfNull(createPromptEditor);
 
-        var _ = workspaceViewModel.QueuedPromptsVersion;
-        if (!workspaceViewModel.HasQueuedPrompts)
+        if (queuedPrompts.Count == 0)
         {
             return new Placeholder { IsVisible = false };
         }
 
-        var rows = new List<Visual>(workspaceViewModel.QueuedPrompts.Count * 2);
-        for (var index = 0; index < workspaceViewModel.QueuedPrompts.Count; index++)
+        var rows = new List<Visual>(queuedPrompts.Count * 2);
+        for (var index = 0; index < queuedPrompts.Count; index++)
         {
             rows.Add(
                 BuildRow(
-                    workspaceViewModel.QueuedPrompts[index],
+                    queuedPrompts[index],
                     copyQueuedPromptMarkdown,
                     convertQueuedPromptToSteer,
                     deleteQueuedPrompt,
@@ -50,7 +49,7 @@ internal static class QueuedPromptListView
                     updateQueuedPromptText,
                     createPromptEditor));
 
-            if (index < workspaceViewModel.QueuedPrompts.Count - 1)
+            if (index < queuedPrompts.Count - 1)
             {
                 rows.Add(CreateSeparator());
             }
@@ -146,47 +145,29 @@ internal static class QueuedPromptListView
         QueuedPromptListItem queuedPrompt,
         Action<string, int> updateQueuedPromptCount)
     {
-        var currentCount = queuedPrompt.RemainingCount;
-        var countBox = new NumberBox<int>
-        {
-            Value = currentCount,
-            ShowValidationMessage = false,
-            InvalidNumberMessage = "Enter a whole number.",
-            TextAlignment = TextAlignment.Center,
-            MinWidth = 3,
-            MaxWidth = 5,
-        };
-        countBox.RegisterDynamicUpdate(
-            _ =>
-            {
-                if (countBox.Value <= 0)
-                {
-                    countBox.Value = currentCount;
-                    return;
-                }
-
-                if (countBox.Value == currentCount)
-                {
-                    return;
-                }
-
-                currentCount = countBox.Value;
-                updateQueuedPromptCount(queuedPrompt.Id, currentCount);
-            });
+        var countState = new QueuedPromptCountState(
+            queuedPrompt.RemainingCount,
+            value => updateQueuedPromptCount(queuedPrompt.Id, value));
+        var countBox = new NumberBox<int>()
+            .Value(countState.Bind.Value)
+            .ValueValidator(static value => value >= 1 ? null : "Use >= 1.")
+            .MinWidth(3)
+            .MaxWidth(5);
+        countBox.ShowValidationMessage = false;
+        countBox.InvalidNumberMessage = "Enter a whole number.";
+        countBox.TextAlignment = TextAlignment.Center;
 
         return new HStack(
-        [
             CreateIconButton(
                 "-",
                 "Decrease repeat count",
-                () => updateQueuedPromptCount(queuedPrompt.Id, Math.Max(1, currentCount - 1)),
-                isEnabled: currentCount > 1),
+                () => countState.Value = Math.Max(1, countState.Value - 1),
+                isEnabled: queuedPrompt.RemainingCount > 1),
             countBox,
             CreateIconButton(
                 $"{NerdFont.MdPlus}",
                 "Increase repeat count",
-                () => updateQueuedPromptCount(queuedPrompt.Id, currentCount + 1)),
-        ])
+                () => countState.Value++))
         {
             Spacing = 0,
         };
@@ -258,5 +239,26 @@ internal static class QueuedPromptListView
             updateQueuedPromptText(queuedPrompt.Id, trimmed);
             dialog?.Close();
         }
+    }
+}
+
+public sealed partial class QueuedPromptCountState
+{
+    private readonly Action<int> _onChanged;
+
+    public QueuedPromptCountState(int value, Action<int> onChanged)
+    {
+        ArgumentNullException.ThrowIfNull(onChanged);
+
+        _onChanged = onChanged;
+        Value = Math.Max(1, value);
+    }
+
+    [Bindable]
+    public partial int Value { get; set; }
+
+    partial void OnValueChanged(int value)
+    {
+        _onChanged(value);
     }
 }

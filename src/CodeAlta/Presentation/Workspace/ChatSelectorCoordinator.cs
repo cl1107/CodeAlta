@@ -58,8 +58,6 @@ internal sealed class ChatSelectorCoordinator
             var backendSelect = _uiContext.GetChatBackendSelect()!;
             var modelSelect = _uiContext.GetChatModelSelect()!;
             var reasoningSelect = _uiContext.GetChatReasoningSelect()!;
-            var autoScrollCheckBox = _uiContext.GetChatAutoScrollCheckBox()!;
-            var alwaysEnqueueCheckBox = _uiContext.GetAlwaysEnqueueCheckBox()!;
             var backendOptions = ChatBackendPresentation.BuildBackendOptions();
             ChatBackendPresentation.ReplaceSelectItems(backendSelect, backendOptions);
 
@@ -87,10 +85,7 @@ internal sealed class ChatSelectorCoordinator
                 0,
                 Math.Max(0, reasoningOptions.Count - 1));
             reasoningSelect.IsEnabled = backendState.Availability == ChatBackendAvailability.Ready;
-            autoScrollCheckBox.IsChecked = true;
-            autoScrollCheckBox.IsEnabled = false;
-            alwaysEnqueueCheckBox.IsChecked = _promptComposerViewModel.AlwaysEnqueue;
-            alwaysEnqueueCheckBox.IsEnabled = false;
+            _workspaceViewModel.AutoScroll = true;
 
             _workspaceViewModel.BackendStatusMarkup = ChatBackendPresentation.BuildBackendStatusMarkup(_chatBackendStates.Values, backendOptions[backendIndex].BackendId, isInitializing: false);
             _workspaceViewModel.CanSelectBackend = true;
@@ -115,8 +110,6 @@ internal sealed class ChatSelectorCoordinator
             var backendSelect = _uiContext.GetChatBackendSelect()!;
             var modelSelect = _uiContext.GetChatModelSelect()!;
             var reasoningSelect = _uiContext.GetChatReasoningSelect()!;
-            var autoScrollCheckBox = _uiContext.GetChatAutoScrollCheckBox()!;
-            var alwaysEnqueueCheckBox = _uiContext.GetAlwaysEnqueueCheckBox()!;
             var backendOptions = ChatBackendPresentation.BuildBackendOptions();
             ChatBackendPresentation.ReplaceSelectItems(backendSelect, backendOptions);
             backendSelect.SelectedIndex = Math.Clamp(
@@ -145,10 +138,7 @@ internal sealed class ChatSelectorCoordinator
                 0,
                 Math.Max(0, reasoningOptions.Count - 1));
             reasoningSelect.IsEnabled = backendState.Availability == ChatBackendAvailability.Ready;
-            autoScrollCheckBox.IsChecked = tab.AutoScroll;
-            autoScrollCheckBox.IsEnabled = true;
-            alwaysEnqueueCheckBox.IsChecked = _promptComposerViewModel.AlwaysEnqueue;
-            alwaysEnqueueCheckBox.IsEnabled = true;
+            _workspaceViewModel.AutoScroll = tab.AutoScroll;
 
             backendSelect.IsEnabled = false;
             _workspaceViewModel.BackendStatusMarkup = ChatBackendPresentation.BuildBackendStatusMarkup(_chatBackendStates.Values, tab.BackendId, isInitializing: false);
@@ -287,12 +277,6 @@ internal sealed class ChatSelectorCoordinator
             return;
         }
 
-        var autoScrollCheckBox = _uiContext.GetChatAutoScrollCheckBox();
-        if (autoScrollCheckBox is null)
-        {
-            return;
-        }
-
         var thread = _threadSelection.GetSelectedThread();
         if (thread is null)
         {
@@ -300,29 +284,13 @@ internal sealed class ChatSelectorCoordinator
         }
 
         var tab = _threadSelection.EnsureThreadTab(thread);
-        if (tab.AutoScroll == autoScrollCheckBox.IsChecked)
+        if (tab.AutoScroll == _workspaceViewModel.AutoScroll)
         {
             return;
         }
 
-        tab.AutoScroll = autoScrollCheckBox.IsChecked;
+        tab.AutoScroll = _workspaceViewModel.AutoScroll;
         _preferences.RememberThreadPreference(tab.Thread.ThreadId, tab.ModelId, tab.ReasoningEffort, tab.AutoScroll, true);
-    }
-
-    public void OnAlwaysEnqueueChanged()
-    {
-        if (_selectorsRefreshing)
-        {
-            return;
-        }
-
-        var alwaysEnqueueCheckBox = _uiContext.GetAlwaysEnqueueCheckBox();
-        if (alwaysEnqueueCheckBox is null)
-        {
-            return;
-        }
-
-        _promptComposerViewModel.AlwaysEnqueue = alwaysEnqueueCheckBox.IsChecked;
     }
 
     public AgentBackendId GetPreferredBackendId()

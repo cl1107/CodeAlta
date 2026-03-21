@@ -13,6 +13,11 @@ namespace CodeAlta.App;
 
 internal sealed class ShellThreadStateCoordinator
 {
+    internal sealed record InitialCatalogState(
+        IReadOnlyList<ProjectDescriptor> Projects,
+        IReadOnlyList<WorkThreadDescriptor> Threads,
+        WorkThreadViewState ViewState);
+
     private readonly ProjectCatalog _projectCatalog;
     private readonly WorkThreadCatalog _threadCatalog;
     private readonly ShellSelectionState _selection = new();
@@ -115,11 +120,21 @@ internal sealed class ShellThreadStateCoordinator
         set => _selection.PendingStartupThreadRestoreId = value;
     }
 
-    public async Task LoadCatalogStateAsync(CancellationToken cancellationToken)
+    public async Task<InitialCatalogState> LoadInitialCatalogStateAsync(CancellationToken cancellationToken)
     {
-        _projects = await _projectCatalog.LoadAsync(cancellationToken).ConfigureAwait(false);
-        _threads = await _threadCatalog.LoadInternalAsync(cancellationToken).ConfigureAwait(false);
-        ViewState = await _threadCatalog.LoadViewStateAsync(cancellationToken).ConfigureAwait(false);
+        var projects = await _projectCatalog.LoadAsync(cancellationToken).ConfigureAwait(false);
+        var threads = await _threadCatalog.LoadInternalAsync(cancellationToken).ConfigureAwait(false);
+        var viewState = await _threadCatalog.LoadViewStateAsync(cancellationToken).ConfigureAwait(false);
+        return new InitialCatalogState(projects, threads, viewState);
+    }
+
+    public void ApplyInitialCatalogState(InitialCatalogState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+
+        _projects = state.Projects;
+        _threads = state.Threads;
+        ViewState = state.ViewState;
 
         var desiredThreadId = ViewState.SelectedThreadId ?? ViewState.OpenThreadIds.FirstOrDefault();
         SelectedThreadId = string.IsNullOrWhiteSpace(desiredThreadId)
@@ -129,6 +144,11 @@ internal sealed class ShellThreadStateCoordinator
         PendingStartupThreadRestoreId = desiredThreadId;
         var selectedThread = GetSelectedThread();
         SelectedProjectId = selectedThread?.ProjectRef ?? _projects.FirstOrDefault()?.Id;
+    }
+
+    public async Task LoadCatalogStateAsync(CancellationToken cancellationToken)
+    {
+        ApplyInitialCatalogState(await LoadInitialCatalogStateAsync(cancellationToken).ConfigureAwait(false));
     }
 
     public async Task PersistViewStateAsync()

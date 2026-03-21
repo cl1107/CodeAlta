@@ -288,7 +288,9 @@ internal static class ChatMarkdownFormatter
     public static bool ShouldDisplaySessionUpdate(AgentSessionUpdateEvent update)
     {
         ArgumentNullException.ThrowIfNull(update);
-        return update.Kind == AgentSessionUpdateKind.Warning;
+        return update.Kind is AgentSessionUpdateKind.Warning
+            or AgentSessionUpdateKind.CompactionStarted
+            or AgentSessionUpdateKind.CompactionCompleted;
     }
 
     public static bool ShouldDisplayPermissionRequest(bool autoApproveEnabled)

@@ -10,7 +10,7 @@ internal sealed class CodeAltaShellView
         CodeAltaShellViewModel viewModel,
         Visual sidebar,
         Visual threadWorkspace,
-        CommandBar threadCommandBar)
+        Visual threadCommandBar)
     {
         ArgumentNullException.ThrowIfNull(viewModel);
         ArgumentNullException.ThrowIfNull(sidebar);

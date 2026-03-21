@@ -35,19 +35,24 @@ internal sealed class TerminalLoopCoordinator
 
     public bool HasStarted => _started;
 
-    public TerminalLoopResult OnIteration(CancellationToken cancellationToken)
+    public void Start(CancellationToken cancellationToken)
     {
-        if (!_started)
+        if (_started)
         {
-            _started = true;
-            var uiDispatcher = new TerminalUiDispatcher(Dispatcher.Current);
-            _attachUiDispatcher(uiDispatcher);
-            _shellController.AttachUiDispatcher(uiDispatcher);
-            _shellController.StartInitialization(cancellationToken);
-            _runtimeEventPump.Start(cancellationToken);
+            return;
         }
 
-        _shellController.DrainPendingRuntimeEvents();
+        _started = true;
+        var uiDispatcher = new TerminalUiDispatcher(Dispatcher.Current);
+        _attachUiDispatcher(uiDispatcher);
+        _shellController.AttachUiDispatcher(uiDispatcher);
+        _shellController.StartInitialization(cancellationToken);
+        _runtimeEventPump.Start(cancellationToken);
+    }
+
+    public TerminalLoopResult OnIteration(CancellationToken cancellationToken)
+    {
+        Start(cancellationToken);
         _applyPendingSidebarSelection();
         _syncSidebarSelection();
         return TerminalLoopResult.Continue;

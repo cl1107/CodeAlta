@@ -15,7 +15,9 @@ using CodeAlta.ViewModels;
 using XenoAtom.Logging;
 using XenoAtom.Terminal;
 using XenoAtom.Terminal.UI;
+using XenoAtom.Terminal.UI.Commands;
 using XenoAtom.Terminal.UI.Controls;
+using XenoAtom.Terminal.UI.Input;
 using XenoAtom.Terminal.UI.Threading;
 
 namespace CodeAlta.Views;
@@ -44,6 +46,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
     private readonly ThreadPromptQueueCoordinator _threadPromptQueueCoordinator;
     private readonly ThreadCommandCoordinator _threadCommandCoordinator;
     private readonly ThreadCreationCoordinator _threadCreationCoordinator;
+    private readonly PromptDraftUiCoordinator _promptDraftUiCoordinator;
     private readonly CodeAltaShellViewModel _shellViewModel = new();
     private readonly SidebarViewModel _sidebarViewModel = new();
     private readonly ThreadWorkspaceViewModel _threadWorkspaceViewModel = new();
@@ -64,6 +67,9 @@ internal sealed class CodeAltaApp : IAsyncDisposable
     private ThreadWorkspaceView? _threadWorkspaceView;
     private SessionUsagePresenter? _sessionUsagePresenter;
     private IUiDispatcher? _uiDispatcher;
+    private Task<ShellThreadStateCoordinator.InitialCatalogState>? _initialCatalogStateTask;
+    private bool _initialCatalogStateResolved;
+    private bool _disableTerminalLoopCallback;
 
     private WorkThreadViewState _viewState
     {
@@ -113,8 +119,6 @@ internal sealed class CodeAltaApp : IAsyncDisposable
 
     private Select<ChatModelOption>? ChatModelSelect => _threadWorkspaceView?.ChatModelSelect;
     private Select<ChatReasoningOption>? ChatReasoningSelect => _threadWorkspaceView?.ChatReasoningSelect;
-    private CheckBox? ChatAutoScrollCheckBox => _threadWorkspaceView?.ChatAutoScrollCheckBox;
-    private CheckBox? AlwaysEnqueueCheckBox => _threadWorkspaceView?.AlwaysEnqueueCheckBox;
     private TabControl? ThreadTabControl => _threadWorkspaceView?.ThreadTabControl;
 
     /// <summary>
@@ -140,6 +144,13 @@ internal sealed class CodeAltaApp : IAsyncDisposable
     public static async Task<CodeAltaApp> CreateAsync(CancellationToken cancellationToken)
     {
         var ownedServices = await CodeAltaOwnedServices.CreateAsync(cancellationToken).ConfigureAwait(false);
+        return Create(ownedServices);
+    }
+
+    internal static CodeAltaApp Create(CodeAltaOwnedServices ownedServices)
+    {
+        ArgumentNullException.ThrowIfNull(ownedServices);
+
         return new CodeAltaApp(
             ownedServices.ProjectCatalog,
             ownedServices.ThreadCatalog,
@@ -171,6 +182,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
         _agentHub = agentHub;
         _knownProjectImporter = knownProjectImporter ?? new KnownProjectImporter(agentHub, projectCatalog);
         _ownedServices = ownedServices;
+        _promptDraftUiCoordinator = new PromptDraftUiCoordinator(new PromptDraftCoordinator());
         _shellController = new CodeAltaShellController(
             new CodeAltaShellBridge(this),
             _knownProjectImporter,
@@ -182,7 +194,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             _runtimeEventPump,
             dispatcher => _uiDispatcher = dispatcher,
             ApplyPendingSidebarSelection,
-            SyncSidebarSelection);
+            SyncSidebarSelectionToCurrentState);
         _threadStateCoordinator = new ShellThreadStateCoordinator(
             projectCatalog,
             threadCatalog,
@@ -205,8 +217,6 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             () => ChatBackendSelect,
             () => ChatModelSelect,
             () => ChatReasoningSelect,
-            () => ChatAutoScrollCheckBox,
-            () => AlwaysEnqueueCheckBox,
             () => ThreadInput,
             GetUiDispatcher,
             VerifyBindableAccess);
@@ -247,6 +257,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             () => _threadPromptQueueCoordinator!.RefreshSelectedThreadQueueUi(),
             () => RefreshChatSelectorsForDraftScope(),
             RefreshChatSelectorsForThread,
+            _promptDraftUiCoordinator.SyncPromptText,
             UpdatePromptAvailabilityUi,
             SyncThreadTabControl,
             DispatchToUi,
@@ -346,16 +357,13 @@ internal sealed class CodeAltaApp : IAsyncDisposable
     /// </summary>
     public async Task RunAsync(CancellationToken cancellationToken)
     {
-        await LoadCatalogStateAsync(cancellationToken).ConfigureAwait(false);
-        _shellViewModel.HeaderText = BuildHeaderText();
-
-        SetStatus("Connecting to available backends...", showSpinner: true);
+        PrepareForRun();
 
         var root = EnsureShellView().Root;
 
         await Terminal.RunAsync(
                 root,
-                () => _terminalLoopCoordinator.OnIteration(cancellationToken),
+                () => Tick(cancellationToken),
                 cancellationToken)
             .ConfigureAwait(false);
     }
@@ -429,12 +437,74 @@ internal sealed class CodeAltaApp : IAsyncDisposable
     private void ApplyPendingSidebarSelection()
         => _sidebarCoordinator.ApplyPendingSelection();
 
-    private void SyncSidebarSelection()
+    internal void PrepareForRun()
     {
-        _sidebarCoordinator.SyncSelection(
-            () => _ = _shellController.SelectGlobalScopeAsync(CancellationToken.None),
-            projectId => _ = _shellController.SelectProjectScopeAsync(projectId, CancellationToken.None),
-            threadId => _ = _shellController.OpenThreadAsync(threadId, CancellationToken.None));
+        _shellViewModel.HeaderText = BuildHeaderText();
+        SetStatus("Connecting to available backends...", showSpinner: true);
+    }
+
+    internal Visual GetRoot()
+        => EnsureShellView().Root;
+
+    internal TerminalLoopResult Tick(CancellationToken cancellationToken)
+    {
+        if (_disableTerminalLoopCallback)
+        {
+            return TerminalLoopResult.Continue;
+        }
+
+        EnsureInitialCatalogStateStarted(cancellationToken);
+        if (!TryResolveInitialCatalogState(cancellationToken))
+        {
+            return TerminalLoopResult.Continue;
+        }
+
+        return _terminalLoopCoordinator.OnIteration(cancellationToken);
+    }
+
+    private void ToggleTerminalLoopCallback()
+    {
+        _disableTerminalLoopCallback = !_disableTerminalLoopCallback;
+        SetStatus(
+            _disableTerminalLoopCallback
+                ? "Loop callback disabled."
+                : "Loop callback enabled.",
+            tone: _disableTerminalLoopCallback ? StatusTone.Warning : StatusTone.Info);
+    }
+
+    private void EnsureInitialCatalogStateStarted(CancellationToken cancellationToken)
+        => _initialCatalogStateTask ??= _threadStateCoordinator.LoadInitialCatalogStateAsync(cancellationToken);
+
+    private bool TryResolveInitialCatalogState(CancellationToken cancellationToken)
+    {
+        if (_initialCatalogStateResolved)
+        {
+            return true;
+        }
+
+        var task = _initialCatalogStateTask;
+        if (task is null || !task.IsCompleted)
+        {
+            return false;
+        }
+
+        try
+        {
+            _threadStateCoordinator.ApplyInitialCatalogState(task.GetAwaiter().GetResult());
+            _shellViewModel.HeaderText = BuildHeaderText();
+            RefreshCatalogAndThreadWorkspace();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return false;
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Failed to load saved state: {ex.Message}", tone: StatusTone.Error);
+        }
+
+        _initialCatalogStateResolved = true;
+        return true;
     }
 
     private void RefreshChatSelectorsForDraftScope(AgentBackendId? preferredBackendId = null)
@@ -449,8 +519,6 @@ internal sealed class CodeAltaApp : IAsyncDisposable
         => _chatSelectorCoordinator.OnReasoningSelectionChanged(newIndex);
     private void OnChatAutoScrollChanged()
         => _chatSelectorCoordinator.OnAutoScrollChanged();
-    private void OnAlwaysEnqueueChanged()
-        => _chatSelectorCoordinator.OnAlwaysEnqueueChanged();
     private AgentBackendId GetPreferredBackendId()
         => _chatSelectorCoordinator.GetPreferredBackendId();
     private bool IsChatBackendReady(AgentBackendId backendId)
@@ -492,20 +560,33 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             () => _ = _threadCommandCoordinator.AbortSelectedThreadAsync(),
             () => _ = _threadCommandCoordinator.CompactSelectedThreadAsync(),
             () => _ = GetSelectedThread() is not null ? CloseSelectedThreadAsync() : CloseDraftTabAsync(),
-            OnThreadTabControlSelectionChanged,
             OnChatBackendSelectionChanged,
             OnChatModelSelectionChanged,
             OnChatReasoningSelectionChanged,
-            OnChatAutoScrollChanged,
-            OnAlwaysEnqueueChanged);
+            selectedIndex => _threadTabStripCoordinator.ObserveBoundSelection(selectedIndex),
+            _promptDraftUiCoordinator.PromptTextBinding,
+            OnChatAutoScrollChanged);
 
         RefreshCatalogAndThreadWorkspace();
 
-        _shellView ??= new CodeAltaShellView(
-            _shellViewModel,
-            _sidebarCoordinator.View.Root,
-            _threadWorkspaceView.Root,
-            ThreadCommandBar!);
+        if (_shellView is null)
+        {
+            _shellView = new CodeAltaShellView(
+                _shellViewModel,
+                _sidebarCoordinator.View.Root,
+                _threadWorkspaceView.Root,
+                ThreadCommandBar!);
+            _shellView.Root.AddCommand(new Command
+            {
+                Id = "CodeAlta.Diagnostics.ToggleTerminalLoop",
+                LabelMarkup = "Loop",
+                DescriptionMarkup = "Toggle per-frame loop work.",
+                Gesture = new KeyGesture(TerminalKey.F4),
+                Presentation = CommandPresentation.CommandBar,
+                Execute = _ => ToggleTerminalLoopCallback(),
+            });
+        }
+
         return _shellView;
     }
 
@@ -625,7 +706,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             GetUiDispatcher(),
             () =>
             {
-                ThreadInput!.Text = string.Empty;
+                _promptDraftUiCoordinator.ClearPromptText();
                 return 0;
             });
     }
@@ -663,9 +744,6 @@ internal sealed class CodeAltaApp : IAsyncDisposable
 
     private async Task PersistViewStateAsync()
         => await _threadStateCoordinator.PersistViewStateAsync().ConfigureAwait(false);
-    private async Task LoadCatalogStateAsync(CancellationToken cancellationToken)
-        => await _threadStateCoordinator.LoadCatalogStateAsync(cancellationToken).ConfigureAwait(false);
-
     internal async Task InitializeChatBackendsAsync(CancellationToken cancellationToken)
         => await _chatBackendInitializationCoordinator.InitializeAsync(cancellationToken).ConfigureAwait(false);
 

@@ -470,7 +470,7 @@ public sealed class AgentHub : IAsyncDisposable
     /// <param name="agentId">Agent id.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <exception cref="InvalidOperationException">Thrown when the agent has no active session.</exception>
-    public async Task CompactAsync(AgentId agentId, CancellationToken cancellationToken = default)
+    public async Task<AgentCompactionOutcome?> CompactAsync(AgentId agentId, CancellationToken cancellationToken = default)
     {
         SessionEntry entry;
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -489,7 +489,13 @@ public sealed class AgentHub : IAsyncDisposable
         await entry.RunGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            if (entry.Session is IAgentCompactionOutcomeProvider compactionOutcomeProvider)
+            {
+                return await compactionOutcomeProvider.CompactWithOutcomeAsync(cancellationToken).ConfigureAwait(false);
+            }
+
             await entry.Session.CompactAsync(cancellationToken).ConfigureAwait(false);
+            return null;
         }
         finally
         {

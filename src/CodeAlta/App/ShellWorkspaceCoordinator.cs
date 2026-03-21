@@ -248,6 +248,7 @@ internal sealed class ShellWorkspaceCoordinator
         {
             _workspaceContext.RefreshQueuedPromptList();
             _workspaceContext.RefreshChatSelectorsForDraftScope();
+            _workspaceContext.SyncPromptDraftText(session: null);
             _workspaceContext.UpdatePromptAvailabilityUi();
             threadBodySplitter.First = WelcomePaneFactory.Build(_threadSelection.GetSelectedProject(), _threadSelection.GlobalScopeSelected);
             SetReadyStatusForCurrentSelection();
@@ -257,6 +258,7 @@ internal sealed class ShellWorkspaceCoordinator
         var tab = _threadSelection.EnsureThreadTab(selectedThread);
         _workspaceContext.RefreshQueuedPromptList();
         _workspaceContext.RefreshChatSelectorsForThread(tab);
+        _workspaceContext.SyncPromptDraftText(tab.Session);
         _workspaceContext.UpdatePromptAvailabilityUi();
         threadBodySplitter.First = tab.Timeline.Flow;
         SetReadyStatusForCurrentSelection();

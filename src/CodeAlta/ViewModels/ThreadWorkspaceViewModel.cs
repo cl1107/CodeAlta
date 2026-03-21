@@ -5,11 +5,12 @@ namespace CodeAlta.ViewModels;
 
 public sealed partial class ThreadWorkspaceViewModel
 {
-    private IReadOnlyList<QueuedPromptListItem> _queuedPrompts = [];
-
     public ThreadWorkspaceViewModel()
     {
         BackendStatusMarkup = string.Empty;
+        AutoScroll = true;
+        SelectedTabIndex = -1;
+        QueuedPrompts = [];
     }
 
     [Bindable]
@@ -28,19 +29,22 @@ public sealed partial class ThreadWorkspaceViewModel
     public partial bool CanToggleAutoScroll { get; set; }
 
     [Bindable]
+    public partial bool AutoScroll { get; set; }
+
+    [Bindable]
+    public partial int SelectedTabIndex { get; set; }
+
+    [Bindable]
     public partial bool HasQueuedPrompts { get; set; }
 
     [Bindable]
-    public partial int QueuedPromptsVersion { get; set; }
-
-    internal IReadOnlyList<QueuedPromptListItem> QueuedPrompts => _queuedPrompts;
+    public partial IReadOnlyList<QueuedPromptListItem> QueuedPrompts { get; set; }
 
     internal void SetQueuedPrompts(IReadOnlyList<QueuedPromptListItem> queuedPrompts)
     {
         ArgumentNullException.ThrowIfNull(queuedPrompts);
 
-        _queuedPrompts = queuedPrompts;
+        QueuedPrompts = queuedPrompts;
         HasQueuedPrompts = queuedPrompts.Count > 0;
-        QueuedPromptsVersion++;
     }
 }

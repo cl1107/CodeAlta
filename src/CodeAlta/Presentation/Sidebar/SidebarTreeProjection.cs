@@ -21,7 +21,6 @@ namespace CodeAlta.Presentation.Sidebar
 
     internal sealed record SidebarTreeNodeProjection(
         string Title,
-        string? Tooltip,
         Rune Icon,
         SidebarAccent Accent,
         SidebarSelectionTarget? SelectionTarget,

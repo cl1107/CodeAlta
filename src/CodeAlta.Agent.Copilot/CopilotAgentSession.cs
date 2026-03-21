@@ -8,7 +8,7 @@ namespace CodeAlta.Agent.Copilot;
 /// <summary>
 /// Copilot session-backed implementation of <see cref="IAgentSession"/>.
 /// </summary>
-public sealed class CopilotAgentSession : ICopilotAgentSession
+public sealed class CopilotAgentSession : ICopilotAgentSession, IAgentCompactionOutcomeProvider
 {
     private static readonly Logger Logger = LogManager.GetLogger("CodeAlta.Agent.Copilot.Session");
     private static readonly TimeSpan QuotaRefreshDebounceInterval = TimeSpan.FromMilliseconds(250);
@@ -103,10 +103,28 @@ public sealed class CopilotAgentSession : ICopilotAgentSession
     }
 
     /// <inheritdoc />
-    public Task CompactAsync(CancellationToken cancellationToken = default)
+    public async Task CompactAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        return Session.Rpc.Compaction.CompactAsync(cancellationToken);
+        _ = await CompactWithOutcomeAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<AgentCompactionOutcome?> CompactWithOutcomeAsync(CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        var result = await Session.Rpc.Compaction.CompactAsync(cancellationToken).ConfigureAwait(false);
+        var tokensRemoved = checked((long)result.TokensRemoved);
+        var messagesRemoved = checked((int)result.MessagesRemoved);
+        var message = result.Success
+            ? $"Manual compaction completed ({tokensRemoved:0} tokens and {messagesRemoved:0} messages removed)."
+            : "Manual compaction failed.";
+        return new AgentCompactionOutcome(
+            result.Success,
+            message,
+            MessagesRemoved: messagesRemoved,
+            TokensRemoved: tokensRemoved);
     }
 
     /// <inheritdoc />

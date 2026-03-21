@@ -1,5 +1,6 @@
 using CodeAlta.Threading;
 using System.Collections.Concurrent;
+using System.Threading;
 using CodeAlta.Agent;
 using CodeAlta.Models;
 using CodeAlta.Orchestration.Runtime;
@@ -17,6 +18,7 @@ internal sealed class CodeAltaShellController : IAsyncDisposable
     private readonly CancellationTokenSource _disposeCts = new();
     private readonly ConcurrentQueue<WorkThreadRuntimeEvent> _pendingRuntimeEvents = new();
     private IUiDispatcher? _uiDispatcher;
+    private int _runtimeEventDrainScheduled;
     private CancellationTokenSource? _initializationCts;
     private Task? _initializationTask;
 
@@ -41,6 +43,10 @@ internal sealed class CodeAltaShellController : IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(uiDispatcher);
         _uiDispatcher = uiDispatcher;
+        if (!_pendingRuntimeEvents.IsEmpty)
+        {
+            ScheduleRuntimeEventDrain();
+        }
     }
 
     public void StartInitialization(CancellationToken cancellationToken)
@@ -99,6 +105,7 @@ internal sealed class CodeAltaShellController : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(runtimeEvent);
         cancellationToken.ThrowIfCancellationRequested();
         _pendingRuntimeEvents.Enqueue(runtimeEvent);
+        ScheduleRuntimeEventDrain();
     }
 
     public int DrainPendingRuntimeEvents(int maxEvents = 512)
@@ -176,6 +183,27 @@ internal sealed class CodeAltaShellController : IAsyncDisposable
 
     private IUiDispatcher UiDispatcher
         => _uiDispatcher ?? throw new InvalidOperationException("The UI dispatcher must be attached before shell operations begin.");
+
+    private void ScheduleRuntimeEventDrain()
+    {
+        var uiDispatcher = _uiDispatcher;
+        if (uiDispatcher is null || Interlocked.Exchange(ref _runtimeEventDrainScheduled, 1) != 0)
+        {
+            return;
+        }
+
+        UiDispatch.Post(uiDispatcher, DrainPendingRuntimeEventsOnUi);
+    }
+
+    private void DrainPendingRuntimeEventsOnUi()
+    {
+        _ = DrainPendingRuntimeEvents();
+        Interlocked.Exchange(ref _runtimeEventDrainScheduled, 0);
+        if (!_pendingRuntimeEvents.IsEmpty)
+        {
+            ScheduleRuntimeEventDrain();
+        }
+    }
 
     internal Task InitializeAsync(CancellationToken cancellationToken)
         => RunInitializationAsync(cancellationToken);

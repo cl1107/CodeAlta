@@ -14,9 +14,18 @@ internal sealed class SidebarView
     public SidebarView(
         SidebarViewModel viewModel,
         Action refreshCatalog)
+        : this(viewModel, refreshCatalog, static _ => { })
+    {
+    }
+
+    public SidebarView(
+        SidebarViewModel viewModel,
+        Action refreshCatalog,
+        Action<SidebarSelectionTarget?> onSelectedTargetChanged)
     {
         ArgumentNullException.ThrowIfNull(viewModel);
         ArgumentNullException.ThrowIfNull(refreshCatalog);
+        ArgumentNullException.ThrowIfNull(onSelectedTargetChanged);
 
         Tree = new TreeView
         {
@@ -51,13 +60,19 @@ internal sealed class SidebarView
         contentGrid.Cell(treeHost, 0, 0);
         contentGrid.Cell(footer, 1, 0);
 
-        Root = new Group(
+        var group = new Group(
             new Markup($"[bold]{AnsiMarkup.Escape($"{NerdFont.FaFolderTree} Navigator")}[/]"),
             contentGrid)
         {
             HorizontalAlignment = Align.Stretch,
             VerticalAlignment = Align.Stretch,
         };
+
+        Root = new ZStack(
+            group,
+            new BindableObserver<SidebarSelectionTarget?>(
+                () => SelectedTarget,
+                onSelectedTargetChanged));
     }
 
     public Visual Root { get; }
@@ -89,7 +104,7 @@ internal sealed class SidebarView
     {
         ArgumentNullException.ThrowIfNull(projection);
 
-        var node = new TreeNode(CreateSidebarHeader(projection.Title, projection.Tooltip))
+        var node = new TreeNode(CreateSidebarHeader(projection.Title))
         {
             Icon = projection.Icon,
             IconStyle = UiPalette.GetSidebarIconStyle(projection.Accent),
@@ -110,18 +125,12 @@ internal sealed class SidebarView
         return node;
     }
 
-    private static Visual CreateSidebarHeader(string title, string? tooltip)
+    private static Visual CreateSidebarHeader(string title)
     {
         var markup = new Markup($"[bold]{AnsiMarkup.Escape(title)}[/]")
         {
             Wrap = false,
         };
-
-        if (string.IsNullOrWhiteSpace(tooltip))
-        {
-            return markup;
-        }
-
-        return markup.Tooltip(tooltip);
+        return markup;
     }
 }

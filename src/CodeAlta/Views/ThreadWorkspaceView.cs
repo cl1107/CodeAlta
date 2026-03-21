@@ -37,12 +37,12 @@ internal sealed class ThreadWorkspaceView
         Action abortThread,
         Action compactThread,
         Action closeTab,
-        Action<int> onThreadTabSelectionChanged,
         Action<int> onChatBackendSelectionChanged,
         Action<int> onChatModelSelectionChanged,
         Action<int> onChatReasoningSelectionChanged,
-        Action onAutoScrollChanged,
-        Action onAlwaysEnqueueChanged)
+        Action<int> onSelectedTabChanged,
+        Binding<string?> promptText,
+        Action onAutoScrollChanged)
     {
         ArgumentNullException.ThrowIfNull(shellViewModel);
         ArgumentNullException.ThrowIfNull(workspaceViewModel);
@@ -59,12 +59,11 @@ internal sealed class ThreadWorkspaceView
         ArgumentNullException.ThrowIfNull(abortThread);
         ArgumentNullException.ThrowIfNull(compactThread);
         ArgumentNullException.ThrowIfNull(closeTab);
-        ArgumentNullException.ThrowIfNull(onThreadTabSelectionChanged);
         ArgumentNullException.ThrowIfNull(onChatBackendSelectionChanged);
         ArgumentNullException.ThrowIfNull(onChatModelSelectionChanged);
         ArgumentNullException.ThrowIfNull(onChatReasoningSelectionChanged);
+        ArgumentNullException.ThrowIfNull(onSelectedTabChanged);
         ArgumentNullException.ThrowIfNull(onAutoScrollChanged);
-        ArgumentNullException.ThrowIfNull(onAlwaysEnqueueChanged);
 
         ThreadCommandBar = new CommandBar
         {
@@ -72,8 +71,8 @@ internal sealed class ThreadWorkspaceView
         };
 
         ThreadTabControl = new TabControl()
-            .Style(TabControlStyle.NoBorder);
-        ThreadTabControl.RegisterDynamicUpdate(_ => onThreadTabSelectionChanged(ThreadTabControl.SelectedIndex));
+            .Style(TabControlStyle.NoBorder)
+            .SelectedIndex(workspaceViewModel.Bind.SelectedTabIndex);
 
         ThreadInput = CreatePromptEditor(
             promptComposerViewModel,
@@ -83,37 +82,38 @@ internal sealed class ThreadWorkspaceView
             delegateThread,
             abortThread,
             compactThread,
-            closeTab);
-        ThreadInput.RegisterDynamicUpdate(_ => ThreadInput.IsEnabled = promptComposerViewModel.IsEnabled);
+            closeTab,
+            promptText)
+            .IsEnabled(promptComposerViewModel.Bind.IsEnabled);
         ThreadInputView = ThreadInput.Scrollable();
 
         SendPromptButton = new Button(new TextBlock($"{NerdFont.MdSend} Send"))
-            .Click(sendPrompt);
-        SendPromptButton.RegisterDynamicUpdate(_ => SendPromptButton.IsEnabled = promptComposerViewModel.CanSend);
+            .Click(sendPrompt)
+            .IsEnabled(promptComposerViewModel.Bind.CanSend);
         ChatBackendSelect = new Select<ChatBackendOption>()
             .SelectionChanged((_, e) => onChatBackendSelectionChanged(e.NewIndex))
             .MinWidth(14)
-            .MaxWidth(22);
-        ChatBackendSelect.RegisterDynamicUpdate(_ => ChatBackendSelect.IsEnabled = workspaceViewModel.CanSelectBackend);
+            .MaxWidth(22)
+            .IsEnabled(workspaceViewModel.Bind.CanSelectBackend);
         ChatModelSelect = new Select<ChatModelOption>()
             .SelectionChanged((_, e) => onChatModelSelectionChanged(e.NewIndex))
             .MinWidth(18)
-            .MaxWidth(36);
-        ChatModelSelect.RegisterDynamicUpdate(_ => ChatModelSelect.IsEnabled = workspaceViewModel.CanSelectModel);
+            .MaxWidth(36)
+            .IsEnabled(workspaceViewModel.Bind.CanSelectModel);
         ChatReasoningSelect = new Select<ChatReasoningOption>()
             .SelectionChanged((_, e) => onChatReasoningSelectionChanged(e.NewIndex))
             .MinWidth(12)
-            .MaxWidth(22);
-        ChatReasoningSelect.RegisterDynamicUpdate(_ => ChatReasoningSelect.IsEnabled = workspaceViewModel.CanSelectReasoning);
-        ChatAutoScrollCheckBox = new CheckBox("AutoScroll", isChecked: true);
-        ChatAutoScrollCheckBox.RegisterDynamicUpdate(_ => onAutoScrollChanged());
-        ChatAutoScrollCheckBox.RegisterDynamicUpdate(_ => ChatAutoScrollCheckBox.IsEnabled = workspaceViewModel.CanToggleAutoScroll);
-        AlwaysEnqueueCheckBox = new CheckBox("AlwaysQueue", isChecked: false);
-        AlwaysEnqueueCheckBox.RegisterDynamicUpdate(_ => onAlwaysEnqueueChanged());
-        AlwaysEnqueueCheckBox.RegisterDynamicUpdate(_ => AlwaysEnqueueCheckBox.IsEnabled = promptComposerViewModel.CanAlwaysEnqueue);
-        var compactThreadButton = CreateIconButton($"{NerdFont.MdSelectCompare}", compactThread);
-        compactThreadButton.RegisterDynamicUpdate(_ => compactThreadButton.IsEnabled = promptComposerViewModel.CanCompact);
-        var compactThreadButtonView = compactThreadButton.Tooltip(new TextBlock("Compact the selected thread session (F11)."));
+            .MaxWidth(22)
+            .IsEnabled(workspaceViewModel.Bind.CanSelectReasoning);
+        ChatAutoScrollSwitch = new Switch(new TextBlock("AutoScroll") { Wrap = false, IsSelectable = false })
+            .IsOn(workspaceViewModel.Bind.AutoScroll)
+            .IsEnabled(workspaceViewModel.Bind.CanToggleAutoScroll)
+            .Toggled(onAutoScrollChanged);
+        AlwaysEnqueueSwitch = new Switch(new TextBlock("AlwaysQueue") { Wrap = false, IsSelectable = false })
+            .IsOn(promptComposerViewModel.Bind.AlwaysEnqueue)
+            .IsEnabled(promptComposerViewModel.Bind.CanAlwaysEnqueue);
+        var compactThreadButton = CreateIconButton($"{NerdFont.MdSelectCompare}", compactThread)
+            .IsEnabled(promptComposerViewModel.Bind.CanCompact);
 
         var statusSpinner = new Spinner().Style(SpinnerStyles.Arc);
         statusSpinner.IsActive(() => shellViewModel.StatusBusy);
@@ -148,18 +148,16 @@ internal sealed class ThreadWorkspaceView
             HorizontalAlignment = Align.Stretch,
         };
 
-        void CopyQueuedPromptMarkdown(string markdown)
-            => (ThreadPaneLayout?.App)?.Terminal.Clipboard.TrySetText(markdown);
-
         var queuedPromptList = new ComputedVisual(
-            () => QueuedPromptListView.Build(
-                workspaceViewModel,
-                CopyQueuedPromptMarkdown,
-                convertQueuedPromptToSteer,
-                deleteQueuedPrompt,
-                updateQueuedPromptCount,
-                updateQueuedPromptText,
-                CreateStyledPromptEditor));
+            () =>
+                QueuedPromptListView.Build(
+                    workspaceViewModel.QueuedPrompts,
+                    markdown => (ThreadPaneLayout?.App)?.Terminal.Clipboard.TrySetText(markdown),
+                    convertQueuedPromptToSteer,
+                    deleteQueuedPrompt,
+                    updateQueuedPromptCount,
+                    updateQueuedPromptText,
+                    CreateStyledPromptEditor));
 
         var selectionControls = new HStack(
         [
@@ -167,9 +165,9 @@ internal sealed class ThreadWorkspaceView
             ChatBackendSelect,
             ChatModelSelect,
             ChatReasoningSelect,
-            compactThreadButtonView,
-            ChatAutoScrollCheckBox,
-            AlwaysEnqueueCheckBox,
+            compactThreadButton,
+            ChatAutoScrollSwitch,
+            AlwaysEnqueueSwitch,
         ])
         {
             Spacing = 2,
@@ -221,7 +219,11 @@ internal sealed class ThreadWorkspaceView
         threadPaneLayout.Cell(ThreadBodySplitter, 1, 0);
 
         ThreadPaneLayout = threadPaneLayout;
-        Root = ThreadPaneLayout;
+        Root = new ZStack(
+            ThreadPaneLayout,
+            new BindableObserver<int>(
+                () => workspaceViewModel.SelectedTabIndex,
+                onSelectedTabChanged));
     }
 
     public Visual Root { get; }
@@ -246,9 +248,9 @@ internal sealed class ThreadWorkspaceView
 
     public Select<ChatReasoningOption> ChatReasoningSelect { get; }
 
-    public CheckBox ChatAutoScrollCheckBox { get; }
+    public Switch ChatAutoScrollSwitch { get; }
 
-    public CheckBox AlwaysEnqueueCheckBox { get; }
+    public Switch AlwaysEnqueueSwitch { get; }
 
     public TabControl ThreadTabControl { get; }
 
@@ -279,7 +281,8 @@ internal sealed class ThreadWorkspaceView
         Action delegateThread,
         Action abortThread,
         Action compactThread,
-        Action closeTab)
+        Action closeTab,
+        Binding<string?> promptText)
     {
         ArgumentNullException.ThrowIfNull(promptComposerViewModel);
         ArgumentNullException.ThrowIfNull(sendPrompt);
@@ -289,9 +292,9 @@ internal sealed class ThreadWorkspaceView
         ArgumentNullException.ThrowIfNull(abortThread);
         ArgumentNullException.ThrowIfNull(compactThread);
         ArgumentNullException.ThrowIfNull(closeTab);
-
         var editor = CreateStyledPromptEditor(_ => sendPrompt(), placeholder: null)
-            .Placeholder(promptComposerViewModel.Bind.Placeholder);
+            .Placeholder(promptComposerViewModel.Bind.Placeholder)
+            .Text(promptText);
 
         editor.AddCommand(new Command
         {
@@ -377,6 +380,10 @@ internal sealed class ThreadWorkspaceView
         ArgumentNullException.ThrowIfNull(onAccepted);
 
         var converter = new MarkdownMarkupConverter();
+        ITextSnapshot? cachedSnapshot = null;
+        Theme? cachedTheme = null;
+        string? cachedText = null;
+        List<StyledRun>? cachedRuns = null;
         return new ChatPromptEditor(onAccepted)
             .PromptMarkup("[primary]>[/] ")
             .ContinuationPromptMarkup("[muted]·[/] ")
@@ -393,8 +400,30 @@ internal sealed class ThreadWorkspaceView
 
         void HighlightMarkdown(in PromptEditorHighlightRequest request, List<StyledRun> runs)
         {
+            if (cachedRuns is not null &&
+                ReferenceEquals(cachedSnapshot, request.Snapshot) &&
+                Equals(cachedTheme, request.Theme))
+            {
+                runs.AddRange(cachedRuns);
+                return;
+            }
+
+            var text = SnapshotToString(request.Snapshot);
+            if (cachedRuns is not null &&
+                string.Equals(cachedText, text, StringComparison.Ordinal) &&
+                Equals(cachedTheme, request.Theme))
+            {
+                cachedSnapshot = request.Snapshot;
+                runs.AddRange(cachedRuns);
+                return;
+            }
+
             converter.Theme = request.Theme;
-            converter.Highlight(SnapshotToString(request.Snapshot), runs);
+            converter.Highlight(text, runs);
+            cachedSnapshot = request.Snapshot;
+            cachedTheme = request.Theme;
+            cachedText = text;
+            cachedRuns = [.. runs];
         }
 
         static string SnapshotToString(ITextSnapshot snapshot)

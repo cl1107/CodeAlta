@@ -8,6 +8,7 @@ namespace CodeAlta.Presentation.Shell;
 internal static class StatusVisualFormatter
 {
     private const string ThinkingStatusMessage = "Thinking...";
+    private static readonly GradientStop[] ThinkingGradientStops = CreateThinkingGradientStops();
 
     public static string BuildThinkingStatusText() => ThinkingStatusMessage;
 
@@ -32,7 +33,7 @@ internal static class StatusVisualFormatter
             var sweepBrush = Brush.LinearGradient(
                 new GradientPoint(-0.55f + (0.75f * phase), 0f),
                 new GradientPoint(0.20f + (0.75f * phase), 0f),
-                BuildThinkingGradientStops(),
+                ThinkingGradientStops,
                 tileMode: BrushTileMode.Repeat,
                 mixSpaceOverride: ColorMixSpace.Oklab);
             return TextBlockStyle.Default with { ForegroundBrush = sweepBrush };
@@ -42,6 +43,9 @@ internal static class StatusVisualFormatter
     }
 
     public static GradientStop[] BuildThinkingGradientStops()
+        => ThinkingGradientStops;
+
+    private static GradientStop[] CreateThinkingGradientStops()
     {
         var baseColor = UiPalette.GetStatusToneColor(StatusTone.Info);
         var glowColor = Color.Mix(baseColor, Colors.White, 0.26f, ColorMixSpace.Oklab);

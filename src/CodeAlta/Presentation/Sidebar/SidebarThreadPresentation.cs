@@ -32,16 +32,4 @@ internal static class SidebarThreadPresentation
             ? normalized
             : normalized[..Math.Max(1, maxLength - 1)].TrimEnd() + "…";
     }
-
-    public static string BuildThreadTooltip(WorkThreadDescriptor thread)
-    {
-        ArgumentNullException.ThrowIfNull(thread);
-
-        if (string.IsNullOrWhiteSpace(thread.LatestSummary))
-        {
-            return thread.Title;
-        }
-
-        return $"{thread.Title}\n\n{thread.LatestSummary}";
-    }
 }

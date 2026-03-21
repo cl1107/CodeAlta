@@ -10,6 +10,7 @@ namespace CodeAlta.Presentation.Shell;
 internal static class WelcomePaneFactory
 {
     private static readonly Lazy<FigletFont> WelcomeFigletFont = new(LoadWelcomeFigletFont);
+    private static readonly TextFigletStyle WelcomeAltaFigletStyle = CreateWelcomeAltaFigletStyle();
 
     public static Visual Build(ProjectDescriptor? selectedProject, bool globalScopeSelected)
     {
@@ -102,7 +103,7 @@ internal static class WelcomePaneFactory
                     .LetterSpacing(1)
                     .TrimTrailingSpaces(true)
                     .TextAlignment(TextAlignment.Left)
-                    .Style(BuildWelcomeAltaFigletStyle),
+                    .Style(() => WelcomeAltaFigletStyle),
             ])
             {
                 Spacing = 2,
@@ -110,12 +111,11 @@ internal static class WelcomePaneFactory
             });
     }
 
-    private static TextFigletStyle BuildWelcomeAltaFigletStyle()
+    private static TextFigletStyle CreateWelcomeAltaFigletStyle()
     {
-        var phase = ComputeLoopAnimationPhase(DateTime.UtcNow.Ticks, TimeSpan.TicksPerSecond * 6L);
         return TextFigletStyle.Default with
         {
-            ForegroundBrush = UiPalette.BuildWelcomeAltaBrush(phase),
+            ForegroundBrush = UiPalette.BuildWelcomeAltaBrush(phase: 0.28f),
         };
     }
 }

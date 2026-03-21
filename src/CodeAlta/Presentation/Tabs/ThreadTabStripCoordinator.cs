@@ -15,6 +15,7 @@ internal sealed class ThreadTabStripCoordinator
     private readonly ThreadTabContext _threadTabs;
     private bool _syncingSelection;
     private bool _syncingPages;
+    private int _lastObservedSelectedIndex = -1;
     private string? _pendingThreadSelectionThreadId;
 
     public ThreadTabStripCoordinator(
@@ -128,6 +129,17 @@ internal sealed class ThreadTabStripCoordinator
             });
     }
 
+    public void ObserveBoundSelection(int selectedIndex)
+    {
+        if (_lastObservedSelectedIndex == selectedIndex)
+        {
+            return;
+        }
+
+        _lastObservedSelectedIndex = selectedIndex;
+        OnSelectionChanged(selectedIndex);
+    }
+
     public void ResetPendingSelection()
     {
         _pendingThreadSelectionThreadId = null;
@@ -189,7 +201,6 @@ internal sealed class ThreadTabStripCoordinator
         var header = _threadTabs.CreateComputedVisual(
             () =>
             {
-                var current = tab.Thread;
                 return new HStack(
                 [
                     ThreadTabVisualFactory.CreateIndicator(tab.ViewModel.StatusBusy, tab.ViewModel.StatusTone),
@@ -197,7 +208,7 @@ internal sealed class ThreadTabStripCoordinator
                 ])
                 {
                     Spacing = 1,
-                }.Tooltip(current.Title);
+                };
             });
 
         var page = new TabPage(header, CodeAltaApp.CreateThreadTabPageContentPlaceholder())

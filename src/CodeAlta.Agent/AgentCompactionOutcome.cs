@@ -1,0 +1,33 @@
+namespace CodeAlta.Agent;
+
+/// <summary>
+/// Represents the outcome of a manual compaction operation when the backend returns a synchronous result.
+/// </summary>
+/// <param name="Success">Whether compaction completed successfully.</param>
+/// <param name="Message">Optional user-visible summary.</param>
+/// <param name="MessagesRemoved">Optional number of removed messages.</param>
+/// <param name="TokensRemoved">Optional number of removed tokens.</param>
+/// <param name="PreCompactionTokens">Optional token count before compaction.</param>
+/// <param name="PostCompactionTokens">Optional token count after compaction.</param>
+public sealed record AgentCompactionOutcome(
+    bool Success,
+    string? Message = null,
+    int? MessagesRemoved = null,
+    long? TokensRemoved = null,
+    long? PreCompactionTokens = null,
+    long? PostCompactionTokens = null);
+
+/// <summary>
+/// Optional session capability that exposes a synchronous manual compaction outcome.
+/// </summary>
+public interface IAgentCompactionOutcomeProvider
+{
+    /// <summary>
+    /// Triggers manual compaction and returns a backend-reported outcome when available.
+    /// </summary>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>
+    /// A compaction outcome when the backend completes the operation synchronously; otherwise <see langword="null" />.
+    /// </returns>
+    Task<AgentCompactionOutcome?> CompactWithOutcomeAsync(CancellationToken cancellationToken = default);
+}

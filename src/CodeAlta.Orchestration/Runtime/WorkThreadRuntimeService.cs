@@ -305,10 +305,14 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
         thread.WorkingDirectory = options.WorkingDirectory;
         thread.ThreadId = CreateThreadId(options.BackendId, backendSessionId);
 
-        var projector = new EventProjector(thread.ThreadId, _events.Writer);
+        ThreadSessionEntry? entry = null;
+        var projector = new EventProjector(
+            thread.ThreadId,
+            _events.Writer,
+            () => entry?.MarkTerminated());
         var subscription = await _agentHub.SubscribeSessionEventsAsync(agentId, projector.Project, cancellationToken).ConfigureAwait(false);
 
-        var entry = new ThreadSessionEntry(
+        entry = new ThreadSessionEntry(
             agentId,
             options.BackendId,
             backendSessionId,
@@ -423,8 +427,22 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(thread);
         ArgumentNullException.ThrowIfNull(options);
 
+        _events.Writer.TryWrite(new WorkThreadHostEvent(
+            thread.ThreadId,
+            DateTimeOffset.UtcNow,
+            AgentSessionUpdateKind.CompactionStarted,
+            $"Manual compaction requested for '{thread.Title}'."));
+
         var agentId = await EnsureCoordinatorSessionAsync(thread, options, cancellationToken).ConfigureAwait(false);
-        await _agentHub.CompactAsync(agentId, cancellationToken).ConfigureAwait(false);
+        var outcome = await _agentHub.CompactAsync(agentId, cancellationToken).ConfigureAwait(false);
+        if (outcome is not null)
+        {
+            _events.Writer.TryWrite(new WorkThreadHostEvent(
+                thread.ThreadId,
+                DateTimeOffset.UtcNow,
+                AgentSessionUpdateKind.CompactionCompleted,
+                outcome.Message ?? (outcome.Success ? "Manual compaction completed." : "Manual compaction failed.")));
+        }
     }
 
     /// <summary>
@@ -663,14 +681,20 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
 
         public EventProjector Projector { get; }
 
+        public bool IsTerminated { get; private set; }
+
         public bool Matches(WorkThreadExecutionOptions options, string backendSessionId)
         {
-            return string.Equals(BackendId.Value, options.BackendId.Value, StringComparison.OrdinalIgnoreCase)
+            return !IsTerminated
+                && string.Equals(BackendId.Value, options.BackendId.Value, StringComparison.OrdinalIgnoreCase)
                 && string.Equals(BackendSessionId, backendSessionId, StringComparison.Ordinal)
                 && string.Equals(WorkingDirectory, options.WorkingDirectory, StringComparison.Ordinal)
                 && string.Equals(Model, options.Model, StringComparison.Ordinal)
                 && ReasoningEffort == options.ReasoningEffort;
         }
+
+        public void MarkTerminated()
+            => IsTerminated = true;
 
         public async Task DisposeAsync(AgentHub hub)
         {
@@ -685,14 +709,24 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
         private readonly ChannelWriter<WorkThreadRuntimeEvent> _writer;
         private readonly Dictionary<string, ContentState> _content = new(StringComparer.Ordinal);
 
-        public EventProjector(string threadId, ChannelWriter<WorkThreadRuntimeEvent> writer)
+        private readonly Action _markThreadSessionTerminated;
+
+        public EventProjector(string threadId, ChannelWriter<WorkThreadRuntimeEvent> writer, Action markThreadSessionTerminated)
         {
+            ArgumentNullException.ThrowIfNull(markThreadSessionTerminated);
+
             _threadId = threadId;
             _writer = writer;
+            _markThreadSessionTerminated = markThreadSessionTerminated;
         }
 
         public void Project(AgentEvent @event)
         {
+            if (@event is AgentSessionUpdateEvent { Kind: AgentSessionUpdateKind.Shutdown })
+            {
+                _markThreadSessionTerminated();
+            }
+
             if (TrySanitize(@event, out var sanitized) && sanitized is not null)
             {
                 _writer.TryWrite(new WorkThreadAgentEvent(_threadId, sanitized));

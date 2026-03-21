@@ -122,7 +122,7 @@ public sealed class CodeAltaShellControllerTests
     }
 
     [TestMethod]
-    public void QueueRuntimeEvent_DrainAppliesQueuedEventsWithoutDispatcherRoundTrip()
+    public void QueueRuntimeEvent_AutoDrainAppliesQueuedEventsWhenDispatcherIsAttached()
     {
         var log = new List<string>();
         var shell = new FakeShell(log);
@@ -136,10 +136,6 @@ public sealed class CodeAltaShellControllerTests
 
         controller.QueueRuntimeEvent(CreateHostEvent("thread-1"), CancellationToken.None);
         controller.QueueRuntimeEvent(CreateHostEvent("thread-2"), CancellationToken.None);
-
-        var drained = controller.DrainPendingRuntimeEvents();
-
-        Assert.AreEqual(2, drained);
         Assert.AreEqual(0, dispatcher.InvokeCallCount);
         CollectionAssert.AreEqual(
             new[]
@@ -160,7 +156,6 @@ public sealed class CodeAltaShellControllerTests
             new FakeImporter(log),
             new FakeProjectCatalogLoader(log, []),
             new FakeRecoverableThreadSource(log, []));
-        controller.AttachUiDispatcher(new FakeUiDispatcher());
 
         controller.QueueRuntimeEvent(CreateToolDeltaEvent("thread-1", "tool-1", "alpha"), CancellationToken.None);
         controller.QueueRuntimeEvent(CreateToolDeltaEvent("thread-1", "tool-1", "beta"), CancellationToken.None);

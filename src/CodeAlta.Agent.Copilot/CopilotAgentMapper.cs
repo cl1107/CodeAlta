@@ -288,15 +288,13 @@ internal static class CopilotAgentMapper
                 sessionId,
                 compactionStart.Timestamp,
                 AgentSessionUpdateKind.CompactionStarted,
-                "Compaction started."),
+                FormatCompactionStartedMessage(compactionStart.Data)),
 
             SessionCompactionCompleteEvent compactionComplete => CreateSessionUpdate(
                 sessionId,
                 compactionComplete.Timestamp,
                 AgentSessionUpdateKind.CompactionCompleted,
-                compactionComplete.Data.Success
-                    ? "Compaction completed."
-                    : compactionComplete.Data.Error ?? "Compaction failed.",
+                FormatCompactionCompletedMessage(compactionComplete.Data),
                 usage: CreateCopilotCompactionUsage(compactionComplete.Timestamp, compactionComplete.Data)),
 
             SessionTaskCompleteEvent taskComplete => CreateSessionUpdate(
@@ -1058,6 +1056,73 @@ internal static class CopilotAgentMapper
                             ToInt64(data.CompactionTokensUsed.Output),
                             ToInt64(data.CompactionTokensUsed.CachedInput)),
                     SummaryContent: data.SummaryContent)));
+    }
+
+    private static string FormatCompactionStartedMessage(SessionCompactionStartData data)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+
+        var totalTokens = SumNullableDoubles(data.SystemTokens, data.ConversationTokens, data.ToolDefinitionsTokens);
+        return totalTokens is { } value
+            ? FormattableString.Invariant($"Compaction started at {value:0} tokens.")
+            : "Compaction started.";
+    }
+
+    private static string FormatCompactionCompletedMessage(SessionCompactionCompleteData data)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+
+        if (!data.Success)
+        {
+            return data.Error ?? "Compaction failed.";
+        }
+
+        if (data.PreCompactionTokens is { } preTokens && data.PostCompactionTokens is { } postTokens)
+        {
+            if (data.MessagesRemoved is { } removedMessages)
+            {
+                return FormattableString.Invariant(
+                    $"Compaction completed ({preTokens:0} -> {postTokens:0} tokens, {removedMessages:0} messages removed).");
+            }
+
+            return FormattableString.Invariant($"Compaction completed ({preTokens:0} -> {postTokens:0} tokens).");
+        }
+
+        if (data.TokensRemoved is { } removedTokens && data.MessagesRemoved is { } removedMessagesOnly)
+        {
+            return FormattableString.Invariant(
+                $"Compaction completed ({removedTokens:0} tokens and {removedMessagesOnly:0} messages removed).");
+        }
+
+        if (data.TokensRemoved is { } tokensOnly)
+        {
+            return FormattableString.Invariant($"Compaction completed ({tokensOnly:0} tokens removed).");
+        }
+
+        if (data.MessagesRemoved is { } messagesOnly)
+        {
+            return FormattableString.Invariant($"Compaction completed ({messagesOnly:0} messages removed).");
+        }
+
+        return "Compaction completed.";
+    }
+
+    private static double? SumNullableDoubles(params double?[] values)
+    {
+        double sum = 0;
+        var hasValue = false;
+        foreach (var value in values)
+        {
+            if (value is not { } number)
+            {
+                continue;
+            }
+
+            sum += number;
+            hasValue = true;
+        }
+
+        return hasValue ? sum : null;
     }
 
     private static AgentSessionUsage CreateCopilotTruncationUsage(DateTimeOffset timestamp, SessionTruncationData data)

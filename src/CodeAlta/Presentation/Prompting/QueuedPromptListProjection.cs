@@ -2,7 +2,7 @@ using CodeAlta.App.State;
 
 namespace CodeAlta.Presentation.Prompting;
 
-internal readonly record struct QueuedPromptListItem(
+public readonly record struct QueuedPromptListItem(
     string Id,
     string Text,
     string PreviewText,
