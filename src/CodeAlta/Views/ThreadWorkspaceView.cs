@@ -142,9 +142,13 @@ internal sealed class ThreadWorkspaceView
             HorizontalAlignment = Align.Stretch,
         };
 
+        void CopyQueuedPromptMarkdown(string markdown)
+            => (ThreadPaneLayout?.App)?.Terminal.Clipboard.TrySetText(markdown);
+
         var queuedPromptList = new ComputedVisual(
             () => QueuedPromptListView.Build(
                 workspaceViewModel,
+                CopyQueuedPromptMarkdown,
                 convertQueuedPromptToSteer,
                 deleteQueuedPrompt,
                 updateQueuedPromptCount,

@@ -14,6 +14,7 @@ internal static class QueuedPromptListView
 {
     public static Visual Build(
         ThreadWorkspaceViewModel workspaceViewModel,
+        Action<string> copyQueuedPromptMarkdown,
         Action<string> convertQueuedPromptToSteer,
         Action<string> deleteQueuedPrompt,
         Action<string, int> updateQueuedPromptCount,
@@ -21,6 +22,7 @@ internal static class QueuedPromptListView
         Func<Action<string>, string?, ChatPromptEditor> createPromptEditor)
     {
         ArgumentNullException.ThrowIfNull(workspaceViewModel);
+        ArgumentNullException.ThrowIfNull(copyQueuedPromptMarkdown);
         ArgumentNullException.ThrowIfNull(convertQueuedPromptToSteer);
         ArgumentNullException.ThrowIfNull(deleteQueuedPrompt);
         ArgumentNullException.ThrowIfNull(updateQueuedPromptCount);
@@ -39,6 +41,7 @@ internal static class QueuedPromptListView
             rows.Add(
                 BuildRow(
                     workspaceViewModel.QueuedPrompts[index],
+                    copyQueuedPromptMarkdown,
                     convertQueuedPromptToSteer,
                     deleteQueuedPrompt,
                     updateQueuedPromptCount,
@@ -60,6 +63,7 @@ internal static class QueuedPromptListView
 
     private static Visual BuildRow(
         QueuedPromptListItem queuedPrompt,
+        Action<string> copyQueuedPromptMarkdown,
         Action<string> convertQueuedPromptToSteer,
         Action<string> deleteQueuedPrompt,
         Action<string, int> updateQueuedPromptCount,
@@ -81,6 +85,12 @@ internal static class QueuedPromptListView
             Trimming = TextTrimming.EndEllipsis,
             Margin = new Thickness(0, 0, 1, 0),
         };
+
+        var copyButton = CreateIconButton(
+            $"{NerdFont.MdContentCopy}",
+            "Copy queued prompt markdown to the clipboard",
+            () => copyQueuedPromptMarkdown(queuedPrompt.Text));
+        copyButton.Margin = new Thickness(0, 0, 1, 0);
 
         var editButton = CreateIconButton(
             $"{NerdFont.MdSquareEditOutline}",
@@ -113,13 +123,15 @@ internal static class QueuedPromptListView
                 new ColumnDefinition { Width = GridLength.Auto },
                 new ColumnDefinition { Width = GridLength.Auto },
                 new ColumnDefinition { Width = GridLength.Auto },
+                new ColumnDefinition { Width = GridLength.Auto },
                 new ColumnDefinition { Width = GridLength.Auto });
         row.Cell(icon, 0, 0);
         row.Cell(promptText, 0, 1);
-        row.Cell(editButton, 0, 2);
-        row.Cell(counter, 0, 3);
-        row.Cell(steerButton, 0, 4);
-        row.Cell(deleteButton, 0, 5);
+        row.Cell(copyButton, 0, 2);
+        row.Cell(editButton, 0, 3);
+        row.Cell(counter, 0, 4);
+        row.Cell(steerButton, 0, 5);
+        row.Cell(deleteButton, 0, 6);
         return new ZStack(
             new Placeholder()
                 .HorizontalAlignment(Align.Stretch)
