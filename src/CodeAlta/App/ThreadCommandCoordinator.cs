@@ -63,11 +63,17 @@ internal sealed class ThreadCommandCoordinator
     {
         var thread = _threadSelection.GetSelectedThread();
         var hadExistingThread = thread is not null;
+        var prompt = UiDispatch.Invoke(_selectorUi.GetUiDispatcher(), () => _selectorUi.GetThreadInput()?.Text?.Trim());
         if (thread is null)
         {
             if (steer)
             {
                 _commandContext.SetShellStatus("Start the thread before steering it.", false, StatusTone.Warning);
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(prompt))
+            {
                 return;
             }
 
@@ -83,14 +89,14 @@ internal sealed class ThreadCommandCoordinator
             {
                 return;
             }
+
+            _commandContext.ClearDraftInput();
         }
         else if (!IsChatBackendReady(new AgentBackendId(thread.BackendId)))
         {
             _commandContext.SetReadyStatusForCurrentSelection();
             return;
         }
-
-        var prompt = UiDispatch.Invoke(_selectorUi.GetUiDispatcher(), () => _selectorUi.GetThreadInput()?.Text?.Trim());
         if (string.IsNullOrWhiteSpace(prompt))
         {
             if (steer && thread is not null)

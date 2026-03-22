@@ -212,7 +212,7 @@ internal sealed class ToolCallPresenter
                 var headerText = new Markup($"[{UiPalette.MutedMarkup}]{NerdFont.CodTools}[/] [bold]Tool Calls[/]");
                 var summaryText = new Markup("[dim]Waiting for tool activity...[/]");
                 var timestampText = new Markup(string.Empty);
-                var itemsHost = new WrapHStack { Spacing = 1, RunSpacing = 0, HorizontalAlignment = Align.Stretch, VerticalAlignment = Align.Start };
+                var itemsHost = new WrapHStack { Spacing = 1, RunSpacing = 0 };
                 var card = new Group(headerText, itemsHost)
                     .TopRightText(summaryText)
                     .BottomRightText(timestampText)

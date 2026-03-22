@@ -279,6 +279,16 @@ public sealed class ArchitectureGuardrailTests
     }
 
     [TestMethod]
+    public void WelcomePaneFactory_KeepsAnimatedAltaGradientStyle()
+    {
+        var welcomeSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Presentation", "Shell", "WelcomePaneFactory.cs"));
+
+        Assert.IsTrue(welcomeSource.Contains(".Style(BuildWelcomeAltaFigletStyle)", StringComparison.Ordinal));
+        Assert.IsTrue(welcomeSource.Contains("DateTime.UtcNow.Ticks", StringComparison.Ordinal));
+        Assert.IsFalse(welcomeSource.Contains("private static readonly TextFigletStyle WelcomeAltaFigletStyle", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public void CodeAltaApp_DoesNotConstructPromptEditorControls()
     {
         var appSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "CodeAltaApp.cs"));

@@ -21,6 +21,9 @@ if (options!.TestDuration is { } testDuration)
     cancellationTokenSource.CancelAfter(testDuration);
 }
 
+// Defer async app startup until the terminal loop is already running so XenoAtom keeps the UI
+// bound to the process main thread. Awaiting service creation before Terminal.RunAsync can move
+// the actual UI bootstrap onto a worker continuation instead.
 await using var app = new DeferredCodeAltaApp();
 if (options.TestMode)
 {
@@ -34,6 +37,8 @@ if (options.TestMode)
     Console.WriteLine($"[CodeAlta] Starting terminal smoke test for {testDurationText}s.");
 }
 
+// Enter the terminal immediately after synchronous setup; DeferredCodeAltaApp finishes async
+// initialization from inside the loop instead of before Terminal.RunAsync starts.
 await app.RunAsync(cancellationTokenSource.Token);
 
 if (options.TestMode)

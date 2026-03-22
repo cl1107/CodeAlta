@@ -216,7 +216,7 @@ internal sealed class FileChangePresenter
                 var headerText = new Markup($"[{UiPalette.MutedMarkup}]{NerdFont.CodEdit}[/] [bold]Modified Files[/]");
                 var summaryText = new Markup("[dim]Waiting for file changes...[/]");
                 var timestampText = new Markup(string.Empty);
-                var itemsHost = new WrapHStack { Spacing = 1, RunSpacing = 0, HorizontalAlignment = Align.Stretch, VerticalAlignment = Align.Start };
+                var itemsHost = new WrapHStack { Spacing = 1, RunSpacing = 0 };
                 var card = new Group(headerText, itemsHost)
                     .TopRightText(summaryText)
                     .BottomRightText(timestampText)

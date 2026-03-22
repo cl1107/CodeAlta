@@ -329,6 +329,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
                 () => _threadCreationCoordinator.CreateProjectThreadAsync(),
                 PersistViewStateAsync,
                 () => DefaultAutoApproveEnabled,
+                _promptDraftUiCoordinator.ClearDraftPromptText,
                 SetReadyStatusForCurrentSelection,
                 ClearThreadInput,
                 RefreshHeaderAndThreadWorkspace,

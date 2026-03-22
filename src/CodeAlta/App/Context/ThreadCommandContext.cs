@@ -11,6 +11,7 @@ internal sealed class ThreadCommandContext
     private readonly Func<Task<WorkThreadDescriptor?>> _createProjectThreadAsync;
     private readonly Func<Task> _persistViewStateAsync;
     private readonly Func<bool> _getAutoApproveEnabled;
+    private readonly Action _clearDraftInput;
     private readonly Action _setReadyStatusForCurrentSelection;
     private readonly Action _clearThreadInput;
     private readonly Action _refreshHeaderAndThreadWorkspace;
@@ -25,6 +26,7 @@ internal sealed class ThreadCommandContext
         Func<Task<WorkThreadDescriptor?>> createProjectThreadAsync,
         Func<Task> persistViewStateAsync,
         Func<bool> getAutoApproveEnabled,
+        Action clearDraftInput,
         Action setReadyStatusForCurrentSelection,
         Action clearThreadInput,
         Action refreshHeaderAndThreadWorkspace,
@@ -38,6 +40,7 @@ internal sealed class ThreadCommandContext
         ArgumentNullException.ThrowIfNull(createProjectThreadAsync);
         ArgumentNullException.ThrowIfNull(persistViewStateAsync);
         ArgumentNullException.ThrowIfNull(getAutoApproveEnabled);
+        ArgumentNullException.ThrowIfNull(clearDraftInput);
         ArgumentNullException.ThrowIfNull(setReadyStatusForCurrentSelection);
         ArgumentNullException.ThrowIfNull(clearThreadInput);
         ArgumentNullException.ThrowIfNull(refreshHeaderAndThreadWorkspace);
@@ -51,6 +54,7 @@ internal sealed class ThreadCommandContext
         _createProjectThreadAsync = createProjectThreadAsync;
         _persistViewStateAsync = persistViewStateAsync;
         _getAutoApproveEnabled = getAutoApproveEnabled;
+        _clearDraftInput = clearDraftInput;
         _setReadyStatusForCurrentSelection = setReadyStatusForCurrentSelection;
         _clearThreadInput = clearThreadInput;
         _refreshHeaderAndThreadWorkspace = refreshHeaderAndThreadWorkspace;
@@ -74,6 +78,9 @@ internal sealed class ThreadCommandContext
 
     public bool GetAutoApproveEnabled()
         => _getAutoApproveEnabled();
+
+    public void ClearDraftInput()
+        => _clearDraftInput();
 
     public void SetReadyStatusForCurrentSelection()
         => _setReadyStatusForCurrentSelection();

@@ -40,6 +40,15 @@ internal sealed class PromptDraftUiCoordinator
     public void ClearPromptText()
         => PromptText = string.Empty;
 
+    public void ClearDraftPromptText()
+    {
+        _promptDrafts.RememberPrompt(session: null, string.Empty);
+        if (_selectedSession is null)
+        {
+            PromptText = string.Empty;
+        }
+    }
+
     private void OnPromptTextChanged(string? value)
         => _promptDrafts.RememberPrompt(_selectedSession, value);
 }
