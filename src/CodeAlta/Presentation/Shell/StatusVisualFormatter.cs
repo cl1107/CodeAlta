@@ -23,16 +23,15 @@ internal static class StatusVisualFormatter
         };
     }
 
-    public static TextBlockStyle BuildStatusTextStyle(string message, bool busy, StatusTone tone)
+    public static TextBlockStyle BuildStatusTextStyle(string message, bool busy, StatusTone tone, float thinkingAnimationPhase01)
     {
         ArgumentNullException.ThrowIfNull(message);
 
         if (busy && string.Equals(message, ThinkingStatusMessage, StringComparison.Ordinal))
         {
-            var phase = WelcomePaneFactory.ComputeLoopAnimationPhase(DateTime.UtcNow.Ticks, TimeSpan.TicksPerSecond * 5L);
             var sweepBrush = Brush.LinearGradient(
-                new GradientPoint(-0.55f + (0.75f * phase), 0f),
-                new GradientPoint(0.20f + (0.75f * phase), 0f),
+                new GradientPoint(-0.55f + (0.75f * thinkingAnimationPhase01), 0f),
+                new GradientPoint(0.20f + (0.75f * thinkingAnimationPhase01), 0f),
                 ThinkingGradientStops,
                 tileMode: BrushTileMode.Repeat,
                 mixSpaceOverride: ColorMixSpace.Oklab);

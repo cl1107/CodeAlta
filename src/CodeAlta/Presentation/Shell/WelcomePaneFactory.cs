@@ -11,13 +11,15 @@ internal static class WelcomePaneFactory
 {
     private static readonly Lazy<FigletFont> WelcomeFigletFont = new(LoadWelcomeFigletFont);
 
-    public static Visual Build(ProjectDescriptor? selectedProject, bool globalScopeSelected)
+    public static Visual Build(ProjectDescriptor? selectedProject, bool globalScopeSelected, State<float> welcomeAnimationPhase01)
     {
+        ArgumentNullException.ThrowIfNull(welcomeAnimationPhase01);
+
         var guidanceLines = ShellTextFormatter.BuildWelcomeGuidanceLines(selectedProject, globalScopeSelected);
         return new Center(
             new VStack(
             [
-                BuildWelcomeLogo(),
+                BuildWelcomeLogo(welcomeAnimationPhase01),
                 new TextBlock(ShellTextFormatter.BuildWelcomeSubtitle(selectedProject, globalScopeSelected))
                     {
                         Wrap = true,
@@ -66,14 +68,6 @@ internal static class WelcomePaneFactory
         return WelcomeFigletFont.Value;
     }
 
-    public static float ComputeLoopAnimationPhase(long ticks, long cycleTicks)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(cycleTicks);
-
-        var normalizedTicks = ((ticks % cycleTicks) + cycleTicks) % cycleTicks;
-        return (float)(normalizedTicks / (double)cycleTicks);
-    }
-
     private static FigletFont LoadWelcomeFigletFont()
     {
         using var stream = typeof(WelcomePaneFactory).Assembly.GetManifestResourceStream("CodeAlta.Assets.3d.flf");
@@ -86,8 +80,10 @@ internal static class WelcomePaneFactory
         return FigletFont.Parse(reader.ReadToEnd(), new FigletFontInfo("3-D", "Daniel Henninger"));
     }
 
-    private static Visual BuildWelcomeLogo()
+    private static Visual BuildWelcomeLogo(State<float> welcomeAnimationPhase01)
     {
+        ArgumentNullException.ThrowIfNull(welcomeAnimationPhase01);
+
         var font = GetWelcomeFigletFont();
         return new Center(
             new HStack(
@@ -102,7 +98,7 @@ internal static class WelcomePaneFactory
                     .LetterSpacing(1)
                     .TrimTrailingSpaces(true)
                     .TextAlignment(TextAlignment.Left)
-                    .Style(BuildWelcomeAltaFigletStyle),
+                    .Style(() => BuildWelcomeAltaFigletStyle(welcomeAnimationPhase01.Value)),
             ])
             {
                 Spacing = 2,
@@ -110,9 +106,8 @@ internal static class WelcomePaneFactory
             });
     }
 
-    private static TextFigletStyle BuildWelcomeAltaFigletStyle()
+    private static TextFigletStyle BuildWelcomeAltaFigletStyle(float phase)
     {
-        var phase = ComputeLoopAnimationPhase(DateTime.UtcNow.Ticks, TimeSpan.TicksPerSecond * 6L);
         return TextFigletStyle.Default with
         {
             ForegroundBrush = UiPalette.BuildWelcomeAltaBrush(phase),

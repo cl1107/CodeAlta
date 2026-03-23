@@ -384,13 +384,24 @@ public sealed class CodeAltaAppTests
     {
         const long cycleTicks = TimeSpan.TicksPerSecond * 5L;
 
-        var start = WelcomePaneFactory.ComputeLoopAnimationPhase(0, cycleTicks);
-        var midpoint = WelcomePaneFactory.ComputeLoopAnimationPhase(cycleTicks / 2, cycleTicks);
-        var end = WelcomePaneFactory.ComputeLoopAnimationPhase(cycleTicks, cycleTicks);
+        var start = ShellAnimationRuntime.ComputeLoopAnimationPhase(0, cycleTicks);
+        var midpoint = ShellAnimationRuntime.ComputeLoopAnimationPhase(cycleTicks / 2, cycleTicks);
+        var end = ShellAnimationRuntime.ComputeLoopAnimationPhase(cycleTicks, cycleTicks);
 
         Assert.AreEqual(0f, start, 0.0001f);
         Assert.AreEqual(0.5f, midpoint, 0.0001f);
         Assert.AreEqual(start, end, 0.0001f);
+    }
+
+    [TestMethod]
+    public void ShellAnimationRuntime_Advance_UpdatesLoopingAnimationStates()
+    {
+        var runtime = new ShellAnimationRuntime();
+
+        runtime.Advance();
+
+        Assert.IsTrue(runtime.WelcomePhase01.Value is >= 0f and < 1f);
+        Assert.IsTrue(runtime.ThinkingPhase01.Value is >= 0f and < 1f);
     }
 
     [TestMethod]
@@ -504,7 +515,7 @@ public sealed class CodeAltaAppTests
     [TestMethod]
     public void BuildWelcomePane_CreatesCenteredFigletLogo()
     {
-        var welcome = WelcomePaneFactory.Build(null, globalScopeSelected: true);
+        var welcome = WelcomePaneFactory.Build(null, globalScopeSelected: true, new State<float>(0f));
 
         var center = Assert.IsInstanceOfType<Center>(welcome);
         var stack = Assert.IsInstanceOfType<VStack>(center.Content);

@@ -67,7 +67,8 @@ public sealed class CodeAltaAppStatusTests
         var style = StatusVisualFormatter.BuildStatusTextStyle(
             StatusVisualFormatter.BuildThinkingStatusText(),
             busy: true,
-            StatusTone.Info);
+            StatusTone.Info,
+            thinkingAnimationPhase01: 0.25f);
 
         Assert.IsNotNull(style.ForegroundBrush);
         Assert.IsNull(style.Foreground);
@@ -79,7 +80,8 @@ public sealed class CodeAltaAppStatusTests
         var style = StatusVisualFormatter.BuildStatusTextStyle(
             "Prompt ready",
             busy: false,
-            StatusTone.Ready);
+            StatusTone.Ready,
+            thinkingAnimationPhase01: 0f);
 
         Assert.IsNull(style.ForegroundBrush);
         Assert.IsNotNull(style.Foreground);

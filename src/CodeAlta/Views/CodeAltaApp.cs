@@ -58,6 +58,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
     private readonly ThreadTabStripCoordinator _threadTabStripCoordinator;
     private readonly ChatPreferenceContext _chatPreferenceContext;
     private readonly ChatSelectorUiContext _chatSelectorUiContext;
+    private readonly ShellAnimationRuntime _shellAnimationRuntime = new();
     private readonly ShellWorkspaceContext _shellWorkspaceContext;
     private readonly ThreadSelectionContext _threadSelectionContext;
     private readonly ThreadTabContext _threadTabContext;
@@ -267,6 +268,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             _chatBackendStates,
             _threadSelectionContext,
             _shellWorkspaceContext,
+            _shellAnimationRuntime.WelcomePhase01,
             _catalogOptions.GlobalRoot);
         _threadPromptQueueCoordinator = new ThreadPromptQueueCoordinator(
             _threadWorkspaceViewModel,
@@ -453,6 +455,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             return TerminalLoopResult.Continue;
         }
 
+        _shellAnimationRuntime.Advance();
         EnsureInitialCatalogStateStarted(cancellationToken);
         if (!TryResolveInitialCatalogState(cancellationToken))
         {
@@ -565,6 +568,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             OnChatReasoningSelectionChanged,
             selectedIndex => _threadTabStripCoordinator.ObserveBoundSelection(selectedIndex),
             _promptDraftUiCoordinator.PromptTextBinding,
+            _shellAnimationRuntime.ThinkingPhase01,
             OnChatAutoScrollChanged);
 
         RefreshCatalogAndThreadWorkspace();

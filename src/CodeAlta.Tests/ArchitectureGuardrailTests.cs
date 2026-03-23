@@ -283,8 +283,8 @@ public sealed class ArchitectureGuardrailTests
     {
         var welcomeSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Presentation", "Shell", "WelcomePaneFactory.cs"));
 
-        Assert.IsTrue(welcomeSource.Contains(".Style(BuildWelcomeAltaFigletStyle)", StringComparison.Ordinal));
-        Assert.IsTrue(welcomeSource.Contains("DateTime.UtcNow.Ticks", StringComparison.Ordinal));
+        Assert.IsTrue(welcomeSource.Contains(".Style(() => BuildWelcomeAltaFigletStyle(welcomeAnimationPhase01.Value))", StringComparison.Ordinal));
+        Assert.IsFalse(welcomeSource.Contains("DateTime.UtcNow.Ticks", StringComparison.Ordinal));
         Assert.IsFalse(welcomeSource.Contains("private static readonly TextFigletStyle WelcomeAltaFigletStyle", StringComparison.Ordinal));
     }
 

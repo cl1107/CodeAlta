@@ -42,6 +42,7 @@ internal sealed class ThreadWorkspaceView
         Action<int> onChatReasoningSelectionChanged,
         Action<int> onSelectedTabChanged,
         Binding<string?> promptText,
+        State<float> thinkingAnimationPhase01,
         Action onAutoScrollChanged)
     {
         ArgumentNullException.ThrowIfNull(shellViewModel);
@@ -63,6 +64,7 @@ internal sealed class ThreadWorkspaceView
         ArgumentNullException.ThrowIfNull(onChatModelSelectionChanged);
         ArgumentNullException.ThrowIfNull(onChatReasoningSelectionChanged);
         ArgumentNullException.ThrowIfNull(onSelectedTabChanged);
+        ArgumentNullException.ThrowIfNull(thinkingAnimationPhase01);
         ArgumentNullException.ThrowIfNull(onAutoScrollChanged);
 
         ThreadCommandBar = new CommandBar
@@ -141,7 +143,7 @@ internal sealed class ThreadWorkspaceView
                     Wrap = true,
                     IsSelectable = false,
                 }.Text(() => shellViewModel.StatusText)
-                .Style(() => StatusVisualFormatter.BuildStatusTextStyle(shellViewModel.StatusText, shellViewModel.StatusBusy, shellViewModel.StatusTone)),
+                .Style(() => StatusVisualFormatter.BuildStatusTextStyle(shellViewModel.StatusText, shellViewModel.StatusBusy, shellViewModel.StatusTone, thinkingAnimationPhase01.Value)),
         ])
         {
             Spacing = 1,

@@ -19,6 +19,7 @@ internal sealed class ShellWorkspaceCoordinator
     private readonly ThreadSelectionContext _threadSelection;
     private readonly ShellWorkspaceContext _workspaceContext;
     private readonly string _globalRoot;
+    private readonly State<float> _welcomeAnimationPhase01;
     private readonly State<int> _viewRefreshState = new(0);
     private readonly State<int> _usageRefreshState = new(0);
 
@@ -28,6 +29,7 @@ internal sealed class ShellWorkspaceCoordinator
         Dictionary<string, ChatBackendState> chatBackendStates,
         ThreadSelectionContext threadSelection,
         ShellWorkspaceContext workspaceContext,
+        State<float> welcomeAnimationPhase01,
         string globalRoot)
     {
         ArgumentNullException.ThrowIfNull(shellViewModel);
@@ -35,6 +37,7 @@ internal sealed class ShellWorkspaceCoordinator
         ArgumentNullException.ThrowIfNull(chatBackendStates);
         ArgumentNullException.ThrowIfNull(threadSelection);
         ArgumentNullException.ThrowIfNull(workspaceContext);
+        ArgumentNullException.ThrowIfNull(welcomeAnimationPhase01);
         ArgumentException.ThrowIfNullOrWhiteSpace(globalRoot);
 
         _shellViewModel = shellViewModel;
@@ -42,6 +45,7 @@ internal sealed class ShellWorkspaceCoordinator
         _chatBackendStates = chatBackendStates;
         _threadSelection = threadSelection;
         _workspaceContext = workspaceContext;
+        _welcomeAnimationPhase01 = welcomeAnimationPhase01;
         _globalRoot = globalRoot;
     }
 
@@ -250,7 +254,7 @@ internal sealed class ShellWorkspaceCoordinator
             _workspaceContext.RefreshChatSelectorsForDraftScope();
             _workspaceContext.SyncPromptDraftText(session: null);
             _workspaceContext.UpdatePromptAvailabilityUi();
-            threadBodySplitter.First = WelcomePaneFactory.Build(_threadSelection.GetSelectedProject(), _threadSelection.GlobalScopeSelected);
+            threadBodySplitter.First = WelcomePaneFactory.Build(_threadSelection.GetSelectedProject(), _threadSelection.GlobalScopeSelected, _welcomeAnimationPhase01);
             SetReadyStatusForCurrentSelection();
             return;
         }
