@@ -974,21 +974,23 @@ public sealed class CodeAltaAppTests
     public void FormatChatCardTimestamp_UsesInvariantReadableFormat()
     {
         var timestamp = new DateTimeOffset(2026, 03, 12, 14, 5, 6, TimeSpan.FromHours(1));
+        var expected = timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
 
         var text = ChatTimelineVisualFactory.FormatTimestamp(timestamp);
 
-        Assert.AreEqual("2026-03-12 14:05:06", text);
+        Assert.AreEqual(expected, text);
     }
 
     [TestMethod]
     public async Task ApplyChatCardTimestamp_CanBeCalledFromWorkerThread()
     {
         var timestamp = new DateTimeOffset(2026, 03, 12, 14, 5, 6, TimeSpan.FromHours(1));
+        var expected = $"[dim]{timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)}[/]";
         var markup = new Markup();
 
         await Task.Run(() => ChatTimelineVisualFactory.ApplyTimestamp(markup, timestamp));
 
-        Assert.AreEqual("[dim]2026-03-12 14:05:06[/]", markup.Text);
+        Assert.AreEqual(expected, markup.Text);
     }
 
     [TestMethod]
