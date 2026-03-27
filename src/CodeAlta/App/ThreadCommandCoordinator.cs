@@ -17,6 +17,7 @@ namespace CodeAlta.App;
 
 internal sealed class ThreadCommandCoordinator
 {
+    private const int MaxInitialThreadTitleLength = 80;
     private readonly WorkThreadRuntimeService _runtimeService;
     private readonly CatalogOptions _catalogOptions;
     private readonly Dictionary<string, ChatBackendState> _chatBackendStates;
@@ -82,9 +83,10 @@ internal sealed class ThreadCommandCoordinator
                 return;
             }
 
+            var initialThreadTitle = CreateInitialThreadTitle(prompt);
             thread = _threadSelection.GlobalScopeSelected
-                ? await _commandContext.CreateGlobalThreadAsync().ConfigureAwait(false)
-                : await _commandContext.CreateProjectThreadAsync().ConfigureAwait(false);
+                ? await _commandContext.CreateGlobalThreadAsync(initialThreadTitle).ConfigureAwait(false)
+                : await _commandContext.CreateProjectThreadAsync(initialThreadTitle).ConfigureAwait(false);
             if (thread is null)
             {
                 return;
@@ -472,6 +474,53 @@ internal sealed class ThreadCommandCoordinator
 
     private static string CreateTransientThreadKey(AgentBackendId backendId, string workingDirectory)
         => $"{backendId.Value}:{workingDirectory}";
+
+    private static string CreateInitialThreadTitle(string prompt)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(prompt);
+
+        var normalized = prompt
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\n', ' ')
+            .Trim();
+
+        normalized = string.Join(" ", normalized.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+        if (normalized.Length == 0)
+        {
+            return prompt.Trim();
+        }
+
+        var sentenceLength = FindFirstSentenceLength(normalized);
+        var candidate = sentenceLength > 0
+            ? normalized[..sentenceLength]
+            : normalized;
+
+        if (candidate.Length <= MaxInitialThreadTitleLength)
+        {
+            return candidate;
+        }
+
+        return candidate[..(MaxInitialThreadTitleLength - 3)].TrimEnd() + "...";
+    }
+
+    private static int FindFirstSentenceLength(string content)
+    {
+        for (var i = 0; i < content.Length; i++)
+        {
+            var ch = content[i];
+            if (ch is not ('.' or '!' or '?'))
+            {
+                continue;
+            }
+
+            if (i == content.Length - 1 || char.IsWhiteSpace(content[i + 1]))
+            {
+                return i + 1;
+            }
+        }
+
+        return 0;
+    }
 
     private async Task DispatchPromptAsync(
         WorkThreadDescriptor thread,

@@ -88,14 +88,14 @@ public sealed class ThreadCommandCoordinatorTests
         var clearThreadInputCallCount = 0;
         var commandContext = new ThreadCommandContext(
             static () => false,
-            async () =>
+            async _ =>
             {
                 var thread = await runtimeService.CreateGlobalThreadAsync(CreateExecutionOptions(backend.BackendId, temp.Path), title: null).ConfigureAwait(false);
                 await threadState.RegisterCreatedThreadAsync(thread).ConfigureAwait(false);
                 threadInput.Text = string.Empty;
                 return thread;
             },
-            static () => Task.FromResult<WorkThreadDescriptor?>(null),
+            static _ => Task.FromResult<WorkThreadDescriptor?>(null),
             static () => Task.CompletedTask,
             static () => true,
             static () => { },
@@ -131,6 +131,130 @@ public sealed class ThreadCommandCoordinatorTests
         Assert.AreEqual(1, clearThreadInputCallCount);
         Assert.IsNotNull(threadSelection.GetSelectedThread());
         Assert.IsNotNull(threadSelection.GetSelectedThread()!.StartedAt);
+    }
+
+    [TestMethod]
+    public async Task SendSelectedThreadPromptAsync_UsesFirstPromptSentenceAsProjectThreadTitle()
+    {
+        using var temp = TempDirectory.Create();
+        var db = await CreateDbAsync(temp.Path).ConfigureAwait(false);
+        var repository = new AgentRepository(db);
+
+        var backendFactory = new AgentBackendFactory();
+        var backend = new RecordingBackend();
+        backendFactory.Register(backend.BackendId.Value, () => backend);
+
+        await using var hub = new AgentHub(backendFactory, repository);
+        var catalogOptions = new CatalogOptions { GlobalRoot = temp.Path };
+        var projectCatalog = new ProjectCatalog(catalogOptions);
+        var projectPath = Path.Combine(temp.Path, "repo-main");
+        Directory.CreateDirectory(projectPath);
+        var project = new ProjectDescriptor
+        {
+            Id = ProjectId.NewVersion7().ToString(),
+            Slug = "repo-main",
+            DisplayName = "Main Repo",
+            ProjectPath = projectPath,
+            DefaultBranch = "main",
+        };
+        await projectCatalog.SaveAsync(project).ConfigureAwait(false);
+
+        var runtimeService = new WorkThreadRuntimeService(
+            hub,
+            projectCatalog,
+            new WorkThreadCatalog(catalogOptions),
+            new RoleProfileStore(),
+            new AgentInstructionTemplateProvider(),
+            catalogOptions);
+
+        var dispatcher = new InlineUiDispatcher();
+        var threadState = new ShellThreadStateCoordinator(
+            projectCatalog,
+            new WorkThreadCatalog(catalogOptions),
+            () => dispatcher,
+            static () => null,
+            static _ => true,
+            static _ => { },
+            static (_, _, _, _, _) => { },
+            static (_, _) => Task.CompletedTask,
+            static () => { },
+            static () => { },
+            static () => { },
+            static _ => { },
+            static (_, _, _) => { });
+        threadState.ViewState = new WorkThreadViewState();
+        threadState.GlobalScopeSelected = false;
+        threadState.SelectedProjectId = project.Id;
+
+        var threadSelection = new ThreadSelectionContext(
+            threadState,
+            static (_, _) => Task.CompletedTask,
+            threadId => string.Equals(threadState.SelectedThreadId, threadId, StringComparison.OrdinalIgnoreCase));
+        var threadInput = new ChatPromptEditor(_ => { })
+        {
+            Text = "Investigate the regression in startup flow. It only happens on Windows.",
+        };
+        var selectorUi = new ChatSelectorUiContext(
+            static () => null,
+            static () => null,
+            static () => null,
+            () => threadInput,
+            () => dispatcher,
+            static () => { });
+        var backendState = new ChatBackendState(backend.BackendId, "Fake Chat")
+        {
+            Availability = ChatBackendAvailability.Ready,
+        };
+        var chatBackendStates = new Dictionary<string, ChatBackendState>(StringComparer.OrdinalIgnoreCase)
+        {
+            [backend.BackendId.Value] = backendState,
+        };
+        var queueCoordinator = new ThreadPromptQueueCoordinator(
+            new ThreadWorkspaceViewModel(),
+            threadSelection,
+            static () => { },
+            action => action(),
+            static () => { },
+            static (_, _, _) => Task.CompletedTask,
+            static (_, _, _) => Task.CompletedTask);
+        var commandContext = new ThreadCommandContext(
+            static () => false,
+            static _ => Task.FromResult<WorkThreadDescriptor?>(null),
+            async title =>
+            {
+                var thread = await runtimeService.CreateProjectThreadAsync(project, CreateExecutionOptions(backend.BackendId, projectPath), title).ConfigureAwait(false);
+                await threadState.RegisterCreatedThreadAsync(thread).ConfigureAwait(false);
+                return thread;
+            },
+            static () => Task.CompletedTask,
+            static () => true,
+            static () => { },
+            static () => { },
+            () => threadInput.Text = string.Empty,
+            static () => { },
+            static () => { },
+            static (_, _, _) => { },
+            static (_, _, _, _) => { },
+            static (_, _, _) => { });
+        var coordinator = new ThreadCommandCoordinator(
+            runtimeService,
+            catalogOptions,
+            chatBackendStates,
+            threadSelection,
+            selectorUi,
+            new ChatPreferenceContext(
+                static _ => { },
+                static _ => { },
+                static (_, _, _) => { },
+                static (_, _, _, _, _) => { }),
+            commandContext,
+            queueCoordinator,
+            new PromptComposerViewModel());
+
+        await coordinator.SendSelectedThreadPromptAsync(steer: false).ConfigureAwait(false);
+
+        Assert.AreEqual("Investigate the regression in startup flow.", threadSelection.GetSelectedThread()!.Title);
+        Assert.AreEqual("Investigate the regression in startup flow. It only happens on Windows.", backend.LastSentText);
     }
 
     private static WorkThreadExecutionOptions CreateExecutionOptions(AgentBackendId backendId, string workingDirectory)

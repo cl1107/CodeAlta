@@ -327,8 +327,8 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             _chatPreferenceContext,
             new ThreadCommandContext(
                 TrySetPromptUnavailableStatus,
-                () => _threadCreationCoordinator.CreateGlobalThreadAsync(),
-                () => _threadCreationCoordinator.CreateProjectThreadAsync(),
+                title => _threadCreationCoordinator.CreateGlobalThreadAsync(title),
+                title => _threadCreationCoordinator.CreateProjectThreadAsync(title),
                 PersistViewStateAsync,
                 () => DefaultAutoApproveEnabled,
                 _promptDraftUiCoordinator.ClearDraftPromptText,

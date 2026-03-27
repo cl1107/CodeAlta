@@ -7,8 +7,8 @@ namespace CodeAlta.App.Context;
 internal sealed class ThreadCommandContext
 {
     private readonly Func<bool> _trySetPromptUnavailableStatus;
-    private readonly Func<Task<WorkThreadDescriptor?>> _createGlobalThreadAsync;
-    private readonly Func<Task<WorkThreadDescriptor?>> _createProjectThreadAsync;
+    private readonly Func<string?, Task<WorkThreadDescriptor?>> _createGlobalThreadAsync;
+    private readonly Func<string?, Task<WorkThreadDescriptor?>> _createProjectThreadAsync;
     private readonly Func<Task> _persistViewStateAsync;
     private readonly Func<bool> _getAutoApproveEnabled;
     private readonly Action _clearDraftInput;
@@ -22,8 +22,8 @@ internal sealed class ThreadCommandContext
 
     public ThreadCommandContext(
         Func<bool> trySetPromptUnavailableStatus,
-        Func<Task<WorkThreadDescriptor?>> createGlobalThreadAsync,
-        Func<Task<WorkThreadDescriptor?>> createProjectThreadAsync,
+        Func<string?, Task<WorkThreadDescriptor?>> createGlobalThreadAsync,
+        Func<string?, Task<WorkThreadDescriptor?>> createProjectThreadAsync,
         Func<Task> persistViewStateAsync,
         Func<bool> getAutoApproveEnabled,
         Action clearDraftInput,
@@ -67,11 +67,11 @@ internal sealed class ThreadCommandContext
     public bool TrySetPromptUnavailableStatus()
         => _trySetPromptUnavailableStatus();
 
-    public Task<WorkThreadDescriptor?> CreateGlobalThreadAsync()
-        => _createGlobalThreadAsync();
+    public Task<WorkThreadDescriptor?> CreateGlobalThreadAsync(string? title = null)
+        => _createGlobalThreadAsync(title);
 
-    public Task<WorkThreadDescriptor?> CreateProjectThreadAsync()
-        => _createProjectThreadAsync();
+    public Task<WorkThreadDescriptor?> CreateProjectThreadAsync(string? title = null)
+        => _createProjectThreadAsync(title);
 
     public Task PersistViewStateAsync()
         => _persistViewStateAsync();

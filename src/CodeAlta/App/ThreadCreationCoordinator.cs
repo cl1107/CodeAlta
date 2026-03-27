@@ -58,12 +58,12 @@ internal sealed class ThreadCreationCoordinator
         _setStatus = setStatus;
     }
 
-    public async Task<WorkThreadDescriptor?> CreateGlobalThreadAsync()
+    public async Task<WorkThreadDescriptor?> CreateGlobalThreadAsync(string? titleOverride = null)
     {
         try
         {
             _setStatus("Creating global thread...", true, StatusTone.Info);
-            var title = _readDraftTitle()?.Trim();
+            var title = ResolveTitle(titleOverride);
             var executionOptions = _buildPreferredExecutionOptions(
                 _getPreferredBackendId(),
                 _catalogOptions.GlobalRoot,
@@ -85,7 +85,7 @@ internal sealed class ThreadCreationCoordinator
         }
     }
 
-    public async Task<WorkThreadDescriptor?> CreateProjectThreadAsync()
+    public async Task<WorkThreadDescriptor?> CreateProjectThreadAsync(string? titleOverride = null)
     {
         var project = _getSelectedProject();
         if (project is null)
@@ -97,7 +97,7 @@ internal sealed class ThreadCreationCoordinator
         try
         {
             _setStatus($"Creating thread for '{project.DisplayName}'...", true, StatusTone.Info);
-            var title = _readDraftTitle()?.Trim();
+            var title = ResolveTitle(titleOverride);
             var executionOptions = _buildPreferredExecutionOptions(
                 _getPreferredBackendId(),
                 project.ProjectPath,
@@ -117,5 +117,16 @@ internal sealed class ThreadCreationCoordinator
             _setStatus($"Failed to create project thread: {ex.Message}", false, StatusTone.Error);
             return null;
         }
+    }
+
+    private string? ResolveTitle(string? titleOverride)
+    {
+        var draftTitle = _readDraftTitle()?.Trim();
+        if (!string.IsNullOrWhiteSpace(draftTitle))
+        {
+            return draftTitle;
+        }
+
+        return string.IsNullOrWhiteSpace(titleOverride) ? null : titleOverride.Trim();
     }
 }
