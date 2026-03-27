@@ -96,9 +96,11 @@ internal sealed class ThreadWorkspaceView
         SendPromptButton = new Button(new TextBlock($"{NerdFont.MdSend} Send"))
             .Click(sendPrompt)
             .IsEnabled(promptComposerViewModel.Bind.CanSend);
-        ExpandPromptButton = new Button("Full Prompt")
-            .Click(() => OpenExpandedPromptDialog(promptComposerViewModel, promptText))
-            .IsEnabled(promptComposerViewModel.Bind.IsEnabled);
+        ExpandPromptButton = CreateIconButton(
+                $"{NerdFont.MdSquareEditOutline}",
+                "Open the current prompt in a large editor window (F6).",
+                () => OpenExpandedPromptDialog(promptComposerViewModel, promptText),
+                button => button.IsEnabled(promptComposerViewModel.Bind.IsEnabled));
         ChatBackendSelect = new Select<ChatBackendOption>()
             .SelectionChanged((_, e) => onChatBackendSelectionChanged(e.NewIndex))
             .MinWidth(14)
@@ -121,8 +123,11 @@ internal sealed class ThreadWorkspaceView
         AlwaysEnqueueSwitch = new Switch(new TextBlock("AlwaysQueue") { Wrap = false, IsSelectable = false })
             .IsOn(promptComposerViewModel.Bind.AlwaysEnqueue)
             .IsEnabled(promptComposerViewModel.Bind.CanAlwaysEnqueue);
-        var compactThreadButton = CreateIconButton($"{NerdFont.MdSelectCompare}", compactThread)
-            .IsEnabled(promptComposerViewModel.Bind.CanCompact);
+        var compactThreadButton = CreateIconButton(
+                $"{NerdFont.MdSelectCompare}",
+                "Compact the selected thread session when it is idle (F11).",
+                compactThread,
+                button => button.IsEnabled(promptComposerViewModel.Bind.CanCompact));
 
         var statusSpinner = new Spinner().Style(SpinnerStyles.Arc);
         statusSpinner.IsActive(() => shellViewModel.StatusBusy);
@@ -250,7 +255,7 @@ internal sealed class ThreadWorkspaceView
 
     public Button SendPromptButton { get; }
 
-    public Button ExpandPromptButton { get; }
+    public Visual ExpandPromptButton { get; }
 
     public CommandBar ThreadCommandBar { get; }
 
@@ -449,13 +454,16 @@ internal sealed class ThreadWorkspaceView
         dialog?.Close();
     }
 
-    private static Button CreateIconButton(string icon, Action onClick)
+    private static Visual CreateIconButton(string icon, string tooltipText, Action onClick, Action<Button>? configureButton = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(icon);
+        ArgumentException.ThrowIfNullOrWhiteSpace(tooltipText);
         ArgumentNullException.ThrowIfNull(onClick);
 
-        return new Button(new TextBlock(icon) { Wrap = false, IsSelectable = false })
+        var button = new Button(new TextBlock(icon) { Wrap = false, IsSelectable = false })
             .Click(onClick);
+        configureButton?.Invoke(button);
+        return button.Tooltip(new TextBlock(tooltipText));
     }
 
     internal static ChatPromptEditor CreateStyledPromptEditor(Action<string> onAccepted, string? placeholder)
@@ -471,6 +479,7 @@ internal sealed class ThreadWorkspaceView
             .PromptMarkup("[primary]>[/] ")
             .ContinuationPromptMarkup("[muted]·[/] ")
             .Placeholder(placeholder)
+            .EscapeBehavior(PromptEditorEscapeBehavior.CancelCompletionOnly)
             .EnterMode(PromptEditorEnterMode.EnterInsertsNewLine)
             .EnableWordHints(true)
             .Highlighter(HighlightMarkdown)

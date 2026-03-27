@@ -2226,6 +2226,7 @@ public sealed class CodeAltaAppTests
 
         Assert.IsFalse(editor.Highlighter.IsEmpty);
         Assert.IsTrue(editor.EnableWordHints);
+        Assert.AreEqual(PromptEditorEscapeBehavior.CancelCompletionOnly, editor.EscapeBehavior);
     }
 
     private static void TickTerminalApp(TerminalApp app)
