@@ -43,6 +43,8 @@ internal static class ResponsiveDialogSize
         ArgumentNullException.ThrowIfNull(dialog);
 
         var size = Resolve(bounds, minWidth, minHeight, widthFactor, heightFactor);
+        dialog.MinWidth = minWidth;
+        dialog.MinHeight = minHeight;
         return dialog
             .Width(size.Width)
             .Height(size.Height);

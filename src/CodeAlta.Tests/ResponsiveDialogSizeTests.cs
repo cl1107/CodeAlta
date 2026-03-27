@@ -1,5 +1,6 @@
 using CodeAlta.Views;
 using XenoAtom.Terminal;
+using XenoAtom.Terminal.UI.Controls;
 using XenoAtom.Terminal.UI.Geometry;
 
 namespace CodeAlta.Tests;
@@ -26,6 +27,17 @@ public sealed class ResponsiveDialogSizeTests
         Assert.AreEqual(18, missingBounds.Height);
         Assert.AreEqual(60, smallBounds.Width);
         Assert.AreEqual(18, smallBounds.Height);
+    }
+
+    [TestMethod]
+    public void Apply_AssignsMinimumDialogDimensions()
+    {
+        var dialog = new Dialog();
+
+        ResponsiveDialogSize.Apply(dialog, new Rectangle(0, 0, 120, 60), minWidth: 60, minHeight: 18);
+
+        Assert.AreEqual(60, dialog.MinWidth);
+        Assert.AreEqual(18, dialog.MinHeight);
     }
 
     [TestMethod]
