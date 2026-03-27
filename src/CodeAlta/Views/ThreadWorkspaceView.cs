@@ -23,10 +23,12 @@ internal sealed class ThreadWorkspaceView
     private Dialog? _expandedPromptDialog;
 
     internal const TerminalKey ExpandPromptShortcutKey = TerminalKey.F6;
-    internal static readonly KeyGesture ThreadInfoShortcutGesture = new(TerminalChar.CtrlT, TerminalModifiers.Ctrl);
     internal static readonly KeySequence SessionUsageShortcutSequence = new(
         new KeyGesture(TerminalChar.CtrlG, TerminalModifiers.Ctrl),
         new KeyGesture(TerminalChar.CtrlU, TerminalModifiers.Ctrl));
+    internal static readonly KeySequence ThreadInfoShortcutSequence = new(
+        new KeyGesture(TerminalChar.CtrlG, TerminalModifiers.Ctrl),
+        new KeyGesture(TerminalChar.CtrlT, TerminalModifiers.Ctrl));
 
     public ThreadWorkspaceView(
         CodeAltaShellViewModel shellViewModel,
@@ -123,7 +125,7 @@ internal sealed class ThreadWorkspaceView
                 button => button.IsEnabled(promptComposerViewModel.Bind.IsEnabled));
         threadInfoButton = CreateIconButton(
                 $"{NerdFont.MdInformationOutline}",
-                "Show information about the selected thread (Ctrl+T).",
+                $"Show information about the selected thread ({ThreadInfoShortcutSequence}).",
                 () => toggleThreadInfoPopup(threadInfoButton!),
                 button => button.IsEnabled(workspaceViewModel.Bind.CanShowThreadInfo));
         ChatBackendSelect = new Select<ChatBackendOption>()
@@ -362,7 +364,7 @@ internal sealed class ThreadWorkspaceView
             Id = "CodeAlta.Thread.Info",
             LabelMarkup = "Thread Info",
             DescriptionMarkup = "Show information about the selected thread.",
-            Gesture = ThreadInfoShortcutGesture,
+            Sequence = ThreadInfoShortcutSequence,
             Presentation = CommandPresentation.CommandBar,
             Execute = _visual => openThreadInfoPopup(),
             CanExecute = _visual => canShowThreadInfo(),

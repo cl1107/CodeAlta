@@ -110,7 +110,7 @@ Current terminal shell capabilities:
   - Codex backend sessions default to `danger-full-access` (no sandbox) in CodeAlta so prompts can inspect sibling projects outside the current working directory without first switching the session root.
   - Backend, model, and reasoning-effort selectors are shown under the prompt.
   - Press `F6` or use the `Full Prompt` button to edit the current draft in a large 80%-screen prompt window; `Esc` closes it and keeps the edited draft.
-  - Press `Ctrl+G Ctrl+U` or use the footer usage indicator to open the context/usage popup, and press `Ctrl+T` or use the thread info icon in the footer to open the selected thread report.
+  - Press `Ctrl+G Ctrl+U` or use the footer usage indicator to open the context/usage popup, and press `Ctrl+G Ctrl+T` or use the thread info icon in the footer to open the selected thread report.
   - Closing either popup restores focus to the thread prompt editor so the workflow stays keyboard-first.
   - Per-backend model and reasoning defaults are stored in `~/.codealta/config.toml`, with project-local overrides read from `<project>/.codealta/config.toml`.
   - Thread-specific model and reasoning selections are preserved for reopened tabs through `~/.codealta/machine/ui-state.yaml`, so an existing thread keeps its model by default even after global or project defaults change.
