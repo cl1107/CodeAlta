@@ -38,9 +38,11 @@ namespace CodeAlta.CodexSdk;
 [JsonDerivedType(typeof(ServerRequestResolvedNotification), typeDiscriminator: "serverRequest/resolved")]
 [JsonDerivedType(typeof(ItemMcpToolCallProgressNotification), typeDiscriminator: "item/mcpToolCall/progress")]
 [JsonDerivedType(typeof(McpServerOauthLoginCompletedNotification), typeDiscriminator: "mcpServer/oauthLogin/completed")]
+[JsonDerivedType(typeof(McpServerStartupStatusUpdatedNotification), typeDiscriminator: "mcpServer/startupStatus/updated")]
 [JsonDerivedType(typeof(AccountUpdatedNotification), typeDiscriminator: "account/updated")]
 [JsonDerivedType(typeof(AccountRateLimitsUpdatedNotification), typeDiscriminator: "account/rateLimits/updated")]
 [JsonDerivedType(typeof(AppListUpdatedNotification), typeDiscriminator: "app/list/updated")]
+[JsonDerivedType(typeof(FsChangedNotification), typeDiscriminator: "fs/changed")]
 [JsonDerivedType(typeof(ItemReasoningSummaryTextDeltaNotification), typeDiscriminator: "item/reasoning/summaryTextDelta")]
 [JsonDerivedType(typeof(ItemReasoningSummaryPartAddedNotification), typeDiscriminator: "item/reasoning/summaryPartAdded")]
 [JsonDerivedType(typeof(ItemReasoningTextDeltaNotification), typeDiscriminator: "item/reasoning/textDelta")]
@@ -52,6 +54,7 @@ namespace CodeAlta.CodexSdk;
 [JsonDerivedType(typeof(FuzzyFileSearchSessionCompletedNotification), typeDiscriminator: "fuzzyFileSearch/sessionCompleted")]
 [JsonDerivedType(typeof(ThreadRealtimeStartedNotification), typeDiscriminator: "thread/realtime/started")]
 [JsonDerivedType(typeof(ThreadRealtimeItemAddedNotification), typeDiscriminator: "thread/realtime/itemAdded")]
+[JsonDerivedType(typeof(ThreadRealtimeTranscriptUpdatedNotification), typeDiscriminator: "thread/realtime/transcriptUpdated")]
 [JsonDerivedType(typeof(ThreadRealtimeOutputAudioDeltaNotification), typeDiscriminator: "thread/realtime/outputAudio/delta")]
 [JsonDerivedType(typeof(ThreadRealtimeErrorNotification), typeDiscriminator: "thread/realtime/error")]
 [JsonDerivedType(typeof(ThreadRealtimeClosedNotification), typeDiscriminator: "thread/realtime/closed")]
@@ -237,6 +240,12 @@ public abstract partial record ServerNotification
         public McpServerOauthLoginCompletedNotification Params { get; set; } = default!;
     }
 
+    public sealed partial record McpServerStartupStatusUpdatedNotification : ServerNotification
+    {
+        [JsonPropertyName("params")]
+        public McpServerStatusUpdatedNotification Params { get; set; } = default!;
+    }
+
     public sealed partial record AccountUpdatedNotification : ServerNotification
     {
         [JsonPropertyName("params")]
@@ -253,6 +262,12 @@ public abstract partial record ServerNotification
     {
         [JsonPropertyName("params")]
         public AppListUpdatedNotification Params { get; set; } = default!;
+    }
+
+    public sealed partial record FsChangedNotification : ServerNotification
+    {
+        [JsonPropertyName("params")]
+        public FsChangedNotification Params { get; set; } = default!;
     }
 
     public sealed partial record ItemReasoningSummaryTextDeltaNotification : ServerNotification
@@ -322,6 +337,12 @@ public abstract partial record ServerNotification
     {
         [JsonPropertyName("params")]
         public ThreadRealtimeItemAddedNotification Params { get; set; } = default!;
+    }
+
+    public sealed partial record ThreadRealtimeTranscriptUpdatedNotification : ServerNotification
+    {
+        [JsonPropertyName("params")]
+        public ThreadRealtimeTranscriptUpdatedNotification Params { get; set; } = default!;
     }
 
     public sealed partial record ThreadRealtimeOutputAudioDeltaNotification : ServerNotification

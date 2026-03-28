@@ -8,6 +8,7 @@ namespace CodeAlta.CodexSdk;
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
 [JsonDerivedType(typeof(UserMessageThreadItem), typeDiscriminator: "userMessage")]
+[JsonDerivedType(typeof(HookPromptThreadItem), typeDiscriminator: "hookPrompt")]
 [JsonDerivedType(typeof(AgentMessageThreadItem), typeDiscriminator: "agentMessage")]
 [JsonDerivedType(typeof(PlanThreadItem), typeDiscriminator: "plan")]
 [JsonDerivedType(typeof(ReasoningThreadItem), typeDiscriminator: "reasoning")]
@@ -28,6 +29,14 @@ public abstract partial record ThreadItem
     {
         [JsonPropertyName("content")]
         public List<UserInput> Content { get; set; } = [];
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = string.Empty;
+    }
+
+    public sealed partial record HookPromptThreadItem : ThreadItem
+    {
+        [JsonPropertyName("fragments")]
+        public List<HookPromptFragment> Fragments { get; set; } = [];
         [JsonPropertyName("id")]
         public string Id { get; set; } = string.Empty;
     }
@@ -90,6 +99,8 @@ public abstract partial record ThreadItem
         /// <summary>Identifier for the underlying PTY process (when available).</summary>
         [JsonPropertyName("processId")]
         public string? ProcessId { get; set; }
+        [JsonPropertyName("source")]
+        public CommandExecutionSource Source { get; set; } = default!;
         [JsonPropertyName("status")]
         public CommandExecutionStatus Status { get; set; } = default!;
     }
@@ -201,6 +212,8 @@ public abstract partial record ThreadItem
         public string Result { get; set; } = string.Empty;
         [JsonPropertyName("revisedPrompt")]
         public string? RevisedPrompt { get; set; }
+        [JsonPropertyName("savedPath")]
+        public string? SavedPath { get; set; }
         [JsonPropertyName("status")]
         public string Status { get; set; } = string.Empty;
     }

@@ -35,6 +35,8 @@ internal sealed class SubAgentSourceJsonConverter : JsonConverter<SubAgentSource
                     __result.ParentThreadId = JsonSerializer.Deserialize<ThreadId>(__ParentThreadIdProp, options)!;
                 if (__ThreadSpawnElem.TryGetProperty("agent_nickname", out var __AgentNicknameProp))
                     __result.AgentNickname = JsonSerializer.Deserialize<string?>(__AgentNicknameProp, options);
+                if (__ThreadSpawnElem.TryGetProperty("agent_path", out var __AgentPathProp))
+                    __result.AgentPath = JsonSerializer.Deserialize<AgentPath?>(__AgentPathProp, options);
                 if (__ThreadSpawnElem.TryGetProperty("agent_role", out var __AgentRoleProp))
                     __result.AgentRole = JsonSerializer.Deserialize<string?>(__AgentRoleProp, options);
                 return __result;
@@ -78,6 +80,11 @@ internal sealed class SubAgentSourceJsonConverter : JsonConverter<SubAgentSource
                     writer.WritePropertyName("agent_nickname");
                     JsonSerializer.Serialize(writer, v.AgentNickname, options);
                 }
+                if (v.AgentPath is not null)
+                {
+                    writer.WritePropertyName("agent_path");
+                    JsonSerializer.Serialize(writer, v.AgentPath, options);
+                }
                 if (v.AgentRole is not null)
                 {
                     writer.WritePropertyName("agent_role");
@@ -112,6 +119,8 @@ public abstract partial record SubAgentSource
         public ThreadId ParentThreadId { get; set; } = default!;
         [JsonPropertyName("agent_nickname")]
         public string? AgentNickname { get; set; }
+        [JsonPropertyName("agent_path")]
+        public AgentPath? AgentPath { get; set; }
         [JsonPropertyName("agent_role")]
         public string? AgentRole { get; set; }
     }

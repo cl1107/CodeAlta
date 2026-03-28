@@ -20,6 +20,7 @@ namespace CodeAlta.CodexSdk;
 [JsonDerivedType(typeof(ThreadMetadataUpdateRequest), typeDiscriminator: "thread/metadata/update")]
 [JsonDerivedType(typeof(ThreadUnarchiveRequest), typeDiscriminator: "thread/unarchive")]
 [JsonDerivedType(typeof(ThreadCompactStartRequest), typeDiscriminator: "thread/compact/start")]
+[JsonDerivedType(typeof(ThreadShellCommandRequest), typeDiscriminator: "thread/shellCommand")]
 [JsonDerivedType(typeof(ThreadRollbackRequest), typeDiscriminator: "thread/rollback")]
 [JsonDerivedType(typeof(ThreadListRequest), typeDiscriminator: "thread/list")]
 [JsonDerivedType(typeof(ThreadLoadedListRequest), typeDiscriminator: "thread/loaded/list")]
@@ -35,6 +36,8 @@ namespace CodeAlta.CodexSdk;
 [JsonDerivedType(typeof(FsReadDirectoryRequest), typeDiscriminator: "fs/readDirectory")]
 [JsonDerivedType(typeof(FsRemoveRequest), typeDiscriminator: "fs/remove")]
 [JsonDerivedType(typeof(FsCopyRequest), typeDiscriminator: "fs/copy")]
+[JsonDerivedType(typeof(FsWatchRequest), typeDiscriminator: "fs/watch")]
+[JsonDerivedType(typeof(FsUnwatchRequest), typeDiscriminator: "fs/unwatch")]
 [JsonDerivedType(typeof(SkillsConfigWriteRequest), typeDiscriminator: "skills/config/write")]
 [JsonDerivedType(typeof(PluginInstallRequest), typeDiscriminator: "plugin/install")]
 [JsonDerivedType(typeof(PluginUninstallRequest), typeDiscriminator: "plugin/uninstall")]
@@ -44,6 +47,7 @@ namespace CodeAlta.CodexSdk;
 [JsonDerivedType(typeof(ReviewStartRequest), typeDiscriminator: "review/start")]
 [JsonDerivedType(typeof(ModelListRequest), typeDiscriminator: "model/list")]
 [JsonDerivedType(typeof(ExperimentalFeatureListRequest), typeDiscriminator: "experimentalFeature/list")]
+[JsonDerivedType(typeof(ExperimentalFeatureEnablementSetRequest), typeDiscriminator: "experimentalFeature/enablement/set")]
 [JsonDerivedType(typeof(McpServerOauthLoginRequest), typeDiscriminator: "mcpServer/oauth/login")]
 [JsonDerivedType(typeof(ConfigMcpServerReloadRequest), typeDiscriminator: "config/mcpServer/reload")]
 [JsonDerivedType(typeof(McpServerStatusListRequest), typeDiscriminator: "mcpServerStatus/list")]
@@ -148,6 +152,14 @@ public abstract partial record ClientRequest
         public RequestId Id { get; set; } = default!;
         [JsonPropertyName("params")]
         public ThreadCompactStartParams Params { get; set; } = default!;
+    }
+
+    public sealed partial record ThreadShellCommandRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public ThreadShellCommandParams Params { get; set; } = default!;
     }
 
     public sealed partial record ThreadRollbackRequest : ClientRequest
@@ -270,6 +282,22 @@ public abstract partial record ClientRequest
         public FsCopyParams Params { get; set; } = default!;
     }
 
+    public sealed partial record FsWatchRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public FsWatchParams Params { get; set; } = default!;
+    }
+
+    public sealed partial record FsUnwatchRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public FsUnwatchParams Params { get; set; } = default!;
+    }
+
     public sealed partial record SkillsConfigWriteRequest : ClientRequest
     {
         [JsonPropertyName("id")]
@@ -340,6 +368,14 @@ public abstract partial record ClientRequest
         public RequestId Id { get; set; } = default!;
         [JsonPropertyName("params")]
         public ExperimentalFeatureListParams Params { get; set; } = default!;
+    }
+
+    public sealed partial record ExperimentalFeatureEnablementSetRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public ExperimentalFeatureEnablementSetParams Params { get; set; } = default!;
     }
 
     public sealed partial record McpServerOauthLoginRequest : ClientRequest

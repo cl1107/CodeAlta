@@ -8,6 +8,9 @@ namespace CodeAlta.CodexSdk;
 
 public sealed partial record InitializeResponse
 {
+    /// <summary>Absolute path to the server's $CODEX_HOME directory.</summary>
+    [JsonPropertyName("codexHome")]
+    public AbsolutePathBuf CodexHome { get; set; } = default!;
     /// <summary>Platform family for the running app-server target, for example `"unix"` or `"windows"`.</summary>
     [JsonPropertyName("platformFamily")]
     public string PlatformFamily { get; set; } = string.Empty;

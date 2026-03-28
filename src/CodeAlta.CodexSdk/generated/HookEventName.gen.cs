@@ -9,6 +9,10 @@ namespace CodeAlta.CodexSdk;
 [JsonConverter(typeof(JsonStringEnumConverter<HookEventName>))]
 public enum HookEventName
 {
+    [JsonStringEnumMemberName("preToolUse")]
+    PreToolUse,
+    [JsonStringEnumMemberName("postToolUse")]
+    PostToolUse,
     [JsonStringEnumMemberName("sessionStart")]
     SessionStart,
     [JsonStringEnumMemberName("userPromptSubmit")]

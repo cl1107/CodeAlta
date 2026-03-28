@@ -15,6 +15,8 @@ public sealed partial record AppSummary
     public string Id { get; set; } = string.Empty;
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
+    [JsonPropertyName("needsAuth")]
+    public bool NeedsAuth { get; set; }
     [JsonPropertyName("description")]
     public string? Description { get; set; }
     [JsonPropertyName("installUrl")]

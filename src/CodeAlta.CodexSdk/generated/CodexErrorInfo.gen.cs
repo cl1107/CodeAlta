@@ -65,6 +65,13 @@ internal sealed class CodexErrorInfoJsonConverter : JsonConverter<CodexErrorInfo
                     __result.HttpStatusCode = JsonSerializer.Deserialize<ushort?>(__HttpStatusCodeProp, options);
                 return __result;
             }
+            if (obj.TryGetProperty("activeTurnNotSteerable", out var __ActiveTurnNotSteerableElem))
+            {
+                var __result = new CodexErrorInfo.ActiveTurnNotSteerable();
+                if (__ActiveTurnNotSteerableElem.TryGetProperty("turnKind", out var __TurnKindProp))
+                    __result.TurnKind = JsonSerializer.Deserialize<NonSteerableTurnKind>(__TurnKindProp, options)!;
+                return __result;
+            }
             throw new JsonException($"Unknown CodexErrorInfo object variant. Properties: {string.Join(", ", EnumeratePropertyNames(obj))}");
         }
 
@@ -155,6 +162,15 @@ internal sealed class CodexErrorInfoJsonConverter : JsonConverter<CodexErrorInfo
                 writer.WriteEndObject();
                 writer.WriteEndObject();
                 break;
+            case CodexErrorInfo.ActiveTurnNotSteerable v:
+                writer.WriteStartObject();
+                writer.WritePropertyName("activeTurnNotSteerable");
+                writer.WriteStartObject();
+                writer.WritePropertyName("turnKind");
+                JsonSerializer.Serialize(writer, v.TurnKind, options);
+                writer.WriteEndObject();
+                writer.WriteEndObject();
+                break;
             default:
                 throw new JsonException($"Unknown CodexErrorInfo variant: {value.GetType().Name}");
         }
@@ -192,5 +208,10 @@ public abstract partial record CodexErrorInfo
     {
         [JsonPropertyName("httpStatusCode")]
         public ushort? HttpStatusCode { get; set; }
+    }
+    public sealed partial record ActiveTurnNotSteerable : CodexErrorInfo
+    {
+        [JsonPropertyName("turnKind")]
+        public NonSteerableTurnKind TurnKind { get; set; } = default!;
     }
 }

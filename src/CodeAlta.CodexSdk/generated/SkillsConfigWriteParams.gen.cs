@@ -10,6 +10,10 @@ public sealed partial record SkillsConfigWriteParams
 {
     [JsonPropertyName("enabled")]
     public bool Enabled { get; set; }
+    /// <summary>Name-based selector.</summary>
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+    /// <summary>Path-based selector.</summary>
     [JsonPropertyName("path")]
-    public string Path { get; set; } = string.Empty;
+    public AbsolutePathBuf? Path { get; set; }
 }

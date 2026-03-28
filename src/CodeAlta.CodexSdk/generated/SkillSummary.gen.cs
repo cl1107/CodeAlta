@@ -10,6 +10,8 @@ public sealed partial record SkillSummary
 {
     [JsonPropertyName("description")]
     public string Description { get; set; } = string.Empty;
+    [JsonPropertyName("enabled")]
+    public bool Enabled { get; set; }
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
     [JsonPropertyName("path")]

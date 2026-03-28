@@ -13,6 +13,8 @@ public sealed partial record FuzzyFileSearchResult
 {
     [JsonPropertyName("file_name")]
     public string FileName { get; set; } = string.Empty;
+    [JsonPropertyName("match_type")]
+    public FuzzyFileSearchMatchType MatchType { get; set; } = default!;
     [JsonPropertyName("path")]
     public string Path { get; set; } = string.Empty;
     [JsonPropertyName("root")]
