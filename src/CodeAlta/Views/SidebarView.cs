@@ -21,6 +21,8 @@ internal sealed class SidebarView
     private readonly Dictionary<SidebarSelectionTarget, TreeNode> _nodesByTarget = new();
     private readonly Action<string> _deleteThread;
     private readonly Action<string> _deleteProject;
+    private readonly Action<string> _openProjectThreads;
+    private readonly Action<string> _openProjectDetails;
 
     public SidebarView(
         SidebarViewModel viewModel,
@@ -29,6 +31,8 @@ internal sealed class SidebarView
         Action openNavigatorSettings,
         Action<string> deleteThread,
         Action<string> deleteProject,
+        Action<string> openProjectThreads,
+        Action<string> openProjectDetails,
         Action<SidebarSelectionTarget?> onSelectedTargetChanged)
     {
         ArgumentNullException.ThrowIfNull(viewModel);
@@ -37,10 +41,14 @@ internal sealed class SidebarView
         ArgumentNullException.ThrowIfNull(openNavigatorSettings);
         ArgumentNullException.ThrowIfNull(deleteThread);
         ArgumentNullException.ThrowIfNull(deleteProject);
+        ArgumentNullException.ThrowIfNull(openProjectThreads);
+        ArgumentNullException.ThrowIfNull(openProjectDetails);
         ArgumentNullException.ThrowIfNull(onSelectedTargetChanged);
 
         _deleteThread = deleteThread;
         _deleteProject = deleteProject;
+        _openProjectThreads = openProjectThreads;
+        _openProjectDetails = openProjectDetails;
 
         Tree = new TreeView
         {
@@ -154,6 +162,8 @@ internal sealed class SidebarView
         else if (projection.Kind == SidebarNodeKind.Project &&
                  projection.SelectionTarget?.ProjectId is { } projectId)
         {
+            node.AddRightVisual(CreateRowActionButton(NerdFont.MdFormatListBulleted, "Show all project threads", () => _openProjectThreads(projectId)), TreeNodeRightVisualVisibility.Hover);
+            node.AddRightVisual(CreateRowActionButton(NerdFont.MdInformationOutline, "Show project details", () => _openProjectDetails(projectId)), TreeNodeRightVisualVisibility.Hover);
             node.AddRightVisual(CreateRowActionButton(NerdFont.MdTrashCanOutline, "Delete project", () => _deleteProject(projectId)), TreeNodeRightVisualVisibility.Hover);
         }
 

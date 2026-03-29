@@ -203,7 +203,7 @@ public sealed class CodeAltaAppSidebarTests
             [thread],
             project.Id,
             nowUtc: DateTimeOffset.Parse("2026-03-29T10:05:00+00:00"));
-        var view = new SidebarView(new SidebarViewModel(), static () => { }, static () => { }, static () => { }, static _ => { }, static _ => { }, static _ => { });
+        var view = new SidebarView(new SidebarViewModel(), static () => { }, static () => { }, static () => { }, static _ => { }, static _ => { }, static _ => { }, static _ => { }, static _ => { });
 
         view.ApplyProjection(projection);
 
@@ -213,7 +213,7 @@ public sealed class CodeAltaAppSidebarTests
         Assert.AreEqual(SidebarSelectionTarget.Project(project.Id), projectNode.Data);
         Assert.IsTrue(projectNode.IsExpanded);
         Assert.IsTrue(projection.ContainsTarget(SidebarSelectionTarget.Project(project.Id)));
-        Assert.AreEqual(2, projectNode.RightVisuals.Count);
+        Assert.AreEqual(4, projectNode.RightVisuals.Count);
         Assert.AreEqual(2, threadNode.RightVisuals.Count);
     }
 

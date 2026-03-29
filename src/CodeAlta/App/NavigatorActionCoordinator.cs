@@ -108,6 +108,54 @@ internal sealed class NavigatorActionCoordinator
             .Show();
     }
 
+    public void OpenProjectThreads(string projectId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
+
+        var project = _threadStateCoordinator.GetProjectById(projectId);
+        if (project is null)
+        {
+            _setStatus($"Project '{projectId}' was not found.", false, StatusTone.Warning);
+            return;
+        }
+
+        var threads = _threadStateCoordinator.Threads
+            .Where(thread =>
+                thread.Status != WorkThreadStatus.Archived &&
+                string.Equals(thread.ProjectRef, projectId, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        new ProjectThreadsDialog(
+            project,
+            threads,
+            threadIds => DeleteProjectThreadsAsync(projectId, threadIds),
+            threadId => _shellController.OpenThreadAsync(threadId, CancellationToken.None),
+            _getUiDispatcher,
+            _getDialogBounds,
+            _getFocusTarget)
+            .Show();
+    }
+
+    public void OpenProjectDetails(string projectId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
+
+        var project = _threadStateCoordinator.GetProjectById(projectId);
+        if (project is null)
+        {
+            _setStatus($"Project '{projectId}' was not found.", false, StatusTone.Warning);
+            return;
+        }
+
+        new ProjectDetailsDialog(
+            project,
+            SaveProjectAsync,
+            _getUiDispatcher,
+            _getDialogBounds,
+            _getFocusTarget)
+            .Show();
+    }
+
     private async Task DeleteThreadAsync(WorkThreadDescriptor thread)
     {
         try
@@ -141,6 +189,41 @@ internal sealed class NavigatorActionCoordinator
         catch (Exception ex)
         {
             _setStatus($"Failed to delete project threads: {ex.Message}", false, StatusTone.Error);
+        }
+    }
+
+    private async Task DeleteProjectThreadsAsync(string projectId, IReadOnlyList<string> threadIds)
+    {
+        try
+        {
+            _setStatus($"Deleting {threadIds.Count} thread(s)...", true, StatusTone.Info);
+            foreach (var threadId in threadIds)
+            {
+                await _shellController.DeleteThreadAsync(threadId, CancellationToken.None).ConfigureAwait(false);
+                await _getUiDispatcher().InvokeAsync(
+                    () => _threadStateCoordinator.RemoveDeletedThread(threadId, projectId))
+                    .ConfigureAwait(false);
+            }
+
+            await _getUiDispatcher().InvokeAsync(_setReadyStatusForCurrentSelection).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _setStatus($"Failed to delete selected threads: {ex.Message}", false, StatusTone.Error);
+        }
+    }
+
+    private async Task SaveProjectAsync(ProjectDescriptor project)
+    {
+        try
+        {
+            _setStatus($"Saving project '{project.DisplayName}'...", true, StatusTone.Info);
+            await _shellController.SaveProjectAsync(project, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _setStatus($"Failed to save project: {ex.Message}", false, StatusTone.Error);
+            throw;
         }
     }
 }

@@ -25,7 +25,9 @@ internal sealed class SidebarCoordinator
         Action cycleSortMode,
         Action openNavigatorSettings,
         Action<string> requestDeleteThread,
-        Action<string> requestDeleteProject)
+        Action<string> requestDeleteProject,
+        Action<string> openProjectThreads,
+        Action<string> openProjectDetails)
     {
         ArgumentNullException.ThrowIfNull(viewModel);
         ArgumentNullException.ThrowIfNull(catalogOptions);
@@ -34,6 +36,8 @@ internal sealed class SidebarCoordinator
         ArgumentNullException.ThrowIfNull(openNavigatorSettings);
         ArgumentNullException.ThrowIfNull(requestDeleteThread);
         ArgumentNullException.ThrowIfNull(requestDeleteProject);
+        ArgumentNullException.ThrowIfNull(openProjectThreads);
+        ArgumentNullException.ThrowIfNull(openProjectDetails);
 
         _viewModel = viewModel;
         _catalogOptions = catalogOptions;
@@ -45,6 +49,8 @@ internal sealed class SidebarCoordinator
             openNavigatorSettings,
             requestDeleteThread,
             requestDeleteProject,
+            openProjectThreads,
+            openProjectDetails,
             OnSelectedTargetChanged);
     }
 

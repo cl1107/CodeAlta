@@ -50,7 +50,9 @@ internal static class SidebarServicesFactory
             () => _ = ToggleSortModeAsync(threadStateCoordinator, refreshCatalogAndThreadWorkspace),
             navigatorSettings.Open,
             navigatorActions.ConfirmDeleteThread,
-            navigatorActions.ConfirmDeleteProject);
+            navigatorActions.ConfirmDeleteProject,
+            navigatorActions.OpenProjectThreads,
+            navigatorActions.OpenProjectDetails);
         return (navigatorActions, sidebar);
     }
 

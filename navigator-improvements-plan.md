@@ -26,10 +26,10 @@ Read that document first for the full product and technical guidance, UX intent,
 - [x] Add always-visible dimmed relative timestamps to project rows
 - [x] Add always-visible dimmed relative timestamps to thread rows
 - [x] Add hover-only delete button to thread rows
-- [ ] Add hover-only project row actions
+- [x] Add hover-only project row actions
   - [x] Delete project
-  - [ ] Show all threads
-  - [ ] Show project details
+  - [x] Show all threads
+  - [x] Show project details
 - [x] Filter hidden projects and deleted threads out of the default navigator projection
 - [x] Update selection behavior after thread deletion
 - [x] Update selection behavior after project deletion
@@ -39,30 +39,30 @@ Read that document first for the full product and technical guidance, UX intent,
   - [x] Edit recent threads count
   - [x] Validate recent threads count
   - [x] Persist settings and refresh projection
-- [ ] Add project threads dialog
-  - [ ] Create bindable row view model
-  - [ ] Build `DataGridControl` with sortable columns
-  - [ ] Add selection checkbox column
-  - [ ] Add `Open` action column
-  - [ ] Add filter row toggle
-  - [ ] Add selection commands
-    - [ ] Select none
-    - [ ] Select all
-    - [ ] Invert selection
-  - [ ] Add batch delete flow with confirmation
-  - [ ] Close dialog on ESC
-  - [ ] Close dialog via top-right close button
-- [ ] Add project details dialog
-  - [ ] Show all relevant descriptor fields
-  - [ ] Edit display name
-  - [ ] Edit name
-  - [ ] Edit project path
-  - [ ] Edit default branch
-  - [ ] Edit description
-  - [ ] Edit tags
-  - [ ] Show metadata file path
-  - [ ] Validate editable fields
-  - [ ] Save through catalog and refresh UI
+- [x] Add project threads dialog
+  - [x] Create bindable row view model
+  - [x] Build `DataGridControl` with sortable columns
+  - [x] Add selection checkbox column
+  - [x] Add `Open` action column
+  - [x] Add filter row toggle
+  - [x] Add selection commands
+    - [x] Select none
+    - [x] Select all
+    - [x] Invert selection
+  - [x] Add batch delete flow with confirmation
+  - [x] Close dialog on ESC
+  - [x] Close dialog via top-right close button
+- [x] Add project details dialog
+  - [x] Show all relevant descriptor fields
+  - [x] Edit display name
+  - [x] Edit name
+  - [x] Edit project path
+  - [x] Edit default branch
+  - [x] Edit description
+  - [x] Edit tags
+  - [x] Show metadata file path
+  - [x] Validate editable fields
+  - [x] Save through catalog and refresh UI
 - [ ] Add inline project rename on F2
   - [ ] Enter rename mode only for project rows
   - [ ] Use `TextBox` inline in the tree row
@@ -73,7 +73,7 @@ Read that document first for the full product and technical guidance, UX intent,
 - [x] Add tests for sidebar projection recency and sort behavior
 - [x] Add tests for sidebar reactivity without unnecessary rebuilds
 - [x] Add tests for delete flows
-- [ ] Add tests for dialog row view models and selection commands
+- [x] Add tests for dialog row view models and selection commands
 - [ ] Add tests for inline rename validation and commit/cancel behavior
 - [x] Add tests for navigator settings persistence
 - [ ] Final UX polish
