@@ -4,9 +4,12 @@ using CodeAlta.Presentation.Styling;
 using CodeAlta.ViewModels;
 using System.Text;
 using XenoAtom.Ansi;
+using XenoAtom.Terminal;
 using XenoAtom.Terminal.UI;
+using XenoAtom.Terminal.UI.Commands;
 using XenoAtom.Terminal.UI.Controls;
 using XenoAtom.Terminal.UI.Geometry;
+using XenoAtom.Terminal.UI.Input;
 using XenoAtom.Terminal.UI.Styling;
 
 namespace CodeAlta.Views;
@@ -19,16 +22,22 @@ internal sealed class SidebarView
     };
 
     private readonly Dictionary<SidebarSelectionTarget, TreeNode> _nodesByTarget = new();
+    private readonly Dictionary<string, SidebarNodeHeaderView> _headersByNodeId = new(StringComparer.OrdinalIgnoreCase);
     private readonly Action<string> _deleteThread;
     private readonly Action<string> _deleteProject;
     private readonly Action<string> _openProjectThreads;
     private readonly Action<string> _openProjectDetails;
+    private readonly Action<SidebarNodeViewModel> _submitInlineRename;
+    private readonly Action<SidebarNodeViewModel> _cancelInlineRename;
 
     public SidebarView(
         SidebarViewModel viewModel,
         Action refreshCatalog,
         Action cycleSortMode,
         Action openNavigatorSettings,
+        Action beginInlineRenameSelectedProject,
+        Action<SidebarNodeViewModel> submitInlineRename,
+        Action<SidebarNodeViewModel> cancelInlineRename,
         Action<string> deleteThread,
         Action<string> deleteProject,
         Action<string> openProjectThreads,
@@ -39,6 +48,9 @@ internal sealed class SidebarView
         ArgumentNullException.ThrowIfNull(refreshCatalog);
         ArgumentNullException.ThrowIfNull(cycleSortMode);
         ArgumentNullException.ThrowIfNull(openNavigatorSettings);
+        ArgumentNullException.ThrowIfNull(beginInlineRenameSelectedProject);
+        ArgumentNullException.ThrowIfNull(submitInlineRename);
+        ArgumentNullException.ThrowIfNull(cancelInlineRename);
         ArgumentNullException.ThrowIfNull(deleteThread);
         ArgumentNullException.ThrowIfNull(deleteProject);
         ArgumentNullException.ThrowIfNull(openProjectThreads);
@@ -49,12 +61,24 @@ internal sealed class SidebarView
         _deleteProject = deleteProject;
         _openProjectThreads = openProjectThreads;
         _openProjectDetails = openProjectDetails;
+        _submitInlineRename = submitInlineRename;
+        _cancelInlineRename = cancelInlineRename;
 
         Tree = new TreeView
         {
             HorizontalAlignment = Align.Stretch,
             VerticalAlignment = Align.Stretch,
         };
+        Tree.AddCommand(new Command
+        {
+            Id = "Sidebar.BeginInlineProjectRename",
+            LabelMarkup = string.Empty,
+            Gesture = new KeyGesture(TerminalKey.F2),
+            Presentation = CommandPresentation.None,
+            Execute = _ => beginInlineRenameSelectedProject(),
+            CanExecute = _ => SelectedTarget?.Kind == SidebarSelectionKind.ProjectScope,
+            ConsumesGestureWhenUnavailable = false,
+        });
 
         var treeHost = new ScrollViewer(Tree)
             .HorizontalScrollEnabled(false)
@@ -124,6 +148,7 @@ internal sealed class SidebarView
         ArgumentNullException.ThrowIfNull(projection);
 
         _nodesByTarget.Clear();
+        _headersByNodeId.Clear();
         Tree.Roots.Clear();
         foreach (var root in projection.Roots)
         {
@@ -137,11 +162,23 @@ internal sealed class SidebarView
                Tree.TrySelectNode(node);
     }
 
+    public void FocusInlineRenameEditor(string nodeId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(nodeId);
+        if (_headersByNodeId.TryGetValue(nodeId, out var header))
+        {
+            header.RequestEditorFocus();
+        }
+    }
+
     private TreeNode CreateNode(SidebarTreeNodeProjection projection)
     {
         ArgumentNullException.ThrowIfNull(projection);
 
-        var node = new TreeNode(CreateSidebarHeader(projection.Row))
+        var header = CreateSidebarHeader(projection.Row, _submitInlineRename, _cancelInlineRename);
+        _headersByNodeId[projection.NodeId] = header;
+
+        var node = new TreeNode(header)
         {
             Icon = projection.Icon,
             IconStyle = UiPalette.GetSidebarIconStyle(projection.Accent),
@@ -154,17 +191,11 @@ internal sealed class SidebarView
             node.AddRightVisual(CreateTimestampVisual(projection.Row), TreeNodeRightVisualVisibility.Always);
         }
 
-        if (projection.Kind == SidebarNodeKind.Thread &&
-            projection.SelectionTarget?.ThreadId is { } threadId)
+        foreach (var action in projection.Actions)
         {
-            node.AddRightVisual(CreateRowActionButton(NerdFont.MdTrashCanOutline, "Delete thread", () => _deleteThread(threadId)), TreeNodeRightVisualVisibility.Hover);
-        }
-        else if (projection.Kind == SidebarNodeKind.Project &&
-                 projection.SelectionTarget?.ProjectId is { } projectId)
-        {
-            node.AddRightVisual(CreateRowActionButton(NerdFont.MdFormatListBulleted, "Show all project threads", () => _openProjectThreads(projectId)), TreeNodeRightVisualVisibility.Hover);
-            node.AddRightVisual(CreateRowActionButton(NerdFont.MdInformationOutline, "Show project details", () => _openProjectDetails(projectId)), TreeNodeRightVisualVisibility.Hover);
-            node.AddRightVisual(CreateRowActionButton(NerdFont.MdTrashCanOutline, "Delete project", () => _deleteProject(projectId)), TreeNodeRightVisualVisibility.Hover);
+            node.AddRightVisual(
+                CreateHoverOnlyRowActionButton(projection.Row, action.Icon, action.Tooltip, ResolveRowAction(projection.SelectionTarget, action.Kind)),
+                TreeNodeRightVisualVisibility.Hover);
         }
 
         if (projection.SelectionTarget is { } target)
@@ -180,16 +211,6 @@ internal sealed class SidebarView
         return node;
     }
 
-    private static Visual CreateSidebarHeader(SidebarNodeViewModel row)
-    {
-        ArgumentNullException.ThrowIfNull(row);
-
-        return new Markup(() => $"[bold]{AnsiMarkup.Escape(row.Title)}[/]")
-        {
-            Wrap = false,
-        };
-    }
-
     private static Visual CreateTimestampVisual(SidebarNodeViewModel row)
     {
         ArgumentNullException.ThrowIfNull(row);
@@ -200,6 +221,18 @@ internal sealed class SidebarView
             .TextAlignment(TextAlignment.Right)
             .MinWidth(12)
             .Tooltip(new TextBlock(() => row.ExactActivityText));
+    }
+
+    private static Visual CreateHoverOnlyRowActionButton(
+        SidebarNodeViewModel row,
+        Rune icon,
+        string tooltip,
+        Action onClick)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+
+        var button = CreateRowActionButton(icon, tooltip, onClick);
+        return new ComputedVisual(() => row.IsInlineEditing ? null : button);
     }
 
     private static Visual CreateRowActionButton(Rune icon, string tooltip, Action onClick)
@@ -242,5 +275,27 @@ internal sealed class SidebarView
             .Style(ToolbarButtonStyle)
             .Click(onClick)
             .Tooltip(new TextBlock(tooltipFactory));
+    }
+
+    private static SidebarNodeHeaderView CreateSidebarHeader(
+        SidebarNodeViewModel row,
+        Action<SidebarNodeViewModel> submitInlineRename,
+        Action<SidebarNodeViewModel> cancelInlineRename)
+        => new SidebarNodeHeaderView(row, submitInlineRename, cancelInlineRename);
+
+    private Action ResolveRowAction(SidebarSelectionTarget? target, SidebarRowActionKind actionKind)
+    {
+        return actionKind switch
+        {
+            SidebarRowActionKind.DeleteThread when target?.ThreadId is { } threadId
+                => () => _deleteThread(threadId),
+            SidebarRowActionKind.DeleteProject when target?.ProjectId is { } projectId
+                => () => _deleteProject(projectId),
+            SidebarRowActionKind.OpenProjectThreads when target?.ProjectId is { } projectId
+                => () => _openProjectThreads(projectId),
+            SidebarRowActionKind.OpenProjectDetails when target?.ProjectId is { } projectId
+                => () => _openProjectDetails(projectId),
+            _ => static () => { },
+        };
     }
 }

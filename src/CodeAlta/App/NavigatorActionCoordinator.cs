@@ -156,6 +156,22 @@ internal sealed class NavigatorActionCoordinator
             .Show();
     }
 
+    public async Task RenameProjectDisplayNameAsync(string projectId, string displayName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
+
+        var project = _threadStateCoordinator.GetProjectById(projectId);
+        if (project is null)
+        {
+            throw new InvalidOperationException($"Project '{projectId}' was not found.");
+        }
+
+        var updatedProject = CloneProject(project);
+        updatedProject.DisplayName = displayName.Trim();
+        await SaveProjectAsync(updatedProject).ConfigureAwait(false);
+    }
+
     private async Task DeleteThreadAsync(WorkThreadDescriptor thread)
     {
         try
@@ -225,5 +241,26 @@ internal sealed class NavigatorActionCoordinator
             _setStatus($"Failed to save project: {ex.Message}", false, StatusTone.Error);
             throw;
         }
+    }
+
+    private static ProjectDescriptor CloneProject(ProjectDescriptor project)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+
+        return new ProjectDescriptor
+        {
+            Id = project.Id,
+            Slug = project.Slug,
+            Name = project.Name,
+            DisplayName = project.DisplayName,
+            ProjectPath = project.ProjectPath,
+            DefaultBranch = project.DefaultBranch,
+            Description = project.Description,
+            Tags = [.. project.Tags],
+            Checkout = project.Checkout,
+            SourcePath = project.SourcePath,
+            Archived = project.Archived,
+            MarkdownBody = project.MarkdownBody,
+        };
     }
 }

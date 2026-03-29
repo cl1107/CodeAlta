@@ -23,10 +23,10 @@ internal static class SidebarTreeProjectionBuilder
         ArgumentNullException.ThrowIfNull(getOrCreateRow);
 
         return new SidebarTreeProjection(
-        [
-            CreateGlobalNode(threads, settings, getOrCreateRow, nowUtc),
-            CreateProjectsNode(projects, threads, expandedProjectId, settings, getOrCreateRow, nowUtc),
-        ]);
+            [
+                CreateGlobalNode(threads, settings, getOrCreateRow, nowUtc),
+                CreateProjectsNode(projects, threads, expandedProjectId, settings, getOrCreateRow, nowUtc),
+            ]);
     }
 
     private static SidebarTreeNodeProjection CreateGlobalNode(
@@ -57,6 +57,7 @@ internal static class SidebarTreeProjectionBuilder
             SidebarAccent.Global,
             SidebarSelectionTarget.Global(),
             true,
+            [],
             children);
     }
 
@@ -91,6 +92,7 @@ internal static class SidebarTreeProjectionBuilder
             SidebarAccent.Projects,
             null,
             true,
+            [],
             children);
     }
 
@@ -122,6 +124,7 @@ internal static class SidebarTreeProjectionBuilder
             SidebarAccent.Projects,
             SidebarSelectionTarget.Project(project.Id),
             string.Equals(project.Id, expandedProjectId, StringComparison.OrdinalIgnoreCase),
+            CreateProjectActions(),
             children);
     }
 
@@ -152,8 +155,20 @@ internal static class SidebarTreeProjectionBuilder
             SidebarThreadPresentation.ResolveThreadAccent(thread.BackendId, thread.Kind),
             SidebarSelectionTarget.Thread(thread.ThreadId),
             false,
+            CreateThreadActions(),
             []);
     }
+
+    private static IReadOnlyList<SidebarRowActionDescriptor> CreateProjectActions()
+        =>
+        [
+            new SidebarRowActionDescriptor(SidebarRowActionKind.OpenProjectThreads, NerdFont.MdFormatListBulleted, "Show all project threads"),
+            new SidebarRowActionDescriptor(SidebarRowActionKind.OpenProjectDetails, NerdFont.MdInformationOutline, "Show project details"),
+            new SidebarRowActionDescriptor(SidebarRowActionKind.DeleteProject, NerdFont.MdTrashCanOutline, "Delete project"),
+        ];
+
+    private static IReadOnlyList<SidebarRowActionDescriptor> CreateThreadActions()
+        => [new SidebarRowActionDescriptor(SidebarRowActionKind.DeleteThread, NerdFont.MdTrashCanOutline, "Delete thread")];
 
     private static IEnumerable<ProjectDescriptor> OrderProjectsByName(IEnumerable<ProjectDescriptor> projects)
     {

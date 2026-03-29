@@ -49,6 +49,7 @@ internal static class SidebarServicesFactory
             shellController,
             () => _ = ToggleSortModeAsync(threadStateCoordinator, refreshCatalogAndThreadWorkspace),
             navigatorSettings.Open,
+            navigatorActions.RenameProjectDisplayNameAsync,
             navigatorActions.ConfirmDeleteThread,
             navigatorActions.ConfirmDeleteProject,
             navigatorActions.OpenProjectThreads,

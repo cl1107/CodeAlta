@@ -1,5 +1,6 @@
 using System.Globalization;
 using XenoAtom.Terminal.UI;
+using XenoAtom.Terminal.UI.Controls;
 
 namespace CodeAlta.Presentation.Sidebar;
 
@@ -13,6 +14,7 @@ internal sealed partial class SidebarNodeViewModel
         Kind = kind;
         SelectionTarget = selectionTarget;
         Title = string.Empty;
+        InlineEditText = string.Empty;
         RelativeActivityText = string.Empty;
         ExactActivityText = string.Empty;
     }
@@ -31,6 +33,15 @@ internal sealed partial class SidebarNodeViewModel
     public partial string Title { get; set; }
 
     [Bindable]
+    public partial string InlineEditText { get; set; }
+
+    [Bindable]
+    public partial bool IsInlineEditing { get; set; }
+
+    [Bindable]
+    public partial ValidationMessage? InlineEditValidationMessage { get; set; }
+
+    [Bindable]
     public partial string RelativeActivityText { get; set; }
 
     [Bindable]
@@ -43,6 +54,34 @@ internal sealed partial class SidebarNodeViewModel
         {
             Title = title;
         }
+    }
+
+    public void BeginInlineEdit()
+    {
+        InlineEditText = Title;
+        InlineEditValidationMessage = null;
+        IsInlineEditing = true;
+    }
+
+    public void CancelInlineEdit()
+    {
+        IsInlineEditing = false;
+        InlineEditText = Title;
+        InlineEditValidationMessage = null;
+    }
+
+    public bool TryGetInlineEditValue(out string displayName)
+    {
+        var validationMessage = ValidateInlineEditText(InlineEditText);
+        InlineEditValidationMessage = validationMessage;
+        if (validationMessage is not null)
+        {
+            displayName = string.Empty;
+            return false;
+        }
+
+        displayName = InlineEditText.Trim();
+        return true;
     }
 
     public void UpdateActivity(DateTimeOffset? activityAtUtc, DateTimeOffset nowUtc)
@@ -60,6 +99,37 @@ internal sealed partial class SidebarNodeViewModel
         }
 
         NextRelativeRefreshAtUtc = display.NextRefreshAtUtc;
+    }
+
+    partial void OnInlineEditTextChanged(string value)
+    {
+        if (!IsInlineEditing)
+        {
+            return;
+        }
+
+        InlineEditValidationMessage = ValidateInlineEditText(value);
+    }
+
+    partial void OnIsInlineEditingChanged(bool value)
+    {
+        if (value)
+        {
+            InlineEditValidationMessage = ValidateInlineEditText(InlineEditText);
+            return;
+        }
+
+        InlineEditValidationMessage = null;
+    }
+
+    private static ValidationMessage? ValidateInlineEditText(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return new ValidationMessage(ValidationSeverity.Error, "Display name is required.");
+        }
+
+        return null;
     }
 }
 

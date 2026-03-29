@@ -3,6 +3,11 @@ using CodeAlta.Catalog;
 using CodeAlta.Presentation.Sidebar;
 using CodeAlta.ViewModels;
 using CodeAlta.Views;
+using XenoAtom.Terminal;
+using XenoAtom.Terminal.UI.Controls;
+using XenoAtom.Terminal.UI.Geometry;
+using XenoAtom.Terminal.UI.Input;
+using XenoAtom.Terminal.UI.Layout;
 
 namespace CodeAlta.Tests;
 
@@ -203,7 +208,7 @@ public sealed class CodeAltaAppSidebarTests
             [thread],
             project.Id,
             nowUtc: DateTimeOffset.Parse("2026-03-29T10:05:00+00:00"));
-        var view = new SidebarView(new SidebarViewModel(), static () => { }, static () => { }, static () => { }, static _ => { }, static _ => { }, static _ => { }, static _ => { }, static _ => { });
+        var view = new SidebarView(new SidebarViewModel(), static () => { }, static () => { }, static () => { }, static () => { }, static _ => { }, static _ => { }, static _ => { }, static _ => { }, static _ => { }, static _ => { }, static _ => { });
 
         view.ApplyProjection(projection);
 
@@ -214,7 +219,67 @@ public sealed class CodeAltaAppSidebarTests
         Assert.IsTrue(projectNode.IsExpanded);
         Assert.IsTrue(projection.ContainsTarget(SidebarSelectionTarget.Project(project.Id)));
         Assert.AreEqual(4, projectNode.RightVisuals.Count);
+        Assert.AreEqual(TreeNodeRightVisualVisibility.Always, projectNode.RightVisuals[0].Visibility);
+        Assert.AreEqual(TreeNodeRightVisualVisibility.Hover, projectNode.RightVisuals[1].Visibility);
+        Assert.AreEqual(TreeNodeRightVisualVisibility.Hover, projectNode.RightVisuals[2].Visibility);
+        Assert.AreEqual(TreeNodeRightVisualVisibility.Hover, projectNode.RightVisuals[3].Visibility);
         Assert.AreEqual(2, threadNode.RightVisuals.Count);
+        Assert.AreEqual(TreeNodeRightVisualVisibility.Always, threadNode.RightVisuals[0].Visibility);
+        Assert.AreEqual(TreeNodeRightVisualVisibility.Hover, threadNode.RightVisuals[1].Visibility);
+    }
+
+    [TestMethod]
+    public void SidebarView_F2CommandStartsInlineProjectRename()
+    {
+        var project = CreateProject("project-1", "CodeAlta", @"C:\repo");
+        var projection = BuildProjection(
+            [project],
+            [],
+            project.Id,
+            nowUtc: DateTimeOffset.Parse("2026-03-29T10:05:00+00:00"));
+        var renameCount = 0;
+        var view = new SidebarView(new SidebarViewModel(), static () => { }, static () => { }, static () => { }, () => renameCount++, static _ => { }, static _ => { }, static _ => { }, static _ => { }, static _ => { }, static _ => { }, static _ => { });
+
+        view.ApplyProjection(projection);
+        view.Tree.Measure(new LayoutConstraints(0, 80, 0, 20));
+        view.Tree.Arrange(new Rectangle(0, 0, 80, 20));
+        Assert.IsTrue(view.TrySelectTarget(SidebarSelectionTarget.Project(project.Id)));
+
+        var renameCommand = view.Tree.Commands.Single(command => command.Gesture == new KeyGesture(TerminalKey.F2));
+        renameCommand.Execute(view.Tree);
+
+        Assert.AreEqual(1, renameCount);
+    }
+
+    [TestMethod]
+    public void SidebarNodeViewModel_InlineRenameBlocksWhitespaceCommit()
+    {
+        var row = new SidebarNodeViewModel("project:project-1", SidebarNodeKind.Project, SidebarSelectionTarget.Project("project-1"));
+        row.UpdateTitle("CodeAlta");
+        row.BeginInlineEdit();
+        row.InlineEditText = "   ";
+
+        Assert.IsFalse(row.TryGetInlineEditValue(out _));
+        Assert.IsTrue(row.IsInlineEditing);
+        Assert.IsNotNull(row.InlineEditValidationMessage);
+    }
+
+    [TestMethod]
+    public void SidebarNodeViewModel_InlineRenameCanCommitAndCancel()
+    {
+        var row = new SidebarNodeViewModel("project:project-1", SidebarNodeKind.Project, SidebarSelectionTarget.Project("project-1"));
+        row.UpdateTitle("CodeAlta");
+        row.BeginInlineEdit();
+        row.InlineEditText = "CodeAlta UI";
+
+        Assert.IsTrue(row.TryGetInlineEditValue(out var displayName));
+        Assert.AreEqual("CodeAlta UI", displayName);
+
+        row.CancelInlineEdit();
+
+        Assert.IsFalse(row.IsInlineEditing);
+        Assert.AreEqual("CodeAlta", row.InlineEditText);
+        Assert.IsNull(row.InlineEditValidationMessage);
     }
 
     [TestMethod]

@@ -74,10 +74,12 @@ namespace CodeAlta.Presentation.Sidebar
             SidebarAccent accent,
             SidebarSelectionTarget? selectionTarget,
             bool isExpanded,
+            IReadOnlyList<SidebarRowActionDescriptor> actions,
             IReadOnlyList<SidebarTreeNodeProjection> children)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(nodeId);
             ArgumentNullException.ThrowIfNull(row);
+            ArgumentNullException.ThrowIfNull(actions);
             ArgumentNullException.ThrowIfNull(children);
 
             NodeId = nodeId;
@@ -87,6 +89,7 @@ namespace CodeAlta.Presentation.Sidebar
             Accent = accent;
             SelectionTarget = selectionTarget;
             IsExpanded = isExpanded;
+            Actions = actions;
             Children = children;
         }
 
@@ -103,6 +106,8 @@ namespace CodeAlta.Presentation.Sidebar
         public SidebarSelectionTarget? SelectionTarget { get; }
 
         public bool IsExpanded { get; }
+
+        public IReadOnlyList<SidebarRowActionDescriptor> Actions { get; }
 
         public IReadOnlyList<SidebarTreeNodeProjection> Children { get; }
 
@@ -139,9 +144,18 @@ namespace CodeAlta.Presentation.Sidebar
                 Accent != other.Accent ||
                 SelectionTarget != other.SelectionTarget ||
                 IsExpanded != other.IsExpanded ||
+                Actions.Count != other.Actions.Count ||
                 Children.Count != other.Children.Count)
             {
                 return false;
+            }
+
+            for (var index = 0; index < Actions.Count; index++)
+            {
+                if (Actions[index] != other.Actions[index])
+                {
+                    return false;
+                }
             }
 
             for (var index = 0; index < Children.Count; index++)
@@ -168,6 +182,10 @@ namespace CodeAlta.Presentation.Sidebar
             hash.Add((int)Accent);
             hash.Add(SelectionTarget);
             hash.Add(IsExpanded);
+            foreach (var action in Actions)
+            {
+                hash.Add(action);
+            }
             foreach (var child in Children)
             {
                 hash.Add(child);

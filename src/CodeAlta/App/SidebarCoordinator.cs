@@ -10,6 +10,7 @@ internal sealed class SidebarCoordinator
     private readonly SidebarViewModel _viewModel;
     private readonly CatalogOptions _catalogOptions;
     private readonly CodeAltaShellController _shellController;
+    private readonly Func<string, string, Task> _renameProjectDisplayNameAsync;
     private readonly SidebarView _view;
     private readonly Dictionary<string, SidebarNodeViewModel> _rowsById = new(StringComparer.OrdinalIgnoreCase);
     private bool _selectionSyncEnabled = true;
@@ -24,6 +25,7 @@ internal sealed class SidebarCoordinator
         CodeAltaShellController shellController,
         Action cycleSortMode,
         Action openNavigatorSettings,
+        Func<string, string, Task> renameProjectDisplayNameAsync,
         Action<string> requestDeleteThread,
         Action<string> requestDeleteProject,
         Action<string> openProjectThreads,
@@ -34,6 +36,7 @@ internal sealed class SidebarCoordinator
         ArgumentNullException.ThrowIfNull(shellController);
         ArgumentNullException.ThrowIfNull(cycleSortMode);
         ArgumentNullException.ThrowIfNull(openNavigatorSettings);
+        ArgumentNullException.ThrowIfNull(renameProjectDisplayNameAsync);
         ArgumentNullException.ThrowIfNull(requestDeleteThread);
         ArgumentNullException.ThrowIfNull(requestDeleteProject);
         ArgumentNullException.ThrowIfNull(openProjectThreads);
@@ -42,11 +45,15 @@ internal sealed class SidebarCoordinator
         _viewModel = viewModel;
         _catalogOptions = catalogOptions;
         _shellController = shellController;
+        _renameProjectDisplayNameAsync = renameProjectDisplayNameAsync;
         _view = new SidebarView(
             viewModel,
             () => _ = shellController.ReloadCatalogAsync(CancellationToken.None),
             cycleSortMode,
             openNavigatorSettings,
+            BeginInlineRenameSelectedProject,
+            SubmitInlineRename,
+            CancelInlineRename,
             requestDeleteThread,
             requestDeleteProject,
             openProjectThreads,
@@ -156,6 +163,30 @@ internal sealed class SidebarCoordinator
         _pendingSelectionTarget = null;
     }
 
+    public void BeginInlineRenameSelectedProject()
+    {
+        if (_view.SelectedTarget is not { Kind: SidebarSelectionKind.ProjectScope, ProjectId: { } projectId })
+        {
+            return;
+        }
+
+        foreach (var row in _rowsById.Values)
+        {
+            if (row.Kind == SidebarNodeKind.Project &&
+                !string.Equals(row.SelectionTarget?.ProjectId, projectId, StringComparison.OrdinalIgnoreCase) &&
+                row.IsInlineEditing)
+            {
+                row.CancelInlineEdit();
+            }
+        }
+
+        if (TryGetProjectRow(projectId, out var projectRow))
+        {
+            projectRow.BeginInlineEdit();
+            _view.FocusInlineRenameEditor(projectRow.NodeId);
+        }
+    }
+
     private SidebarNodeViewModel GetOrCreateRow(
         string nodeId,
         SidebarNodeKind kind,
@@ -243,5 +274,62 @@ internal sealed class SidebarCoordinator
                 _ = _shellController.OpenThreadAsync(currentTarget.ThreadId, CancellationToken.None);
                 break;
         }
+    }
+
+    private void SubmitInlineRename(SidebarNodeViewModel row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+
+        if (row.Kind != SidebarNodeKind.Project ||
+            row.SelectionTarget?.ProjectId is not { } projectId ||
+            !row.TryGetInlineEditValue(out var displayName))
+        {
+            return;
+        }
+
+        var previousTitle = row.Title;
+        row.UpdateTitle(displayName);
+        row.IsInlineEditing = false;
+        _ = CommitInlineRenameAsync(row, projectId, displayName, previousTitle);
+    }
+
+    private void CancelInlineRename(SidebarNodeViewModel row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        row.CancelInlineEdit();
+        _view.Tree.App?.Focus(_view.Tree);
+    }
+
+    private async Task CommitInlineRenameAsync(
+        SidebarNodeViewModel row,
+        string projectId,
+        string displayName,
+        string previousTitle)
+    {
+        try
+        {
+            await _renameProjectDisplayNameAsync(projectId, displayName).ConfigureAwait(false);
+        }
+        catch
+        {
+            row.UpdateTitle(previousTitle);
+            throw;
+        }
+    }
+
+    private bool TryGetProjectRow(string projectId, out SidebarNodeViewModel row)
+    {
+        foreach (var candidate in _rowsById.Values)
+        {
+            if (candidate.Kind == SidebarNodeKind.Project &&
+                string.Equals(candidate.SelectionTarget?.ProjectId, projectId, StringComparison.OrdinalIgnoreCase))
+            {
+                row = candidate;
+                return true;
+            }
+        }
+
+        row = null!;
+        return false;
     }
 }
