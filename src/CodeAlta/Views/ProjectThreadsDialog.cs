@@ -204,7 +204,7 @@ internal sealed class ProjectThreadsDialog
         {
             HorizontalAlignment = Align.Stretch,
             Spacing = 2,
-        };
+        }.Pad(new(0, 0, 0, 1));
 
         var content = new Grid();
         content.ColumnDefinitions.Add(new ColumnDefinition() { Width = GridLength.Auto });
