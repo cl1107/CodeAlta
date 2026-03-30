@@ -1,6 +1,7 @@
 using CodeAlta.Agent;
 using CodeAlta.Catalog;
 using CodeAlta.Presentation.Styling;
+using XenoAtom.Terminal.UI;
 
 namespace CodeAlta.Presentation.Sidebar;
 
@@ -32,4 +33,7 @@ internal static class SidebarThreadPresentation
             ? normalized
             : normalized[..Math.Max(1, maxLength - 1)].TrimEnd() + "…";
     }
+
+    public static string BuildEditedPromptIconMarkup(SidebarAccent accent)
+        => $"[{UiPalette.GetSidebarAccentMarkup(accent)}]{NerdFont.MdSquareEditOutline}[/]";
 }

@@ -88,6 +88,9 @@ internal sealed class ShellWorkspaceCoordinator
         => _workspaceContext.DispatchToUi(RefreshSelectionAndThreadWorkspaceCore);
 
     public void SetStatus(string message, bool showSpinner = false, StatusTone tone = StatusTone.Info)
+        => SetStatus(message, showSpinner, tone, iconMarkup: null);
+
+    public void SetStatus(string message, bool showSpinner, StatusTone tone, string? iconMarkup)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(message);
 
@@ -98,7 +101,7 @@ internal sealed class ShellWorkspaceCoordinator
                 _shellViewModel.StatusText = message;
                 _shellViewModel.StatusBusy = showSpinner;
                 _shellViewModel.StatusTone = tone;
-                _shellViewModel.StatusIconMarkup = StatusVisualFormatter.BuildStatusIconMarkup(tone);
+                _shellViewModel.StatusIconMarkup = iconMarkup ?? StatusVisualFormatter.BuildStatusIconMarkup(tone);
             });
     }
 
@@ -172,10 +175,11 @@ internal sealed class ShellWorkspaceCoordinator
                 selectedTab.ViewModel.StatusMessage,
                 selectedTab.ViewModel.StatusBusy,
                 selectedTab.ViewModel.StatusTone,
+                selectedTab.HasPromptDraft,
                 promptUnavailable.HasStatus,
                 promptUnavailable.Message,
                 promptUnavailable.Tone);
-            SetStatus(snapshot.Message, snapshot.Busy, snapshot.Tone);
+            SetStatus(snapshot.Message, snapshot.Busy, snapshot.Tone, snapshot.IconMarkup);
             return;
         }
 

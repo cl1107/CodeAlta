@@ -71,6 +71,29 @@ public sealed class ShellThreadStateCoordinatorTests
     }
 
     [TestMethod]
+    public async Task CloseThreadAsync_RetainsThreadStateForReopen()
+    {
+        using var temp = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = temp.Path };
+        var coordinator = CreateCoordinator(options);
+        var project = CreateProject("project-1", "CodeAlta");
+        var thread = CreateThread("thread-1", project.Id);
+        coordinator.ApplyRecoveredCatalogState([project], [thread]);
+        coordinator.OpenThread(thread.ThreadId);
+
+        var tab = coordinator.FindOpenThread(thread.ThreadId);
+        Assert.IsNotNull(tab);
+        tab.Session.PromptDraftText = "keep this draft";
+
+        await coordinator.CloseThreadAsync(thread.ThreadId).ConfigureAwait(false);
+
+        var retained = coordinator.FindOpenThread(thread.ThreadId);
+        Assert.IsNotNull(retained);
+        Assert.AreEqual("keep this draft", retained.Session.PromptDraftText);
+        Assert.IsFalse(coordinator.ViewState.OpenThreadIds.Contains(thread.ThreadId, StringComparer.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void RemoveDeletedProject_SelectedProjectScopeFallsBackToGlobal()
     {
         using var temp = TempDirectory.Create();

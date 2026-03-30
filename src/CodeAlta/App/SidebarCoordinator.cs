@@ -1,4 +1,5 @@
 using CodeAlta.Catalog;
+using CodeAlta.Models;
 using CodeAlta.Presentation.Sidebar;
 using CodeAlta.ViewModels;
 using CodeAlta.Views;
@@ -69,11 +70,13 @@ internal sealed class SidebarCoordinator
         string? preferredExpandedProjectId,
         SidebarSelectionTarget currentTarget,
         NavigatorSettings settings,
+        Func<string, ThreadVisualState> getThreadVisualState,
         Action verifyBindableAccess)
     {
         ArgumentNullException.ThrowIfNull(projects);
         ArgumentNullException.ThrowIfNull(threads);
         ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(getThreadVisualState);
         ArgumentNullException.ThrowIfNull(verifyBindableAccess);
 
         verifyBindableAccess();
@@ -92,6 +95,7 @@ internal sealed class SidebarCoordinator
             _catalogOptions.GlobalRoot,
             expandedProjectIds,
             settings,
+            getThreadVisualState,
             GetOrCreateRow,
             nowUtc);
         UpdateNextRecencyRefresh(nowUtc);

@@ -20,10 +20,18 @@ internal static class ThreadTabVisualFactory
     }
 
     public static OpenTabIndicatorKind ResolveIndicatorKind(bool isBusy, StatusTone tone)
+        => ResolveIndicatorKind(isBusy, hasPromptDraft: false, tone);
+
+    public static OpenTabIndicatorKind ResolveIndicatorKind(bool isBusy, bool hasPromptDraft, StatusTone tone)
     {
         if (isBusy)
         {
             return OpenTabIndicatorKind.Running;
+        }
+
+        if (hasPromptDraft)
+        {
+            return OpenTabIndicatorKind.Edited;
         }
 
         return tone switch
@@ -36,14 +44,25 @@ internal static class ThreadTabVisualFactory
     }
 
     public static Visual CreateIndicator(bool isBusy, StatusTone tone)
+        => CreateIndicator(isBusy, hasPromptDraft: false, tone);
+
+    public static Visual CreateIndicator(bool isBusy, bool hasPromptDraft, StatusTone tone)
     {
-        var kind = ResolveIndicatorKind(isBusy, tone);
+        var kind = ResolveIndicatorKind(isBusy, hasPromptDraft, tone);
         if (kind == OpenTabIndicatorKind.Running)
         {
-            var spinner = new Spinner().Style(SpinnerStyles.Arc);
+            var spinner = new Spinner().Style(SpinnerStyles.Dots);
             spinner.IsActive(() => true);
             spinner.IsVisible(() => true);
             return spinner;
+        }
+
+        if (kind == OpenTabIndicatorKind.Edited)
+        {
+            return new Markup(StatusVisualFormatter.BuildPromptEditedIconMarkup())
+            {
+                Wrap = false,
+            };
         }
 
         var statusTone = kind switch

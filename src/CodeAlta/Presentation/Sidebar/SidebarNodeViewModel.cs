@@ -47,6 +47,12 @@ internal sealed partial class SidebarNodeViewModel
     [Bindable]
     public partial string ExactActivityText { get; set; }
 
+    [Bindable]
+    public partial bool ShowStateSpinner { get; set; }
+
+    [Bindable]
+    public partial string? StateIconMarkup { get; set; }
+
     public void UpdateTitle(string title)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
@@ -99,6 +105,19 @@ internal sealed partial class SidebarNodeViewModel
         }
 
         NextRelativeRefreshAtUtc = display.NextRefreshAtUtc;
+    }
+
+    public void UpdateStateIndicator(string? iconMarkup, bool showSpinner)
+    {
+        if (ShowStateSpinner != showSpinner)
+        {
+            ShowStateSpinner = showSpinner;
+        }
+
+        if (!string.Equals(StateIconMarkup, iconMarkup, StringComparison.Ordinal))
+        {
+            StateIconMarkup = iconMarkup;
+        }
     }
 
     partial void OnInlineEditTextChanged(string value)

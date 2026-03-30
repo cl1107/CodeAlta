@@ -152,7 +152,7 @@ internal sealed class ThreadWorkspaceView
                 compactThread,
                 button => button.IsEnabled(promptComposerViewModel.Bind.CanCompact));
 
-        var statusSpinner = new Spinner().Style(SpinnerStyles.Arc);
+        var statusSpinner = new Spinner().Style(SpinnerStyles.Dots);
         statusSpinner.IsActive(() => shellViewModel.StatusBusy);
         statusSpinner.IsVisible(() => shellViewModel.StatusBusy);
 

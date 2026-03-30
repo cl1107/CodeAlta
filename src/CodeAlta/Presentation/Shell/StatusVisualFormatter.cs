@@ -8,9 +8,12 @@ namespace CodeAlta.Presentation.Shell;
 internal static class StatusVisualFormatter
 {
     private const string ThinkingStatusMessage = "Thinking...";
+    private const string PromptEditedStatusMessage = "Draft edited...";
     private static readonly GradientStop[] ThinkingGradientStops = CreateThinkingGradientStops();
 
     public static string BuildThinkingStatusText() => ThinkingStatusMessage;
+
+    public static string BuildPromptEditedStatusText() => PromptEditedStatusMessage;
 
     public static string BuildStatusIconMarkup(StatusTone tone)
     {
@@ -22,6 +25,9 @@ internal static class StatusVisualFormatter
             _ => $"[{UiPalette.GetStatusToneMarkup(StatusTone.Info)}]{NerdFont.OctInfo}[/]",
         };
     }
+
+    public static string BuildPromptEditedIconMarkup()
+        => $"[{UiPalette.GetStatusToneMarkup(StatusTone.Info)}]{NerdFont.MdSquareEditOutline}[/]";
 
     public static TextBlockStyle BuildStatusTextStyle(string message, bool busy, StatusTone tone, float thinkingAnimationPhase01)
     {

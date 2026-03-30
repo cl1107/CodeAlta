@@ -178,6 +178,7 @@ internal sealed class ShellThreadStateCoordinator
 
         _projects = projects;
         _threads = ApplyThreadLocalState(threads, ViewState);
+        PruneRetainedThreadState();
 
         ViewState.OpenThreadIds.RemoveAll(id => _threads.All(thread => !string.Equals(thread.ThreadId, id, StringComparison.OrdinalIgnoreCase)));
         if (!string.IsNullOrWhiteSpace(ViewState.SelectedThreadId) &&
@@ -397,7 +398,6 @@ internal sealed class ShellThreadStateCoordinator
         var removedThread = FindThread(threadId);
         ViewState.OpenThreadIds.RemoveAll(id => string.Equals(id, threadId, StringComparison.OrdinalIgnoreCase));
         _removeTabPage(threadId);
-        _threadTabs.Remove(threadId);
         if (removedSelectedThread)
         {
             SelectedThreadId = ViewState.OpenThreadIds.FirstOrDefault();
@@ -585,6 +585,21 @@ internal sealed class ShellThreadStateCoordinator
         }
 
         return threads;
+    }
+
+    private void PruneRetainedThreadState()
+    {
+        var knownThreadIds = _threads
+            .Select(static thread => thread.ThreadId)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var threadId in _threadTabs.Keys.ToArray())
+        {
+            if (!knownThreadIds.Contains(threadId))
+            {
+                _threadTabs.Remove(threadId);
+            }
+        }
     }
 
     private void ApplySelectionFallbackAfterThreadRemoval(string? fallbackProjectId)

@@ -21,6 +21,9 @@ internal sealed class SidebarNodeHeaderView : Visual
     private readonly ComputedVisual _validationIndicator;
     private readonly HStack _inlineEditor;
     private readonly ComputedVisual _content;
+    private readonly Spinner _stateSpinner;
+    private readonly ComputedVisual _stateIndicator;
+    private readonly HStack _layout;
     private bool _focusEditorPending;
 
     public SidebarNodeHeaderView(
@@ -69,19 +72,47 @@ internal sealed class SidebarNodeHeaderView : Visual
             HorizontalAlignment = Align.Stretch,
             VerticalAlignment = Align.Center,
         };
-        AttachChild(_content);
+
+        _stateSpinner = new Spinner().Style(SpinnerStyles.Dots);
+        _stateSpinner.IsActive(() => _row.ShowStateSpinner);
+        _stateSpinner.IsVisible(() => _row.ShowStateSpinner);
+        _stateIndicator = new ComputedVisual(
+            () =>
+            {
+                if (_row.ShowStateSpinner)
+                {
+                    return _stateSpinner;
+                }
+
+                return string.IsNullOrWhiteSpace(_row.StateIconMarkup)
+                    ? null
+                    : new Markup(() => _row.StateIconMarkup!)
+                    {
+                        Wrap = false,
+                    };
+            })
+        {
+            VerticalAlignment = Align.Center,
+        };
+        _layout = new HStack(_stateIndicator, _content)
+        {
+            Spacing = 1,
+            HorizontalAlignment = Align.Stretch,
+            VerticalAlignment = Align.Center,
+        };
+        AttachChild(_layout);
     }
 
     protected override int ChildrenCount => 1;
 
     protected override Visual GetChild(int index)
-        => index == 0 ? _content : throw new ArgumentOutOfRangeException(nameof(index));
+        => index == 0 ? _layout : throw new ArgumentOutOfRangeException(nameof(index));
 
     protected override SizeHints MeasureCore(in LayoutConstraints constraints)
-        => _content.Measure(constraints);
+        => _layout.Measure(constraints);
 
     protected override void ArrangeCore(in Rectangle finalRect)
-        => _content.Arrange(finalRect);
+        => _layout.Arrange(finalRect);
 
     private void OnEditorKeyDown(KeyEventArgs e)
     {

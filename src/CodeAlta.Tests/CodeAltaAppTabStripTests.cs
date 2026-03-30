@@ -17,6 +17,9 @@ public sealed class CodeAltaAppTabStripTests
             OpenTabIndicatorKind.Running,
             ThreadTabVisualFactory.ResolveIndicatorKind(isBusy: true, StatusTone.Ready));
         Assert.AreEqual(
+            OpenTabIndicatorKind.Edited,
+            ThreadTabVisualFactory.ResolveIndicatorKind(isBusy: false, hasPromptDraft: true, StatusTone.Ready));
+        Assert.AreEqual(
             OpenTabIndicatorKind.Ready,
             ThreadTabVisualFactory.ResolveIndicatorKind(isBusy: false, StatusTone.Ready));
         Assert.AreEqual(

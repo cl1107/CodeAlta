@@ -1,4 +1,5 @@
 using CodeAlta.Catalog;
+using CodeAlta.Models;
 using CodeAlta.Presentation.Styling;
 using CodeAlta.Presentation.Threads;
 using XenoAtom.Terminal.UI;
@@ -13,6 +14,7 @@ internal static class SidebarTreeProjectionBuilder
         string globalRoot,
         IReadOnlyCollection<string> expandedProjectIds,
         NavigatorSettings settings,
+        Func<string, ThreadVisualState> getThreadVisualState,
         Func<string, SidebarNodeKind, SidebarSelectionTarget?, SidebarNodeViewModel> getOrCreateRow,
         DateTimeOffset nowUtc)
     {
@@ -21,18 +23,20 @@ internal static class SidebarTreeProjectionBuilder
         ArgumentException.ThrowIfNullOrWhiteSpace(globalRoot);
         ArgumentNullException.ThrowIfNull(expandedProjectIds);
         ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(getThreadVisualState);
         ArgumentNullException.ThrowIfNull(getOrCreateRow);
 
         return new SidebarTreeProjection(
             [
-                CreateGlobalNode(threads, settings, getOrCreateRow, nowUtc),
-                CreateProjectsNode(projects, threads, expandedProjectIds, settings, getOrCreateRow, nowUtc),
+                CreateGlobalNode(threads, settings, getThreadVisualState, getOrCreateRow, nowUtc),
+                CreateProjectsNode(projects, threads, expandedProjectIds, settings, getThreadVisualState, getOrCreateRow, nowUtc),
             ]);
     }
 
     private static SidebarTreeNodeProjection CreateGlobalNode(
         IReadOnlyList<WorkThreadDescriptor> threads,
         NavigatorSettings settings,
+        Func<string, ThreadVisualState> getThreadVisualState,
         Func<string, SidebarNodeKind, SidebarSelectionTarget?, SidebarNodeViewModel> getOrCreateRow,
         DateTimeOffset nowUtc)
     {
@@ -44,10 +48,11 @@ internal static class SidebarTreeProjectionBuilder
         var row = getOrCreateRow("global", SidebarNodeKind.Global, SidebarSelectionTarget.Global());
         row.UpdateTitle("Global");
         row.UpdateActivity(visibleThreads.FirstOrDefault()?.LastActiveAt, nowUtc);
+        row.UpdateStateIndicator(iconMarkup: null, visibleThreads.Any(thread => getThreadVisualState(thread.ThreadId).IsRunning));
 
         var children = visibleThreads
             .Take(settings.RecentThreadsPerProject)
-            .Select(thread => CreateThreadNode(thread, getOrCreateRow, nowUtc))
+            .Select(thread => CreateThreadNode(thread, getThreadVisualState, getOrCreateRow, nowUtc))
             .ToArray();
 
         return new SidebarTreeNodeProjection(
@@ -67,6 +72,7 @@ internal static class SidebarTreeProjectionBuilder
         IReadOnlyList<WorkThreadDescriptor> threads,
         IReadOnlyCollection<string> expandedProjectIds,
         NavigatorSettings settings,
+        Func<string, ThreadVisualState> getThreadVisualState,
         Func<string, SidebarNodeKind, SidebarSelectionTarget?, SidebarNodeViewModel> getOrCreateRow,
         DateTimeOffset nowUtc)
     {
@@ -82,7 +88,7 @@ internal static class SidebarTreeProjectionBuilder
             : OrderProjectsByName(visibleProjects);
 
         var children = orderedProjects
-            .Select(project => CreateProjectNode(project, threads, expandedProjectIds, settings, getOrCreateRow, nowUtc))
+            .Select(project => CreateProjectNode(project, threads, expandedProjectIds, settings, getThreadVisualState, getOrCreateRow, nowUtc))
             .ToArray();
 
         return new SidebarTreeNodeProjection(
@@ -102,6 +108,7 @@ internal static class SidebarTreeProjectionBuilder
         IReadOnlyList<WorkThreadDescriptor> threads,
         IReadOnlyCollection<string> expandedProjectIds,
         NavigatorSettings settings,
+        Func<string, ThreadVisualState> getThreadVisualState,
         Func<string, SidebarNodeKind, SidebarSelectionTarget?, SidebarNodeViewModel> getOrCreateRow,
         DateTimeOffset nowUtc)
     {
@@ -111,10 +118,11 @@ internal static class SidebarTreeProjectionBuilder
         var row = getOrCreateRow($"project:{project.Id}", SidebarNodeKind.Project, SidebarSelectionTarget.Project(project.Id));
         row.UpdateTitle(project.DisplayName);
         row.UpdateActivity(projectThreads.FirstOrDefault()?.LastActiveAt, nowUtc);
+        row.UpdateStateIndicator(iconMarkup: null, projectThreads.Any(thread => getThreadVisualState(thread.ThreadId).IsRunning));
 
         var children = projectThreads
             .Take(settings.RecentThreadsPerProject)
-            .Select(thread => CreateThreadNode(thread, getOrCreateRow, nowUtc))
+            .Select(thread => CreateThreadNode(thread, getThreadVisualState, getOrCreateRow, nowUtc))
             .ToArray();
 
         return new SidebarTreeNodeProjection(
@@ -131,10 +139,12 @@ internal static class SidebarTreeProjectionBuilder
 
     private static SidebarTreeNodeProjection CreateThreadNode(
         WorkThreadDescriptor thread,
+        Func<string, ThreadVisualState> getThreadVisualState,
         Func<string, SidebarNodeKind, SidebarSelectionTarget?, SidebarNodeViewModel> getOrCreateRow,
         DateTimeOffset nowUtc)
     {
         ArgumentNullException.ThrowIfNull(thread);
+        ArgumentNullException.ThrowIfNull(getThreadVisualState);
         ArgumentNullException.ThrowIfNull(getOrCreateRow);
 
         var icon = thread.Kind switch
@@ -147,6 +157,14 @@ internal static class SidebarTreeProjectionBuilder
         var row = getOrCreateRow($"thread:{thread.ThreadId}", SidebarNodeKind.Thread, SidebarSelectionTarget.Thread(thread.ThreadId));
         row.UpdateTitle(SidebarThreadPresentation.CompactThreadTitle(thread.Title));
         row.UpdateActivity(thread.LastActiveAt, nowUtc);
+        var visualState = getThreadVisualState(thread.ThreadId);
+        row.UpdateStateIndicator(
+            visualState.IsRunning
+                ? null
+                : visualState.HasPromptDraft
+                    ? SidebarThreadPresentation.BuildEditedPromptIconMarkup(SidebarThreadPresentation.ResolveThreadAccent(thread.BackendId, thread.Kind))
+                    : null,
+            visualState.IsRunning);
 
         return new SidebarTreeNodeProjection(
             row.NodeId,

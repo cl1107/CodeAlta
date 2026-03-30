@@ -116,6 +116,9 @@ namespace CodeAlta.Presentation.Styling
             return GetMarkupColor(GetStatusToneColor(tone));
         }
 
+        internal static string GetSidebarAccentMarkup(SidebarAccent accent)
+            => GetMarkupColor(GetSidebarAccentColor(accent));
+
         internal static Color GetStatusToneColor(StatusTone tone)
         {
             return tone switch
@@ -129,17 +132,7 @@ namespace CodeAlta.Presentation.Styling
 
         internal static Style GetSidebarIconStyle(SidebarAccent accent)
         {
-            var color = accent switch
-            {
-                SidebarAccent.Global => SidebarGlobal,
-                SidebarAccent.Projects => SidebarProjects,
-                SidebarAccent.ProjectThread => SidebarProjectThread,
-                SidebarAccent.InternalThread => SidebarInternalThread,
-                SidebarAccent.CopilotThread => SidebarCopilotThread,
-                _ => SidebarFallback,
-            };
-
-            return Style.None.WithForeground(color);
+            return Style.None.WithForeground(GetSidebarAccentColor(accent));
         }
 
         internal static Color QueuedPromptBackgroundColor => QueuedPromptBackground;
@@ -199,6 +192,19 @@ namespace CodeAlta.Presentation.Styling
                 ToolCallDisplayStatus.Failed => StatusError,
                 ToolCallDisplayStatus.Canceled => StatusWarning,
                 _ => ToolChipNeutral,
+            };
+        }
+
+        private static Color GetSidebarAccentColor(SidebarAccent accent)
+        {
+            return accent switch
+            {
+                SidebarAccent.Global => SidebarGlobal,
+                SidebarAccent.Projects => SidebarProjects,
+                SidebarAccent.ProjectThread => SidebarProjectThread,
+                SidebarAccent.InternalThread => SidebarInternalThread,
+                SidebarAccent.CopilotThread => SidebarCopilotThread,
+                _ => SidebarFallback,
             };
         }
 

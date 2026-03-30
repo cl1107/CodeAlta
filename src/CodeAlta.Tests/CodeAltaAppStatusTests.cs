@@ -16,6 +16,7 @@ public sealed class CodeAltaAppStatusTests
             threadStatusMessage: "Thinking...",
             threadStatusBusy: true,
             threadStatusTone: StatusTone.Info,
+            promptEdited: false,
             promptUnavailable: true,
             promptUnavailableMessage: "Codex is unavailable.",
             promptUnavailableTone: StatusTone.Warning);
@@ -34,6 +35,7 @@ public sealed class CodeAltaAppStatusTests
             threadStatusMessage: "Stopped",
             threadStatusBusy: false,
             threadStatusTone: StatusTone.Warning,
+            promptEdited: false,
             promptUnavailable: true,
             promptUnavailableMessage: "Codex is unavailable.",
             promptUnavailableTone: StatusTone.Warning);
@@ -52,6 +54,7 @@ public sealed class CodeAltaAppStatusTests
             threadStatusMessage: null,
             threadStatusBusy: false,
             threadStatusTone: StatusTone.Info,
+            promptEdited: false,
             promptUnavailable: false,
             promptUnavailableMessage: null,
             promptUnavailableTone: StatusTone.Warning);
@@ -59,6 +62,26 @@ public sealed class CodeAltaAppStatusTests
         Assert.AreEqual("Prompt ready", snapshot.Message);
         Assert.IsFalse(snapshot.Busy);
         Assert.AreEqual(StatusTone.Ready, snapshot.Tone);
+    }
+
+    [TestMethod]
+    public void ResolveSelectionStatus_UsesEditedPromptStateWhenReady()
+    {
+        var snapshot = SelectionStatusResolver.Resolve(
+            readyMessage: "Prompt ready",
+            hasThreadStatus: false,
+            threadStatusMessage: null,
+            threadStatusBusy: false,
+            threadStatusTone: StatusTone.Info,
+            promptEdited: true,
+            promptUnavailable: false,
+            promptUnavailableMessage: null,
+            promptUnavailableTone: StatusTone.Warning);
+
+        Assert.AreEqual(StatusVisualFormatter.BuildPromptEditedStatusText(), snapshot.Message);
+        Assert.IsFalse(snapshot.Busy);
+        Assert.AreEqual(StatusTone.Info, snapshot.Tone);
+        Assert.AreEqual(StatusVisualFormatter.BuildPromptEditedIconMarkup(), snapshot.IconMarkup);
     }
 
     [TestMethod]

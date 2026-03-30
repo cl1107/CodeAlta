@@ -10,6 +10,7 @@ internal static class SelectionStatusResolver
         string? threadStatusMessage,
         bool threadStatusBusy,
         StatusTone threadStatusTone,
+        bool promptEdited,
         bool promptUnavailable,
         string? promptUnavailableMessage,
         StatusTone promptUnavailableTone)
@@ -22,6 +23,15 @@ internal static class SelectionStatusResolver
         if (promptUnavailable && !string.IsNullOrWhiteSpace(promptUnavailableMessage))
         {
             return new StatusSnapshot(promptUnavailableMessage!, Busy: false, promptUnavailableTone);
+        }
+
+        if (promptEdited)
+        {
+            return new StatusSnapshot(
+                StatusVisualFormatter.BuildPromptEditedStatusText(),
+                Busy: false,
+                StatusTone.Info,
+                StatusVisualFormatter.BuildPromptEditedIconMarkup());
         }
 
         return new StatusSnapshot(readyMessage, Busy: false, StatusTone.Ready);

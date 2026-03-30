@@ -203,7 +203,7 @@ internal sealed class ThreadTabStripCoordinator
             {
                 return new HStack(
                 [
-                    ThreadTabVisualFactory.CreateIndicator(tab.ViewModel.StatusBusy, tab.ViewModel.StatusTone),
+                    ThreadTabVisualFactory.CreateIndicator(tab.ViewModel.StatusBusy, tab.HasPromptDraft, tab.ViewModel.StatusTone),
                     ThreadTabVisualFactory.CreateTitle(ThreadTabVisualFactory.CompactTitle(tab.ViewModel.Title)),
                 ])
                 {

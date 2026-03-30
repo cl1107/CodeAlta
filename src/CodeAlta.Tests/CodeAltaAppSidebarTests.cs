@@ -1,9 +1,11 @@
 using CodeAlta.Agent;
 using CodeAlta.Catalog;
+using CodeAlta.Models;
 using CodeAlta.Presentation.Sidebar;
 using CodeAlta.ViewModels;
 using CodeAlta.Views;
 using XenoAtom.Terminal;
+using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Controls;
 using XenoAtom.Terminal.UI.Geometry;
 using XenoAtom.Terminal.UI.Input;
@@ -176,6 +178,7 @@ public sealed class CodeAltaAppSidebarTests
             @"C:\global",
             [project.Id],
             new NavigatorSettings(),
+            static _ => default,
             (nodeId, kind, selectionTarget) => GetOrCreateRow(rows, nodeId, kind, selectionTarget),
             timestamp.AddSeconds(30));
         var second = SidebarTreeProjectionBuilder.Build(
@@ -184,6 +187,7 @@ public sealed class CodeAltaAppSidebarTests
             @"C:\global",
             [project.Id],
             new NavigatorSettings(),
+            static _ => default,
             (nodeId, kind, selectionTarget) => GetOrCreateRow(rows, nodeId, kind, selectionTarget),
             timestamp.AddMinutes(1).AddSeconds(5));
 
@@ -291,6 +295,51 @@ public sealed class CodeAltaAppSidebarTests
     }
 
     [TestMethod]
+    public void Build_RunningThreadsPromoteSpinnerStateToThreadAndProjectRows()
+    {
+        var timestamp = DateTimeOffset.Parse("2026-03-29T10:00:00+00:00");
+        var project = CreateProject("project-1", "CodeAlta", @"C:\repo");
+        var thread = CreateThread("thread-1", "Recovered thread", WorkThreadKind.ProjectThread, project.Id, AgentBackendIds.Codex.Value, project.ProjectPath, timestamp);
+        var rows = new Dictionary<string, SidebarNodeViewModel>(StringComparer.OrdinalIgnoreCase);
+
+        SidebarTreeProjectionBuilder.Build(
+            [project],
+            [thread],
+            @"C:\global",
+            [project.Id],
+            new NavigatorSettings(),
+            static _ => new ThreadVisualState(IsRunning: true, HasPromptDraft: false),
+            (nodeId, kind, selectionTarget) => GetOrCreateRow(rows, nodeId, kind, selectionTarget),
+            timestamp.AddMinutes(1));
+
+        Assert.IsTrue(rows[$"project:{project.Id}"].ShowStateSpinner);
+        Assert.IsTrue(rows[$"thread:{thread.ThreadId}"].ShowStateSpinner);
+        Assert.IsNull(rows[$"thread:{thread.ThreadId}"].StateIconMarkup);
+    }
+
+    [TestMethod]
+    public void Build_EditedPromptThreadsExposeDraftIconState()
+    {
+        var timestamp = DateTimeOffset.Parse("2026-03-29T10:00:00+00:00");
+        var project = CreateProject("project-1", "CodeAlta", @"C:\repo");
+        var thread = CreateThread("thread-1", "Recovered thread", WorkThreadKind.ProjectThread, project.Id, AgentBackendIds.Codex.Value, project.ProjectPath, timestamp);
+        var rows = new Dictionary<string, SidebarNodeViewModel>(StringComparer.OrdinalIgnoreCase);
+
+        SidebarTreeProjectionBuilder.Build(
+            [project],
+            [thread],
+            @"C:\global",
+            [project.Id],
+            new NavigatorSettings(),
+            static _ => new ThreadVisualState(IsRunning: false, HasPromptDraft: true),
+            (nodeId, kind, selectionTarget) => GetOrCreateRow(rows, nodeId, kind, selectionTarget),
+            timestamp.AddMinutes(1));
+
+        Assert.IsFalse(rows[$"thread:{thread.ThreadId}"].ShowStateSpinner);
+        StringAssert.Contains(rows[$"thread:{thread.ThreadId}"].StateIconMarkup, NerdFont.MdSquareEditOutline.ToString());
+    }
+
+    [TestMethod]
     public void SidebarView_F2CommandStartsInlineProjectRename()
     {
         var project = CreateProject("project-1", "CodeAlta", @"C:\repo");
@@ -375,6 +424,7 @@ public sealed class CodeAltaAppSidebarTests
                 SortMode = sortMode,
                 RecentThreadsPerProject = 3,
             },
+            static _ => default,
             (nodeId, kind, selectionTarget) => GetOrCreateRow(rows, nodeId, kind, selectionTarget),
             nowUtc);
     }

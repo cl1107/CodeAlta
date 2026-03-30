@@ -170,7 +170,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
         _agentHub = agentHub;
         _knownProjectImporter = knownProjectImporter ?? new KnownProjectImporter(agentHub, projectCatalog);
         _ownedServices = ownedServices;
-        _promptDraftUiCoordinator = new PromptDraftUiCoordinator(new PromptDraftCoordinator());
+        _promptDraftUiCoordinator = new PromptDraftUiCoordinator(new PromptDraftCoordinator(), OnPromptDraftChanged);
         _shellController = new CodeAltaShellController(
             new CodeAltaShellBridge(this),
             _knownProjectImporter,
@@ -431,6 +431,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             GetExpandedSidebarProjectId(),
             ResolveSidebarTargetForCurrentState(),
             _threadStateCoordinator.NavigatorSettings,
+            GetThreadVisualState,
             VerifyBindableAccess);
     }
 
@@ -629,14 +630,22 @@ internal sealed class CodeAltaApp : IAsyncDisposable
         => _workspaceCoordinator.SetThreadStatus(tab, message, showSpinner, tone, hasCustomStatus);
     private void ClearThreadStatus(OpenThreadState tab)
         => _workspaceCoordinator.ClearThreadStatus(tab);
-    private void InvalidateThreadChrome()
-        => _workspaceCoordinator.InvalidateThreadChrome();
     private void InvalidateSelectedSessionUsage()
         => _workspaceCoordinator.InvalidateSelectedSessionUsage();
 
     private bool IsSelectedThread(string threadId)
         => !string.IsNullOrWhiteSpace(threadId) &&
            string.Equals(_selectedThreadId, threadId, StringComparison.OrdinalIgnoreCase);
+
+    private ThreadVisualState GetThreadVisualState(string threadId)
+        => _threadStateCoordinator.FindOpenThread(threadId) is { } tab
+            ? new ThreadVisualState(tab.StatusBusy, tab.HasPromptDraft)
+            : default;
+
+    private void OnPromptDraftChanged(ThreadSessionState? session, PromptDraftChange change)
+    {
+        if (session is not null && change.EditedStateChanged) RefreshHeaderAndThreadWorkspace();
+    }
     internal void SetReadyStatusForCurrentSelection()
         => _workspaceCoordinator.SetReadyStatusForCurrentSelection();
 

@@ -112,6 +112,9 @@ internal sealed class OpenThreadState
         set => Session.Usage = value;
     }
 
+    public bool HasPromptDraft
+        => !string.IsNullOrWhiteSpace(Session.PromptDraftText);
+
     public string? StatusMessage
     {
         get => ViewModel.StatusMessage;

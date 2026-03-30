@@ -8,13 +8,19 @@ internal sealed class PromptDraftUiCoordinator
 {
     private readonly PromptDraftCoordinator _promptDrafts;
     private readonly PromptDraftViewModel _viewModel;
+    private readonly Action<ThreadSessionState?, PromptDraftChange> _onPromptChanged;
     private ThreadSessionState? _selectedSession;
+    private bool _syncingPromptText;
 
-    public PromptDraftUiCoordinator(PromptDraftCoordinator promptDrafts)
+    public PromptDraftUiCoordinator(
+        PromptDraftCoordinator promptDrafts,
+        Action<ThreadSessionState?, PromptDraftChange> onPromptChanged)
     {
         ArgumentNullException.ThrowIfNull(promptDrafts);
+        ArgumentNullException.ThrowIfNull(onPromptChanged);
 
         _promptDrafts = promptDrafts;
+        _onPromptChanged = onPromptChanged;
         _viewModel = new PromptDraftViewModel(OnPromptTextChanged);
     }
 
@@ -33,7 +39,15 @@ internal sealed class PromptDraftUiCoordinator
         var promptText = _promptDrafts.GetPrompt(session);
         if (!string.Equals(PromptText, promptText, StringComparison.Ordinal))
         {
-            PromptText = promptText;
+            _syncingPromptText = true;
+            try
+            {
+                PromptText = promptText;
+            }
+            finally
+            {
+                _syncingPromptText = false;
+            }
         }
     }
 
@@ -42,7 +56,8 @@ internal sealed class PromptDraftUiCoordinator
 
     public void ClearDraftPromptText()
     {
-        _promptDrafts.RememberPrompt(session: null, string.Empty);
+        var change = _promptDrafts.RememberPrompt(null, string.Empty);
+        _onPromptChanged(null, change);
         if (_selectedSession is null)
         {
             PromptText = string.Empty;
@@ -50,5 +65,13 @@ internal sealed class PromptDraftUiCoordinator
     }
 
     private void OnPromptTextChanged(string? value)
-        => _promptDrafts.RememberPrompt(_selectedSession, value);
+    {
+        if (_syncingPromptText)
+        {
+            return;
+        }
+
+        var change = _promptDrafts.RememberPrompt(_selectedSession, value);
+        _onPromptChanged(_selectedSession, change);
+    }
 }
