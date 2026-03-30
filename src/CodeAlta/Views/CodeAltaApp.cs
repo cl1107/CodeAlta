@@ -170,7 +170,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
         _agentHub = agentHub;
         _knownProjectImporter = knownProjectImporter ?? new KnownProjectImporter(agentHub, projectCatalog);
         _ownedServices = ownedServices;
-        _promptDraftUiCoordinator = new PromptDraftUiCoordinator(new PromptDraftCoordinator(), _catalogOptions, () => _selectedThreadId, RefreshHeaderAndThreadWorkspace);
+        _promptDraftUiCoordinator = new PromptDraftUiCoordinator(new PromptDraftCoordinator(), _catalogOptions, () => _selectedThreadId, RefreshCatalogAndThreadWorkspace);
         _shellController = new CodeAltaShellController(
             new CodeAltaShellBridge(this),
             _knownProjectImporter,

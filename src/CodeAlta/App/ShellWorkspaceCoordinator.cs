@@ -134,6 +134,7 @@ internal sealed class ShellWorkspaceCoordinator
 
         if (changed)
         {
+            _workspaceContext.DispatchToUi(_workspaceContext.RefreshSidebarProjection);
             InvalidateThreadChrome();
         }
     }

@@ -420,6 +420,19 @@ public sealed class ArchitectureGuardrailTests
     }
 
     [TestMethod]
+    public void SidebarStateIndicators_KeepTreeIconsAndRefreshOnDraftOrRunChanges()
+    {
+        var appSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "CodeAltaApp.cs"));
+        var workspaceSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "App", "ShellWorkspaceCoordinator.cs"));
+        var sidebarViewSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "SidebarView.cs"));
+
+        Assert.IsTrue(appSource.Contains("new PromptDraftUiCoordinator(new PromptDraftCoordinator(), _catalogOptions, () => _selectedThreadId, RefreshCatalogAndThreadWorkspace)", StringComparison.Ordinal));
+        Assert.IsTrue(workspaceSource.Contains("_workspaceContext.DispatchToUi(_workspaceContext.RefreshSidebarProjection);", StringComparison.Ordinal));
+        Assert.IsFalse(sidebarViewSource.Contains("new Rune(' ')", StringComparison.Ordinal));
+        Assert.IsTrue(sidebarViewSource.Contains("Icon = projection.Icon,", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public void PopupPresenters_RestorePromptFocusWhenClosed()
     {
         var controlsSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Presentation", "Controls", "AnchoredPopupView.cs"));

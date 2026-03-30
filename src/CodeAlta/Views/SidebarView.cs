@@ -189,9 +189,7 @@ internal sealed class SidebarView
 
         var node = new TreeNode(header)
         {
-            Icon = projection.Row.ShowStateSpinner || !string.IsNullOrWhiteSpace(projection.Row.StateIconMarkup)
-                ? new Rune(' ')
-                : projection.Icon,
+            Icon = projection.Icon,
             IconStyle = UiPalette.GetSidebarIconStyle(projection.Accent),
             Data = projection.SelectionTarget,
             IsExpanded = projection.IsExpanded,
