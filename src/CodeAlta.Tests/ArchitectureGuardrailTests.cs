@@ -343,6 +343,38 @@ public sealed class ArchitectureGuardrailTests
     }
 
     [TestMethod]
+    public void ThreadDraftPersistence_UsesMachineSavedPromptsAndDeleteHooks()
+    {
+        var appSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "CodeAltaApp.cs"));
+        var promptDraftSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "App", "PromptDraftUiCoordinator.cs"));
+        var persistenceSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "App", "ThreadPromptDraftPersistenceCoordinator.cs"));
+        var threadStateSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "App", "ShellThreadStateCoordinator.cs"));
+
+        Assert.IsTrue(appSource.Contains("_promptDraftUiCoordinator.LoadPromptDraft", StringComparison.Ordinal));
+        Assert.IsTrue(appSource.Contains("_promptDraftUiCoordinator.DeletePersistedPromptDraft", StringComparison.Ordinal));
+        Assert.IsTrue(promptDraftSource.Contains("_promptDraftPersistence.ObservePromptDraft", StringComparison.Ordinal));
+        Assert.IsTrue(persistenceSource.Contains("saved_prompts", StringComparison.Ordinal));
+        Assert.IsTrue(persistenceSource.Contains("saved_prompt_", StringComparison.Ordinal));
+        Assert.IsTrue(threadStateSource.Contains("_deletePromptDraft(threadId);", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void ThreadActivityIndicators_UseEditedDraftStateAndDotsSpinners()
+    {
+        var workspaceSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "ThreadWorkspaceView.cs"));
+        var sidebarHeaderSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "SidebarNodeHeaderView.cs"));
+        var tabSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Presentation", "Tabs", "ThreadTabVisualFactory.cs"));
+        var statusSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Presentation", "Shell", "StatusVisualFormatter.cs"));
+
+        Assert.IsTrue(workspaceSource.Contains("new Spinner().Style(SpinnerStyles.Dots)", StringComparison.Ordinal));
+        Assert.IsTrue(sidebarHeaderSource.Contains("new Spinner().Style(SpinnerStyles.Dots)", StringComparison.Ordinal));
+        Assert.IsTrue(tabSource.Contains("OpenTabIndicatorKind.Edited", StringComparison.Ordinal));
+        Assert.IsTrue(tabSource.Contains("new Spinner().Style(SpinnerStyles.Dots)", StringComparison.Ordinal));
+        Assert.IsTrue(statusSource.Contains("BuildPromptEditedStatusText", StringComparison.Ordinal));
+        Assert.IsTrue(statusSource.Contains("BuildPromptEditedIconMarkup", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public void ProjectThreadsDialog_ActionColumn_UsesDirectActivateButtonEditor()
     {
         var dialogSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "ProjectThreadsDialog.cs"));
