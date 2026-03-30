@@ -194,7 +194,12 @@ internal sealed class SidebarView
         foreach (var action in projection.Actions)
         {
             node.AddRightVisual(
-                CreateHoverOnlyRowActionButton(projection.Row, action.Icon, action.Tooltip, ResolveRowAction(projection.SelectionTarget, action.Kind)),
+                CreateHoverOnlyRowActionButton(
+                    projection.Row,
+                    action.Icon,
+                    action.Tooltip,
+                    ResolveRowActionTone(action.Kind),
+                    ResolveRowAction(projection.SelectionTarget, action.Kind)),
                 TreeNodeRightVisualVisibility.Hover);
         }
 
@@ -227,22 +232,23 @@ internal sealed class SidebarView
         SidebarNodeViewModel row,
         Rune icon,
         string tooltip,
+        ControlTone tone,
         Action onClick)
     {
         ArgumentNullException.ThrowIfNull(row);
 
-        var button = CreateRowActionButton(icon, tooltip, onClick);
+        var button = CreateRowActionButton(icon, tooltip, tone, onClick);
         return new ComputedVisual(() => row.IsInlineEditing ? null : button);
     }
 
-    private static Visual CreateRowActionButton(Rune icon, string tooltip, Action onClick)
+    private static Visual CreateRowActionButton(Rune icon, string tooltip, ControlTone tone, Action onClick)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tooltip);
         ArgumentNullException.ThrowIfNull(onClick);
 
         return new Button(new TextBlock(icon.ToString()))
             .Style(ToolbarButtonStyle)
-            .Tone(ControlTone.Error)
+            .Tone(tone)
             .Click(onClick)
             .Tooltip(new TextBlock(tooltip));
     }
@@ -298,4 +304,9 @@ internal sealed class SidebarView
             _ => static () => { },
         };
     }
+
+    private static ControlTone ResolveRowActionTone(SidebarRowActionKind actionKind)
+        => actionKind is SidebarRowActionKind.DeleteThread or SidebarRowActionKind.DeleteProject
+            ? ControlTone.Error
+            : ControlTone.Default;
 }
