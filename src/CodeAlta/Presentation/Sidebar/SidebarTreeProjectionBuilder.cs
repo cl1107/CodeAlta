@@ -57,7 +57,7 @@ internal static class SidebarTreeProjectionBuilder
             SidebarAccent.Global,
             SidebarSelectionTarget.Global(),
             true,
-            [],
+            CreateGlobalActions(),
             children);
     }
 
@@ -166,6 +166,9 @@ internal static class SidebarTreeProjectionBuilder
             new SidebarRowActionDescriptor(SidebarRowActionKind.OpenProjectDetails, NerdFont.MdInformationOutline, "Show project details"),
             new SidebarRowActionDescriptor(SidebarRowActionKind.DeleteProject, NerdFont.MdTrashCanOutline, "Delete project"),
         ];
+
+    private static IReadOnlyList<SidebarRowActionDescriptor> CreateGlobalActions()
+        => [new SidebarRowActionDescriptor(SidebarRowActionKind.OpenProjectThreads, NerdFont.MdFormatListBulleted, "Show all global threads")];
 
     private static IReadOnlyList<SidebarRowActionDescriptor> CreateThreadActions()
         => [new SidebarRowActionDescriptor(SidebarRowActionKind.DeleteThread, NerdFont.MdTrashCanOutline, "Delete thread")];

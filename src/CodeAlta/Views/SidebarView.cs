@@ -297,6 +297,8 @@ internal sealed class SidebarView
                 => () => _deleteThread(threadId),
             SidebarRowActionKind.DeleteProject when target?.ProjectId is { } projectId
                 => () => _deleteProject(projectId),
+            SidebarRowActionKind.OpenProjectThreads when target?.Kind == SidebarSelectionKind.GlobalScope
+                => () => _openProjectThreads(string.Empty),
             SidebarRowActionKind.OpenProjectThreads when target?.ProjectId is { } projectId
                 => () => _openProjectThreads(projectId),
             SidebarRowActionKind.OpenProjectDetails when target?.ProjectId is { } projectId

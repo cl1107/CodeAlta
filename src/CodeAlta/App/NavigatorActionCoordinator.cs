@@ -110,7 +110,27 @@ internal sealed class NavigatorActionCoordinator
 
     public void OpenProjectThreads(string projectId)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
+        ArgumentNullException.ThrowIfNull(projectId);
+
+        if (string.IsNullOrWhiteSpace(projectId))
+        {
+            var globalThreads = _threadStateCoordinator.Threads
+                .Where(thread =>
+                    thread.Status != WorkThreadStatus.Archived &&
+                    thread.Kind == WorkThreadKind.GlobalThread)
+                .ToArray();
+
+            new ProjectThreadsDialog(
+                CreateGlobalDialogProject(),
+                globalThreads,
+                threadIds => DeleteProjectThreadsAsync(projectId: null, threadIds),
+                threadId => _shellController.OpenThreadAsync(threadId, CancellationToken.None),
+                _getUiDispatcher,
+                _getDialogBounds,
+                _getFocusTarget)
+                .Show();
+            return;
+        }
 
         var project = _threadStateCoordinator.GetProjectById(projectId);
         if (project is null)
@@ -208,16 +228,17 @@ internal sealed class NavigatorActionCoordinator
         }
     }
 
-    private async Task DeleteProjectThreadsAsync(string projectId, IReadOnlyList<string> threadIds)
+    private async Task DeleteProjectThreadsAsync(string? projectId, IReadOnlyList<string> threadIds)
     {
         try
         {
             _setStatus($"Deleting {threadIds.Count} thread(s)...", true, StatusTone.Info);
+            var fallbackProjectId = string.IsNullOrWhiteSpace(projectId) ? null : projectId;
             foreach (var threadId in threadIds)
             {
                 await _shellController.DeleteThreadAsync(threadId, CancellationToken.None).ConfigureAwait(false);
                 await _getUiDispatcher().InvokeAsync(
-                    () => _threadStateCoordinator.RemoveDeletedThread(threadId, projectId))
+                    () => _threadStateCoordinator.RemoveDeletedThread(threadId, fallbackProjectId))
                     .ConfigureAwait(false);
             }
 
@@ -261,6 +282,19 @@ internal sealed class NavigatorActionCoordinator
             SourcePath = project.SourcePath,
             Archived = project.Archived,
             MarkdownBody = project.MarkdownBody,
+        };
+    }
+
+    private static ProjectDescriptor CreateGlobalDialogProject()
+    {
+        return new ProjectDescriptor
+        {
+            Id = "__global__",
+            Slug = "global",
+            Name = "Global",
+            DisplayName = "Global",
+            ProjectPath = string.Empty,
+            DefaultBranch = string.Empty,
         };
     }
 }

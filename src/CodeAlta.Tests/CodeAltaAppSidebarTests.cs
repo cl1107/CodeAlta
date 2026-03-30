@@ -98,6 +98,30 @@ public sealed class CodeAltaAppSidebarTests
     }
 
     [TestMethod]
+    public void Build_GlobalNodeIncludesOpenThreadsAction()
+    {
+        var globalThread = CreateThread(
+            "global-1",
+            "Global thread",
+            WorkThreadKind.GlobalThread,
+            projectId: null,
+            AgentBackendIds.Codex.Value,
+            @"C:\global",
+            DateTimeOffset.Parse("2026-03-29T12:00:00+00:00"));
+
+        var projection = BuildProjection(
+            projects: [],
+            threads: [globalThread],
+            expandedProjectId: null,
+            nowUtc: DateTimeOffset.Parse("2026-03-29T12:02:00+00:00"));
+
+        var globalNode = projection.Roots[0];
+        Assert.AreEqual(SidebarSelectionTarget.Global(), globalNode.SelectionTarget);
+        Assert.AreEqual(1, globalNode.Actions.Count);
+        Assert.AreEqual(SidebarRowActionKind.OpenProjectThreads, globalNode.Actions[0].Kind);
+    }
+
+    [TestMethod]
     public void Build_SortsProjectsByDateWhenConfigured()
     {
         var timestamp = DateTimeOffset.Parse("2026-03-29T10:00:00+00:00");
@@ -226,6 +250,27 @@ public sealed class CodeAltaAppSidebarTests
         Assert.AreEqual(2, threadNode.RightVisuals.Count);
         Assert.AreEqual(TreeNodeRightVisualVisibility.Always, threadNode.RightVisuals[0].Visibility);
         Assert.AreEqual(TreeNodeRightVisualVisibility.Hover, threadNode.RightVisuals[1].Visibility);
+    }
+
+    [TestMethod]
+    public void SidebarView_ApplyProjectionBuildsSelectableGlobalNodeWithOpenThreadsAction()
+    {
+        var globalThread = CreateThread("global-1", "Recovered global thread", WorkThreadKind.GlobalThread, null, AgentBackendIds.Codex.Value, @"C:\global", DateTimeOffset.Parse("2026-03-29T10:04:00+00:00"));
+        var projection = BuildProjection(
+            projects: [],
+            threads: [globalThread],
+            expandedProjectId: null,
+            nowUtc: DateTimeOffset.Parse("2026-03-29T10:05:00+00:00"));
+        var view = new SidebarView(new SidebarViewModel(), static () => { }, static () => { }, static () => { }, static () => { }, static _ => { }, static _ => { }, static _ => { }, static _ => { }, static _ => { }, static _ => { }, static _ => { });
+
+        view.ApplyProjection(projection);
+
+        Assert.AreEqual(2, view.Tree.Roots.Count);
+        var globalNode = view.Tree.Roots[0];
+        Assert.AreEqual(SidebarSelectionTarget.Global(), globalNode.Data);
+        Assert.AreEqual(2, globalNode.RightVisuals.Count);
+        Assert.AreEqual(TreeNodeRightVisualVisibility.Always, globalNode.RightVisuals[0].Visibility);
+        Assert.AreEqual(TreeNodeRightVisualVisibility.Hover, globalNode.RightVisuals[1].Visibility);
     }
 
     [TestMethod]

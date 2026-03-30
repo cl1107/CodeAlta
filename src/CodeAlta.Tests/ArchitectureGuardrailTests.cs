@@ -365,6 +365,18 @@ public sealed class ArchitectureGuardrailTests
     }
 
     [TestMethod]
+    public void SidebarGlobalScope_CanOpenGlobalThreadsDialog()
+    {
+        var sidebarSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "SidebarView.cs"));
+        var navigatorSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "App", "NavigatorActionCoordinator.cs"));
+
+        Assert.IsTrue(sidebarSource.Contains("SidebarRowActionKind.OpenProjectThreads when target?.Kind == SidebarSelectionKind.GlobalScope", StringComparison.Ordinal));
+        Assert.IsTrue(navigatorSource.Contains("if (string.IsNullOrWhiteSpace(projectId))", StringComparison.Ordinal));
+        Assert.IsTrue(navigatorSource.Contains("thread.Kind == WorkThreadKind.GlobalThread", StringComparison.Ordinal));
+        Assert.IsTrue(navigatorSource.Contains("CreateGlobalDialogProject()", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public void PopupPresenters_RestorePromptFocusWhenClosed()
     {
         var controlsSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Presentation", "Controls", "AnchoredPopupView.cs"));
