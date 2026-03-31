@@ -186,8 +186,6 @@ internal sealed class CodeAltaFrontendComposition
             callbacks.SetStatus,
             callbacks.SetThreadStatus,
             callbacks.ClearThreadStatus,
-            (tab, contentId) => threadPromptQueueCoordinator.ConsumePendingSteerForLiveUserContent(tab, contentId),
-            tab => threadPromptQueueCoordinator.ClearPendingSteers(tab),
             (tab, cancellationToken) => threadCommandCoordinator!.DrainQueuedPromptAsync(tab, cancellationToken));
         var threadCreationCoordinator = new ThreadCreationCoordinator(
             runtimeService,

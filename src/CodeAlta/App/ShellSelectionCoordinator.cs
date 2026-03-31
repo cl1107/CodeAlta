@@ -1,5 +1,6 @@
 using CodeAlta.Catalog;
 using CodeAlta.Models;
+using CodeAlta.Orchestration;
 
 namespace CodeAlta.App;
 
@@ -72,9 +73,15 @@ internal sealed class ShellSelectionCoordinator
                 { Target: WorkspaceTarget.Thread thread } => thread.ThreadId is { Length: > 0 } threadId
                     ? ShellSelection.Thread(threadId, value)
                     : Selection,
-                { Target: WorkspaceTarget.Agent agent } => new ShellSelection(
-                    ShellSurface.AgentWorkspace,
-                    new WorkspaceTarget.Agent(agent.AgentId, value)),
+                { Target: WorkspaceTarget.Agent agent } => ShellSelection.Agent(
+                    agent.Identity with
+                    {
+                        Scope = agent.Identity.Scope with
+                        {
+                            Id = value,
+                            Kind = string.IsNullOrWhiteSpace(value) ? AgentScopeKind.Global : AgentScopeKind.Project,
+                        },
+                    }),
                 _ => Selection,
             };
         }

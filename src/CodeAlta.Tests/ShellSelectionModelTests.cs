@@ -2,6 +2,8 @@ using CodeAlta.Agent;
 using CodeAlta.App.State;
 using CodeAlta.Catalog;
 using CodeAlta.Models;
+using CodeAlta.Orchestration;
+using CodeAlta.Persistence;
 using CodeAlta.Presentation.Timeline;
 using CodeAlta.Threading;
 
@@ -19,6 +21,34 @@ public sealed class ShellSelectionModelTests
         Assert.IsTrue(selection.GlobalScopeSelected);
         Assert.AreEqual("project-1", selection.SelectedProjectId);
         Assert.IsNull(selection.SelectedThreadId);
+    }
+
+    [TestMethod]
+    public void ShellSelection_AgentAndFleetTargets_ReuseOrchestrationIdentityAndScope()
+    {
+        var agentIdentity = new AgentIdentity
+        {
+            AgentId = AgentId.NewVersion7(),
+            RoleId = "planner",
+            BackendId = AgentBackendIds.Codex,
+            Scope = new AgentScope
+            {
+                Kind = AgentScopeKind.Project,
+                Id = "project-1",
+            },
+        };
+
+        var agentSelection = ShellSelection.Agent(agentIdentity);
+        var fleetSelection = ShellSelection.Fleet(new AgentScope
+        {
+            Kind = AgentScopeKind.Project,
+            Id = "project-1",
+        });
+
+        Assert.AreEqual(ShellSurface.AgentWorkspace, agentSelection.Surface);
+        Assert.AreEqual("project-1", agentSelection.SelectedProjectId);
+        Assert.AreEqual(ShellSurface.FleetWorkspace, fleetSelection.Surface);
+        Assert.AreEqual("project-1", fleetSelection.SelectedProjectId);
     }
 
     [TestMethod]

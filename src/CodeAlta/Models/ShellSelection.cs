@@ -1,3 +1,5 @@
+using CodeAlta.Orchestration;
+
 namespace CodeAlta.Models;
 
 internal sealed record ShellSelection(ShellSurface Surface, WorkspaceTarget Target)
@@ -17,6 +19,18 @@ internal sealed record ShellSelection(ShellSurface Surface, WorkspaceTarget Targ
         return new ShellSelection(ShellSurface.ThreadWorkspace, new WorkspaceTarget.Thread(threadId, projectId));
     }
 
+    public static ShellSelection Agent(AgentIdentity identity)
+    {
+        ArgumentNullException.ThrowIfNull(identity);
+        return new ShellSelection(ShellSurface.AgentWorkspace, new WorkspaceTarget.Agent(identity));
+    }
+
+    public static ShellSelection Fleet(AgentScope scope)
+    {
+        ArgumentNullException.ThrowIfNull(scope);
+        return new ShellSelection(ShellSurface.FleetWorkspace, new WorkspaceTarget.Fleet(scope));
+    }
+
     public bool DraftTabOpen => Surface == ShellSurface.DraftWorkspace;
 
     public bool GlobalScopeSelected => Target is WorkspaceTarget.Draft { IsGlobal: true };
@@ -25,7 +39,8 @@ internal sealed record ShellSelection(ShellSurface Surface, WorkspaceTarget Targ
     {
         WorkspaceTarget.Draft draft => draft.ProjectId,
         WorkspaceTarget.Thread thread => thread.ProjectId,
-        WorkspaceTarget.Agent agent => agent.ProjectId,
+        WorkspaceTarget.Agent agent => agent.Identity.Scope.Id,
+        WorkspaceTarget.Fleet fleet => fleet.Scope.Id,
         _ => null,
     };
 

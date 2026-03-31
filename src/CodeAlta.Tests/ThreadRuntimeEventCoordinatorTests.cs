@@ -266,33 +266,6 @@ public sealed class ThreadRuntimeEventCoordinatorTests
                 state.StatusTone = StatusTone.Info;
                 state.HasCustomStatus = false;
             },
-            consumePendingSteerForLiveUserContent: static (state, contentId) =>
-            {
-                if (state.HistoryLoading ||
-                    string.Equals(state.LastObservedPendingSteerUserContentId, contentId, StringComparison.Ordinal))
-                {
-                    return false;
-                }
-
-                state.LastObservedPendingSteerUserContentId = contentId;
-                if (state.PendingSteers.Count == 0)
-                {
-                    return false;
-                }
-
-                state.PendingSteers.RemoveAt(0);
-                if (state.PendingSteers.Count == 0)
-                {
-                    state.LastObservedPendingSteerUserContentId = null;
-                }
-
-                return true;
-            },
-            clearPendingSteers: static state =>
-            {
-                state.PendingSteers.Clear();
-                state.LastObservedPendingSteerUserContentId = null;
-            },
             drainQueuedPromptAsync: static (_, _) => Task.CompletedTask);
     }
 

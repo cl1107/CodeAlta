@@ -1,0 +1,349 @@
+using CodeAlta.Agent;
+using CodeAlta.App.State;
+using CodeAlta.Catalog;
+using CodeAlta.Models;
+using CodeAlta.Orchestration.Runtime;
+using CodeAlta.Presentation.Shell;
+using CodeAlta.Presentation.Usage;
+
+namespace CodeAlta.App;
+
+internal readonly record struct ThreadRuntimeStatusUpdate(
+    string Message,
+    bool ShowSpinner,
+    StatusTone Tone);
+
+internal readonly record struct ThreadRuntimeReductionResult(
+    bool RefreshShellChrome,
+    bool InvalidateSelectedSessionUsage,
+    bool ClearThreadStatus,
+    bool DrainQueuedPrompt,
+    ThreadRuntimeStatusUpdate? ThreadStatus);
+
+internal sealed class ThreadRuntimeStateReducer
+{
+    public ThreadRuntimeReductionResult ReduceRuntimeEvent(
+        WorkThreadDescriptor thread,
+        OpenThreadState? tab,
+        WorkThreadRuntimeEvent runtimeEvent,
+        bool isSelectedThread)
+    {
+        ArgumentNullException.ThrowIfNull(thread);
+        ArgumentNullException.ThrowIfNull(runtimeEvent);
+
+        return runtimeEvent switch
+        {
+            WorkThreadAgentEvent agentEvent => ReduceAgentEvent(thread, tab, agentEvent.Event, isSelectedThread, ShouldRefreshShellChromeAfterRuntimeEvent(runtimeEvent)),
+            WorkThreadHostEvent hostEvent => ReduceHostEvent(thread, tab, hostEvent),
+            _ => default,
+        };
+    }
+
+    public ThreadRuntimeReductionResult ReduceAgentEvent(
+        WorkThreadDescriptor thread,
+        OpenThreadState tab,
+        AgentEvent @event,
+        bool isSelectedThread)
+    {
+        ArgumentNullException.ThrowIfNull(thread);
+        ArgumentNullException.ThrowIfNull(tab);
+        ArgumentNullException.ThrowIfNull(@event);
+
+        return ReduceAgentEvent(thread, tab, @event, isSelectedThread, refreshShellChrome: false);
+    }
+
+    public static bool ShouldPromoteAgentEventToThinking(AgentEvent @event)
+    {
+        ArgumentNullException.ThrowIfNull(@event);
+
+        return @event switch
+        {
+            AgentContentDeltaEvent
+            {
+                Delta.Length: > 0,
+                Kind: not (AgentContentKind.CommandOutput or AgentContentKind.FileChangeOutput or AgentContentKind.ToolOutput)
+            } => true,
+            AgentContentCompletedEvent completed
+                when !string.IsNullOrWhiteSpace(completed.Content) &&
+                     completed.Kind is not (AgentContentKind.CommandOutput or AgentContentKind.FileChangeOutput or AgentContentKind.ToolOutput) => true,
+            AgentPlanSnapshotEvent => true,
+            AgentActivityEvent { Phase: AgentActivityPhase.Requested or AgentActivityPhase.Started or AgentActivityPhase.Progressed or AgentActivityPhase.Completed } => true,
+            AgentSessionUpdateEvent
+            {
+                Kind: AgentSessionUpdateKind.Started
+                or AgentSessionUpdateKind.Resumed
+                or AgentSessionUpdateKind.PlanUpdated
+                or AgentSessionUpdateKind.CompactionStarted
+            } => true,
+            _ => false,
+        };
+    }
+
+    public static bool ShouldRefreshShellChromeAfterRuntimeEvent(WorkThreadRuntimeEvent runtimeEvent)
+    {
+        ArgumentNullException.ThrowIfNull(runtimeEvent);
+
+        return runtimeEvent switch
+        {
+            WorkThreadHostEvent => true,
+            WorkThreadAgentEvent
+            {
+                Event: AgentContentCompletedEvent
+                {
+                    Kind: AgentContentKind.Assistant,
+                    Content.Length: > 0
+                }
+            } => true,
+            WorkThreadAgentEvent
+            {
+                Event: AgentSessionUpdateEvent
+                {
+                    Kind: not AgentSessionUpdateKind.UsageUpdated
+                }
+            } => true,
+            WorkThreadAgentEvent { Event: AgentErrorEvent } => true,
+            _ => false,
+        };
+    }
+
+    public static string SummarizeContent(string content)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(content);
+
+        var normalized = content.Replace("\r\n", "\n", StringComparison.Ordinal).Trim();
+        if (normalized.Length <= 120)
+        {
+            return normalized;
+        }
+
+        return normalized[..117].TrimEnd() + "...";
+    }
+
+    private static ThreadRuntimeReductionResult ReduceHostEvent(
+        WorkThreadDescriptor thread,
+        OpenThreadState? tab,
+        WorkThreadHostEvent hostEvent)
+    {
+        ArgumentNullException.ThrowIfNull(thread);
+        ArgumentNullException.ThrowIfNull(hostEvent);
+
+        UpdateThreadSummary(thread, hostEvent.Message, hostEvent.Timestamp);
+        ThreadRuntimeStatusUpdate? threadStatus = null;
+        var clearThreadStatus = false;
+        if (tab is not null)
+        {
+            if (hostEvent.Kind == AgentSessionUpdateKind.CompactionStarted && tab.PendingManualCompaction)
+            {
+                threadStatus = new ThreadRuntimeStatusUpdate($"Compacting '{thread.Title}'...", true, StatusTone.Info);
+            }
+
+            if (hostEvent.Kind == AgentSessionUpdateKind.CompactionCompleted && tab.PendingManualCompaction)
+            {
+                tab.PendingManualCompaction = false;
+                clearThreadStatus = true;
+            }
+        }
+
+        return new ThreadRuntimeReductionResult(
+            RefreshShellChrome: true,
+            InvalidateSelectedSessionUsage: false,
+            ClearThreadStatus: clearThreadStatus,
+            DrainQueuedPrompt: false,
+            ThreadStatus: threadStatus);
+    }
+
+    private static ThreadRuntimeReductionResult ReduceAgentEvent(
+        WorkThreadDescriptor thread,
+        OpenThreadState? tab,
+        AgentEvent @event,
+        bool isSelectedThread,
+        bool refreshShellChrome)
+    {
+        ArgumentNullException.ThrowIfNull(thread);
+        ArgumentNullException.ThrowIfNull(@event);
+
+        UpdateThreadFromAgentEvent(thread, @event);
+        if (tab is null)
+        {
+            return new ThreadRuntimeReductionResult(refreshShellChrome, false, false, false, null);
+        }
+
+        ObserveActiveRun(tab, @event);
+
+        ThreadRuntimeStatusUpdate? threadStatus = null;
+        var clearThreadStatus = false;
+        var invalidateSelectedUsage = false;
+        var drainQueuedPrompt = false;
+
+        if (!tab.HistoryLoading && !tab.PendingManualCompaction && ShouldPromoteAgentEventToThinking(@event))
+        {
+            threadStatus = new ThreadRuntimeStatusUpdate(StatusVisualFormatter.BuildThinkingStatusText(), true, StatusTone.Info);
+        }
+
+        switch (@event)
+        {
+            case AgentContentDeltaEvent delta:
+                ConsumePendingSteerIfMaterialized(tab, delta.Kind, delta.ContentId);
+                break;
+
+            case AgentContentCompletedEvent completed:
+                ConsumePendingSteerIfMaterialized(tab, completed.Kind, completed.ContentId);
+                if (completed.Kind == AgentContentKind.Assistant && !string.IsNullOrWhiteSpace(completed.Content))
+                {
+                    thread.LatestSummary = SummarizeContent(completed.Content);
+                }
+
+                break;
+
+            case AgentPermissionRequest permissionRequest:
+                tab.PermissionRequests[permissionRequest.InteractionId] = permissionRequest;
+                break;
+
+            case AgentUserInputRequest userInputRequest:
+                tab.UserInputRequests[userInputRequest.InteractionId] = userInputRequest;
+                break;
+
+            case AgentInteractionEvent interaction:
+                tab.PermissionRequests.Remove(interaction.InteractionId);
+                tab.UserInputRequests.Remove(interaction.InteractionId);
+                break;
+
+            case AgentSessionUpdateEvent update:
+                if (update.Usage is { } usage)
+                {
+                    tab.Usage = SessionUsageAggregator.Merge(tab.Usage, usage);
+                    invalidateSelectedUsage = isSelectedThread;
+                }
+
+                if (update.Kind == AgentSessionUpdateKind.CompactionStarted && tab.PendingManualCompaction)
+                {
+                    threadStatus = new ThreadRuntimeStatusUpdate($"Compacting '{thread.Title}'...", true, StatusTone.Info);
+                }
+
+                if (update.Kind == AgentSessionUpdateKind.CompactionCompleted && tab.PendingManualCompaction)
+                {
+                    tab.PendingManualCompaction = false;
+                    clearThreadStatus = true;
+                }
+
+                if (update.Kind == AgentSessionUpdateKind.Idle)
+                {
+                    tab.PendingManualCompaction = false;
+                    ClearPendingSteers(tab);
+                    clearThreadStatus = true;
+                    drainQueuedPrompt = tab.QueuedPrompts.Count > 0;
+                }
+                else if (update.Kind == AgentSessionUpdateKind.Shutdown)
+                {
+                    ClearPendingSteers(tab);
+                }
+
+                if (!string.IsNullOrWhiteSpace(update.Message) &&
+                    update.Kind != AgentSessionUpdateKind.UsageUpdated)
+                {
+                    thread.LatestSummary = SummarizeContent(update.Message);
+                }
+
+                break;
+
+            case AgentErrorEvent error:
+                tab.PendingManualCompaction = false;
+                ClearPendingSteers(tab);
+                thread.LatestSummary = SummarizeContent(error.Message);
+                threadStatus = new ThreadRuntimeStatusUpdate(error.Message, false, StatusTone.Error);
+                break;
+        }
+
+        return new ThreadRuntimeReductionResult(
+            RefreshShellChrome: refreshShellChrome,
+            InvalidateSelectedSessionUsage: invalidateSelectedUsage,
+            ClearThreadStatus: clearThreadStatus,
+            DrainQueuedPrompt: drainQueuedPrompt,
+            ThreadStatus: threadStatus);
+    }
+
+    private static void ConsumePendingSteerIfMaterialized(OpenThreadState tab, AgentContentKind kind, string contentId)
+    {
+        ArgumentNullException.ThrowIfNull(tab);
+        ArgumentException.ThrowIfNullOrWhiteSpace(contentId);
+
+        if (tab.HistoryLoading || kind != AgentContentKind.User)
+        {
+            return;
+        }
+
+        if (string.Equals(tab.LastObservedPendingSteerUserContentId, contentId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        tab.LastObservedPendingSteerUserContentId = contentId;
+        if (tab.PendingSteers.Count == 0)
+        {
+            return;
+        }
+
+        tab.PendingSteers.RemoveAt(0);
+        if (tab.PendingSteers.Count == 0)
+        {
+            tab.LastObservedPendingSteerUserContentId = null;
+        }
+    }
+
+    private static void ClearPendingSteers(OpenThreadState tab)
+    {
+        ArgumentNullException.ThrowIfNull(tab);
+        tab.PendingSteers.Clear();
+        tab.LastObservedPendingSteerUserContentId = null;
+    }
+
+    private static void ObserveActiveRun(OpenThreadState tab, AgentEvent @event)
+    {
+        ArgumentNullException.ThrowIfNull(tab);
+        ArgumentNullException.ThrowIfNull(@event);
+
+        if (@event.RunId is { } runId)
+        {
+            tab.ActiveRunId = runId;
+        }
+
+        if (@event is AgentErrorEvent or AgentSessionUpdateEvent { Kind: AgentSessionUpdateKind.Idle or AgentSessionUpdateKind.Shutdown })
+        {
+            tab.ActiveRunId = null;
+        }
+    }
+
+    private static void UpdateThreadFromAgentEvent(WorkThreadDescriptor thread, AgentEvent @event)
+    {
+        thread.UpdatedAt = @event.Timestamp;
+        thread.LastActiveAt = @event.Timestamp;
+
+        switch (@event)
+        {
+            case AgentContentCompletedEvent { Kind: AgentContentKind.Assistant } completed when !string.IsNullOrWhiteSpace(completed.Content):
+                thread.LatestSummary = SummarizeContent(completed.Content);
+                break;
+            case AgentSessionUpdateEvent update when !string.IsNullOrWhiteSpace(update.Message):
+                if (update.Kind == AgentSessionUpdateKind.UsageUpdated)
+                {
+                    break;
+                }
+
+                thread.LatestSummary = SummarizeContent(update.Message);
+                break;
+            case AgentErrorEvent error when !string.IsNullOrWhiteSpace(error.Message):
+                thread.LatestSummary = SummarizeContent(error.Message);
+                break;
+        }
+    }
+
+    private static void UpdateThreadSummary(WorkThreadDescriptor thread, string message, DateTimeOffset timestamp)
+    {
+        ArgumentNullException.ThrowIfNull(thread);
+        ArgumentException.ThrowIfNullOrWhiteSpace(message);
+
+        thread.UpdatedAt = timestamp;
+        thread.LastActiveAt = timestamp;
+        thread.LatestSummary = SummarizeContent(message);
+    }
+}

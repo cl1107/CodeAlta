@@ -191,9 +191,15 @@ public sealed class ArchitectureGuardrailTests
     {
         var appSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "CodeAltaApp.cs"));
         var compositionSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "App", "CodeAltaFrontendComposition.cs"));
+        var runtimeSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "App", "ThreadRuntimeEventCoordinator.cs"));
 
         Assert.IsTrue(appSource.Contains("_threadRuntimeEventCoordinator.ApplyRuntimeEvent", StringComparison.Ordinal));
         Assert.IsTrue(compositionSource.Contains("new ThreadRuntimeEventCoordinator(", StringComparison.Ordinal));
+        Assert.IsTrue(runtimeSource.Contains("new ThreadRuntimeStateReducer()", StringComparison.Ordinal));
+        Assert.IsTrue(runtimeSource.Contains("new ThreadRuntimeTimelineRenderer(", StringComparison.Ordinal));
+        Assert.IsFalse(runtimeSource.Contains("SessionUsageAggregator.Merge(", StringComparison.Ordinal));
+        Assert.IsFalse(runtimeSource.Contains("tab.Timeline.UpsertInteraction(", StringComparison.Ordinal));
+        Assert.IsFalse(runtimeSource.Contains("tab.Timeline.AddStatus(", StringComparison.Ordinal));
         Assert.IsFalse(appSource.Contains("internal static bool ShouldPromoteAgentEventToThinking(", StringComparison.Ordinal));
         Assert.IsFalse(appSource.Contains("internal static bool ShouldRefreshShellChromeAfterRuntimeEvent(", StringComparison.Ordinal));
         Assert.IsFalse(appSource.Contains("private void UpdateThreadFromAgentEvent(", StringComparison.Ordinal));
@@ -367,13 +373,13 @@ public sealed class ArchitectureGuardrailTests
     [TestMethod]
     public void ThreadDraftPersistence_UsesMachineSavedPromptsAndDeleteHooks()
     {
-        var appSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "CodeAltaApp.cs"));
+        var compositionSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "App", "CodeAltaFrontendComposition.cs"));
         var promptDraftSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "App", "PromptDraftUiCoordinator.cs"));
         var persistenceSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "App", "ThreadPromptDraftPersistenceCoordinator.cs"));
         var threadStateSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "App", "ShellThreadStateCoordinator.cs"));
 
-        Assert.IsTrue(appSource.Contains("_promptDraftUiCoordinator.LoadPromptDraft", StringComparison.Ordinal));
-        Assert.IsTrue(appSource.Contains("_promptDraftUiCoordinator.DeletePersistedPromptDraft", StringComparison.Ordinal));
+        Assert.IsTrue(compositionSource.Contains("callbacks.LoadPromptDraft", StringComparison.Ordinal));
+        Assert.IsTrue(compositionSource.Contains("callbacks.DeletePromptDraft", StringComparison.Ordinal));
         Assert.IsTrue(promptDraftSource.Contains("_promptDraftPersistence.ObservePromptDraft", StringComparison.Ordinal));
         Assert.IsTrue(persistenceSource.Contains("saved_prompts", StringComparison.Ordinal));
         Assert.IsTrue(persistenceSource.Contains("saved_prompt_", StringComparison.Ordinal));
@@ -507,6 +513,19 @@ public sealed class ArchitectureGuardrailTests
         Assert.IsFalse(selectionStateSource.Contains("bool DraftTabOpen", StringComparison.Ordinal));
         Assert.IsFalse(selectionStateSource.Contains("bool GlobalScopeSelected", StringComparison.Ordinal));
         Assert.IsFalse(selectionStateSource.Contains("string? SelectedThreadId", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void FleetConcepts_ReuseAgentIdentityAndAvoidFrontendAgentRegistry()
+    {
+        var codeAltaRoot = GetCodeAltaSourceRoot();
+        var sourceFiles = Directory.EnumerateFiles(codeAltaRoot, "*.cs", SearchOption.AllDirectories).ToArray();
+        var workspaceTargetSource = File.ReadAllText(Path.Combine(codeAltaRoot, "Models", "WorkspaceTarget.cs"));
+
+        Assert.IsTrue(workspaceTargetSource.Contains("AgentIdentity", StringComparison.Ordinal));
+        Assert.IsTrue(workspaceTargetSource.Contains("AgentScope", StringComparison.Ordinal));
+        AssertSourceDoesNotContain(sourceFiles, "class AgentRegistry");
+        AssertSourceDoesNotContain(sourceFiles, "interface IAgentRegistry");
     }
 
     [TestMethod]
