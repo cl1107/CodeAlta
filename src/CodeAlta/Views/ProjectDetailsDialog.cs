@@ -174,12 +174,12 @@ internal sealed class ProjectDetailsDialog
     private async Task SaveAsync()
     {
         var updatedProject = CloneProject(_project);
-        updatedProject.DisplayName = _viewModel.DisplayName.Trim();
-        updatedProject.Name = _viewModel.Name.Trim();
-        updatedProject.ProjectPath = _viewModel.ProjectPath.Trim();
-        updatedProject.DefaultBranch = _viewModel.DefaultBranch.Trim();
+        updatedProject.DisplayName = (_viewModel.DisplayName ?? string.Empty).Trim();
+        updatedProject.Name = (_viewModel.Name ?? string.Empty).Trim();
+        updatedProject.ProjectPath = (_viewModel.ProjectPath ?? string.Empty).Trim();
+        updatedProject.DefaultBranch = (_viewModel.DefaultBranch ?? string.Empty).Trim();
         updatedProject.Description = string.IsNullOrWhiteSpace(_viewModel.Description) ? null : _viewModel.Description.Trim();
-        updatedProject.Tags = _viewModel.TagsText
+        updatedProject.Tags = (_viewModel.TagsText ?? string.Empty)
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();

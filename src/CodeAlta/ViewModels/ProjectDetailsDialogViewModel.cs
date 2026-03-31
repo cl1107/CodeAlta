@@ -19,34 +19,34 @@ public sealed partial class ProjectDetailsDialogViewModel
     }
 
     [Bindable]
-    public partial string Id { get; set; }
+    public partial string? Id { get; set; }
 
     [Bindable]
-    public partial string Slug { get; set; }
+    public partial string? Slug { get; set; }
 
     [Bindable]
-    public partial string Name { get; set; }
+    public partial string? Name { get; set; }
 
     [Bindable]
-    public partial string DisplayName { get; set; }
+    public partial string? DisplayName { get; set; }
 
     [Bindable]
-    public partial string ProjectPath { get; set; }
+    public partial string? ProjectPath { get; set; }
 
     [Bindable]
-    public partial string DefaultBranch { get; set; }
+    public partial string? DefaultBranch { get; set; }
 
     [Bindable]
-    public partial string Description { get; set; }
+    public partial string? Description { get; set; }
 
     [Bindable]
-    public partial string TagsText { get; set; }
+    public partial string? TagsText { get; set; }
 
     [Bindable]
-    public partial string CheckoutPathTemplate { get; set; }
+    public partial string? CheckoutPathTemplate { get; set; }
 
     [Bindable]
-    public partial string SourcePath { get; set; }
+    public partial string? SourcePath { get; set; }
 
     [Bindable]
     public partial bool Archived { get; set; }
