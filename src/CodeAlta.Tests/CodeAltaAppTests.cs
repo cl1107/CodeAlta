@@ -1031,6 +1031,26 @@ public sealed class CodeAltaAppTests
     }
 
     [TestMethod]
+    public void ShouldRunDeferredUiActionInlineOnCurrentThread_OnlyAllowsBootstrapThread()
+    {
+        Assert.IsFalse(CodeAltaApp.ShouldRunDeferredUiActionInlineOnCurrentThread(
+            dispatcherHasAccess: false,
+            terminalLoopStarted: false));
+
+        Assert.IsTrue(CodeAltaApp.ShouldRunDeferredUiActionInlineOnCurrentThread(
+            dispatcherHasAccess: true,
+            terminalLoopStarted: false));
+
+        Assert.IsFalse(CodeAltaApp.ShouldRunDeferredUiActionInlineOnCurrentThread(
+            dispatcherHasAccess: true,
+            terminalLoopStarted: true));
+
+        Assert.IsFalse(CodeAltaApp.ShouldRunDeferredUiActionInlineOnCurrentThread(
+            dispatcherHasAccess: false,
+            terminalLoopStarted: true));
+    }
+
+    [TestMethod]
     public void CompactSidebarThreadTitle_TrimsLongTitlesToSingleLineLength()
     {
         var compact = SidebarThreadPresentation.CompactThreadTitle("The lunet-build action in this repository is used like this:");

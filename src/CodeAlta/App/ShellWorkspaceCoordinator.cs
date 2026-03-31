@@ -151,7 +151,7 @@ internal sealed class ShellWorkspaceCoordinator
 
     public void InvalidateSelectedSessionUsage()
     {
-        _workspaceContext.DispatchToUi(
+        _workspaceContext.DispatchToUiDeferred(
             () =>
             {
                 SyncSelectedSessionUsageViewModel();

@@ -21,6 +21,7 @@ internal sealed class ShellWorkspaceContext
     private readonly Action _updatePromptAvailabilityUi;
     private readonly Action _syncThreadTabControl;
     private readonly Action<Action> _dispatchToUi;
+    private readonly Action<Action> _dispatchToUiDeferred;
     private readonly Action _verifyBindableAccess;
 
     public ShellWorkspaceContext(
@@ -38,6 +39,7 @@ internal sealed class ShellWorkspaceContext
         Action updatePromptAvailabilityUi,
         Action syncThreadTabControl,
         Action<Action> dispatchToUi,
+        Action<Action> dispatchToUiDeferred,
         Action verifyBindableAccess)
     {
         ArgumentNullException.ThrowIfNull(getPreferredBackendId);
@@ -54,6 +56,7 @@ internal sealed class ShellWorkspaceContext
         ArgumentNullException.ThrowIfNull(updatePromptAvailabilityUi);
         ArgumentNullException.ThrowIfNull(syncThreadTabControl);
         ArgumentNullException.ThrowIfNull(dispatchToUi);
+        ArgumentNullException.ThrowIfNull(dispatchToUiDeferred);
         ArgumentNullException.ThrowIfNull(verifyBindableAccess);
 
         _getPreferredBackendId = getPreferredBackendId;
@@ -70,6 +73,7 @@ internal sealed class ShellWorkspaceContext
         _updatePromptAvailabilityUi = updatePromptAvailabilityUi;
         _syncThreadTabControl = syncThreadTabControl;
         _dispatchToUi = dispatchToUi;
+        _dispatchToUiDeferred = dispatchToUiDeferred;
         _verifyBindableAccess = verifyBindableAccess;
     }
 
@@ -122,6 +126,12 @@ internal sealed class ShellWorkspaceContext
     {
         ArgumentNullException.ThrowIfNull(action);
         _dispatchToUi(action);
+    }
+
+    public void DispatchToUiDeferred(Action action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        _dispatchToUiDeferred(action);
     }
 
     public void VerifyBindableAccess()

@@ -186,6 +186,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
                 UpdatePromptAvailabilityUi = UpdatePromptAvailabilityUi,
                 SyncThreadTabControl = SyncThreadTabControl,
                 DispatchToUi = DispatchToUi,
+                DispatchToUiDeferred = DispatchToUiDeferred,
                 VerifyBindableAccess = VerifyBindableAccess,
                 GetAutoApproveEnabled = GetAutoApproveEnabled,
                 RefreshShellChrome = RefreshShellChrome,
@@ -597,6 +598,18 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             allowInline: ShouldRunInlineOnCurrentThread(dispatcher.CheckAccess(), _terminalLoopCoordinator.HasStarted));
     }
 
+    private void DispatchToUiDeferred(Action action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        var dispatcher = GetUiDispatcher();
+        UiDispatch.Post(
+            dispatcher,
+            action,
+            allowInline: ShouldRunDeferredUiActionInlineOnCurrentThread(
+                dispatcher.CheckAccess(),
+                _terminalLoopCoordinator.HasStarted));
+    }
+
     internal static bool CanAccessBindableState(bool dispatcherHasAccess, bool terminalLoopStarted)
         => !terminalLoopStarted || dispatcherHasAccess;
 
@@ -613,6 +626,9 @@ internal sealed class CodeAltaApp : IAsyncDisposable
 
     internal static bool ShouldRunInlineOnCurrentThread(bool dispatcherHasAccess, bool terminalLoopStarted)
         => !terminalLoopStarted || dispatcherHasAccess;
+
+    internal static bool ShouldRunDeferredUiActionInlineOnCurrentThread(bool dispatcherHasAccess, bool terminalLoopStarted)
+        => !terminalLoopStarted && dispatcherHasAccess;
 
     private IUiDispatcher GetUiDispatcher()
         => _uiDispatcher ??= new TerminalUiDispatcher(Dispatcher.Current);
