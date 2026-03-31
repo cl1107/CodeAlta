@@ -46,6 +46,7 @@ internal sealed class CodeAltaFrontendComposition
         WorkThreadRuntimeService runtimeService,
         CatalogOptions catalogOptions,
         AgentHub agentHub,
+        ICodeAltaShell shell,
         KnownProjectImporter knownProjectImporter,
         State<float> welcomePhase01,
         CodeAltaFrontendCallbacks callbacks)
@@ -55,6 +56,7 @@ internal sealed class CodeAltaFrontendComposition
         ArgumentNullException.ThrowIfNull(runtimeService);
         ArgumentNullException.ThrowIfNull(catalogOptions);
         ArgumentNullException.ThrowIfNull(agentHub);
+        ArgumentNullException.ThrowIfNull(shell);
         ArgumentNullException.ThrowIfNull(knownProjectImporter);
         ArgumentNullException.ThrowIfNull(welcomePhase01);
         ArgumentNullException.ThrowIfNull(callbacks);
@@ -66,13 +68,8 @@ internal sealed class CodeAltaFrontendComposition
         var sessionUsageViewModel = new SessionUsageViewModel();
         var chatBackendStates = ChatBackendPresentation.CreateBackendStates();
         var backendPreferences = new ChatBackendPreferenceCoordinator(new CodeAltaConfigStore(catalogOptions), CodeAlta.Views.CodeAltaApp.UiLogger);
-        var promptDraftUiCoordinator = new PromptDraftUiCoordinator(
-            new PromptDraftCoordinator(),
-            catalogOptions,
-            callbacks.GetSelection,
-            callbacks.RefreshCatalogAndThreadWorkspace);
         var shellController = new CodeAltaShellController(
-            new CodeAltaShellBridge(callbacks.App),
+            shell,
             knownProjectImporter,
             new ProjectCatalogStore(projectCatalog),
             new RecoverableThreadSource(runtimeService),
@@ -103,6 +100,11 @@ internal sealed class CodeAltaFrontendComposition
             threadStateCoordinator,
             callbacks.EnsureThreadHistoryLoadedAsync,
             callbacks.IsSelectedThread);
+        var promptDraftUiCoordinator = new PromptDraftUiCoordinator(
+            new PromptDraftCoordinator(),
+            catalogOptions,
+            () => threadStateCoordinator.Selection,
+            callbacks.RefreshCatalogAndThreadWorkspace);
         var chatSelectorStateContext = new ChatSelectorStateContext(
             threadWorkspaceViewModel,
             callbacks.GetUiDispatcher,
@@ -137,8 +139,12 @@ internal sealed class CodeAltaFrontendComposition
         ThreadCommandCoordinator? threadCommandCoordinator = null;
 
         var shellWorkspaceContext = new ShellWorkspaceContext(
-            callbacks.GetPreferredBackendId,
-            callbacks.GetPromptUnavailableStatus,
+            chatSelectorCoordinator.GetPreferredBackendId,
+            () =>
+            {
+                var hasStatus = chatSelectorCoordinator.TryGetPromptUnavailableStatus(out var message, out var tone);
+                return (hasStatus, message, tone);
+            },
             callbacks.HasWorkspaceSurface,
             callbacks.SetThreadPaneContent,
             callbacks.EnsureSelectionDefaults,
@@ -189,9 +195,9 @@ internal sealed class CodeAltaFrontendComposition
         var threadCreationCoordinator = new ThreadCreationCoordinator(
             runtimeService,
             catalogOptions,
-            callbacks.GetPreferredBackendId,
-            callbacks.GetSelectedProject,
-            callbacks.GetSelection,
+            chatSelectorCoordinator.GetPreferredBackendId,
+            threadSelectionContext.GetSelectedProject,
+            () => threadSelectionContext.Selection,
             static () => null,
             (backendId, workingDirectory, projectRoots) => threadCommandCoordinator!.BuildPreferredExecutionOptions(backendId, workingDirectory, projectRoots),
             callbacks.RememberThreadPreference,

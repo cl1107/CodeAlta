@@ -144,12 +144,11 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             runtimeService,
             catalogOptions,
             agentHub,
+            new CodeAltaShellBridge(this),
             _knownProjectImporter,
             _shellAnimationRuntime.WelcomePhase01,
             new CodeAltaFrontendCallbacks
             {
-                App = this,
-                GetSelection = () => _threadStateCoordinator?.Selection ?? ShellSelection.GlobalDraft(),
                 AssignUiDispatcher = dispatcher => _uiDispatcher = dispatcher,
                 ApplyPendingSidebarSelection = ApplyPendingSidebarSelection,
                 GetUiDispatcher = GetUiDispatcher,
@@ -170,13 +169,6 @@ internal sealed class CodeAltaApp : IAsyncDisposable
                 RememberGlobalBackendPreference = RememberGlobalBackendPreference,
                 InvalidateSelectedSessionUsage = InvalidateSelectedSessionUsage,
                 RefreshHeaderAndThreadWorkspace = RefreshHeaderAndThreadWorkspace,
-                GetPreferredBackendId = GetPreferredBackendId,
-                GetSelectedProject = GetSelectedProject,
-                GetPromptUnavailableStatus = () =>
-                {
-                    var hasStatus = TryGetPromptUnavailableStatus(out var message, out var tone);
-                    return (hasStatus, message, tone);
-                },
                 HasWorkspaceSurface = () => _threadWorkspaceView is not null,
                 SetThreadPaneContent = content =>
                 {

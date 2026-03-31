@@ -535,6 +535,18 @@ public sealed class ArchitectureGuardrailTests
     }
 
     [TestMethod]
+    public void CodeAltaFrontendCallbacks_AvoidsLeakingShellAndSelectionLookupBuckets()
+    {
+        var callbacksSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "App", "CodeAltaFrontendCallbacks.cs"));
+
+        Assert.IsFalse(callbacksSource.Contains("CodeAltaApp App", StringComparison.Ordinal));
+        Assert.IsFalse(callbacksSource.Contains("Func<ShellSelection> GetSelection", StringComparison.Ordinal));
+        Assert.IsFalse(callbacksSource.Contains("Func<AgentBackendId> GetPreferredBackendId", StringComparison.Ordinal));
+        Assert.IsFalse(callbacksSource.Contains("Func<ProjectDescriptor?> GetSelectedProject", StringComparison.Ordinal));
+        Assert.IsFalse(callbacksSource.Contains("GetPromptUnavailableStatus", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public void FleetConcepts_ReuseAgentIdentityAndAvoidFrontendAgentRegistry()
     {
         var codeAltaRoot = GetCodeAltaSourceRoot();
