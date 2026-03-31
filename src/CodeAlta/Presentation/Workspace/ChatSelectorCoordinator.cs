@@ -17,7 +17,7 @@ internal sealed class ChatSelectorCoordinator
     private readonly ThreadWorkspaceViewModel _workspaceViewModel;
     private readonly PromptComposerViewModel _promptComposerViewModel;
     private readonly Dictionary<string, ChatBackendState> _chatBackendStates;
-    private readonly ChatSelectorUiContext _uiContext;
+    private readonly ChatSelectorStateContext _selectorState;
     private readonly ThreadSelectionContext _threadSelection;
     private readonly ChatPreferenceContext _preferences;
     private readonly WorkspaceRefreshContext _workspaceRefresh;
@@ -27,7 +27,7 @@ internal sealed class ChatSelectorCoordinator
         ThreadWorkspaceViewModel workspaceViewModel,
         PromptComposerViewModel promptComposerViewModel,
         Dictionary<string, ChatBackendState> chatBackendStates,
-        ChatSelectorUiContext uiContext,
+        ChatSelectorStateContext selectorState,
         ThreadSelectionContext threadSelection,
         ChatPreferenceContext preferences,
         WorkspaceRefreshContext workspaceRefresh)
@@ -35,7 +35,7 @@ internal sealed class ChatSelectorCoordinator
         ArgumentNullException.ThrowIfNull(workspaceViewModel);
         ArgumentNullException.ThrowIfNull(promptComposerViewModel);
         ArgumentNullException.ThrowIfNull(chatBackendStates);
-        ArgumentNullException.ThrowIfNull(uiContext);
+        ArgumentNullException.ThrowIfNull(selectorState);
         ArgumentNullException.ThrowIfNull(threadSelection);
         ArgumentNullException.ThrowIfNull(preferences);
         ArgumentNullException.ThrowIfNull(workspaceRefresh);
@@ -43,7 +43,7 @@ internal sealed class ChatSelectorCoordinator
         _workspaceViewModel = workspaceViewModel;
         _promptComposerViewModel = promptComposerViewModel;
         _chatBackendStates = chatBackendStates;
-        _uiContext = uiContext;
+        _selectorState = selectorState;
         _threadSelection = threadSelection;
         _preferences = preferences;
         _workspaceRefresh = workspaceRefresh;
@@ -51,7 +51,7 @@ internal sealed class ChatSelectorCoordinator
 
     public void RefreshForDraftScope(AgentBackendId? preferredBackendId = null)
     {
-        _uiContext.VerifyBindableAccess();
+        _selectorState.VerifyBindableAccess();
         _selectorsRefreshing = true;
         try
         {
@@ -59,29 +59,27 @@ internal sealed class ChatSelectorCoordinator
 
             var backendId = preferredBackendId ?? GetPreferredDraftBackendId(backendOptions);
             var backendIndex = Math.Max(0, backendOptions.FindIndex(option => string.Equals(option.BackendId.Value, backendId.Value, StringComparison.OrdinalIgnoreCase)));
-            _uiContext.UpdateBackendOptions(backendOptions, backendIndex, isEnabled: true);
+            _selectorState.SetBackendSelection(backendOptions, backendIndex);
 
             var backendState = _chatBackendStates[backendOptions[backendIndex].BackendId.Value];
             _preferences.ApplyDraftBackendPreference(backendState);
             var modelOptions = ChatBackendPresentation.BuildModelOptions(backendState);
-            _uiContext.UpdateModelOptions(
+            _selectorState.SetModelSelection(
                 modelOptions,
                 Math.Clamp(
                 modelOptions.FindIndex(option => string.Equals(option.ModelId, backendState.SelectedModelId, StringComparison.Ordinal)),
                 0,
-                Math.Max(0, modelOptions.Count - 1)),
-                backendState.Availability == ChatBackendAvailability.Ready);
+                Math.Max(0, modelOptions.Count - 1)));
 
             var selectedModel = backendState.Models.FirstOrDefault(model => string.Equals(model.Id, backendState.SelectedModelId, StringComparison.Ordinal))
                                 ?? ChatBackendPresentation.GetSelectedModel(backendState);
             var reasoningOptions = ChatBackendPresentation.BuildReasoningOptions(selectedModel);
-            _uiContext.UpdateReasoningOptions(
+            _selectorState.SetReasoningSelection(
                 reasoningOptions,
                 Math.Clamp(
                 reasoningOptions.FindIndex(option => option.Effort == backendState.SelectedReasoningEffort),
                 0,
-                Math.Max(0, reasoningOptions.Count - 1)),
-                backendState.Availability == ChatBackendAvailability.Ready);
+                Math.Max(0, reasoningOptions.Count - 1)));
             _workspaceViewModel.AutoScroll = true;
 
             _workspaceViewModel.BackendStatusMarkup = ChatBackendPresentation.BuildBackendStatusMarkup(_chatBackendStates.Values, backendOptions[backendIndex].BackendId, isInitializing: false);
@@ -100,42 +98,39 @@ internal sealed class ChatSelectorCoordinator
     {
         ArgumentNullException.ThrowIfNull(tab);
 
-        _uiContext.VerifyBindableAccess();
+        _selectorState.VerifyBindableAccess();
         _selectorsRefreshing = true;
         try
         {
             var backendOptions = ChatBackendPresentation.BuildBackendOptions();
-            _uiContext.UpdateBackendOptions(
+            _selectorState.SetBackendSelection(
                 backendOptions,
                 Math.Clamp(
                 backendOptions.FindIndex(option => string.Equals(option.BackendId.Value, tab.BackendId.Value, StringComparison.OrdinalIgnoreCase)),
                 0,
-                Math.Max(0, backendOptions.Count - 1)),
-                isEnabled: false);
+                Math.Max(0, backendOptions.Count - 1)));
 
             var backendState = _chatBackendStates[tab.BackendId.Value];
             _preferences.ApplyThreadPreference(tab);
 
             var modelOptions = ChatBackendPresentation.BuildModelOptions(backendState);
-            _uiContext.UpdateModelOptions(
+            _selectorState.SetModelSelection(
                 modelOptions,
                 Math.Clamp(
                 modelOptions.FindIndex(option => string.Equals(option.ModelId, tab.ModelId ?? backendState.SelectedModelId, StringComparison.Ordinal)),
                 0,
-                Math.Max(0, modelOptions.Count - 1)),
-                backendState.Availability == ChatBackendAvailability.Ready);
+                Math.Max(0, modelOptions.Count - 1)));
 
             var selectedModel = backendState.Models.FirstOrDefault(model =>
                                     string.Equals(model.Id, tab.ModelId, StringComparison.Ordinal))
                                 ?? ChatBackendPresentation.GetSelectedModel(backendState);
             var reasoningOptions = ChatBackendPresentation.BuildReasoningOptions(selectedModel);
-            _uiContext.UpdateReasoningOptions(
+            _selectorState.SetReasoningSelection(
                 reasoningOptions,
                 Math.Clamp(
                 reasoningOptions.FindIndex(option => option.Effort == tab.ReasoningEffort),
                 0,
-                Math.Max(0, reasoningOptions.Count - 1)),
-                backendState.Availability == ChatBackendAvailability.Ready);
+                Math.Max(0, reasoningOptions.Count - 1)));
             _workspaceViewModel.AutoScroll = tab.AutoScroll;
 
             _workspaceViewModel.BackendStatusMarkup = ChatBackendPresentation.BuildBackendStatusMarkup(_chatBackendStates.Values, tab.BackendId, isInitializing: false);
@@ -293,11 +288,11 @@ internal sealed class ChatSelectorCoordinator
     public AgentBackendId GetPreferredBackendId()
     {
         return UiDispatch.Invoke(
-            _uiContext.GetUiDispatcher(),
+            _selectorState.GetUiDispatcher(),
             () =>
             {
                 var options = ChatBackendPresentation.BuildBackendOptions();
-                if (_uiContext.GetSelectedBackendIndex() is { } backendIndex &&
+                if (_selectorState.GetSelectedBackendIndex() is { } backendIndex &&
                     (uint)backendIndex < (uint)options.Count)
                 {
                     return options[backendIndex].BackendId;
@@ -336,7 +331,7 @@ internal sealed class ChatSelectorCoordinator
 
     public void UpdatePromptAvailabilityUi()
     {
-        _uiContext.VerifyBindableAccess();
+        _selectorState.VerifyBindableAccess();
         var projection = BuildPromptComposerProjection();
         _promptComposerViewModel.Placeholder = projection.Placeholder;
         _promptComposerViewModel.IsEnabled = projection.IsEnabled;
@@ -352,7 +347,7 @@ internal sealed class ChatSelectorCoordinator
 
     private AgentBackendId GetPreferredDraftBackendId(IReadOnlyList<ChatBackendOption> backendOptions)
     {
-        if (_uiContext.GetSelectedBackendIndex() is { } backendIndex &&
+        if (_selectorState.GetSelectedBackendIndex() is { } backendIndex &&
             (uint)backendIndex < (uint)backendOptions.Count)
         {
             var current = backendOptions[backendIndex].BackendId;

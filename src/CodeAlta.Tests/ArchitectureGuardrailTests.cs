@@ -560,9 +560,11 @@ public sealed class ArchitectureGuardrailTests
     [TestMethod]
     public void AppContexts_DoNotExposeConcreteSelectorEditorOrLayoutControls()
     {
-        var chatSelectorContextSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "App", "Context", "ChatSelectorUiContext.cs"));
+        var codeAltaRoot = GetCodeAltaSourceRoot();
+        var chatSelectorContextSource = File.ReadAllText(Path.Combine(codeAltaRoot, "App", "Context", "ChatSelectorStateContext.cs"));
         var workspaceContextSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "App", "Context", "ShellWorkspaceContext.cs"));
 
+        Assert.IsFalse(File.Exists(Path.Combine(codeAltaRoot, "App", "Context", "ChatSelectorUiContext.cs")));
         Assert.IsFalse(chatSelectorContextSource.Contains("public Select<", StringComparison.Ordinal));
         Assert.IsFalse(chatSelectorContextSource.Contains("GetThreadInput()", StringComparison.Ordinal));
         Assert.IsFalse(workspaceContextSource.Contains("GetThreadPaneLayout()", StringComparison.Ordinal));

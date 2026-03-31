@@ -18,7 +18,7 @@ internal sealed class ThreadCommandCoordinator
     private readonly WorkThreadRuntimeService _runtimeService;
     private readonly Dictionary<string, ChatBackendState> _chatBackendStates;
     private readonly ThreadSelectionContext _threadSelection;
-    private readonly ChatSelectorUiContext _selectorUi;
+    private readonly ChatSelectorStateContext _selectorState;
     private readonly ChatPreferenceContext _preferences;
     private readonly ThreadCommandContext _commandContext;
     private readonly ThreadPromptQueueCoordinator _queueCoordinator;
@@ -31,7 +31,7 @@ internal sealed class ThreadCommandCoordinator
         CatalogOptions catalogOptions,
         Dictionary<string, ChatBackendState> chatBackendStates,
         ThreadSelectionContext threadSelection,
-        ChatSelectorUiContext selectorUi,
+        ChatSelectorStateContext selectorState,
         ChatPreferenceContext preferences,
         ThreadCommandContext commandContext,
         ThreadPromptQueueCoordinator queueCoordinator,
@@ -40,7 +40,7 @@ internal sealed class ThreadCommandCoordinator
         ArgumentNullException.ThrowIfNull(runtimeService);
         ArgumentNullException.ThrowIfNull(chatBackendStates);
         ArgumentNullException.ThrowIfNull(threadSelection);
-        ArgumentNullException.ThrowIfNull(selectorUi);
+        ArgumentNullException.ThrowIfNull(selectorState);
         ArgumentNullException.ThrowIfNull(preferences);
         ArgumentNullException.ThrowIfNull(commandContext);
         ArgumentNullException.ThrowIfNull(queueCoordinator);
@@ -49,14 +49,14 @@ internal sealed class ThreadCommandCoordinator
         _runtimeService = runtimeService;
         _chatBackendStates = chatBackendStates;
         _threadSelection = threadSelection;
-        _selectorUi = selectorUi;
+        _selectorState = selectorState;
         _preferences = preferences;
         _commandContext = commandContext;
         _queueCoordinator = queueCoordinator;
         _promptComposerViewModel = promptComposerViewModel;
         var permissionRequests = new ThreadPermissionRequestCoordinator(threadSelection, commandContext);
         var userInputRequests = new ThreadUserInputRequestCoordinator(threadSelection, commandContext);
-        _executionOptionsFactory = new ThreadExecutionOptionsFactory(catalogOptions, chatBackendStates, threadSelection, selectorUi, permissionRequests, userInputRequests);
+        _executionOptionsFactory = new ThreadExecutionOptionsFactory(catalogOptions, chatBackendStates, threadSelection, selectorState, permissionRequests, userInputRequests);
         _promptDispatchCoordinator = new ThreadPromptDispatchCoordinator(runtimeService, _executionOptionsFactory, queueCoordinator, commandContext);
     }
 
@@ -118,7 +118,7 @@ internal sealed class ThreadCommandCoordinator
         tab.Timeline.ReplaceTruncatedHistoryLoadButton();
 
         var alwaysEnqueue = hadExistingThread &&
-            UiDispatch.Invoke(_selectorUi.GetUiDispatcher(), () => _promptComposerViewModel.AlwaysEnqueue);
+            UiDispatch.Invoke(_selectorState.GetUiDispatcher(), () => _promptComposerViewModel.AlwaysEnqueue);
         if (!steer && (tab.StatusBusy || alwaysEnqueue))
         {
             _queueCoordinator.EnqueuePrompt(tab, prompt);

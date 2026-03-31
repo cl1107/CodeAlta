@@ -30,17 +30,17 @@ namespace CodeAlta.Models
         Interaction,
     }
 
-    internal sealed record ChatBackendOption(AgentBackendId BackendId, string Label)
+    public sealed record ChatBackendOption(AgentBackendId BackendId, string Label)
     {
         public override string ToString() => Label;
     }
 
-    internal sealed record ChatModelOption(string? ModelId, string Label)
+    public sealed record ChatModelOption(string? ModelId, string Label)
     {
         public override string ToString() => Label;
     }
 
-    internal sealed record ChatReasoningOption(AgentReasoningEffort? Effort, string Label)
+    public sealed record ChatReasoningOption(AgentReasoningEffort? Effort, string Label)
     {
         public override string ToString() => Label;
     }

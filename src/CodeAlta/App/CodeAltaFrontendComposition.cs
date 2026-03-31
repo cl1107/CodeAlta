@@ -35,7 +35,7 @@ internal sealed class CodeAltaFrontendComposition
     public required NavigatorActionCoordinator NavigatorActionCoordinator { get; init; }
     public required ChatSelectorCoordinator ChatSelectorCoordinator { get; init; }
     public required ChatPreferenceContext ChatPreferenceContext { get; init; }
-    public required ChatSelectorUiContext ChatSelectorUiContext { get; init; }
+    public required ChatSelectorStateContext ChatSelectorStateContext { get; init; }
     public required ShellWorkspaceContext ShellWorkspaceContext { get; init; }
     public required ThreadSelectionContext ThreadSelectionContext { get; init; }
     public required WorkspaceRefreshContext WorkspaceRefreshContext { get; init; }
@@ -103,10 +103,8 @@ internal sealed class CodeAltaFrontendComposition
             threadStateCoordinator,
             callbacks.EnsureThreadHistoryLoadedAsync,
             callbacks.IsSelectedThread);
-        var chatSelectorUiContext = new ChatSelectorUiContext(
-            callbacks.GetChatBackendSelect,
-            callbacks.GetChatModelSelect,
-            callbacks.GetChatReasoningSelect,
+        var chatSelectorStateContext = new ChatSelectorStateContext(
+            threadWorkspaceViewModel,
             callbacks.GetUiDispatcher,
             callbacks.VerifyBindableAccess);
         var chatPreferenceContext = new ChatPreferenceContext(
@@ -130,7 +128,7 @@ internal sealed class CodeAltaFrontendComposition
             threadWorkspaceViewModel,
             promptComposerViewModel,
             chatBackendStates,
-            chatSelectorUiContext,
+            chatSelectorStateContext,
             threadSelectionContext,
             chatPreferenceContext,
             workspaceRefreshContext);
@@ -205,7 +203,7 @@ internal sealed class CodeAltaFrontendComposition
             catalogOptions,
             chatBackendStates,
             threadSelectionContext,
-            chatSelectorUiContext,
+            chatSelectorStateContext,
             chatPreferenceContext,
             new ThreadCommandContext(
                 callbacks.TrySetPromptUnavailableStatus,
@@ -250,7 +248,7 @@ internal sealed class CodeAltaFrontendComposition
             NavigatorActionCoordinator = navigatorActionCoordinator,
             ChatSelectorCoordinator = chatSelectorCoordinator,
             ChatPreferenceContext = chatPreferenceContext,
-            ChatSelectorUiContext = chatSelectorUiContext,
+            ChatSelectorStateContext = chatSelectorStateContext,
             ShellWorkspaceContext = shellWorkspaceContext,
             ThreadSelectionContext = threadSelectionContext,
             WorkspaceRefreshContext = workspaceRefreshContext,

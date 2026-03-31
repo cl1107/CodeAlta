@@ -1,4 +1,5 @@
 using XenoAtom.Terminal.UI;
+using CodeAlta.Models;
 using CodeAlta.Presentation.Prompting;
 
 namespace CodeAlta.ViewModels;
@@ -10,6 +11,12 @@ public sealed partial class ThreadWorkspaceViewModel
         BackendStatusMarkup = string.Empty;
         AutoScroll = true;
         SelectedTabIndex = -1;
+        SelectedBackendIndex = -1;
+        SelectedModelIndex = -1;
+        SelectedReasoningIndex = -1;
+        BackendOptions = [];
+        ModelOptions = [];
+        ReasoningOptions = [];
         PromptStripItems = [];
     }
 
@@ -30,6 +37,24 @@ public sealed partial class ThreadWorkspaceViewModel
 
     [Bindable]
     public partial bool AutoScroll { get; set; }
+
+    [Bindable]
+    public partial IReadOnlyList<ChatBackendOption> BackendOptions { get; set; }
+
+    [Bindable]
+    public partial int SelectedBackendIndex { get; set; }
+
+    [Bindable]
+    public partial IReadOnlyList<ChatModelOption> ModelOptions { get; set; }
+
+    [Bindable]
+    public partial int SelectedModelIndex { get; set; }
+
+    [Bindable]
+    public partial IReadOnlyList<ChatReasoningOption> ReasoningOptions { get; set; }
+
+    [Bindable]
+    public partial int SelectedReasoningIndex { get; set; }
 
     [Bindable]
     public partial int SelectedTabIndex { get; set; }

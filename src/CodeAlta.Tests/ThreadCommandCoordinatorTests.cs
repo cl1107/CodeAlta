@@ -65,10 +65,8 @@ public sealed class ThreadCommandCoordinatorTests
         {
             Text = "Investigate the regression",
         };
-        var selectorUi = new ChatSelectorUiContext(
-            static () => null,
-            static () => null,
-            static () => null,
+        var selectorUi = new ChatSelectorStateContext(
+            new ThreadWorkspaceViewModel(),
             () => dispatcher,
             static () => { });
         var backendState = new ChatBackendState(backend.BackendId, "Fake Chat")
@@ -200,10 +198,8 @@ public sealed class ThreadCommandCoordinatorTests
         {
             Text = "Investigate the regression in startup flow. It only happens on Windows.",
         };
-        var selectorUi = new ChatSelectorUiContext(
-            static () => null,
-            static () => null,
-            static () => null,
+        var selectorUi = new ChatSelectorStateContext(
+            new ThreadWorkspaceViewModel(),
             () => dispatcher,
             static () => { });
         var backendState = new ChatBackendState(backend.BackendId, "Fake Chat")
@@ -397,10 +393,9 @@ public sealed class ThreadCommandCoordinatorTests
             static (_, _) => Task.CompletedTask,
             threadId => string.Equals(threadState.SelectedThreadId, threadId, StringComparison.OrdinalIgnoreCase));
         var threadInput = new ChatPromptEditor(_ => { });
-        var selectorUi = new ChatSelectorUiContext(
-            static () => null,
-            static () => null,
-            static () => null,
+        var workspaceViewModel = new ThreadWorkspaceViewModel();
+        var selectorUi = new ChatSelectorStateContext(
+            workspaceViewModel,
             () => dispatcher,
             static () => { });
         var backendState = new ChatBackendState(backend.BackendId, "Fake Chat")
@@ -411,7 +406,6 @@ public sealed class ThreadCommandCoordinatorTests
         {
             [backend.BackendId.Value] = backendState,
         };
-        var workspaceViewModel = new ThreadWorkspaceViewModel();
         var queueCoordinator = new ThreadPromptQueueCoordinator(
             workspaceViewModel,
             threadSelection,

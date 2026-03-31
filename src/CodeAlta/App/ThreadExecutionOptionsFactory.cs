@@ -14,7 +14,7 @@ internal sealed class ThreadExecutionOptionsFactory
     private readonly CatalogOptions _catalogOptions;
     private readonly Dictionary<string, ChatBackendState> _chatBackendStates;
     private readonly ThreadSelectionContext _threadSelection;
-    private readonly ChatSelectorUiContext _selectorUi;
+    private readonly ChatSelectorStateContext _selectorState;
     private readonly ThreadPermissionRequestCoordinator _permissionRequests;
     private readonly ThreadUserInputRequestCoordinator _userInputRequests;
 
@@ -22,21 +22,21 @@ internal sealed class ThreadExecutionOptionsFactory
         CatalogOptions catalogOptions,
         Dictionary<string, ChatBackendState> chatBackendStates,
         ThreadSelectionContext threadSelection,
-        ChatSelectorUiContext selectorUi,
+        ChatSelectorStateContext selectorState,
         ThreadPermissionRequestCoordinator permissionRequests,
         ThreadUserInputRequestCoordinator userInputRequests)
     {
         ArgumentNullException.ThrowIfNull(catalogOptions);
         ArgumentNullException.ThrowIfNull(chatBackendStates);
         ArgumentNullException.ThrowIfNull(threadSelection);
-        ArgumentNullException.ThrowIfNull(selectorUi);
+        ArgumentNullException.ThrowIfNull(selectorState);
         ArgumentNullException.ThrowIfNull(permissionRequests);
         ArgumentNullException.ThrowIfNull(userInputRequests);
 
         _catalogOptions = catalogOptions;
         _chatBackendStates = chatBackendStates;
         _threadSelection = threadSelection;
-        _selectorUi = selectorUi;
+        _selectorState = selectorState;
         _permissionRequests = permissionRequests;
         _userInputRequests = userInputRequests;
     }
@@ -50,10 +50,10 @@ internal sealed class ThreadExecutionOptionsFactory
 
         var backendState = _chatBackendStates[backendId.Value];
         var model = UiDispatch.Invoke(
-            _selectorUi.GetUiDispatcher(),
+            _selectorState.GetUiDispatcher(),
             () =>
             {
-                if (_selectorUi.GetSelectedBackendIndex() is not { } backendIndex || _selectorUi.GetSelectedModelIndex() is not { } modelIndex)
+                if (_selectorState.GetSelectedBackendIndex() is not { } backendIndex || _selectorState.GetSelectedModelIndex() is not { } modelIndex)
                 {
                     return backendState.SelectedModelId;
                 }
@@ -73,10 +73,10 @@ internal sealed class ThreadExecutionOptionsFactory
             });
 
         var reasoning = UiDispatch.Invoke(
-            _selectorUi.GetUiDispatcher(),
+            _selectorState.GetUiDispatcher(),
             () =>
             {
-                if (_selectorUi.GetSelectedBackendIndex() is not { } backendIndex || _selectorUi.GetSelectedReasoningIndex() is not { } reasoningIndex)
+                if (_selectorState.GetSelectedBackendIndex() is not { } backendIndex || _selectorState.GetSelectedReasoningIndex() is not { } reasoningIndex)
                 {
                     return backendState.SelectedReasoningEffort;
                 }

@@ -59,7 +59,6 @@ internal sealed class CodeAltaApp : IAsyncDisposable
     private readonly ChatSelectorCoordinator _chatSelectorCoordinator;
     private readonly ThreadTabStripCoordinator _threadTabStripCoordinator;
     private readonly ChatPreferenceContext _chatPreferenceContext;
-    private readonly ChatSelectorUiContext _chatSelectorUiContext;
     private readonly ShellAnimationRuntime _shellAnimationRuntime = new();
     private readonly ShellWorkspaceContext _shellWorkspaceContext;
     private readonly ThreadSelectionContext _threadSelectionContext;
@@ -82,9 +81,6 @@ internal sealed class CodeAltaApp : IAsyncDisposable
     private VSplitter? ThreadBodySplitter => _threadWorkspaceView?.ThreadBodySplitter;
     private ChatPromptEditor? ThreadInput => _threadWorkspaceView?.ThreadInput;
     private CommandBar? ThreadCommandBar => _threadWorkspaceView?.ThreadCommandBar;
-    private Select<ChatBackendOption>? ChatBackendSelect => _threadWorkspaceView?.ChatBackendSelect;
-    private Select<ChatModelOption>? ChatModelSelect => _threadWorkspaceView?.ChatModelSelect;
-    private Select<ChatReasoningOption>? ChatReasoningSelect => _threadWorkspaceView?.ChatReasoningSelect;
     private TabControl? ThreadTabControl => _threadWorkspaceView?.ThreadTabControl;
 
     public CodeAltaApp(
@@ -170,9 +166,6 @@ internal sealed class CodeAltaApp : IAsyncDisposable
                 RemoveThreadTabPage = threadId => _threadWorkspaceView?.RemoveTabPage(threadId),
                 SetStatus = SetStatus,
                 IsSelectedThread = IsSelectedThread,
-                GetChatBackendSelect = () => ChatBackendSelect,
-                GetChatModelSelect = () => ChatModelSelect,
-                GetChatReasoningSelect = () => ChatReasoningSelect,
                 ApplyDraftBackendPreference = ApplyDraftBackendPreference,
                 RememberGlobalBackendPreference = RememberGlobalBackendPreference,
                 InvalidateSelectedSessionUsage = InvalidateSelectedSessionUsage,
@@ -237,7 +230,6 @@ internal sealed class CodeAltaApp : IAsyncDisposable
         _navigatorActionCoordinator = composition.NavigatorActionCoordinator;
         _chatSelectorCoordinator = composition.ChatSelectorCoordinator;
         _chatPreferenceContext = composition.ChatPreferenceContext;
-        _chatSelectorUiContext = composition.ChatSelectorUiContext;
         _shellWorkspaceContext = composition.ShellWorkspaceContext;
         _threadSelectionContext = composition.ThreadSelectionContext;
         _workspaceRefreshContext = composition.WorkspaceRefreshContext;

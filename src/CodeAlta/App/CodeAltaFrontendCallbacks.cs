@@ -5,7 +5,6 @@ using CodeAlta.Models;
 using CodeAlta.Threading;
 using CodeAlta.Views;
 using XenoAtom.Terminal.UI;
-using XenoAtom.Terminal.UI.Controls;
 using XenoAtom.Terminal.UI.Geometry;
 
 namespace CodeAlta.App;
@@ -30,9 +29,6 @@ internal sealed class CodeAltaFrontendCallbacks
     public required Action<string> RemoveThreadTabPage { get; init; }
     public required Action<string, bool, StatusTone> SetStatus { get; init; }
     public required Func<string, bool> IsSelectedThread { get; init; }
-    public required Func<Select<ChatBackendOption>?> GetChatBackendSelect { get; init; }
-    public required Func<Select<ChatModelOption>?> GetChatModelSelect { get; init; }
-    public required Func<Select<ChatReasoningOption>?> GetChatReasoningSelect { get; init; }
     public required Action<ChatBackendState> ApplyDraftBackendPreference { get; init; }
     public required Action<AgentBackendId, string?, AgentReasoningEffort?> RememberGlobalBackendPreference { get; init; }
     public required Action InvalidateSelectedSessionUsage { get; init; }

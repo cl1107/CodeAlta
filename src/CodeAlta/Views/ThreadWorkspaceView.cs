@@ -117,16 +117,19 @@ internal sealed class ThreadWorkspaceView
                 button => button.IsEnabled(workspaceViewModel.Bind.CanShowThreadInfo));
         ChatBackendSelect = new Select<ChatBackendOption>()
             .SelectionChanged((_, e) => onChatBackendSelectionChanged(e.NewIndex))
+            .SelectedIndex(workspaceViewModel.Bind.SelectedBackendIndex)
             .MinWidth(14)
             .MaxWidth(22)
             .IsEnabled(workspaceViewModel.Bind.CanSelectBackend);
         ChatModelSelect = new Select<ChatModelOption>()
             .SelectionChanged((_, e) => onChatModelSelectionChanged(e.NewIndex))
+            .SelectedIndex(workspaceViewModel.Bind.SelectedModelIndex)
             .MinWidth(18)
             .MaxWidth(36)
             .IsEnabled(workspaceViewModel.Bind.CanSelectModel);
         ChatReasoningSelect = new Select<ChatReasoningOption>()
             .SelectionChanged((_, e) => onChatReasoningSelectionChanged(e.NewIndex))
+            .SelectedIndex(workspaceViewModel.Bind.SelectedReasoningIndex)
             .MinWidth(12)
             .MaxWidth(22)
             .IsEnabled(workspaceViewModel.Bind.CanSelectReasoning);
@@ -251,6 +254,9 @@ internal sealed class ThreadWorkspaceView
         ThreadPaneLayout = threadPaneLayout;
         Root = new ZStack(
             ThreadPaneLayout,
+            CreateSelectItemsObserver(() => workspaceViewModel.BackendOptions, ChatBackendSelect),
+            CreateSelectItemsObserver(() => workspaceViewModel.ModelOptions, ChatModelSelect),
+            CreateSelectItemsObserver(() => workspaceViewModel.ReasoningOptions, ChatReasoningSelect),
             new BindableObserver<int>(
                 () => workspaceViewModel.SelectedTabIndex,
                 onSelectedTabChanged));
@@ -274,11 +280,11 @@ internal sealed class ThreadWorkspaceView
 
     public CommandBar ThreadCommandBar { get; }
 
-    public Select<ChatBackendOption> ChatBackendSelect { get; }
+    private Select<ChatBackendOption> ChatBackendSelect { get; }
 
-    public Select<ChatModelOption> ChatModelSelect { get; }
+    private Select<ChatModelOption> ChatModelSelect { get; }
 
-    public Select<ChatReasoningOption> ChatReasoningSelect { get; }
+    private Select<ChatReasoningOption> ChatReasoningSelect { get; }
 
     public Switch ChatAutoScrollSwitch { get; }
 
@@ -307,6 +313,18 @@ internal sealed class ThreadWorkspaceView
 
     public void OpenExpandedPromptDialog()
         => OpenExpandedPromptDialog(_promptComposerViewModel, _promptTextBinding);
+
+    private static BindableObserver<IReadOnlyList<T>> CreateSelectItemsObserver<T>(
+        Func<IReadOnlyList<T>> readItems,
+        Select<T> select)
+    {
+        ArgumentNullException.ThrowIfNull(readItems);
+        ArgumentNullException.ThrowIfNull(select);
+
+        return new BindableObserver<IReadOnlyList<T>>(
+            readItems,
+            items => ChatBackendPresentation.ReplaceSelectItems(select, items));
+    }
 
     private static ChatPromptEditor CreatePromptEditor(
         PromptComposerViewModel promptComposerViewModel,
