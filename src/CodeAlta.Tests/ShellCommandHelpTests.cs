@@ -47,9 +47,14 @@ public sealed class ShellCommandHelpTests
         var closeTabCommand = ShellCommandCatalog.Get("CodeAlta.Thread.CloseTab");
 
         Assert.AreEqual("full_prompt", fullPromptCommand.CommandName);
+        Assert.AreEqual("/full_prompt", fullPromptCommand.SlashCommandText);
         CollectionAssert.Contains(fullPromptCommand.Aliases.ToArray(), "full_prompt");
+        StringAssert.Contains(fullPromptCommand.CommandSearchText, "/full_prompt");
         Assert.AreEqual("close_tab", closeTabCommand.CommandName);
+        Assert.AreEqual("/close_tab", closeTabCommand.SlashCommandText);
         CollectionAssert.Contains(closeTabCommand.Aliases.ToArray(), "close_tab");
         CollectionAssert.Contains(closeTabCommand.Aliases.ToArray(), "close");
+        StringAssert.Contains(closeTabCommand.CommandSearchText, "/close_tab");
+        StringAssert.Contains(closeTabCommand.CommandSearchText, "/close");
     }
 }

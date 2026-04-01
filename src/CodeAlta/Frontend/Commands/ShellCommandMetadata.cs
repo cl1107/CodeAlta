@@ -46,10 +46,18 @@ internal sealed record ShellCommandMetadata(
     bool ShowInHelp = true)
 {
     public string CommandName { get; } = ResolveCommandName(CommandName, Label);
+    internal string SlashCommandText { get; } = $"/{ResolveCommandName(CommandName, Label)}";
 
     public IReadOnlyList<string> Aliases { get; } = BuildAliases(
         ResolveCommandName(CommandName, Label),
         Aliases);
+
+    internal string CommandSearchText { get; } = BuildCommandSearchText(
+        Label,
+        ResolveCommandName(CommandName, Label),
+        BuildAliases(
+            ResolveCommandName(CommandName, Label),
+            Aliases));
 
     private static string ResolveCommandName(string? commandName, string label)
     {
@@ -105,5 +113,32 @@ internal sealed record ShellCommandMetadata(
         }
 
         return allAliases;
+    }
+
+    private static string BuildCommandSearchText(string label, string commandName, IReadOnlyList<string> aliases)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(label);
+        ArgumentException.ThrowIfNullOrWhiteSpace(commandName);
+        ArgumentNullException.ThrowIfNull(aliases);
+
+        var searchTerms = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            label,
+            commandName,
+            $"/{commandName}",
+        };
+
+        foreach (var alias in aliases)
+        {
+            if (string.IsNullOrWhiteSpace(alias))
+            {
+                continue;
+            }
+
+            searchTerms.Add(alias);
+            searchTerms.Add($"/{alias}");
+        }
+
+        return string.Join(' ', searchTerms);
     }
 }

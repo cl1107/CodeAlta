@@ -481,7 +481,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             () => EnsureSessionUsagePresenter().TogglePopupFromIndicator(),
             anchor => EnsureThreadInfoPresenter().TogglePopup(anchor),
             () => _ = _shellCommandSurfaceCoordinator.ShowHelpAsync(),
-            () => _shellCommandSurfaceCoordinator.ShowCommandPalette(),
+            () => _shellCommandSurfaceCoordinator.ShowSlashCommandPalette(),
             acceptedPrompt => _ = _shellCommandSurfaceCoordinator.HandleAcceptedPromptAsync(acceptedPrompt),
             () => _ = _shellCommandSurfaceCoordinator.SubmitCurrentPromptAsync(steer: false),
             () => _ = _shellCommandSurfaceCoordinator.SubmitCurrentPromptAsync(steer: true),
@@ -524,9 +524,9 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             _shellView.Root.AddCommand(new Command
             {
                 Id = commandPaletteMetadata.Id,
-                LabelMarkup = commandPaletteMetadata.CommandName,
+                LabelMarkup = commandPaletteMetadata.SlashCommandText,
                 Name = commandPaletteMetadata.CommandName,
-                SearchText = $"{commandPaletteMetadata.CommandName} {commandPaletteMetadata.Label}",
+                SearchText = commandPaletteMetadata.CommandSearchText,
                 DescriptionMarkup = commandPaletteMetadata.Description,
                 Gesture = commandPaletteMetadata.Gesture,
                 Presentation = CommandPresentation.CommandBar,

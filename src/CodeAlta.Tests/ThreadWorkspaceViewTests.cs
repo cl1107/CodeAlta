@@ -1,10 +1,12 @@
 using System.Reflection;
+using CodeAlta.Frontend.Commands;
 using CodeAlta.Models;
 using CodeAlta.Presentation.Chat;
 using CodeAlta.ViewModels;
 using CodeAlta.Views;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Controls;
+using XenoAtom.Terminal.UI.Commands;
 
 namespace CodeAlta.Tests;
 
@@ -79,6 +81,54 @@ public sealed class ThreadWorkspaceViewTests
         Assert.AreEqual("Copilot", backendSelect.Items[1].Label);
         Assert.AreEqual("GPT-5.1", modelSelect.Items[0].Label);
         Assert.AreEqual("Low", reasoningSelect.Items[0].Label);
+    }
+
+    [TestMethod]
+    public void ThreadInput_UsesSlashCommandLabelsAndSearchText()
+    {
+        var shellViewModel = new CodeAltaShellViewModel();
+        var workspaceViewModel = new ThreadWorkspaceViewModel();
+        var promptComposerViewModel = new PromptComposerViewModel();
+        var commandBinding = new ThreadWorkspaceCommandBinding(
+            ShellCommandCatalog.Get("CodeAlta.Thread.CloseTab"),
+            static () => { });
+        var view = new ThreadWorkspaceView(
+            shellViewModel,
+            workspaceViewModel,
+            promptComposerViewModel,
+            [commandBinding],
+            static () => new TextBlock(string.Empty),
+            static () => { },
+            static _ => { },
+            static () => { },
+            static () => { },
+            static _ => { },
+            static () => { },
+            static () => { },
+            static () => { },
+            static _ => { },
+            static _ => { },
+            static (_, _) => { },
+            static (_, _) => { },
+            static () => { },
+            static () => { },
+            static () => { },
+            static () => { },
+            static _ => { },
+            static _ => { },
+            static _ => { },
+            static _ => { },
+            new State<string?>(string.Empty),
+            new State<float>(0),
+            static () => { });
+
+        var closeTabCommand = Assert.IsInstanceOfType<Command>(
+            view.ThreadInput.Commands.Single(command => string.Equals(command.Id, "CodeAlta.Thread.CloseTab", StringComparison.Ordinal)));
+
+        Assert.AreEqual("/close_tab", closeTabCommand.LabelMarkup);
+        Assert.AreEqual("close_tab", closeTabCommand.Name);
+        StringAssert.Contains(closeTabCommand.SearchText, "/close_tab");
+        StringAssert.Contains(closeTabCommand.SearchText, "/close");
     }
 
     private static T GetPrivateField<T>(object instance, string fieldName)

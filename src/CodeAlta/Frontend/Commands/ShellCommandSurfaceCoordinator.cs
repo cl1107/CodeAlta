@@ -7,11 +7,22 @@ using CodeAlta.Views;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Controls;
 using XenoAtom.Terminal.UI.Geometry;
+using XenoAtom.Terminal.UI.Styling;
 
 namespace CodeAlta.Frontend.Commands;
 
 internal sealed class ShellCommandSurfaceCoordinator
 {
+    internal const string SlashCommandPaletteQuery = "/";
+    internal static CommandPaletteStyle CommandPalettePopupStyle { get; } = CommandPaletteStyle.Default with
+    {
+        PopupWidthPercent = 50,
+        MaxWidth = int.MaxValue,
+        PopupHorizontalAlignment = Align.Center,
+        PopupVerticalAlignment = Align.End,
+        PopupOffsetY = -2,
+    };
+
     private readonly PromptComposerViewModel _promptComposerViewModel;
     private readonly ThreadWorkspaceViewModel _threadWorkspaceViewModel;
     private readonly ThreadCommandCoordinator _threadCommandCoordinator;
@@ -122,7 +133,10 @@ internal sealed class ShellCommandSurfaceCoordinator
         => ExecuteHelpAsync(filterText, cancellationToken);
 
     public void ShowCommandPalette()
-        => (_commandPalette ??= new CommandPalette()).Show();
+        => ShowCommandPalette(initialQuery: null);
+
+    public void ShowSlashCommandPalette()
+        => ShowCommandPalette(SlashCommandPaletteQuery);
 
     public Task ShowCommandPaletteAsync()
     {
@@ -164,6 +178,20 @@ internal sealed class ShellCommandSurfaceCoordinator
     {
         _ = cancellationToken;
         return ShowShellHelpAsync(filterText);
+    }
+
+    internal static void ConfigureCommandPaletteForShow(CommandPalette commandPalette, string? initialQuery)
+    {
+        ArgumentNullException.ThrowIfNull(commandPalette);
+
+        if (initialQuery is null)
+        {
+            commandPalette.ClearQueryOnShow(true);
+            return;
+        }
+
+        commandPalette.ClearQueryOnShow(false);
+        commandPalette.QueryText(initialQuery);
     }
 
     private Task ShowShellHelpAsync(string? filterText = null)
@@ -213,4 +241,15 @@ internal sealed class ShellCommandSurfaceCoordinator
 
     private Task ClearSelectedThreadQueueAsync()
         => _threadCommandCoordinator.ClearSelectedThreadQueueAsync();
+
+    private void ShowCommandPalette(string? initialQuery)
+    {
+        var commandPalette = _commandPalette ??= CreateCommandPalette();
+        ConfigureCommandPaletteForShow(commandPalette, initialQuery);
+        commandPalette.Show();
+        commandPalette.ClearQueryOnShow(true);
+    }
+
+    private static CommandPalette CreateCommandPalette()
+        => new CommandPalette().Style(() => CommandPalettePopupStyle);
 }
