@@ -115,28 +115,33 @@ internal sealed class ShellWorkspaceCoordinator
         ArgumentNullException.ThrowIfNull(tab);
         ArgumentException.ThrowIfNullOrWhiteSpace(message);
 
-        var changed =
-            !string.Equals(tab.StatusMessage, message, StringComparison.Ordinal) ||
-            tab.StatusBusy != showSpinner ||
-            tab.StatusTone != tone ||
-            tab.HasCustomStatus != hasCustomStatus;
+        _workspaceContext.DispatchToUi(
+            () =>
+            {
+                _workspaceContext.VerifyBindableAccess();
+                var changed =
+                    !string.Equals(tab.StatusMessage, message, StringComparison.Ordinal) ||
+                    tab.StatusBusy != showSpinner ||
+                    tab.StatusTone != tone ||
+                    tab.HasCustomStatus != hasCustomStatus;
 
-        tab.StatusMessage = message;
-        tab.StatusBusy = showSpinner;
-        tab.StatusTone = tone;
-        tab.HasCustomStatus = hasCustomStatus;
+                tab.StatusMessage = message;
+                tab.StatusBusy = showSpinner;
+                tab.StatusTone = tone;
+                tab.HasCustomStatus = hasCustomStatus;
 
-        if (_threadSelection.IsSelectedThread(tab.Thread.ThreadId))
-        {
-            _workspaceContext.DispatchToUi(_workspaceContext.UpdatePromptAvailabilityUi);
-            SetReadyStatusForCurrentSelection();
-        }
+                if (_threadSelection.IsSelectedThread(tab.Thread.ThreadId))
+                {
+                    _workspaceContext.UpdatePromptAvailabilityUi();
+                    SetReadyStatusForCurrentSelection();
+                }
 
-        if (changed)
-        {
-            _workspaceContext.DispatchToUi(_workspaceContext.RefreshSidebarProjection);
-            InvalidateThreadChrome();
-        }
+                if (changed)
+                {
+                    _workspaceContext.RefreshSidebarProjection();
+                    _viewRefreshState.Value++;
+                }
+            });
     }
 
     public void ClearThreadStatus(OpenThreadState tab)

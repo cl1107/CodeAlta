@@ -1,6 +1,5 @@
 using CodeAlta.Catalog;
 using CodeAlta.Models;
-using CodeAlta.Threading;
 using CodeAlta.Views;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Geometry;
@@ -12,7 +11,6 @@ internal sealed class NavigatorActionCoordinator
 {
     private readonly CodeAltaShellController _shellController;
     private readonly ShellThreadStateCoordinator _threadStateCoordinator;
-    private readonly Func<IUiDispatcher> _getUiDispatcher;
     private readonly Func<Rectangle?> _getDialogBounds;
     private readonly Func<Visual?> _getFocusTarget;
     private readonly Action<string, bool, StatusTone> _setStatus;
@@ -21,7 +19,6 @@ internal sealed class NavigatorActionCoordinator
     public NavigatorActionCoordinator(
         CodeAltaShellController shellController,
         ShellThreadStateCoordinator threadStateCoordinator,
-        Func<IUiDispatcher> getUiDispatcher,
         Func<Rectangle?> getDialogBounds,
         Func<Visual?> getFocusTarget,
         Action<string, bool, StatusTone> setStatus,
@@ -29,7 +26,6 @@ internal sealed class NavigatorActionCoordinator
     {
         ArgumentNullException.ThrowIfNull(shellController);
         ArgumentNullException.ThrowIfNull(threadStateCoordinator);
-        ArgumentNullException.ThrowIfNull(getUiDispatcher);
         ArgumentNullException.ThrowIfNull(getDialogBounds);
         ArgumentNullException.ThrowIfNull(getFocusTarget);
         ArgumentNullException.ThrowIfNull(setStatus);
@@ -37,7 +33,6 @@ internal sealed class NavigatorActionCoordinator
 
         _shellController = shellController;
         _threadStateCoordinator = threadStateCoordinator;
-        _getUiDispatcher = getUiDispatcher;
         _getDialogBounds = getDialogBounds;
         _getFocusTarget = getFocusTarget;
         _setStatus = setStatus;
@@ -125,7 +120,6 @@ internal sealed class NavigatorActionCoordinator
                 globalThreads,
                 threadIds => DeleteProjectThreadsAsync(projectId: null, threadIds),
                 threadId => _shellController.OpenThreadAsync(threadId, CancellationToken.None),
-                _getUiDispatcher,
                 _getDialogBounds,
                 _getFocusTarget)
                 .Show();
@@ -150,7 +144,6 @@ internal sealed class NavigatorActionCoordinator
             threads,
             threadIds => DeleteProjectThreadsAsync(projectId, threadIds),
             threadId => _shellController.OpenThreadAsync(threadId, CancellationToken.None),
-            _getUiDispatcher,
             _getDialogBounds,
             _getFocusTarget)
             .Show();
@@ -170,7 +163,6 @@ internal sealed class NavigatorActionCoordinator
         new ProjectDetailsDialog(
             project,
             SaveProjectAsync,
-            _getUiDispatcher,
             _getDialogBounds,
             _getFocusTarget)
             .Show();
@@ -189,7 +181,7 @@ internal sealed class NavigatorActionCoordinator
 
         var updatedProject = CloneProject(project);
         updatedProject.DisplayName = displayName.Trim();
-        await SaveProjectAsync(updatedProject).ConfigureAwait(false);
+        await SaveProjectAsync(updatedProject);
     }
 
     private async Task DeleteThreadAsync(WorkThreadDescriptor thread)
@@ -197,12 +189,8 @@ internal sealed class NavigatorActionCoordinator
         try
         {
             _setStatus($"Deleting thread '{thread.Title}'...", true, StatusTone.Info);
-            await _shellController.DeleteThreadAsync(thread.ThreadId, CancellationToken.None).ConfigureAwait(false);
-            await _getUiDispatcher().InvokeAsync(() =>
-            {
-                _threadStateCoordinator.RemoveDeletedThread(thread.ThreadId, thread.ProjectRef);
-                _setReadyStatusForCurrentSelection();
-            }).ConfigureAwait(false);
+            await _shellController.DeleteThreadAsync(thread.ThreadId, CancellationToken.None);
+            await _threadStateCoordinator.RemoveDeletedThreadArtifactsAsync([thread.ThreadId]);
         }
         catch (Exception ex)
         {
@@ -215,12 +203,8 @@ internal sealed class NavigatorActionCoordinator
         try
         {
             _setStatus($"Deleting threads for project '{project.DisplayName}'...", true, StatusTone.Info);
-            var result = await _shellController.DeleteProjectAsync(project.Id, CancellationToken.None).ConfigureAwait(false);
-            await _getUiDispatcher().InvokeAsync(() =>
-            {
-                _threadStateCoordinator.RemoveDeletedProject(project.Id, result.DeletedThreadIds);
-                _setReadyStatusForCurrentSelection();
-            }).ConfigureAwait(false);
+            var result = await _shellController.DeleteProjectAsync(project.Id, CancellationToken.None);
+            await _threadStateCoordinator.RemoveDeletedThreadArtifactsAsync(result.DeletedThreadIds);
         }
         catch (Exception ex)
         {
@@ -233,16 +217,13 @@ internal sealed class NavigatorActionCoordinator
         try
         {
             _setStatus($"Deleting {threadIds.Count} thread(s)...", true, StatusTone.Info);
-            var fallbackProjectId = string.IsNullOrWhiteSpace(projectId) ? null : projectId;
             foreach (var threadId in threadIds)
             {
-                await _shellController.DeleteThreadAsync(threadId, CancellationToken.None).ConfigureAwait(false);
-                await _getUiDispatcher().InvokeAsync(
-                    () => _threadStateCoordinator.RemoveDeletedThread(threadId, fallbackProjectId))
-                    .ConfigureAwait(false);
+                await _shellController.DeleteThreadAsync(threadId, CancellationToken.None);
             }
 
-            await _getUiDispatcher().InvokeAsync(_setReadyStatusForCurrentSelection).ConfigureAwait(false);
+            await _threadStateCoordinator.RemoveDeletedThreadArtifactsAsync(threadIds);
+            _setReadyStatusForCurrentSelection();
         }
         catch (Exception ex)
         {
@@ -255,7 +236,7 @@ internal sealed class NavigatorActionCoordinator
         try
         {
             _setStatus($"Saving project '{project.DisplayName}'...", true, StatusTone.Info);
-            await _shellController.SaveProjectAsync(project, CancellationToken.None).ConfigureAwait(false);
+            await _shellController.SaveProjectAsync(project, CancellationToken.None);
         }
         catch (Exception ex)
         {

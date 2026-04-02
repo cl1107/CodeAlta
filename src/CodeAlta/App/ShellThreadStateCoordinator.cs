@@ -17,6 +17,7 @@ internal sealed class ShellThreadStateCoordinator
         WorkThreadViewState ViewState);
 
     private readonly ShellSelectionCoordinator _selectionCoordinator = new();
+    private readonly Func<IUiDispatcher> _getUiDispatcher;
     private readonly ShellCatalogStateCoordinator _catalogStateCoordinator;
     private readonly OpenThreadRegistry _openThreadRegistry;
     private readonly ThreadViewStateCoordinator _viewStateCoordinator;
@@ -61,6 +62,7 @@ internal sealed class ShellThreadStateCoordinator
         ArgumentNullException.ThrowIfNull(removeTabPage);
         ArgumentNullException.ThrowIfNull(setStatus);
 
+        _getUiDispatcher = getUiDispatcher;
         _viewStateCoordinator = new ThreadViewStateCoordinator(threadCatalog);
         _openThreadRegistry = new OpenThreadRegistry(
             getUiDispatcher,
@@ -126,7 +128,7 @@ internal sealed class ShellThreadStateCoordinator
 
     public async Task<InitialCatalogState> LoadInitialCatalogStateAsync(CancellationToken cancellationToken)
     {
-        return await _catalogStateCoordinator.LoadInitialCatalogStateAsync(cancellationToken).ConfigureAwait(false);
+        return await _catalogStateCoordinator.LoadInitialCatalogStateAsync(cancellationToken);
     }
 
     public void ApplyInitialCatalogState(InitialCatalogState state)
@@ -139,11 +141,11 @@ internal sealed class ShellThreadStateCoordinator
 
     public async Task LoadCatalogStateAsync(CancellationToken cancellationToken)
     {
-        ApplyInitialCatalogState(await LoadInitialCatalogStateAsync(cancellationToken).ConfigureAwait(false));
+        ApplyInitialCatalogState(await LoadInitialCatalogStateAsync(cancellationToken));
     }
 
     public async Task PersistViewStateAsync()
-        => await _viewStateCoordinator.PersistViewStateAsync(ViewState).ConfigureAwait(false);
+        => await _viewStateCoordinator.PersistViewStateAsync(ViewState);
 
     public void ApplyRecoveredCatalogState(
         IReadOnlyList<ProjectDescriptor> projects,
@@ -166,7 +168,7 @@ internal sealed class ShellThreadStateCoordinator
     }
 
     public async Task PersistThreadLocalStateAsync(WorkThreadDescriptor thread)
-        => await _viewStateCoordinator.PersistThreadLocalStateAsync(ViewState, thread).ConfigureAwait(false);
+        => await _viewStateCoordinator.PersistThreadLocalStateAsync(ViewState, thread);
 
     public NavigatorSettings GetNavigatorSettingsSnapshot()
         => _viewStateCoordinator.GetNavigatorSettingsSnapshot(ViewState);
@@ -176,7 +178,7 @@ internal sealed class ShellThreadStateCoordinator
         ArgumentNullException.ThrowIfNull(settings);
         settings.Validate();
 
-        await _viewStateCoordinator.SaveNavigatorSettingsAsync(ViewState, settings).ConfigureAwait(false);
+        await _viewStateCoordinator.SaveNavigatorSettingsAsync(ViewState, settings);
     }
 
     public void TrySchedulePendingStartupThreadRestore(CancellationToken cancellationToken)
@@ -226,9 +228,15 @@ internal sealed class ShellThreadStateCoordinator
     {
         ArgumentNullException.ThrowIfNull(thread);
 
-        _catalogStateCoordinator.UpsertThread(thread);
-        OpenThread(thread.ThreadId);
-        await _ensureThreadHistoryLoadedAsync(thread, CancellationToken.None).ConfigureAwait(false);
+        UiDispatch.Invoke(
+            _getUiDispatcher(),
+            () =>
+            {
+                _catalogStateCoordinator.UpsertThread(thread);
+                OpenThread(thread.ThreadId);
+            });
+
+        await _ensureThreadHistoryLoadedAsync(thread, CancellationToken.None);
     }
 
     public OpenThreadState RegisterDelegatedThread(WorkThreadDescriptor child, OpenThreadState sourceTab)
@@ -290,7 +298,7 @@ internal sealed class ShellThreadStateCoordinator
             return;
         }
 
-        await CloseThreadAsync(SelectedThreadId).ConfigureAwait(false);
+        await CloseThreadAsync(SelectedThreadId);
     }
 
     public async Task CloseThreadAsync(string threadId)
@@ -310,8 +318,36 @@ internal sealed class ShellThreadStateCoordinator
         }
 
         ViewState.UpdatedAt = DateTimeOffset.UtcNow;
-        await PersistViewStateAsync().ConfigureAwait(false);
+        await PersistViewStateAsync();
         _refreshSelectionAndThreadWorkspace();
+    }
+
+    public async Task RemoveDeletedThreadArtifactsAsync(IReadOnlyList<string> threadIds)
+    {
+        ArgumentNullException.ThrowIfNull(threadIds);
+
+        var removedAnyState = false;
+        foreach (var threadId in threadIds)
+        {
+            if (string.IsNullOrWhiteSpace(threadId))
+            {
+                continue;
+            }
+
+            _deletePromptDraft(threadId);
+            PendingStartupThreadRestoreId = string.Equals(PendingStartupThreadRestoreId, threadId, StringComparison.OrdinalIgnoreCase)
+                ? null
+                : PendingStartupThreadRestoreId;
+            removedAnyState |= ViewState.ThreadStates.Remove(threadId);
+        }
+
+        if (!removedAnyState)
+        {
+            return;
+        }
+
+        ViewState.UpdatedAt = DateTimeOffset.UtcNow;
+        await PersistViewStateAsync();
     }
 
     public void RemoveDeletedThread(string threadId, string? fallbackProjectId)
@@ -429,7 +465,7 @@ internal sealed class ShellThreadStateCoordinator
             return;
         }
 
-        await _ensureThreadHistoryLoadedAsync(thread, cancellationToken).ConfigureAwait(false);
+        await _ensureThreadHistoryLoadedAsync(thread, cancellationToken);
     }
 
 }

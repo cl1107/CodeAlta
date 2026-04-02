@@ -68,9 +68,9 @@ internal sealed class ThreadCreationCoordinator
                 _getPreferredBackendId(),
                 _catalogOptions.GlobalRoot,
                 []);
-            var thread = await _runtimeService.CreateGlobalThreadAsync(executionOptions, title).ConfigureAwait(false);
+            var thread = await _runtimeService.CreateGlobalThreadAsync(executionOptions, title);
             _rememberThreadPreference(thread.ThreadId, executionOptions.Model, executionOptions.ReasoningEffort, true, false);
-            await _registerCreatedThreadAsync(thread).ConfigureAwait(false);
+            await _registerCreatedThreadAsync(thread);
             _clearThreadTitleDraft();
             _setStatus(
                 ShellTextFormatter.BuildReadyStatusText(thread, _getSelectedProject(), IsGlobalDraftSelected()),
@@ -102,9 +102,9 @@ internal sealed class ThreadCreationCoordinator
                 _getPreferredBackendId(),
                 project.ProjectPath,
                 [project.ProjectPath]);
-            var thread = await _runtimeService.CreateProjectThreadAsync(project, executionOptions, title).ConfigureAwait(false);
+            var thread = await _runtimeService.CreateProjectThreadAsync(project, executionOptions, title);
             _rememberThreadPreference(thread.ThreadId, executionOptions.Model, executionOptions.ReasoningEffort, true, false);
-            await _registerCreatedThreadAsync(thread).ConfigureAwait(false);
+            await _registerCreatedThreadAsync(thread);
             _clearThreadTitleDraft();
             _setStatus(
                 ShellTextFormatter.BuildReadyStatusText(thread, _getSelectedProject(), IsGlobalDraftSelected()),

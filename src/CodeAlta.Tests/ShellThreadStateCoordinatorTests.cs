@@ -171,10 +171,51 @@ public sealed class ShellThreadStateCoordinatorTests
         Assert.AreEqual(7, viewState.Navigator.RecentThreadsPerProject);
     }
 
+    [TestMethod]
+    public async Task RemoveDeletedThreadArtifactsAsync_RemovesPersistedThreadStateAndPendingRestore()
+    {
+        using var temp = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = temp.Path };
+        var threadCatalog = new WorkThreadCatalog(options);
+        var deletedPromptDrafts = new List<string>();
+        var coordinator = CreateCoordinator(
+            options,
+            threadCatalog,
+            deletePromptDraft: deletedPromptDrafts.Add);
+        coordinator.ViewState = new WorkThreadViewState
+        {
+            ThreadStates = new Dictionary<string, WorkThreadLocalState>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["thread-1"] = new WorkThreadLocalState
+                {
+                    Archived = true,
+                    MessageCount = 4,
+                },
+                ["thread-2"] = new WorkThreadLocalState
+                {
+                    MessageCount = 1,
+                },
+            },
+        };
+        coordinator.PendingStartupThreadRestoreId = "thread-1";
+
+        await coordinator.RemoveDeletedThreadArtifactsAsync(["thread-1"]).ConfigureAwait(false);
+
+        Assert.IsNull(coordinator.PendingStartupThreadRestoreId);
+        CollectionAssert.AreEqual(new[] { "thread-1" }, deletedPromptDrafts);
+        Assert.IsFalse(coordinator.ViewState.ThreadStates.ContainsKey("thread-1"));
+        Assert.IsTrue(coordinator.ViewState.ThreadStates.ContainsKey("thread-2"));
+
+        var persistedViewState = await threadCatalog.LoadViewStateAsync().ConfigureAwait(false);
+        Assert.IsFalse(persistedViewState.ThreadStates.ContainsKey("thread-1"));
+        Assert.IsTrue(persistedViewState.ThreadStates.ContainsKey("thread-2"));
+    }
+
     private static ShellThreadStateCoordinator CreateCoordinator(
         CatalogOptions options,
         WorkThreadCatalog? threadCatalog = null,
-        Func<string, string?>? loadPromptDraft = null)
+        Func<string, string?>? loadPromptDraft = null,
+        Action<string>? deletePromptDraft = null)
     {
         threadCatalog ??= new WorkThreadCatalog(options);
         return new ShellThreadStateCoordinator(
@@ -184,7 +225,7 @@ public sealed class ShellThreadStateCoordinatorTests
             static () => null,
             static _ => true,
             loadPromptDraft ?? (static _ => null),
-            static _ => { },
+            deletePromptDraft ?? (static _ => { }),
             static _ => { },
             static (_, _, _, _, _) => { },
             static (_, _) => Task.CompletedTask,

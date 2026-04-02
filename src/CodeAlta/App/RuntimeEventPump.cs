@@ -29,6 +29,8 @@ internal sealed class RuntimeEventPump : IAsyncDisposable
         }
 
         _pumpCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposeCts.Token);
+        // Runtime event streaming is a background pump. Delivery back into the shell happens via
+        // the shell controller's explicit UI dispatch path.
         _pumpTask = Task.Run(
             () => RunAsync(_pumpCts.Token),
             CancellationToken.None);

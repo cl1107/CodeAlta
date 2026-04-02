@@ -318,12 +318,11 @@ internal sealed class SidebarCoordinator
     {
         try
         {
-            await _renameProjectDisplayNameAsync(projectId, displayName).ConfigureAwait(false);
+            await _renameProjectDisplayNameAsync(projectId, displayName);
         }
         catch
         {
             row.UpdateTitle(previousTitle);
-            throw;
         }
     }
 

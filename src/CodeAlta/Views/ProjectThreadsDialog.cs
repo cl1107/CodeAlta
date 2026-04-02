@@ -1,7 +1,6 @@
 using CodeAlta.App;
 using CodeAlta.Catalog;
 using CodeAlta.Presentation.Sidebar;
-using CodeAlta.Threading;
 using CodeAlta.ViewModels;
 using XenoAtom.Terminal;
 using XenoAtom.Terminal.UI;
@@ -19,7 +18,6 @@ internal sealed class ProjectThreadsDialog
 {
     private readonly ProjectThreadsDialogState _state;
     private readonly ProjectThreadsDialogViewModel _viewModel = new();
-    private readonly Func<IUiDispatcher> _getUiDispatcher;
     private readonly Func<IReadOnlyList<string>, Task> _deleteThreadsAsync;
     private readonly Func<string, Task> _openThreadAsync;
     private readonly Func<Visual?> _getFocusTarget;
@@ -32,7 +30,6 @@ internal sealed class ProjectThreadsDialog
         IReadOnlyList<WorkThreadDescriptor> threads,
         Func<IReadOnlyList<string>, Task> deleteThreadsAsync,
         Func<string, Task> openThreadAsync,
-        Func<IUiDispatcher> getUiDispatcher,
         Func<Rectangle?> getBounds,
         Func<Visual?> getFocusTarget)
     {
@@ -40,13 +37,11 @@ internal sealed class ProjectThreadsDialog
         ArgumentNullException.ThrowIfNull(threads);
         ArgumentNullException.ThrowIfNull(deleteThreadsAsync);
         ArgumentNullException.ThrowIfNull(openThreadAsync);
-        ArgumentNullException.ThrowIfNull(getUiDispatcher);
         ArgumentNullException.ThrowIfNull(getBounds);
         ArgumentNullException.ThrowIfNull(getFocusTarget);
 
         _deleteThreadsAsync = deleteThreadsAsync;
         _openThreadAsync = openThreadAsync;
-        _getUiDispatcher = getUiDispatcher;
         _getFocusTarget = getFocusTarget;
 
         var nowUtc = DateTimeOffset.UtcNow;
@@ -266,12 +261,9 @@ internal sealed class ProjectThreadsDialog
             ControlTone.Error,
             async () =>
             {
-                await _deleteThreadsAsync(selectedThreadIds).ConfigureAwait(false);
-                await _getUiDispatcher().InvokeAsync(() =>
-                {
-                    _state.RemoveThreads(selectedThreadIds);
-                    RebuildDocumentRows();
-                }).ConfigureAwait(false);
+                await _deleteThreadsAsync(selectedThreadIds);
+                _state.RemoveThreads(selectedThreadIds);
+                RebuildDocumentRows();
             },
             () => _dialog.GetAbsoluteBounds(),
             () => _dialog)
@@ -281,7 +273,7 @@ internal sealed class ProjectThreadsDialog
     private async Task OpenThreadAsync(string threadId)
     {
         Close();
-        await _openThreadAsync(threadId).ConfigureAwait(false);
+        await _openThreadAsync(threadId);
     }
 
     private void RebuildDocumentRows()

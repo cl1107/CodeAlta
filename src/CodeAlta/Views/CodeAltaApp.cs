@@ -102,7 +102,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
 
     public static async Task<CodeAltaApp> CreateAsync(CancellationToken cancellationToken)
     {
-        var ownedServices = await CodeAltaOwnedServices.CreateAsync(cancellationToken).ConfigureAwait(false);
+        var ownedServices = await CodeAltaOwnedServices.CreateAsync(cancellationToken);
         return Create(ownedServices);
     }
     internal static CodeAltaApp Create(CodeAltaOwnedServices ownedServices)
@@ -231,10 +231,10 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             () => _threadWorkspaceView,
             build => CreateComputedVisual(build),
             GetUiDispatcher,
-            () => _ = ActivateDraftTabAsync(),
-            threadId => _ = CloseThreadAsync(threadId),
-            () => _ = CloseDraftTabAsync(),
-            threadId => _ = _shellController.OpenThreadAsync(threadId, CancellationToken.None));
+            () => ObserveUiTask(ActivateDraftTabAsync(), "activate the draft tab"),
+            threadId => ObserveUiTask(CloseThreadAsync(threadId), "close the thread tab"),
+            () => ObserveUiTask(CloseDraftTabAsync(), "close the draft tab"),
+            threadId => ObserveUiTask(_shellController.OpenThreadAsync(threadId, CancellationToken.None), "open the thread tab"));
         _threadTabStripCoordinator = new ThreadTabStripCoordinator(
             _threadSelectionContext,
             _threadTabContext);
@@ -281,16 +281,15 @@ internal sealed class CodeAltaApp : IAsyncDisposable
         await Terminal.RunAsync(
                 root,
                 () => Tick(cancellationToken),
-                cancellationToken)
-            .ConfigureAwait(false);
+                cancellationToken);
     }
 
     public async ValueTask DisposeAsync()
     {
-        await _runtimeEventPump.DisposeAsync().ConfigureAwait(false);
-        await _shellController.DisposeAsync().ConfigureAwait(false);
-        await _promptDraftUiCoordinator.DisposeAsync().ConfigureAwait(false);
-        if (_ownedServices is not null) await _ownedServices.DisposeAsync().ConfigureAwait(false);
+        await _runtimeEventPump.DisposeAsync();
+        await _shellController.DisposeAsync();
+        await _promptDraftUiCoordinator.DisposeAsync();
+        if (_ownedServices is not null) await _ownedServices.DisposeAsync();
     }
 
     private string? GetDraftProjectRoot()
@@ -480,20 +479,20 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             () => CreateUsageComputedVisual(EnsureSessionUsagePresenter().BuildIndicatorVisual),
             () => EnsureSessionUsagePresenter().TogglePopupFromIndicator(),
             anchor => EnsureThreadInfoPresenter().TogglePopup(anchor),
-            () => _ = _shellCommandSurfaceCoordinator.ShowHelpAsync(),
+            () => ObserveUiTask(_shellCommandSurfaceCoordinator.ShowHelpAsync(), "show help"),
             () => _shellCommandSurfaceCoordinator.ShowCommandPalette(),
-            acceptedPrompt => _ = _shellCommandSurfaceCoordinator.HandleAcceptedPromptAsync(acceptedPrompt),
-            () => _ = _shellCommandSurfaceCoordinator.SubmitCurrentPromptAsync(steer: false),
-            () => _ = _shellCommandSurfaceCoordinator.SubmitCurrentPromptAsync(steer: true),
-            () => _ = _threadCommandCoordinator.ClearSelectedThreadQueueAsync(),
-            queuedPromptId => _ = _threadCommandCoordinator.ConvertSelectedThreadQueuedPromptToSteerAsync(queuedPromptId),
+            acceptedPrompt => ObserveUiTask(_shellCommandSurfaceCoordinator.HandleAcceptedPromptAsync(acceptedPrompt), "submit the current prompt"),
+            () => ObserveUiTask(_shellCommandSurfaceCoordinator.SubmitCurrentPromptAsync(steer: false), "submit the current prompt"),
+            () => ObserveUiTask(_shellCommandSurfaceCoordinator.SubmitCurrentPromptAsync(steer: true), "steer the current thread"),
+            () => ObserveUiTask(_threadCommandCoordinator.ClearSelectedThreadQueueAsync(), "clear the thread queue"),
+            queuedPromptId => ObserveUiTask(_threadCommandCoordinator.ConvertSelectedThreadQueuedPromptToSteerAsync(queuedPromptId), "convert the queued prompt to steer"),
             queuedPromptId => _threadCommandCoordinator.DeleteSelectedThreadQueuedPrompt(queuedPromptId),
             (queuedPromptId, remainingCount) => _threadCommandCoordinator.UpdateSelectedThreadQueuedPromptCount(queuedPromptId, remainingCount),
             (queuedPromptId, text) => _threadCommandCoordinator.UpdateSelectedThreadQueuedPromptText(queuedPromptId, text),
-            () => _ = _shellCommandSurfaceCoordinator.SubmitCurrentDelegationAsync(),
-            () => _ = _shellCommandSurfaceCoordinator.AbortSelectedThreadAsync(),
-            () => _ = _shellCommandSurfaceCoordinator.CompactSelectedThreadAsync(),
-            () => _ = _shellCommandSurfaceCoordinator.CloseCurrentTabAsync(),
+            () => ObserveUiTask(_shellCommandSurfaceCoordinator.SubmitCurrentDelegationAsync(), "delegate internal work"),
+            () => ObserveUiTask(_shellCommandSurfaceCoordinator.AbortSelectedThreadAsync(), "abort the selected thread"),
+            () => ObserveUiTask(_shellCommandSurfaceCoordinator.CompactSelectedThreadAsync(), "compact the selected thread"),
+            () => ObserveUiTask(_shellCommandSurfaceCoordinator.CloseCurrentTabAsync(), "close the current tab"),
             OnChatBackendSelectionChanged,
             OnChatModelSelectionChanged,
             OnChatReasoningSelectionChanged,
@@ -577,6 +576,9 @@ internal sealed class CodeAltaApp : IAsyncDisposable
 
     internal void SetReadyStatusForCurrentSelection()
         => _workspaceCoordinator.SetReadyStatusForCurrentSelection();
+
+    private void ObserveUiTask(Task task, string operation)
+        => _ = UiTaskDiagnostics.ObserveAsync(task, operation, SetStatus);
 
     private SessionUsagePresenter EnsureSessionUsagePresenter()
         => _sessionUsagePresenter ??= PopupPresenterFactory.CreateSessionUsagePresenter(
@@ -667,7 +669,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
         _threadStateCoordinator.SelectedThreadId = null;
         _viewState.SelectedThreadId = null;
         _viewState.UpdatedAt = DateTimeOffset.UtcNow;
-        await PersistViewStateAsync().ConfigureAwait(false);
+        await PersistViewStateAsync();
         RefreshSelectionAndThreadWorkspace();
     }
 
@@ -680,7 +682,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
         }
 
         _viewState.UpdatedAt = DateTimeOffset.UtcNow;
-        await PersistViewStateAsync().ConfigureAwait(false);
+        await PersistViewStateAsync();
         RefreshSelectionAndThreadWorkspace();
     }
 
@@ -691,9 +693,9 @@ internal sealed class CodeAltaApp : IAsyncDisposable
         => DefaultAutoApproveEnabled;
 
     private async Task PersistViewStateAsync()
-        => await _threadStateCoordinator.PersistViewStateAsync().ConfigureAwait(false);
+        => await _threadStateCoordinator.PersistViewStateAsync();
     internal async Task InitializeChatBackendsAsync(CancellationToken cancellationToken)
-        => await _chatBackendInitializationCoordinator.InitializeAsync(cancellationToken).ConfigureAwait(false);
+        => await _chatBackendInitializationCoordinator.InitializeAsync(cancellationToken);
 
     internal void ApplyRecoveredCatalogState(
         IReadOnlyList<ProjectDescriptor> projects,
@@ -704,19 +706,19 @@ internal sealed class CodeAltaApp : IAsyncDisposable
         => _threadStateCoordinator.TrySchedulePendingStartupThreadRestore(cancellationToken);
 
     private async Task RestoreStartupThreadHistoryAsync(string? threadId, CancellationToken cancellationToken)
-        => await _threadStateCoordinator.RestoreStartupThreadHistoryAsync(threadId, cancellationToken).ConfigureAwait(false);
+        => await _threadStateCoordinator.RestoreStartupThreadHistoryAsync(threadId, cancellationToken);
 
     private async Task RegisterCreatedThreadAsync(WorkThreadDescriptor thread)
-        => await _threadStateCoordinator.RegisterCreatedThreadAsync(thread).ConfigureAwait(false);
+        => await _threadStateCoordinator.RegisterCreatedThreadAsync(thread);
 
     internal void OpenThread(string threadId)
         => _threadStateCoordinator.OpenThread(threadId);
 
     private async Task CloseSelectedThreadAsync()
-        => await _threadStateCoordinator.CloseSelectedThreadAsync().ConfigureAwait(false);
+        => await _threadStateCoordinator.CloseSelectedThreadAsync();
 
     private async Task CloseThreadAsync(string threadId)
-        => await _threadStateCoordinator.CloseThreadAsync(threadId).ConfigureAwait(false);
+        => await _threadStateCoordinator.CloseThreadAsync(threadId);
 
     private Task EnsureThreadHistoryLoadedAsync(WorkThreadDescriptor thread, CancellationToken cancellationToken = default)
         => _threadHistoryCoordinator.EnsureLoadedAsync(thread, cancellationToken);

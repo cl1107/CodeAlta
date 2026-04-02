@@ -155,7 +155,7 @@ internal static class SidebarTreeProjectionBuilder
             _ => NerdFont.MdChatProcessingOutline,
         };
         var row = getOrCreateRow($"thread:{thread.ThreadId}", SidebarNodeKind.Thread, SidebarSelectionTarget.Thread(thread.ThreadId));
-        row.UpdateTitle(SidebarThreadPresentation.CompactThreadTitle(thread.Title));
+        row.UpdateTitle(thread.Title);
         row.UpdateActivity(thread.LastActiveAt, nowUtc);
         var visualState = getThreadVisualState(thread.ThreadId);
         row.UpdateStateIndicator(

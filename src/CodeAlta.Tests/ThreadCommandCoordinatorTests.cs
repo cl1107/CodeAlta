@@ -87,6 +87,7 @@ public sealed class ThreadCommandCoordinatorTests
             static (_, _, _) => Task.CompletedTask);
         var clearThreadInputCallCount = 0;
         var commandContext = new ThreadCommandContext(
+            dispatcher,
             static () => false,
             async _ =>
             {
@@ -219,6 +220,7 @@ public sealed class ThreadCommandCoordinatorTests
             static (_, _, _) => Task.CompletedTask,
             static (_, _, _) => Task.CompletedTask);
         var commandContext = new ThreadCommandContext(
+            dispatcher,
             static () => false,
             static _ => Task.FromResult<WorkThreadDescriptor?>(null),
             async title =>
@@ -415,6 +417,7 @@ public sealed class ThreadCommandCoordinatorTests
             static (_, _, _) => Task.CompletedTask,
             static (_, _, _) => Task.CompletedTask);
         var commandContext = new ThreadCommandContext(
+            dispatcher,
             static () => false,
             static _ => Task.FromResult<WorkThreadDescriptor?>(null),
             static _ => Task.FromResult<WorkThreadDescriptor?>(null),

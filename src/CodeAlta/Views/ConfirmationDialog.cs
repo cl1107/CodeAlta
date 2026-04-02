@@ -108,7 +108,7 @@ internal sealed class ConfirmationDialog
     private async Task ConfirmAsync()
     {
         Close();
-        await _onConfirmAsync().ConfigureAwait(false);
+        await _onConfirmAsync();
     }
 
     private void Close()

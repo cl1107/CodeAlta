@@ -122,7 +122,6 @@ internal sealed class CodeAltaFrontendComposition
             catalogOptions,
             shellController,
             threadStateCoordinator,
-            callbacks.GetUiDispatcher,
             callbacks.RefreshCatalogAndThreadWorkspace,
             callbacks.SetStatus,
             callbacks.SetReadyStatusForCurrentSelection);
@@ -213,6 +212,7 @@ internal sealed class CodeAltaFrontendComposition
             chatSelectorStateContext,
             chatPreferenceContext,
             new ThreadCommandContext(
+                callbacks.GetUiDispatcher(),
                 callbacks.TrySetPromptUnavailableStatus,
                 title => threadCreationCoordinator.CreateGlobalThreadAsync(title),
                 title => threadCreationCoordinator.CreateProjectThreadAsync(title),

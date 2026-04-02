@@ -88,8 +88,8 @@ internal sealed class ThreadCommandCoordinator
 
             var initialThreadTitle = ThreadPromptDispatchCoordinator.CreateInitialThreadTitle(prompt);
             thread = _threadSelection.Selection.Target is WorkspaceTarget.Draft { IsGlobal: true }
-                ? await _commandContext.CreateGlobalThreadAsync(initialThreadTitle).ConfigureAwait(false)
-                : await _commandContext.CreateProjectThreadAsync(initialThreadTitle).ConfigureAwait(false);
+                ? await _commandContext.CreateGlobalThreadAsync(initialThreadTitle)
+                : await _commandContext.CreateProjectThreadAsync(initialThreadTitle);
             if (thread is null)
             {
                 return;
@@ -107,14 +107,14 @@ internal sealed class ThreadCommandCoordinator
             if (steer && thread is not null)
             {
                 var queuedTab = _threadSelection.EnsureThreadTab(thread);
-                await _queueCoordinator.ConvertNextQueuedPromptToSteerAsync(queuedTab, cancellationToken).ConfigureAwait(false);
+                await _queueCoordinator.ConvertNextQueuedPromptToSteerAsync(queuedTab, cancellationToken);
             }
 
             return;
         }
 
         var tab = _threadSelection.EnsureThreadTab(thread);
-        await _threadSelection.EnsureThreadHistoryLoadedAsync(thread, cancellationToken).ConfigureAwait(false);
+        await _threadSelection.EnsureThreadHistoryLoadedAsync(thread, cancellationToken);
         tab.Timeline.ReplaceTruncatedHistoryLoadButton();
 
         var alwaysEnqueue = hadExistingThread &&
@@ -127,7 +127,7 @@ internal sealed class ThreadCommandCoordinator
         }
 
         _commandContext.ClearThreadInput();
-        await _promptDispatchCoordinator.DispatchPromptAsync(thread, tab, prompt, steer, cancellationToken).ConfigureAwait(false);
+        await _promptDispatchCoordinator.DispatchPromptAsync(thread, tab, prompt, steer, cancellationToken);
     }
 
     public async Task DelegateThreadAsync(
@@ -178,7 +178,7 @@ internal sealed class ThreadCommandCoordinator
                     executionOptions,
                     title: ThreadRuntimeEventCoordinator.SummarizeContent(prompt),
                     cancellationToken: cancellationToken)
-                .ConfigureAwait(false);
+                ;
             _preferences.RememberThreadPreference(child.ThreadId, executionOptions.Model, executionOptions.ReasoningEffort, tab.AutoScroll, false);
 
             _ = _threadSelection.RegisterDelegatedThread(child, tab);
@@ -196,11 +196,11 @@ internal sealed class ThreadCommandCoordinator
                             $"Delegated from thread '{thread.Title}' ({thread.ThreadId}): {prompt}")
                     },
                     cancellationToken)
-                .ConfigureAwait(false);
+                ;
 
             _commandContext.ClearThreadInput();
             _commandContext.SetThreadStatus(tab, $"Delegation started · {child.Title}", false, StatusTone.Ready);
-            await _commandContext.PersistViewStateAsync().ConfigureAwait(false);
+            await _commandContext.PersistViewStateAsync();
             _commandContext.RefreshCatalogAndThreadWorkspace();
         }
         catch (Exception ex)
@@ -220,7 +220,7 @@ internal sealed class ThreadCommandCoordinator
 
         try
         {
-            await _runtimeService.AbortAsync(thread.ThreadId).ConfigureAwait(false);
+            await _runtimeService.AbortAsync(thread.ThreadId);
             var tab = _threadSelection.EnsureThreadTab(thread);
             _commandContext.SetThreadStatus(tab, $"Stopped · {thread.Title}", false, StatusTone.Warning);
         }
@@ -263,7 +263,7 @@ internal sealed class ThreadCommandCoordinator
         {
             tab.PendingManualCompaction = true;
             _commandContext.SetThreadStatus(tab, $"Compacting '{thread.Title}'...", true, StatusTone.Info);
-            await _runtimeService.CompactAsync(thread, BuildExecutionOptions(thread, tab), CancellationToken.None).ConfigureAwait(false);
+            await _runtimeService.CompactAsync(thread, BuildExecutionOptions(thread, tab), CancellationToken.None);
         }
         catch (Exception ex)
         {
@@ -281,7 +281,7 @@ internal sealed class ThreadCommandCoordinator
     public async Task ConvertSelectedThreadQueuedPromptToSteerAsync(string queuedPromptId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(queuedPromptId);
-        await _queueCoordinator.ConvertSelectedThreadQueuedPromptToSteerAsync(queuedPromptId, cancellationToken).ConfigureAwait(false);
+        await _queueCoordinator.ConvertSelectedThreadQueuedPromptToSteerAsync(queuedPromptId, cancellationToken);
     }
 
     public void DeleteSelectedThreadQueuedPrompt(string queuedPromptId)

@@ -92,7 +92,7 @@ internal sealed class ShellInputCoordinator
         string? rawInput,
         bool steer,
         CancellationToken cancellationToken = default)
-        => await ExecuteIntentAsync(_router.Route(rawInput, steer), cancellationToken).ConfigureAwait(false);
+        => await ExecuteIntentAsync(_router.Route(rawInput, steer), cancellationToken);
 
     private async Task ExecuteIntentAsync(ShellInputIntent intent, CancellationToken cancellationToken)
     {
@@ -102,57 +102,57 @@ internal sealed class ShellInputCoordinator
                 return;
 
             case SendPromptIntent send:
-                await _threadCommandCoordinator.SendPromptAsync(send.PromptText, steer: false, cancellationToken).ConfigureAwait(false);
+                await _threadCommandCoordinator.SendPromptAsync(send.PromptText, steer: false, cancellationToken);
                 return;
 
             case SteerPromptIntent steerIntent:
-                await _threadCommandCoordinator.SendPromptAsync(steerIntent.PromptText, steer: true, cancellationToken).ConfigureAwait(false);
+                await _threadCommandCoordinator.SendPromptAsync(steerIntent.PromptText, steer: true, cancellationToken);
                 return;
 
             case DelegateThreadIntent delegateIntent:
-                await _threadCommandCoordinator.DelegateThreadAsync(delegateIntent.PromptText, cancellationToken).ConfigureAwait(false);
+                await _threadCommandCoordinator.DelegateThreadAsync(delegateIntent.PromptText, cancellationToken);
                 return;
 
             case AbortThreadIntent:
-                await _threadCommandCoordinator.AbortSelectedThreadAsync().ConfigureAwait(false);
+                await _threadCommandCoordinator.AbortSelectedThreadAsync();
                 return;
 
             case CompactThreadIntent:
-                await _threadCommandCoordinator.CompactSelectedThreadAsync().ConfigureAwait(false);
+                await _threadCommandCoordinator.CompactSelectedThreadAsync();
                 return;
 
             case CloseTabIntent:
-                await _closeCurrentTabAsync().ConfigureAwait(false);
+                await _closeCurrentTabAsync();
                 return;
 
             case QueueStatusIntent:
-                await _showQueueStatusAsync().ConfigureAwait(false);
+                await _showQueueStatusAsync();
                 return;
 
             case OpenHelpIntent help:
                 if (string.IsNullOrWhiteSpace(help.FilterText))
                 {
-                    await _showHelpAsync().ConfigureAwait(false);
+                    await _showHelpAsync();
                     return;
                 }
 
-                await _showHelpAsyncWithFilter(help.FilterText).ConfigureAwait(false);
+                await _showHelpAsyncWithFilter(help.FilterText);
                 return;
 
             case OpenCommandPaletteIntent:
-                await _showCommandPaletteAsync().ConfigureAwait(false);
+                await _showCommandPaletteAsync();
                 return;
 
             case OpenSessionUsageIntent:
-                await _showSessionUsageAsync().ConfigureAwait(false);
+                await _showSessionUsageAsync();
                 return;
 
             case OpenThreadInfoIntent:
-                await _showThreadInfoAsync().ConfigureAwait(false);
+                await _showThreadInfoAsync();
                 return;
 
             case OpenExpandedPromptIntent:
-                await _showExpandedPromptAsync().ConfigureAwait(false);
+                await _showExpandedPromptAsync();
                 return;
 
             case UnknownTextCommandIntent unknown:
@@ -160,7 +160,7 @@ internal sealed class ShellInputCoordinator
                 return;
 
             case ClearQueueIntent:
-                await _clearQueueAsync().ConfigureAwait(false);
+                await _clearQueueAsync();
                 return;
 
             default:

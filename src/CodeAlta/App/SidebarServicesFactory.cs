@@ -1,6 +1,5 @@
 using CodeAlta.Catalog;
 using CodeAlta.Models;
-using CodeAlta.Threading;
 using CodeAlta.ViewModels;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Geometry;
@@ -14,7 +13,6 @@ internal static class SidebarServicesFactory
         CatalogOptions catalogOptions,
         CodeAltaShellController shellController,
         ShellThreadStateCoordinator threadStateCoordinator,
-        Func<IUiDispatcher> getUiDispatcher,
         Action refreshCatalogAndThreadWorkspace,
         Action<string, bool, StatusTone> setStatus,
         Action setReadyStatusForCurrentSelection)
@@ -23,7 +21,6 @@ internal static class SidebarServicesFactory
         ArgumentNullException.ThrowIfNull(catalogOptions);
         ArgumentNullException.ThrowIfNull(shellController);
         ArgumentNullException.ThrowIfNull(threadStateCoordinator);
-        ArgumentNullException.ThrowIfNull(getUiDispatcher);
         ArgumentNullException.ThrowIfNull(refreshCatalogAndThreadWorkspace);
         ArgumentNullException.ThrowIfNull(setStatus);
         ArgumentNullException.ThrowIfNull(setReadyStatusForCurrentSelection);
@@ -32,14 +29,12 @@ internal static class SidebarServicesFactory
         var navigatorActions = new NavigatorActionCoordinator(
             shellController,
             threadStateCoordinator,
-            getUiDispatcher,
             () => GetSidebarDialogBounds(sidebar),
             () => GetSidebarFocusTarget(sidebar),
             setStatus,
             setReadyStatusForCurrentSelection);
         var navigatorSettings = new NavigatorSettingsCoordinator(
             threadStateCoordinator,
-            getUiDispatcher,
             () => GetSidebarDialogBounds(sidebar),
             () => GetSidebarFocusTarget(sidebar),
             refreshCatalogAndThreadWorkspace,
@@ -66,7 +61,7 @@ internal static class SidebarServicesFactory
         settings.SortMode = settings.SortMode == NavigatorProjectSortMode.Name
             ? NavigatorProjectSortMode.Date
             : NavigatorProjectSortMode.Name;
-        await threadStateCoordinator.SaveNavigatorSettingsAsync(settings).ConfigureAwait(false);
+        await threadStateCoordinator.SaveNavigatorSettingsAsync(settings);
         refreshCatalogAndThreadWorkspace();
     }
 

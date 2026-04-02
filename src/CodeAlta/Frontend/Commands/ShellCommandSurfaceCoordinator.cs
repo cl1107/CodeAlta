@@ -97,16 +97,16 @@ internal sealed class ShellCommandSurfaceCoordinator
     {
         return
         [
-            CreateCommandBinding("CodeAlta.Shell.Help", () => _ = ShowHelpAsync()),
+            CreateCommandBinding("CodeAlta.Shell.Help", () => ObserveUiTask(ShowHelpAsync(), "show help")),
             CreateCommandBinding("CodeAlta.Thread.SessionUsage", _openSessionUsage),
             CreateCommandBinding("CodeAlta.Thread.Info", _openThreadInfo),
             CreateCommandBinding("CodeAlta.Thread.ExpandPrompt", _openExpandedPromptEditor),
-            CreateCommandBinding("CodeAlta.Thread.Steer", () => _ = _shellInputCoordinator.SubmitCurrentPromptAsync(steer: true)),
-            CreateCommandBinding("CodeAlta.Thread.Delegate", () => _ = _shellInputCoordinator.SubmitCurrentDelegationAsync()),
-            CreateCommandBinding("CodeAlta.Thread.Abort", () => _ = _shellInputCoordinator.AbortSelectedThreadAsync()),
-            CreateCommandBinding("CodeAlta.Thread.ClearQueue", () => _ = _threadCommandCoordinator.ClearSelectedThreadQueueAsync()),
-            CreateCommandBinding("CodeAlta.Thread.Compact", () => _ = _shellInputCoordinator.CompactSelectedThreadAsync()),
-            CreateCommandBinding("CodeAlta.Thread.CloseTab", () => _ = _shellInputCoordinator.CloseCurrentTabAsync()),
+            CreateCommandBinding("CodeAlta.Thread.Steer", () => ObserveUiTask(_shellInputCoordinator.SubmitCurrentPromptAsync(steer: true), "steer the current thread")),
+            CreateCommandBinding("CodeAlta.Thread.Delegate", () => ObserveUiTask(_shellInputCoordinator.SubmitCurrentDelegationAsync(), "delegate internal work")),
+            CreateCommandBinding("CodeAlta.Thread.Abort", () => ObserveUiTask(_shellInputCoordinator.AbortSelectedThreadAsync(), "abort the selected thread")),
+            CreateCommandBinding("CodeAlta.Thread.ClearQueue", () => ObserveUiTask(_threadCommandCoordinator.ClearSelectedThreadQueueAsync(), "clear the thread queue")),
+            CreateCommandBinding("CodeAlta.Thread.Compact", () => ObserveUiTask(_shellInputCoordinator.CompactSelectedThreadAsync(), "compact the selected thread")),
+            CreateCommandBinding("CodeAlta.Thread.CloseTab", () => ObserveUiTask(_shellInputCoordinator.CloseCurrentTabAsync(), "close the current tab")),
         ];
     }
 
@@ -169,6 +169,9 @@ internal sealed class ShellCommandSurfaceCoordinator
             _ => false,
         };
     }
+
+    private void ObserveUiTask(Task task, string operation)
+        => _ = UiTaskDiagnostics.ObserveAsync(task, operation, _setStatus);
 
     private Task ExecuteHelpAsync(string? filterText, CancellationToken cancellationToken)
     {

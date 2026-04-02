@@ -1,11 +1,13 @@
 using CodeAlta.App.State;
 using CodeAlta.Catalog;
 using CodeAlta.Models;
+using CodeAlta.Threading;
 
 namespace CodeAlta.App.Context;
 
 internal sealed class ThreadCommandContext
 {
+    private readonly IUiDispatcher _uiDispatcher;
     private readonly Func<bool> _trySetPromptUnavailableStatus;
     private readonly Func<string?, Task<WorkThreadDescriptor?>> _createGlobalThreadAsync;
     private readonly Func<string?, Task<WorkThreadDescriptor?>> _createProjectThreadAsync;
@@ -23,6 +25,7 @@ internal sealed class ThreadCommandContext
     private readonly Action<OpenThreadState, Action, string> _tryRenderInteraction;
 
     public ThreadCommandContext(
+        IUiDispatcher uiDispatcher,
         Func<bool> trySetPromptUnavailableStatus,
         Func<string?, Task<WorkThreadDescriptor?>> createGlobalThreadAsync,
         Func<string?, Task<WorkThreadDescriptor?>> createProjectThreadAsync,
@@ -39,6 +42,7 @@ internal sealed class ThreadCommandContext
         Action<OpenThreadState, string, bool, StatusTone> setThreadStatus,
         Action<OpenThreadState, Action, string> tryRenderInteraction)
     {
+        ArgumentNullException.ThrowIfNull(uiDispatcher);
         ArgumentNullException.ThrowIfNull(trySetPromptUnavailableStatus);
         ArgumentNullException.ThrowIfNull(createGlobalThreadAsync);
         ArgumentNullException.ThrowIfNull(createProjectThreadAsync);
@@ -55,6 +59,7 @@ internal sealed class ThreadCommandContext
         ArgumentNullException.ThrowIfNull(setThreadStatus);
         ArgumentNullException.ThrowIfNull(tryRenderInteraction);
 
+        _uiDispatcher = uiDispatcher;
         _trySetPromptUnavailableStatus = trySetPromptUnavailableStatus;
         _createGlobalThreadAsync = createGlobalThreadAsync;
         _createProjectThreadAsync = createProjectThreadAsync;
@@ -73,7 +78,7 @@ internal sealed class ThreadCommandContext
     }
 
     public bool TrySetPromptUnavailableStatus()
-        => _trySetPromptUnavailableStatus();
+        => UiDispatch.Invoke(_uiDispatcher, _trySetPromptUnavailableStatus);
 
     public Task<WorkThreadDescriptor?> CreateGlobalThreadAsync(string? title = null)
         => _createGlobalThreadAsync(title);
@@ -85,43 +90,43 @@ internal sealed class ThreadCommandContext
         => _persistViewStateAsync();
 
     public bool GetAutoApproveEnabled()
-        => _getAutoApproveEnabled();
+        => UiDispatch.Invoke(_uiDispatcher, _getAutoApproveEnabled);
 
     public void ClearDraftInput()
-        => _clearDraftInput();
+        => UiDispatch.Invoke(_uiDispatcher, _clearDraftInput);
 
     public void SetReadyStatusForCurrentSelection()
-        => _setReadyStatusForCurrentSelection();
+        => UiDispatch.Invoke(_uiDispatcher, _setReadyStatusForCurrentSelection);
 
     public void ClearThreadInput()
-        => _clearThreadInput();
+        => UiDispatch.Invoke(_uiDispatcher, _clearThreadInput);
 
     public bool IsThreadInputEmpty()
-        => _isThreadInputEmpty();
+        => UiDispatch.Invoke(_uiDispatcher, _isThreadInputEmpty);
 
     public void RestoreThreadInput(string prompt)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(prompt);
-        _restoreThreadInput(prompt);
+        UiDispatch.Invoke(_uiDispatcher, () => _restoreThreadInput(prompt));
     }
 
     public void RefreshHeaderAndThreadWorkspace()
-        => _refreshHeaderAndThreadWorkspace();
+        => UiDispatch.Invoke(_uiDispatcher, _refreshHeaderAndThreadWorkspace);
 
     public void RefreshCatalogAndThreadWorkspace()
-        => _refreshCatalogAndThreadWorkspace();
+        => UiDispatch.Invoke(_uiDispatcher, _refreshCatalogAndThreadWorkspace);
 
     public void SetShellStatus(string message, bool showSpinner, StatusTone tone)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(message);
-        _setShellStatus(message, showSpinner, tone);
+        UiDispatch.Invoke(_uiDispatcher, () => _setShellStatus(message, showSpinner, tone));
     }
 
     public void SetThreadStatus(OpenThreadState tab, string message, bool showSpinner, StatusTone tone)
     {
         ArgumentNullException.ThrowIfNull(tab);
         ArgumentException.ThrowIfNullOrWhiteSpace(message);
-        _setThreadStatus(tab, message, showSpinner, tone);
+        UiDispatch.Invoke(_uiDispatcher, () => _setThreadStatus(tab, message, showSpinner, tone));
     }
 
     public void TryRenderInteraction(OpenThreadState tab, Action action, string context)
@@ -129,6 +134,6 @@ internal sealed class ThreadCommandContext
         ArgumentNullException.ThrowIfNull(tab);
         ArgumentNullException.ThrowIfNull(action);
         ArgumentException.ThrowIfNullOrWhiteSpace(context);
-        _tryRenderInteraction(tab, action, context);
+        UiDispatch.Invoke(_uiDispatcher, () => _tryRenderInteraction(tab, action, context));
     }
 }

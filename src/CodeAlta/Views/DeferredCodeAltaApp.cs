@@ -44,13 +44,13 @@ internal sealed class DeferredCodeAltaApp : IAsyncDisposable
     {
         if (_app is not null)
         {
-            await _app.DisposeAsync().ConfigureAwait(false);
+            await _app.DisposeAsync();
             return;
         }
 
         if (_ownedServicesTask is { IsCompletedSuccessfully: true })
         {
-            await _ownedServicesTask.Result.DisposeAsync().ConfigureAwait(false);
+            await _ownedServicesTask.Result.DisposeAsync();
         }
     }
 

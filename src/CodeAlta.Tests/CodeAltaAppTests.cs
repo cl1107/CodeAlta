@@ -1051,12 +1051,14 @@ public sealed class CodeAltaAppTests
     }
 
     [TestMethod]
-    public void CompactSidebarThreadTitle_TrimsLongTitlesToSingleLineLength()
+    public void SidebarThreadTitle_PreservesFullTitle()
     {
-        var compact = SidebarThreadPresentation.CompactThreadTitle("The lunet-build action in this repository is used like this:");
+        const string title = "  The lunet-build action in this repository is used like this:  ";
 
-        Assert.AreEqual("The lunet-build action in this re…", compact);
-        Assert.IsFalse(compact.Contains('\n'));
+        var row = new SidebarNodeViewModel("thread:test", SidebarNodeKind.Thread, selectionTarget: null);
+        row.UpdateTitle(title);
+
+        Assert.AreEqual(title, row.Title);
     }
 
     [TestMethod]

@@ -74,7 +74,7 @@ internal sealed class ThreadHistoryCoordinator
 
         var tab = _ensureThreadTab(thread);
         var loadTask = GetOrStartLoadTask(tab, thread, cancellationToken);
-        await loadTask.ConfigureAwait(false);
+        await loadTask;
     }
 
     public async Task LoadEarlierAsync(string threadId)
@@ -95,7 +95,7 @@ internal sealed class ThreadHistoryCoordinator
                 loadOnlyFromLastUserPrompt: false,
                 preferCachedHistory: true,
                 CancellationToken.None)
-            .ConfigureAwait(false);
+            ;
     }
 
     public static bool CanLoadThreadHistory(WorkThreadDescriptor thread)
@@ -288,7 +288,7 @@ internal sealed class ThreadHistoryCoordinator
                 loadOnlyFromLastUserPrompt: true,
                 preferCachedHistory: false,
                 cancellationToken)
-            .ConfigureAwait(false);
+            ;
     }
 
     private async Task RebuildAsync(
@@ -309,9 +309,9 @@ internal sealed class ThreadHistoryCoordinator
                 true,
                 StatusTone.Info);
 
-            var history = await GetHistoryAsync(thread, tab, preferCachedHistory, cancellationToken).ConfigureAwait(false);
+            var history = await GetHistoryAsync(thread, tab, preferCachedHistory, cancellationToken);
             thread.MessageCount = CountRenderableMessages(history);
-            await _persistThreadLocalStateAsync(thread).ConfigureAwait(false);
+            await _persistThreadLocalStateAsync(thread);
             _resetThreadTab(tab);
 
             var plan = loadOnlyFromLastUserPrompt
@@ -368,8 +368,8 @@ internal sealed class ThreadHistoryCoordinator
         }
 
         var executionOptions = _buildExecutionOptions(thread, tab);
-        await _runtimeService.EnsureCoordinatorSessionAsync(thread, executionOptions, cancellationToken).ConfigureAwait(false);
-        var history = (await _runtimeService.GetHistoryAsync(thread.ThreadId, cancellationToken).ConfigureAwait(false)).ToList();
+        await _runtimeService.EnsureCoordinatorSessionAsync(thread, executionOptions, cancellationToken);
+        var history = (await _runtimeService.GetHistoryAsync(thread.ThreadId, cancellationToken)).ToList();
         tab.HistoryEvents = history;
         return history;
     }

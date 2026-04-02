@@ -144,7 +144,7 @@ internal sealed class ThreadPromptQueueCoordinator
 
         try
         {
-            await DispatchQueuedPromptForCurrentThreadStateAsync(tab, queuedPrompt.Text, cancellationToken).ConfigureAwait(false);
+            await DispatchQueuedPromptForCurrentThreadStateAsync(tab, queuedPrompt.Text, cancellationToken);
             ConsumeQueuedPrompt(tab, queuedPrompt.Id);
         }
         catch
@@ -164,7 +164,7 @@ internal sealed class ThreadPromptQueueCoordinator
 
         try
         {
-            await _dispatchQueuedPromptAsync(tab, queuedPrompt.Text, cancellationToken).ConfigureAwait(false);
+            await _dispatchQueuedPromptAsync(tab, queuedPrompt.Text, cancellationToken);
             ConsumeQueuedPrompt(tab, queuedPrompt.Id);
         }
         catch
@@ -184,7 +184,7 @@ internal sealed class ThreadPromptQueueCoordinator
 
         try
         {
-            await DispatchQueuedPromptForCurrentThreadStateAsync(tab, queuedPrompt.Text, cancellationToken).ConfigureAwait(false);
+            await DispatchQueuedPromptForCurrentThreadStateAsync(tab, queuedPrompt.Text, cancellationToken);
             ConsumeQueuedPrompt(tab, queuedPrompt.Id);
         }
         catch

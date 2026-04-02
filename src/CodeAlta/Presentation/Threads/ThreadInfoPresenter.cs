@@ -100,7 +100,7 @@ internal sealed class ThreadInfoPresenter
     {
         try
         {
-            var report = await _loadReportAsync(cancellationToken).ConfigureAwait(false);
+            var report = await _loadReportAsync(cancellationToken);
             _dispatchToUi(() =>
             {
                 if (cancellationToken.IsCancellationRequested)

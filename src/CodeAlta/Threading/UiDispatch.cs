@@ -4,6 +4,20 @@ namespace CodeAlta.Threading;
 
 internal static class UiDispatch
 {
+    public static void Invoke(IUiDispatcher dispatcher, Action action)
+    {
+        ArgumentNullException.ThrowIfNull(dispatcher);
+        ArgumentNullException.ThrowIfNull(action);
+
+        if (dispatcher.CheckAccess())
+        {
+            action();
+            return;
+        }
+
+        dispatcher.InvokeAsync(action).GetAwaiter().GetResult();
+    }
+
     public static void Post(IUiDispatcher dispatcher, Action action, bool allowInline = false)
     {
         ArgumentNullException.ThrowIfNull(dispatcher);
@@ -57,6 +71,20 @@ internal static class UiDispatch
         ArgumentNullException.ThrowIfNull(action);
 
         Dispatcher.Current.Post(action);
+    }
+
+    public static void InvokeCurrent(Action action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+
+        var dispatcher = Dispatcher.Current;
+        if (dispatcher.CheckAccess())
+        {
+            action();
+            return;
+        }
+
+        dispatcher.InvokeAsync(action).GetAwaiter().GetResult();
     }
 
     public static T InvokeCurrent<T>(Func<T> action)

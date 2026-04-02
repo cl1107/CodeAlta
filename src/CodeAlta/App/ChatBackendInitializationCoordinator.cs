@@ -79,6 +79,8 @@ internal sealed class ChatBackendInitializationCoordinator
 
         try
         {
+            // Backend discovery is explicit background I/O. Any state mutation after this point
+            // must go back through the UI dispatcher.
             var models = await _agentHub.ListModelsAsync(backendId, cancellationToken).ConfigureAwait(false);
             _dispatchToUi(
                 () =>

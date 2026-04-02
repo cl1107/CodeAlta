@@ -145,7 +145,7 @@ internal sealed class NavigatorSettingsDialog
         }
 
         Close();
-        await _onSaveAsync(settings).ConfigureAwait(false);
+        await _onSaveAsync(settings);
     }
 
     private void Close()

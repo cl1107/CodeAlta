@@ -62,6 +62,8 @@ internal sealed class CodeAltaShellController : IAsyncDisposable
         }
 
         _initializationCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposeCts.Token);
+        // Shell initialization intentionally runs off the UI flow. Any continuation that touches
+        // shell/view state must marshal back through UiDispatcher.
         _initializationTask = Task.Run(
             () => RunInitializationAsync(_initializationCts.Token),
             CancellationToken.None);
@@ -279,6 +281,7 @@ internal sealed class CodeAltaShellController : IAsyncDisposable
     {
         try
         {
+            // These startup calls are background I/O and must not assume UI-thread affinity.
             await _shell.InitializeChatBackendsAsync(cancellationToken).ConfigureAwait(false);
             await RefreshCatalogFromBackendsAsync(cancellationToken).ConfigureAwait(false);
         }
@@ -310,6 +313,7 @@ internal sealed class CodeAltaShellController : IAsyncDisposable
             var projects = await _projectCatalog.LoadAsync(cancellationToken).ConfigureAwait(false);
             var threads = await _recoverableThreadSource.ListRecoverableThreadsAsync(cancellationToken).ConfigureAwait(false);
 
+            // Catalog application mutates frontend state, so it always re-enters through the UI dispatcher.
             await UiDispatcher.InvokeAsync(
                     () => _shell.ApplyRecoveredCatalogState(projects, threads))
                 .ConfigureAwait(false);

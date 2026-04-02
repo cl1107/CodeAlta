@@ -24,17 +24,6 @@ internal static class SidebarThreadPresentation
         };
     }
 
-    public static string CompactThreadTitle(string title)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(title);
-
-        const int maxLength = 34;
-        var normalized = title.Trim();
-        return normalized.Length <= maxLength
-            ? normalized
-            : normalized[..Math.Max(1, maxLength - 1)].TrimEnd() + "…";
-    }
-
     public static string ResolveBackendDisplayName(string? backendId)
     {
         if (string.Equals(backendId, AgentBackendIds.Copilot.Value, StringComparison.OrdinalIgnoreCase))

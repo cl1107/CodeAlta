@@ -138,7 +138,7 @@ internal sealed class ThreadPromptDispatchCoordinator
                             ExpectedRunId = tab.ActiveRunId,
                         },
                         cancellationToken)
-                    .ConfigureAwait(false);
+                    ;
             }
             else
             {
@@ -147,7 +147,7 @@ internal sealed class ThreadPromptDispatchCoordinator
                         executionOptions,
                         new AgentSendOptions { Input = AgentInput.Text(prompt) },
                         cancellationToken)
-                    .ConfigureAwait(false);
+                    ;
             }
 
             tab.ActiveRunId = runId;

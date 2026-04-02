@@ -1,5 +1,4 @@
 using CodeAlta.Catalog;
-using CodeAlta.Threading;
 using CodeAlta.ViewModels;
 using XenoAtom.Terminal;
 using XenoAtom.Terminal.UI;
@@ -16,26 +15,22 @@ internal sealed class ProjectDetailsDialog
     private readonly ProjectDescriptor _project;
     private readonly ProjectDetailsDialogViewModel _viewModel;
     private readonly Func<ProjectDescriptor, Task> _onSaveAsync;
-    private readonly Func<IUiDispatcher> _getUiDispatcher;
     private readonly Func<Visual?> _getFocusTarget;
     private readonly Dialog _dialog;
 
     public ProjectDetailsDialog(
         ProjectDescriptor project,
         Func<ProjectDescriptor, Task> onSaveAsync,
-        Func<IUiDispatcher> getUiDispatcher,
         Func<Rectangle?> getBounds,
         Func<Visual?> getFocusTarget)
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(onSaveAsync);
-        ArgumentNullException.ThrowIfNull(getUiDispatcher);
         ArgumentNullException.ThrowIfNull(getBounds);
         ArgumentNullException.ThrowIfNull(getFocusTarget);
 
         _project = CloneProject(project);
         _onSaveAsync = onSaveAsync;
-        _getUiDispatcher = getUiDispatcher;
         _getFocusTarget = getFocusTarget;
         _viewModel = new ProjectDetailsDialogViewModel
         {
@@ -193,8 +188,8 @@ internal sealed class ProjectDetailsDialog
             return;
         }
 
-        await _onSaveAsync(updatedProject).ConfigureAwait(false);
-        await _getUiDispatcher().InvokeAsync(Close).ConfigureAwait(false);
+        await _onSaveAsync(updatedProject);
+        Close();
     }
 
     private void Close()

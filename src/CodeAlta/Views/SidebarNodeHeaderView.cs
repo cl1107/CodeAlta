@@ -1,5 +1,4 @@
 using CodeAlta.Presentation.Sidebar;
-using XenoAtom.Ansi;
 using XenoAtom.Terminal;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Controls;
@@ -15,7 +14,7 @@ internal sealed class SidebarNodeHeaderView : Visual
     private readonly SidebarNodeViewModel _row;
     private readonly Action<SidebarNodeViewModel> _submitInlineRename;
     private readonly Action<SidebarNodeViewModel> _cancelInlineRename;
-    private readonly Markup _title;
+    private readonly TextBlock _title;
     private readonly TextBox _editor;
     private readonly TextBlock _validationIcon;
     private readonly ComputedVisual _validationIndicator;
@@ -41,11 +40,13 @@ internal sealed class SidebarNodeHeaderView : Visual
 
         HorizontalAlignment = Align.Stretch;
 
-        _title = new Markup(() => $"[bold]{AnsiMarkup.Escape(_row.Title)}[/]")
+        _title = new TextBlock(() => _row.Title)
         {
             Wrap = false,
             HorizontalAlignment = Align.Stretch,
-        };
+        }
+        .Style(TextBlockStyle.Default with { TextStyle = TextStyle.Bold });
+        _title.Trimming(TextTrimming.EndEllipsis);
 
         _editor = new TextBox
         {

@@ -39,6 +39,41 @@ public sealed class ArchitectureGuardrailTests
     }
 
     [TestMethod]
+    public void FrontendUiFlows_DoNotUseConfigureAwaitFalseOutsideExplicitBackgroundBoundaries()
+    {
+        var codeAltaRoot = GetCodeAltaSourceRoot();
+        var disallowedMatches = Directory
+            .EnumerateFiles(codeAltaRoot, "*.cs", SearchOption.AllDirectories)
+            .Select(file => new
+            {
+                File = file,
+                RelativePath = Path.GetRelativePath(codeAltaRoot, file).Replace('\\', '/'),
+                Content = File.ReadAllText(file),
+            })
+            .Where(static entry => entry.Content.Contains("ConfigureAwait(false)", StringComparison.Ordinal))
+            .Where(static entry =>
+                entry.RelativePath.StartsWith("Views/", StringComparison.Ordinal) ||
+                entry.RelativePath.StartsWith("Frontend/", StringComparison.Ordinal) ||
+                entry.RelativePath.StartsWith("Presentation/", StringComparison.Ordinal) ||
+                entry.RelativePath.StartsWith("App/", StringComparison.Ordinal) &&
+                entry.RelativePath is not
+                    "App/ChatBackendInitializationCoordinator.cs" and
+                    not "App/CodeAltaOwnedServices.cs" and
+                    not "App/CodeAltaShellController.cs" and
+                    not "App/KnownProjectImporter.cs" and
+                    not "App/RuntimeEventPump.cs" and
+                    not "App/ShellCatalogStateCoordinator.cs" and
+                    not "App/ThreadPromptDraftPersistenceCoordinator.cs" and
+                    not "App/ThreadViewStateCoordinator.cs" and
+                    not "App/UiTaskDiagnostics.cs")
+            .Select(static entry => entry.RelativePath)
+            .OrderBy(static path => path, StringComparer.Ordinal)
+            .ToArray();
+
+        CollectionAssert.AreEqual(Array.Empty<string>(), disallowedMatches);
+    }
+
+    [TestMethod]
     public void ShellController_DoesNotReferenceTimelineOrDialogPresentationTypes()
     {
         var controllerSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "App", "CodeAltaShellController.cs"));
@@ -461,7 +496,8 @@ public sealed class ArchitectureGuardrailTests
         var sidebarViewSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "SidebarView.cs"));
 
         Assert.IsTrue(compositionSource.Contains("new PromptDraftUiCoordinator(", StringComparison.Ordinal));
-        Assert.IsTrue(workspaceSource.Contains("_workspaceContext.DispatchToUi(_workspaceContext.RefreshSidebarProjection);", StringComparison.Ordinal));
+        Assert.IsTrue(workspaceSource.Contains("_workspaceContext.DispatchToUi(", StringComparison.Ordinal));
+        Assert.IsTrue(workspaceSource.Contains("_workspaceContext.RefreshSidebarProjection();", StringComparison.Ordinal));
         Assert.IsFalse(sidebarViewSource.Contains("new Rune(' ')", StringComparison.Ordinal));
         Assert.IsTrue(sidebarViewSource.Contains("Icon = projection.Icon,", StringComparison.Ordinal));
     }
