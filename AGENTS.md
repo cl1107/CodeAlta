@@ -12,6 +12,7 @@ Paths/commands below are relative to this directory.
 - Library: `src/CodeAlta.CodexSdk/` (Codex app-server API client)
 - Executable: `src/CodeAlta.CodexSdk.Generator/` (CLI tool for generating Codex SDK C# .NET API)
 - Tests: `src/CodeAlta.Tests/` (MSTest)
+- Development rules to keep in sync: `doc/development-guide.md`
 - Docs to keep in sync with behavior: `readme.md` and the docs under `doc/` (e.g., `doc/**/*.md`)
 
 ## Build & Test
@@ -38,7 +39,7 @@ All tests must pass and docs must be updated before submitting.
 - Style: file-scoped namespaces; `using` outside namespace (`System` first); `var` when the type is obvious.
 - Nullability: enabled — respect annotations; use `ArgumentNullException.ThrowIfNull()`; prefer `is null`/`is not null`; don't suppress warnings without a justification comment.
 - Exceptions: validate inputs early; throw specific exceptions (e.g., `ArgumentException`/`ArgumentNullException`) with meaningful messages.
-- Async: `Async` suffix; no `async void` (except event handlers); use `ConfigureAwait(false)` in library code; consider `ValueTask<T>` on hot paths.
+- Async: `Async` suffix; no `async void` (except event handlers); follow `doc/development-guide.md` for UI-thread and `ConfigureAwait(false)` rules; consider `ValueTask<T>` on hot paths.
 
 ## Performance / AOT / Trimming
 
@@ -55,4 +56,4 @@ All tests must pass and docs must be updated before submitting.
 ## Git / Pre-Submit
 
 - Commits: commit after each self-contained logical step; imperative subject, < 72 chars; one logical change per commit; reference issues when relevant; don't delete unrelated local files.
-- Checklist: each self-contained step is committed; build+tests pass; docs updated if behavior changed; public APIs have XML docs; changes covered by unit tests.
+- Checklist: each self-contained step is committed; build+tests pass; docs updated if behavior changed; repository-wide development guidance updated in `doc/development-guide.md` when needed; public APIs have XML docs; changes covered by unit tests.
