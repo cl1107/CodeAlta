@@ -7,10 +7,15 @@
   <ItemGroup>
     <PackageReference Include="LLamaSharp" />
     <PackageReference Include="Microsoft.Data.Sqlite" />
+    <PackageReference Include="XenoAtom.Glob" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\CodeAlta.Persistence\CodeAlta.Persistence.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="CodeAlta.Search.Tests" />
   </ItemGroup>
 
 </Project>
