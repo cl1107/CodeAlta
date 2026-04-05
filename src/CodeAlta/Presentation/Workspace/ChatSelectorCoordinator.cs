@@ -395,7 +395,8 @@ internal sealed class ChatSelectorCoordinator
             backendState.DisplayName,
             backendState.Availability,
             HasAnyReadyChatBackend(),
-            selection.Target is WorkspaceTarget.Draft,
+            _threadSelection.HasOpenDraftTab(),
+            _threadSelection.OpenThreadIds.Count + (_threadSelection.HasOpenDraftTab() ? 1 : 0),
             selectedThread?.ThreadId,
             selectedThread is not null &&
             _threadSelection.FindOpenThread(selectedThread.ThreadId) is { } selectedTab &&

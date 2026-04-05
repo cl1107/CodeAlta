@@ -1,3 +1,4 @@
+using CodeAlta.Frontend.Commands;
 using CodeAlta.Views;
 using XenoAtom.Terminal;
 using XenoAtom.Terminal.UI.Controls;
@@ -43,6 +44,30 @@ public sealed class ResponsiveDialogSizeTests
     [TestMethod]
     public void ThreadWorkspaceView_UsesF6ForExpandedPromptShortcut()
         => Assert.AreEqual("F6", ThreadWorkspaceView.ExpandPromptShortcutKey.ToString());
+
+    [TestMethod]
+    public void ShellCommandCatalog_UsesCtrlGCtrlSForFocusSidebarShortcut()
+    {
+        var sequence = ShellCommandCatalog.FocusSidebarShortcutSequence;
+
+        Assert.AreEqual(2, sequence.Count);
+        Assert.AreEqual(TerminalChar.CtrlG, sequence[0].Char);
+        Assert.AreEqual(TerminalModifiers.Ctrl, sequence[0].Modifiers);
+        Assert.AreEqual(TerminalChar.CtrlS, sequence[1].Char);
+        Assert.AreEqual(TerminalModifiers.Ctrl, sequence[1].Modifiers);
+    }
+
+    [TestMethod]
+    public void ShellCommandCatalog_UsesCtrlGCtrlPForFocusPromptShortcut()
+    {
+        var sequence = ShellCommandCatalog.FocusPromptShortcutSequence;
+
+        Assert.AreEqual(2, sequence.Count);
+        Assert.AreEqual(TerminalChar.CtrlG, sequence[0].Char);
+        Assert.AreEqual(TerminalModifiers.Ctrl, sequence[0].Modifiers);
+        Assert.AreEqual(TerminalChar.CtrlP, sequence[1].Char);
+        Assert.AreEqual(TerminalModifiers.Ctrl, sequence[1].Modifiers);
+    }
 
     [TestMethod]
     public void ThreadWorkspaceView_UsesCtrlGCtrlTForThreadInfoShortcut()

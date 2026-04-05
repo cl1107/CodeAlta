@@ -66,6 +66,9 @@ internal sealed class ThreadSelectionContext
     public bool IsDraftSelected()
         => Target is WorkspaceTarget.Draft;
 
+    public bool HasOpenDraftTab()
+        => _threadStateCoordinator.DraftTabOpen;
+
     public string? GetSelectedProjectId()
         => Selection.SelectedProjectId;
 

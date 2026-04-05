@@ -13,6 +13,8 @@ internal sealed class ShellInputCoordinator
     private readonly Func<string?, Task> _showHelpAsyncWithFilter;
     private readonly Func<Task> _showCommandPaletteAsync;
     private readonly Func<string?, Task> _showOpenFolderAsync;
+    private readonly Func<Task> _focusSidebarAsync;
+    private readonly Func<Task> _focusPromptAsync;
     private readonly Func<Task> _showSessionUsageAsync;
     private readonly Func<Task> _showThreadInfoAsync;
     private readonly Func<Task> _showExpandedPromptAsync;
@@ -29,6 +31,8 @@ internal sealed class ShellInputCoordinator
         Func<string?, Task> showHelpAsyncWithFilter,
         Func<Task> showCommandPaletteAsync,
         Func<string?, Task> showOpenFolderAsync,
+        Func<Task> focusSidebarAsync,
+        Func<Task> focusPromptAsync,
         Func<Task> showSessionUsageAsync,
         Func<Task> showThreadInfoAsync,
         Func<Task> showExpandedPromptAsync,
@@ -44,6 +48,8 @@ internal sealed class ShellInputCoordinator
         ArgumentNullException.ThrowIfNull(showHelpAsyncWithFilter);
         ArgumentNullException.ThrowIfNull(showCommandPaletteAsync);
         ArgumentNullException.ThrowIfNull(showOpenFolderAsync);
+        ArgumentNullException.ThrowIfNull(focusSidebarAsync);
+        ArgumentNullException.ThrowIfNull(focusPromptAsync);
         ArgumentNullException.ThrowIfNull(showSessionUsageAsync);
         ArgumentNullException.ThrowIfNull(showThreadInfoAsync);
         ArgumentNullException.ThrowIfNull(showExpandedPromptAsync);
@@ -59,6 +65,8 @@ internal sealed class ShellInputCoordinator
         _showHelpAsyncWithFilter = showHelpAsyncWithFilter;
         _showCommandPaletteAsync = showCommandPaletteAsync;
         _showOpenFolderAsync = showOpenFolderAsync;
+        _focusSidebarAsync = focusSidebarAsync;
+        _focusPromptAsync = focusPromptAsync;
         _showSessionUsageAsync = showSessionUsageAsync;
         _showThreadInfoAsync = showThreadInfoAsync;
         _showExpandedPromptAsync = showExpandedPromptAsync;
@@ -149,6 +157,14 @@ internal sealed class ShellInputCoordinator
 
             case OpenFolderIntent openFolder:
                 await _showOpenFolderAsync(openFolder.InitialPath);
+                return;
+
+            case FocusSidebarIntent:
+                await _focusSidebarAsync();
+                return;
+
+            case FocusPromptIntent:
+                await _focusPromptAsync();
                 return;
 
             case OpenSessionUsageIntent:

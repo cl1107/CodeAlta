@@ -12,6 +12,10 @@ internal sealed record OpenHelpIntent(string? FilterText) : ShellInputIntent;
 
 internal sealed record OpenCommandPaletteIntent : ShellInputIntent;
 
+internal sealed record FocusSidebarIntent : ShellInputIntent;
+
+internal sealed record FocusPromptIntent : ShellInputIntent;
+
 internal sealed record OpenSessionUsageIntent : ShellInputIntent;
 
 internal sealed record OpenThreadInfoIntent : ShellInputIntent;

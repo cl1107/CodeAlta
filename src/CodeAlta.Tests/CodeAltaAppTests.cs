@@ -2169,6 +2169,14 @@ public sealed class CodeAltaAppTests
     }
 
     [TestMethod]
+    public void ResolvePreferredExpandedProjectId_OnlyExpandsSelectedThreadProject()
+    {
+        Assert.IsNull(SidebarSelectionResolver.ResolvePreferredExpandedProjectId(selectedThreadProjectId: null));
+        Assert.IsNull(SidebarSelectionResolver.ResolvePreferredExpandedProjectId(string.Empty));
+        Assert.AreEqual("project-1", SidebarSelectionResolver.ResolvePreferredExpandedProjectId("project-1"));
+    }
+
+    [TestMethod]
     public void ScrollToTailIfFollowing_DoesNotThrowForDocumentFlow()
     {
         var flow = new DocumentFlow();

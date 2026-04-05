@@ -21,6 +21,7 @@ public sealed class PromptComposerProjectionTests
             availability: ChatBackendAvailability.Connecting,
             anyBackendReady: false,
             draftTabOpen: false,
+            openTabCount: 1,
             selectedThreadId: thread.ThreadId,
             selectedThreadHasQueuedPrompts: false,
             selectedThreadCanAlwaysEnqueue: true,
@@ -60,6 +61,7 @@ public sealed class PromptComposerProjectionTests
             availability: ChatBackendAvailability.Ready,
             anyBackendReady: true,
             draftTabOpen: true,
+            openTabCount: 1,
             selectedThreadId: null,
             selectedThreadHasQueuedPrompts: false,
             selectedThreadCanAlwaysEnqueue: false,
@@ -73,7 +75,7 @@ public sealed class PromptComposerProjectionTests
         Assert.IsFalse(projection.CanDelegate);
         Assert.IsFalse(projection.CanAbort);
         Assert.IsFalse(projection.CanCompact);
-        Assert.IsTrue(projection.CanCloseTab);
+        Assert.IsFalse(projection.CanCloseTab);
         Assert.IsFalse(projection.CanClearQueue);
         Assert.IsFalse(projection.CanAlwaysEnqueue);
         Assert.IsFalse(projection.HasUnavailableStatus);
@@ -90,6 +92,7 @@ public sealed class PromptComposerProjectionTests
             availability: ChatBackendAvailability.Unsupported,
             anyBackendReady: false,
             draftTabOpen: true,
+            openTabCount: 1,
             selectedThreadId: null,
             selectedThreadHasQueuedPrompts: false,
             selectedThreadCanAlwaysEnqueue: false,
@@ -115,6 +118,7 @@ public sealed class PromptComposerProjectionTests
             availability: ChatBackendAvailability.Ready,
             anyBackendReady: true,
             draftTabOpen: false,
+            openTabCount: 1,
             selectedThreadId: thread.ThreadId,
             selectedThreadHasQueuedPrompts: true,
             selectedThreadCanAlwaysEnqueue: true,
@@ -142,6 +146,7 @@ public sealed class PromptComposerProjectionTests
             availability: ChatBackendAvailability.Ready,
             anyBackendReady: true,
             draftTabOpen: false,
+            openTabCount: 1,
             selectedThreadId: thread.ThreadId,
             selectedThreadHasQueuedPrompts: false,
             selectedThreadCanAlwaysEnqueue: true,
@@ -164,6 +169,7 @@ public sealed class PromptComposerProjectionTests
             availability: ChatBackendAvailability.Ready,
             anyBackendReady: true,
             draftTabOpen: false,
+            openTabCount: 1,
             selectedThreadId: thread.ThreadId,
             selectedThreadHasQueuedPrompts: false,
             selectedThreadCanAlwaysEnqueue: true,
@@ -177,6 +183,7 @@ public sealed class PromptComposerProjectionTests
             availability: ChatBackendAvailability.Ready,
             anyBackendReady: true,
             draftTabOpen: false,
+            openTabCount: 1,
             selectedThreadId: thread.ThreadId,
             selectedThreadHasQueuedPrompts: false,
             selectedThreadCanAlwaysEnqueue: true,
@@ -185,6 +192,27 @@ public sealed class PromptComposerProjectionTests
 
         Assert.IsFalse(idleProjection.CanAbort);
         Assert.IsTrue(runningProjection.CanAbort);
+    }
+
+    [TestMethod]
+    public void Build_EnablesDraftCloseWhenAnotherTabIsOpen()
+    {
+        var projection = PromptComposerProjectionBuilder.Build(
+            selectedThread: null,
+            selectedProject: null,
+            globalScopeSelected: true,
+            backendDisplayName: "Codex",
+            availability: ChatBackendAvailability.Ready,
+            anyBackendReady: true,
+            draftTabOpen: true,
+            openTabCount: 2,
+            selectedThreadId: null,
+            selectedThreadHasQueuedPrompts: false,
+            selectedThreadCanAlwaysEnqueue: false,
+            selectedThreadCanCompact: false,
+            selectedThreadCanAbort: false);
+
+        Assert.IsTrue(projection.CanCloseTab);
     }
 
     private static WorkThreadDescriptor CreateThread(string title)

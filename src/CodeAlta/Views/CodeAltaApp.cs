@@ -257,6 +257,8 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             () => ThreadInput,
             GetSelectedThread,
             EnsureThreadTab,
+            FocusSidebar,
+            FocusPromptEditor,
             () => EnsureSessionUsagePresenter().TogglePopupFromIndicator(),
             () =>
             {
@@ -335,7 +337,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
     }
 
     private string? GetExpandedSidebarProjectId()
-        => GetSelectedThread()?.ProjectRef ?? _threadStateCoordinator.Selection.SelectedProjectId;
+        => SidebarSelectionResolver.ResolvePreferredExpandedProjectId(GetSelectedThread()?.ProjectRef);
 
     private SidebarSelectionTarget ResolveSidebarTargetForCurrentState()
         => SidebarSelectionResolver.ResolveCurrentTarget(
@@ -419,6 +421,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
         {
             _threadStateCoordinator.ApplyInitialCatalogState(task.GetAwaiter().GetResult());
             RefreshCatalogAndThreadWorkspace();
+            FocusPromptEditor();
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -511,6 +514,8 @@ internal sealed class CodeAltaApp : IAsyncDisposable
         {
             var commandPaletteMetadata = ShellCommandCatalog.Get("CodeAlta.Shell.CommandPalette");
             var openFolderMetadata = ShellCommandCatalog.Get("CodeAlta.Project.OpenFolder");
+            var focusSidebarMetadata = ShellCommandCatalog.Get("CodeAlta.Shell.FocusSidebar");
+            var focusPromptMetadata = ShellCommandCatalog.Get("CodeAlta.Shell.FocusPrompt");
             _shellView = new CodeAltaShellView(
                 _sidebarCoordinator.View.Root,
                 _threadWorkspaceView.Root,
@@ -524,31 +529,16 @@ internal sealed class CodeAltaApp : IAsyncDisposable
                 Presentation = CommandPresentation.CommandBar,
                 Execute = _ => ToggleTerminalLoopCallback(),
             });
-            _shellView.Root.AddCommand(new Command
-            {
-                Id = commandPaletteMetadata.Id,
-                LabelMarkup = commandPaletteMetadata.SlashCommandText,
-                Name = commandPaletteMetadata.CommandName,
-                SearchText = commandPaletteMetadata.CommandSearchText,
-                DescriptionMarkup = commandPaletteMetadata.DescriptionMarkup,
-                Gesture = commandPaletteMetadata.Gesture,
-                Presentation = CommandPresentation.CommandBar,
-                Execute = _ => _shellCommandSurfaceCoordinator.ShowCommandPalette(),
-            });
-            _shellView.Root.AddCommand(new Command
-            {
-                Id = openFolderMetadata.Id,
-                LabelMarkup = openFolderMetadata.SlashCommandText,
-                Name = openFolderMetadata.CommandName,
-                SearchText = openFolderMetadata.CommandSearchText,
-                DescriptionMarkup = openFolderMetadata.DescriptionMarkup,
-                Gesture = openFolderMetadata.Gesture,
-                Presentation = CommandPresentation.CommandPalette,
-                Execute = visual =>
-                {
-                    _ = _shellCommandSurfaceCoordinator.ShowOpenFolderDialogAsync();
-                },
-            });
+            _shellView.Root.AddCommand(ShellCommandViewFactory.Create(
+                commandPaletteMetadata,
+                _shellCommandSurfaceCoordinator.ShowCommandPalette,
+                CommandPresentation.CommandBar));
+            _shellView.Root.AddCommand(ShellCommandViewFactory.Create(
+                openFolderMetadata,
+                () => _ = _shellCommandSurfaceCoordinator.ShowOpenFolderDialogAsync(),
+                CommandPresentation.CommandPalette));
+            _shellView.Root.AddCommand(ShellCommandViewFactory.Create(focusSidebarMetadata, FocusSidebar));
+            _shellView.Root.AddCommand(ShellCommandViewFactory.Create(focusPromptMetadata, FocusPromptEditor));
         }
 
         return _shellView;
@@ -734,6 +724,13 @@ internal sealed class CodeAltaApp : IAsyncDisposable
 
     internal void FocusPromptEditor()
         => ThreadPaneLayout?.App?.Focus(ThreadInput);
+
+    internal void FocusSidebar()
+    {
+        SyncSidebarSelectionToCurrentState();
+        ApplyPendingSidebarSelection();
+        _sidebarCoordinator.View.Tree.App?.Focus(_sidebarCoordinator.View.Tree);
+    }
 
     private async Task CloseSelectedThreadAsync()
         => await _threadStateCoordinator.CloseSelectedThreadAsync();

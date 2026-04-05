@@ -165,7 +165,12 @@ internal sealed class CodeAltaShellController : IAsyncDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
         cancellationToken.ThrowIfCancellationRequested();
-        return UiDispatcher.InvokeAsync(() => _shell.OpenThread(threadId));
+        return UiDispatcher.InvokeAsync(
+            () =>
+            {
+                _shell.OpenThread(threadId);
+                _shell.FocusPromptEditor();
+            });
     }
 
     public Task<ProjectDescriptor> OpenFolderAsync(string folderPath, CancellationToken cancellationToken)

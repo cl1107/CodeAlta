@@ -175,14 +175,21 @@ internal sealed class ThreadTabStripCoordinator
         foreach (var tab in projection.Tabs)
         {
             pages.Add(tab.IsDraft
-                ? EnsureDraftPage()
-                : EnsureThreadPage(tab.TabId));
+                ? EnsureDraftPage(CanCloseTab(tab, projection.Tabs.Count))
+                : EnsureThreadPage(tab.TabId, CanCloseTab(tab, projection.Tabs.Count)));
         }
 
         return pages;
     }
 
-    private TabPage EnsureThreadPage(string threadId)
+    internal static bool CanCloseTab(ThreadTabStripItemProjection tab, int totalTabCount)
+    {
+        ArgumentNullException.ThrowIfNull(tab);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(totalTabCount);
+        return !tab.IsDraft || totalTabCount > 1;
+    }
+
+    private TabPage EnsureThreadPage(string threadId, bool canClose)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
         var workspaceView = _threadTabs.GetWorkspaceView() ?? throw new InvalidOperationException("Thread workspace view is not initialized.");
@@ -190,6 +197,7 @@ internal sealed class ThreadTabStripCoordinator
         if (workspaceView.TryGetTabPage(threadId, out var existingPage))
         {
             existingPage.Data = threadId;
+            existingPage.ShowCloseButton = canClose;
             return existingPage;
         }
 
@@ -216,7 +224,7 @@ internal sealed class ThreadTabStripCoordinator
         var page = new TabPage(header, CodeAltaApp.CreateThreadTabPageContentPlaceholder())
         {
             Data = thread.ThreadId,
-            ShowCloseButton = true,
+            ShowCloseButton = canClose,
         };
         page.RequestClosing += (_, e) =>
         {
@@ -233,12 +241,13 @@ internal sealed class ThreadTabStripCoordinator
         return page;
     }
 
-    private TabPage EnsureDraftPage()
+    private TabPage EnsureDraftPage(bool canClose)
     {
         var workspaceView = _threadTabs.GetWorkspaceView() ?? throw new InvalidOperationException("Thread workspace view is not initialized.");
         if (workspaceView.TryGetTabPage(CodeAltaApp.DraftTabId, out var existingPage))
         {
             existingPage.Data = CodeAltaApp.DraftTabId;
+            existingPage.ShowCloseButton = canClose;
             return existingPage;
         }
 
@@ -257,7 +266,7 @@ internal sealed class ThreadTabStripCoordinator
         var page = new TabPage(header, CodeAltaApp.CreateThreadTabPageContentPlaceholder())
         {
             Data = CodeAltaApp.DraftTabId,
-            ShowCloseButton = true,
+            ShowCloseButton = canClose,
         };
         page.RequestClosing += (_, e) =>
         {

@@ -31,6 +31,8 @@ internal sealed class ShellCommandSurfaceCoordinator
     private readonly Func<string, bool, Task> _openFolderAsync;
     private readonly Func<WorkThreadDescriptor?> _getSelectedThread;
     private readonly Func<WorkThreadDescriptor, OpenThreadState> _ensureThreadTab;
+    private readonly Action _focusSidebar;
+    private readonly Action _focusPrompt;
     private readonly Action<string, bool, StatusTone> _setStatus;
     private readonly Action _openSessionUsage;
     private readonly Action _openThreadInfo;
@@ -52,6 +54,8 @@ internal sealed class ShellCommandSurfaceCoordinator
         Func<Visual?> getHelpFocusTarget,
         Func<WorkThreadDescriptor?> getSelectedThread,
         Func<WorkThreadDescriptor, OpenThreadState> ensureThreadTab,
+        Action focusSidebar,
+        Action focusPrompt,
         Action openSessionUsage,
         Action openThreadInfo,
         Action openExpandedPromptEditor)
@@ -68,6 +72,8 @@ internal sealed class ShellCommandSurfaceCoordinator
         ArgumentNullException.ThrowIfNull(getHelpFocusTarget);
         ArgumentNullException.ThrowIfNull(getSelectedThread);
         ArgumentNullException.ThrowIfNull(ensureThreadTab);
+        ArgumentNullException.ThrowIfNull(focusSidebar);
+        ArgumentNullException.ThrowIfNull(focusPrompt);
         ArgumentNullException.ThrowIfNull(openSessionUsage);
         ArgumentNullException.ThrowIfNull(openThreadInfo);
         ArgumentNullException.ThrowIfNull(openExpandedPromptEditor);
@@ -81,6 +87,8 @@ internal sealed class ShellCommandSurfaceCoordinator
         _getHelpFocusTarget = getHelpFocusTarget;
         _getSelectedThread = getSelectedThread;
         _ensureThreadTab = ensureThreadTab;
+        _focusSidebar = focusSidebar;
+        _focusPrompt = focusPrompt;
         _setStatus = setStatus;
         _openSessionUsage = openSessionUsage;
         _openThreadInfo = openThreadInfo;
@@ -93,6 +101,8 @@ internal sealed class ShellCommandSurfaceCoordinator
             ShowShellHelpAsync,
             ShowCommandPaletteAsync,
             ShowOpenFolderDialogAsync,
+            FocusSidebarAsync,
+            FocusPromptAsync,
             ShowSelectedSessionUsageAsync,
             ShowSelectedThreadInfoAsync,
             ShowExpandedPromptEditorAsync,
@@ -236,6 +246,18 @@ internal sealed class ShellCommandSurfaceCoordinator
     private Task ShowSelectedSessionUsageAsync()
     {
         _openSessionUsage();
+        return Task.CompletedTask;
+    }
+
+    private Task FocusSidebarAsync()
+    {
+        _focusSidebar();
+        return Task.CompletedTask;
+    }
+
+    private Task FocusPromptAsync()
+    {
+        _focusPrompt();
         return Task.CompletedTask;
     }
 

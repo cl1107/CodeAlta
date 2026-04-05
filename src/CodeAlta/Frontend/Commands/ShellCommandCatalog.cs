@@ -5,6 +5,14 @@ namespace CodeAlta.Frontend.Commands;
 
 internal static class ShellCommandCatalog
 {
+    public static readonly KeySequence FocusSidebarShortcutSequence = new(
+        new KeyGesture(TerminalChar.CtrlG, TerminalModifiers.Ctrl),
+        new KeyGesture(TerminalChar.CtrlS, TerminalModifiers.Ctrl));
+
+    public static readonly KeySequence FocusPromptShortcutSequence = new(
+        new KeyGesture(TerminalChar.CtrlG, TerminalModifiers.Ctrl),
+        new KeyGesture(TerminalChar.CtrlP, TerminalModifiers.Ctrl));
+
     public static readonly KeySequence SessionUsageShortcutSequence = new(
         new KeyGesture(TerminalChar.CtrlG, TerminalModifiers.Ctrl),
         new KeyGesture(TerminalChar.CtrlU, TerminalModifiers.Ctrl));
@@ -42,6 +50,26 @@ internal static class ShellCommandCatalog
             Gesture: new KeyGesture(TerminalChar.CtrlO, TerminalModifiers.Ctrl),
             CommandName: "open_folder",
             Aliases: ["open"],
+            ShowInCommandBar: false),
+        new(
+            "CodeAlta.Shell.FocusSidebar",
+            "Go to Sidebar",
+            "Focus the navigator sidebar on the current selection.",
+            ShellCommandHelpCategory.General,
+            ShellCommandScope.AnyShell,
+            ShellCommandAvailability.Always,
+            Sequence: FocusSidebarShortcutSequence,
+            Aliases: ["sidebar"],
+            ShowInCommandBar: false),
+        new(
+            "CodeAlta.Shell.FocusPrompt",
+            "Go to Prompt",
+            "Focus the current thread prompt editor.",
+            ShellCommandHelpCategory.General,
+            ShellCommandScope.AnyShell,
+            ShellCommandAvailability.Always,
+            Sequence: FocusPromptShortcutSequence,
+            Aliases: ["prompt"],
             ShowInCommandBar: false),
         new(
             "CodeAlta.Thread.SessionUsage",
@@ -108,7 +136,7 @@ internal static class ShellCommandCatalog
             ShellCommandHelpCategory.Thread,
             ShellCommandScope.DraftOrThread,
             ShellCommandAvailability.CanCloseTab,
-            Gesture: new KeyGesture(TerminalKey.F9),
+            Gesture: new KeyGesture(TerminalChar.CtrlW, TerminalModifiers.Ctrl),
             Aliases: ["close"]),
         new(
             "CodeAlta.Thread.ClearQueue",

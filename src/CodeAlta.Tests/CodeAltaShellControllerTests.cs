@@ -232,7 +232,7 @@ public sealed class CodeAltaShellControllerTests
         await controller.OpenThreadAsync("thread-1", CancellationToken.None);
 
         Assert.AreEqual(1, dispatcher.InvokeCallCount);
-        CollectionAssert.AreEqual(new[] { "Shell.OpenThread:thread-1" }, log);
+        CollectionAssert.AreEqual(new[] { "Shell.OpenThread:thread-1", "Shell.FocusPromptEditor" }, log);
     }
 
     [TestMethod]

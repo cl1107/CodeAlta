@@ -93,4 +93,28 @@ public sealed class CodeAltaAppTabStripTests
         Assert.IsFalse(projection.Tabs[1].IsDraft);
         Assert.IsTrue(projection.Tabs[2].IsDraft);
     }
+
+    [TestMethod]
+    public void CanCloseTab_HidesCloseButtonForOnlyDraftTab()
+    {
+        Assert.IsFalse(ThreadTabStripCoordinator.CanCloseTab(
+            new ThreadTabStripItemProjection(CodeAltaApp.DraftTabId, IsDraft: true),
+            totalTabCount: 1));
+    }
+
+    [TestMethod]
+    public void CanCloseTab_AllowsClosingDraftWhenMultipleTabsExist()
+    {
+        Assert.IsTrue(ThreadTabStripCoordinator.CanCloseTab(
+            new ThreadTabStripItemProjection(CodeAltaApp.DraftTabId, IsDraft: true),
+            totalTabCount: 2));
+    }
+
+    [TestMethod]
+    public void CanCloseTab_AllowsClosingThreadTabsEvenWhenLast()
+    {
+        Assert.IsTrue(ThreadTabStripCoordinator.CanCloseTab(
+            new ThreadTabStripItemProjection("thread-1", IsDraft: false),
+            totalTabCount: 1));
+    }
 }

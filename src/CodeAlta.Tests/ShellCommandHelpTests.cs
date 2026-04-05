@@ -1,5 +1,7 @@
 using CodeAlta.Frontend.Commands;
 using CodeAlta.Frontend.Help;
+using XenoAtom.Terminal;
+using XenoAtom.Terminal.UI.Input;
 
 namespace CodeAlta.Tests;
 
@@ -12,6 +14,8 @@ public sealed class ShellCommandHelpTests
         var helpCommand = ShellCommandCatalog.Get("CodeAlta.Shell.Help");
         var paletteCommand = ShellCommandCatalog.Get("CodeAlta.Shell.CommandPalette");
         var openFolderCommand = ShellCommandCatalog.Get("CodeAlta.Project.OpenFolder");
+        var goToSidebarCommand = ShellCommandCatalog.Get("CodeAlta.Shell.FocusSidebar");
+        var goToPromptCommand = ShellCommandCatalog.Get("CodeAlta.Shell.FocusPrompt");
         var fullPromptCommand = ShellCommandCatalog.Get("CodeAlta.Thread.ExpandPrompt");
 
         var sections = ShellHelpContentBuilder.BuildSections();
@@ -24,6 +28,12 @@ public sealed class ShellCommandHelpTests
         var openFolderEntry = sections
             .SelectMany(static section => section.Entries)
             .Single(candidate => string.Equals(candidate.Label, openFolderCommand.Label, StringComparison.Ordinal));
+        var goToSidebarEntry = sections
+            .SelectMany(static section => section.Entries)
+            .Single(candidate => string.Equals(candidate.Label, goToSidebarCommand.Label, StringComparison.Ordinal));
+        var goToPromptEntry = sections
+            .SelectMany(static section => section.Entries)
+            .Single(candidate => string.Equals(candidate.Label, goToPromptCommand.Label, StringComparison.Ordinal));
         var fullPromptEntry = sections
             .SelectMany(static section => section.Entries)
             .Single(candidate => string.Equals(candidate.Label, fullPromptCommand.Label, StringComparison.Ordinal));
@@ -33,6 +43,10 @@ public sealed class ShellCommandHelpTests
         CollectionAssert.Contains(paletteEntry.Bindings.ToArray(), "/");
         CollectionAssert.Contains(openFolderEntry.Bindings.ToArray(), "/open_folder");
         CollectionAssert.Contains(openFolderEntry.Bindings.ToArray(), "/open");
+        CollectionAssert.Contains(goToSidebarEntry.Bindings.ToArray(), "/go_to_sidebar");
+        CollectionAssert.Contains(goToSidebarEntry.Bindings.ToArray(), "/sidebar");
+        CollectionAssert.Contains(goToPromptEntry.Bindings.ToArray(), "/go_to_prompt");
+        CollectionAssert.Contains(goToPromptEntry.Bindings.ToArray(), "/prompt");
         CollectionAssert.Contains(fullPromptEntry.Bindings.ToArray(), "/full_prompt");
     }
 
@@ -63,6 +77,7 @@ public sealed class ShellCommandHelpTests
         CollectionAssert.Contains(closeTabCommand.Aliases.ToArray(), "close");
         StringAssert.Contains(closeTabCommand.CommandSearchText, "/close_tab");
         StringAssert.Contains(closeTabCommand.CommandSearchText, "/close");
+        Assert.AreEqual(new KeyGesture(TerminalChar.CtrlW, TerminalModifiers.Ctrl), closeTabCommand.Gesture);
         Assert.AreEqual("open_folder", openFolderCommand.CommandName);
         CollectionAssert.Contains(openFolderCommand.Aliases.ToArray(), "open");
         StringAssert.Contains(openFolderCommand.CommandSearchText, "/open");

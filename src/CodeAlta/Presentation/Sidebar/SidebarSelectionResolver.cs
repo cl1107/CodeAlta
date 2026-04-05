@@ -2,6 +2,9 @@ namespace CodeAlta.Presentation.Sidebar;
 
 internal static class SidebarSelectionResolver
 {
+    public static string? ResolvePreferredExpandedProjectId(string? selectedThreadProjectId)
+        => string.IsNullOrWhiteSpace(selectedThreadProjectId) ? null : selectedThreadProjectId;
+
     public static SidebarSelectionTarget ResolveCurrentTarget(
         string? selectedThreadId,
         string? selectedProjectId,
