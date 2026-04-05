@@ -1,13 +1,18 @@
+using CodeAlta.Presentation.Prompting;
+using CodeAlta.Search;
+using XenoAtom.Terminal;
+using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Controls;
 using XenoAtom.Terminal.UI.Input;
 
 namespace CodeAlta.Views;
 
-internal sealed class ChatPromptEditor : PromptEditor
+internal sealed class ChatPromptEditor : PromptEditor, IProjectFileReferencePopupHost
 {
     private readonly Action<string> _onAccepted;
     private readonly Action? _onOpenHelp;
     private readonly Action? _onOpenCommandPalette;
+    private ProjectFileReferencePopupController? _projectFileReferencePopupController;
 
     public ChatPromptEditor(
         Action<string> onAccepted,
@@ -23,6 +28,7 @@ internal sealed class ChatPromptEditor : PromptEditor
     protected override void OnAccepted(PromptEditorAcceptedEventArgs e)
     {
         ArgumentNullException.ThrowIfNull(e);
+        _ = _projectFileReferencePopupController?.DisposeAsync();
         _onAccepted(e.Text);
         base.OnAccepted(e);
     }
@@ -38,6 +44,14 @@ internal sealed class ChatPromptEditor : PromptEditor
         }
 
         base.OnTextInput(e);
+        _projectFileReferencePopupController?.HandleEditorStateChanged();
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        ArgumentNullException.ThrowIfNull(e);
+        base.OnKeyDown(e);
+        _projectFileReferencePopupController?.HandleEditorStateChanged();
     }
 
     internal bool TryHandleTransientShortcutInput(string? text)
@@ -60,4 +74,41 @@ internal sealed class ChatPromptEditor : PromptEditor
         action();
         return true;
     }
+
+    public ChatPromptEditor EnableProjectFileReferences(
+        IProjectFileSearchService searchService,
+        IProjectFileAppearanceRegistry appearanceRegistry,
+        Func<string?> getProjectRoot)
+    {
+        ArgumentNullException.ThrowIfNull(searchService);
+        ArgumentNullException.ThrowIfNull(appearanceRegistry);
+        ArgumentNullException.ThrowIfNull(getProjectRoot);
+
+        _ = _projectFileReferencePopupController?.DisposeAsync();
+        _projectFileReferencePopupController = new ProjectFileReferencePopupController(
+            this,
+            searchService,
+            appearanceRegistry,
+            getProjectRoot);
+        return this;
+    }
+
+    internal bool HasProjectFileReferencePopup => _projectFileReferencePopupController?.IsOpen == true;
+
+    internal IReadOnlyList<ProjectFileReferencePopupItem> ProjectFileReferenceItems
+        => _projectFileReferencePopupController?.Items ?? [];
+
+    internal int ProjectFileReferenceSelectedIndex
+        => _projectFileReferencePopupController?.SelectedIndex ?? -1;
+
+    internal string ProjectFileReferenceQueryText
+        => _projectFileReferencePopupController?.QueryText ?? string.Empty;
+
+    internal void RefreshProjectFileReferencePopup()
+        => _projectFileReferencePopupController?.HandleEditorStateChanged();
+
+    Visual IProjectFileReferencePopupHost.Visual => this;
+
+    void IProjectFileReferencePopupHost.FocusPromptEditor()
+        => App?.Focus(this);
 }

@@ -5,6 +5,7 @@ using CodeAlta.Presentation.Chat;
 using CodeAlta.Presentation.Prompting;
 using CodeAlta.Presentation.Shell;
 using CodeAlta.Presentation.Styling;
+using CodeAlta.Search;
 using CodeAlta.ViewModels;
 using XenoAtom.Terminal;
 using XenoAtom.Terminal.UI;
@@ -69,6 +70,7 @@ internal sealed class ThreadWorkspaceView
             toggleThreadInfoPopup,
             openHelp,
             openCommandPalette,
+            NullProjectFileSearchService.Instance,
             static () => null,
             acceptPrompt,
             sendPrompt,
@@ -102,6 +104,7 @@ internal sealed class ThreadWorkspaceView
         Action<Visual> toggleThreadInfoPopup,
         Action openHelp,
         Action openCommandPalette,
+        IProjectFileSearchService projectFileSearchService,
         Func<string?> getPromptReferenceProjectRoot,
         Action<string> acceptPrompt,
         Action sendPrompt,
@@ -132,6 +135,7 @@ internal sealed class ThreadWorkspaceView
         ArgumentNullException.ThrowIfNull(toggleThreadInfoPopup);
         ArgumentNullException.ThrowIfNull(openHelp);
         ArgumentNullException.ThrowIfNull(openCommandPalette);
+        ArgumentNullException.ThrowIfNull(projectFileSearchService);
         ArgumentNullException.ThrowIfNull(getPromptReferenceProjectRoot);
         ArgumentNullException.ThrowIfNull(acceptPrompt);
         ArgumentNullException.ThrowIfNull(sendPrompt);
@@ -169,6 +173,7 @@ internal sealed class ThreadWorkspaceView
             promptComposerViewModel,
             openHelp,
             openCommandPalette,
+            projectFileSearchService,
             getPromptReferenceProjectRoot,
             acceptPrompt,
             commandBindings,
@@ -260,7 +265,7 @@ internal sealed class ThreadWorkspaceView
                     deleteQueuedPrompt,
                     updateQueuedPromptCount,
                     updateQueuedPromptText,
-                    (onAccepted, placeholder) => CreateStyledPromptEditor(onAccepted, openHelp, openCommandPalette, getPromptReferenceProjectRoot, placeholder)));
+                    (onAccepted, placeholder) => CreateStyledPromptEditor(onAccepted, openHelp, openCommandPalette, projectFileSearchService, getPromptReferenceProjectRoot, placeholder)));
 
         var selectionControls = new HStack(
         [
@@ -392,6 +397,7 @@ internal sealed class ThreadWorkspaceView
         PromptComposerViewModel promptComposerViewModel,
         Action openHelp,
         Action openCommandPalette,
+        IProjectFileSearchService projectFileSearchService,
         Func<string?> getPromptReferenceProjectRoot,
         Action<string> acceptPrompt,
         IReadOnlyList<ThreadWorkspaceCommandBinding> commandBindings,
@@ -400,10 +406,11 @@ internal sealed class ThreadWorkspaceView
         ArgumentNullException.ThrowIfNull(promptComposerViewModel);
         ArgumentNullException.ThrowIfNull(openHelp);
         ArgumentNullException.ThrowIfNull(openCommandPalette);
+        ArgumentNullException.ThrowIfNull(projectFileSearchService);
         ArgumentNullException.ThrowIfNull(getPromptReferenceProjectRoot);
         ArgumentNullException.ThrowIfNull(acceptPrompt);
         ArgumentNullException.ThrowIfNull(commandBindings);
-        var editor = CreateStyledPromptEditor(acceptPrompt, openHelp, openCommandPalette, getPromptReferenceProjectRoot, placeholder: null)
+        var editor = CreateStyledPromptEditor(acceptPrompt, openHelp, openCommandPalette, projectFileSearchService, getPromptReferenceProjectRoot, placeholder: null)
             .Placeholder(promptComposerViewModel.Bind.Placeholder)
             .Text(promptText);
 
@@ -448,7 +455,7 @@ internal sealed class ThreadWorkspaceView
             return;
         }
 
-        var editor = CreateStyledPromptEditor(_ => { }, onOpenHelp: null, onOpenCommandPalette: null, getPromptReferenceProjectRoot: null, placeholder: null)
+        var editor = CreateStyledPromptEditor(_ => { }, onOpenHelp: null, onOpenCommandPalette: null, projectFileSearchService: null, getPromptReferenceProjectRoot: null, placeholder: null)
             .Placeholder(promptComposerViewModel.Bind.Placeholder)
             .Text(promptText)
             .MinHeight(12)
@@ -545,12 +552,13 @@ internal sealed class ThreadWorkspaceView
         Action? onOpenHelp,
         Action? onOpenCommandPalette,
         string? placeholder)
-        => CreateStyledPromptEditor(onAccepted, onOpenHelp, onOpenCommandPalette, getPromptReferenceProjectRoot: null, placeholder);
+        => CreateStyledPromptEditor(onAccepted, onOpenHelp, onOpenCommandPalette, projectFileSearchService: null, getPromptReferenceProjectRoot: null, placeholder);
 
     internal static ChatPromptEditor CreateStyledPromptEditor(
         Action<string> onAccepted,
         Action? onOpenHelp,
         Action? onOpenCommandPalette,
+        IProjectFileSearchService? projectFileSearchService,
         Func<string?>? getPromptReferenceProjectRoot,
         string? placeholder)
     {
@@ -562,7 +570,7 @@ internal sealed class ThreadWorkspaceView
         string? cachedText = null;
         string? cachedProjectRoot = null;
         List<StyledRun>? cachedRuns = null;
-        return new ChatPromptEditor(onAccepted, onOpenHelp, onOpenCommandPalette)
+        var editor = new ChatPromptEditor(onAccepted, onOpenHelp, onOpenCommandPalette)
             .PromptMarkup("[primary]>[/] ")
             .ContinuationPromptMarkup("[muted]·[/] ")
             .Placeholder(placeholder)
@@ -576,6 +584,15 @@ internal sealed class ThreadWorkspaceView
                 Padding = new Thickness(0, 0, 1, 0),
                 PlaceholderForeground = UiPalette.PromptPlaceholderColor,
             });
+        if (projectFileSearchService is not null && getPromptReferenceProjectRoot is not null)
+        {
+            editor.EnableProjectFileReferences(
+                projectFileSearchService,
+                ProjectFileAppearanceRegistry.Default,
+                getPromptReferenceProjectRoot);
+        }
+
+        return editor;
 
         void HighlightMarkdown(in PromptEditorHighlightRequest request, List<StyledRun> runs)
         {

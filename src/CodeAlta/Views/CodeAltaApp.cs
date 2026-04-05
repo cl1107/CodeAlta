@@ -104,14 +104,11 @@ internal sealed class CodeAltaApp : IAsyncDisposable
     }
 
     public static async Task<CodeAltaApp> CreateAsync(CancellationToken cancellationToken)
-    {
-        var ownedServices = await CodeAltaOwnedServices.CreateAsync(cancellationToken);
-        return Create(ownedServices);
-    }
+        => Create(await CodeAltaOwnedServices.CreateAsync(cancellationToken));
     internal static CodeAltaApp Create(CodeAltaOwnedServices ownedServices)
     {
         ArgumentNullException.ThrowIfNull(ownedServices);
-        return new CodeAltaApp(
+        return new(
             ownedServices.ProjectCatalog,
             ownedServices.ThreadCatalog,
             ownedServices.RuntimeService,
@@ -189,6 +186,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
                 SyncSidebarSelectionToCurrentState = SyncSidebarSelectionToCurrentState,
                 RefreshChatSelectorsForDraftScope = () => RefreshChatSelectorsForDraftScope(),
                 RefreshChatSelectorsForThread = RefreshChatSelectorsForThread,
+                SyncChatSelectorItems = SyncChatSelectorItems,
                 SyncPromptText = session => _promptDraftUiCoordinator!.SyncPromptText(session),
                 UpdatePromptAvailabilityUi = UpdatePromptAvailabilityUi,
                 SyncThreadTabControl = SyncThreadTabControl,
@@ -434,16 +432,12 @@ internal sealed class CodeAltaApp : IAsyncDisposable
     }
 
     private void RefreshChatSelectorsForDraftScope(AgentBackendId? preferredBackendId = null)
-    {
-        _chatSelectorCoordinator.RefreshForDraftScope(preferredBackendId);
-        _threadWorkspaceView?.SyncChatSelectorItems(_threadWorkspaceViewModel);
-    }
+        => _chatSelectorCoordinator.RefreshForDraftScope(preferredBackendId);
 
     private void RefreshChatSelectorsForThread(OpenThreadState tab)
-    {
-        _chatSelectorCoordinator.RefreshForThread(tab);
-        _threadWorkspaceView?.SyncChatSelectorItems(_threadWorkspaceViewModel);
-    }
+        => _chatSelectorCoordinator.RefreshForThread(tab);
+    private void SyncChatSelectorItems()
+        => _threadWorkspaceView?.SyncChatSelectorItems(_threadWorkspaceViewModel);
     private void OnChatBackendSelectionChanged(int newIndex)
         => _chatSelectorCoordinator.OnBackendSelectionChanged(newIndex);
     private void OnChatModelSelectionChanged(int newIndex)
@@ -487,6 +481,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             anchor => EnsureThreadInfoPresenter().TogglePopup(anchor),
             () => ObserveUiTask(_shellCommandSurfaceCoordinator.ShowHelpAsync(), "show help"),
             () => _shellCommandSurfaceCoordinator.ShowCommandPalette(),
+            _ownedServices?.ProjectFileSearchService ?? NullProjectFileSearchService.Instance,
             () => PromptReferenceProjectRootResolver.Resolve(GetSelectedThread(), GetProjectById, GetSelectedProject),
             acceptedPrompt => ObserveUiTask(_shellCommandSurfaceCoordinator.HandleAcceptedPromptAsync(acceptedPrompt), "submit the current prompt"),
             () => ObserveUiTask(_shellCommandSurfaceCoordinator.SubmitCurrentPromptAsync(steer: false), "submit the current prompt"),
@@ -775,5 +770,4 @@ internal sealed class CodeAltaApp : IAsyncDisposable
 
     private WorkThreadDescriptor? FindThread(string? threadId)
         => _threadStateCoordinator.FindThread(threadId);
-
 }

@@ -13,9 +13,10 @@ internal sealed class ProjectFileSearchSession : IProjectFileSearchSession
     private IReadOnlyList<ProjectFileSearchItem> _latestCandidates;
     private string _query;
     private CancellationTokenSource? _refreshCancellation;
-    private CancellationTokenSource? _rankingCancellation;
     private long _refreshGeneration;
-    private long _rankingGeneration;
+    private long _rankingRequestVersion;
+    private RankingRequest? _pendingRankingRequest;
+    private bool _rankingWorkerScheduled;
     private bool _disposed;
 
     public ProjectFileSearchSession(
@@ -148,8 +149,7 @@ internal sealed class ProjectFileSearchSession : IProjectFileSearchSession
             _disposed = true;
             _refreshCancellation?.Cancel();
             _refreshCancellation?.Dispose();
-            _rankingCancellation?.Cancel();
-            _rankingCancellation?.Dispose();
+            _pendingRankingRequest = null;
         }
 
         return ValueTask.CompletedTask;
@@ -225,9 +225,7 @@ internal sealed class ProjectFileSearchSession : IProjectFileSearchSession
         bool hasSnapshot,
         bool isRefreshing)
     {
-        CancellationTokenSource rankingCancellation;
-        long rankingGeneration;
-        string query;
+        bool shouldStartWorker;
         lock (_gate)
         {
             if (_disposed)
@@ -235,52 +233,80 @@ internal sealed class ProjectFileSearchSession : IProjectFileSearchSession
                 return;
             }
 
-            _rankingCancellation?.Cancel();
-            _rankingCancellation?.Dispose();
-            rankingCancellation = new CancellationTokenSource();
-            _rankingCancellation = rankingCancellation;
-            rankingGeneration = ++_rankingGeneration;
-            query = _query;
+            _pendingRankingRequest = new RankingRequest(
+                Candidates: candidates,
+                Query: _query,
+                RefreshGeneration: refreshGeneration,
+                SnapshotGeneration: snapshotGeneration,
+                HasSnapshot: hasSnapshot,
+                IsRefreshing: isRefreshing,
+                RequestVersion: ++_rankingRequestVersion);
+            shouldStartWorker = !_rankingWorkerScheduled;
+            _rankingWorkerScheduled = true;
         }
 
-        _ = Task.Run(
-            () =>
+        if (!shouldStartWorker)
+        {
+            return;
+        }
+
+        _ = Task.Run(RunRankingLoopAsync);
+    }
+
+    private void RunRankingLoopAsync()
+    {
+        while (true)
+        {
+            RankingRequest request;
+            lock (_gate)
             {
-                try
+                if (_disposed)
                 {
-                    var ranked = _scorer.Rank(query, candidates, Math.Max(1, _options.MaximumResults));
-                    rankingCancellation.Token.ThrowIfCancellationRequested();
-
-                    lock (_gate)
-                    {
-                        if (_disposed ||
-                            refreshGeneration != _refreshGeneration ||
-                            rankingGeneration != _rankingGeneration)
-                        {
-                            return;
-                        }
-
-                        _latestCandidates = candidates;
-                    }
-
-                    PublishState(
-                        new ProjectFileSearchState
-                        {
-                            Query = query,
-                            Results = ranked,
-                            IsRefreshing = isRefreshing,
-                            HasSnapshot = hasSnapshot,
-                            RefreshGeneration = refreshGeneration,
-                            SnapshotGeneration = snapshotGeneration,
-                            CandidateCount = candidates.Count,
-                            UpdatedAt = DateTimeOffset.UtcNow,
-                        });
+                    _rankingWorkerScheduled = false;
+                    return;
                 }
-                catch (OperationCanceledException)
+
+                if (_pendingRankingRequest is not RankingRequest pendingRequest)
                 {
+                    _rankingWorkerScheduled = false;
+                    return;
                 }
-            },
-            rankingCancellation.Token);
+
+                request = pendingRequest;
+                _pendingRankingRequest = null;
+            }
+
+            var ranked = _scorer.Rank(request.Query, request.Candidates, Math.Max(1, _options.MaximumResults));
+
+            lock (_gate)
+            {
+                if (_disposed)
+                {
+                    continue;
+                }
+
+                if (request.RefreshGeneration != _refreshGeneration ||
+                    request.RequestVersion != _rankingRequestVersion)
+                {
+                    continue;
+                }
+
+                _latestCandidates = request.Candidates;
+            }
+
+            PublishState(
+                new ProjectFileSearchState
+                {
+                    Query = request.Query,
+                    Results = ranked,
+                    IsRefreshing = request.IsRefreshing,
+                    HasSnapshot = request.HasSnapshot,
+                    RefreshGeneration = request.RefreshGeneration,
+                    SnapshotGeneration = request.SnapshotGeneration,
+                    CandidateCount = request.Candidates.Count,
+                    UpdatedAt = DateTimeOffset.UtcNow,
+                });
+        }
     }
 
     private void PublishState(ProjectFileSearchState state)
@@ -305,4 +331,13 @@ internal sealed class ProjectFileSearchSession : IProjectFileSearchSession
             throw new ObjectDisposedException(nameof(ProjectFileSearchSession));
         }
     }
+
+    private readonly record struct RankingRequest(
+        IReadOnlyList<ProjectFileSearchItem> Candidates,
+        string Query,
+        long RefreshGeneration,
+        long SnapshotGeneration,
+        bool HasSnapshot,
+        bool IsRefreshing,
+        long RequestVersion);
 }

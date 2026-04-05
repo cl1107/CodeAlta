@@ -18,11 +18,12 @@ internal static class ProjectFilePromptInputBuilder
         var tokens = ProjectFilePromptReferenceParser.Parse(prompt);
         if (tokens.Count == 0)
         {
-            return new ProjectFilePromptInputResult(prompt, AgentInput.Text(prompt));
+            return new ProjectFilePromptInputResult(prompt, AgentInput.Text(prompt), []);
         }
 
         var builder = new StringBuilder(prompt.Length);
         var attachments = new List<AgentInputItem>();
+        var resolvedReferences = new List<ProjectFileResolution>();
         var cursor = 0;
         foreach (var token in tokens)
         {
@@ -65,8 +66,9 @@ internal static class ProjectFilePromptInputBuilder
                 continue;
             }
 
-            builder.Append('@').Append(resolution.NormalizedReferenceText);
+            builder.Append(ProjectFilePromptReferenceFormatter.BuildMarkdownLink(resolution, token.DisplayText));
             attachments.Add(CreateAttachment(resolution));
+            resolvedReferences.Add(resolution);
             cursor = token.StartIndex + token.Length;
         }
 
@@ -74,7 +76,7 @@ internal static class ProjectFilePromptInputBuilder
         var normalizedPrompt = builder.ToString();
         if (attachments.Count == 0)
         {
-            return new ProjectFilePromptInputResult(normalizedPrompt, AgentInput.Text(normalizedPrompt));
+            return new ProjectFilePromptInputResult(normalizedPrompt, AgentInput.Text(normalizedPrompt), []);
         }
 
         var items = new List<AgentInputItem>(attachments.Count + 1)
@@ -82,7 +84,7 @@ internal static class ProjectFilePromptInputBuilder
             new AgentInputItem.Text(normalizedPrompt),
         };
         items.AddRange(attachments);
-        return new ProjectFilePromptInputResult(normalizedPrompt, new AgentInput(items));
+        return new ProjectFilePromptInputResult(normalizedPrompt, new AgentInput(items), resolvedReferences);
     }
 
     private static AgentInputItem CreateAttachment(ProjectFileResolution resolution)

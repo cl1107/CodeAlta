@@ -135,7 +135,8 @@ internal sealed class CodeAltaFrontendComposition
             chatSelectorStateContext,
             threadSelectionContext,
             chatPreferenceContext,
-            workspaceRefreshContext);
+            workspaceRefreshContext,
+            callbacks.SyncChatSelectorItems);
 
         ThreadPromptQueueCoordinator? threadPromptQueueCoordinator = null;
         ThreadCommandCoordinator? threadCommandCoordinator = null;
@@ -193,7 +194,8 @@ internal sealed class CodeAltaFrontendComposition
             callbacks.SetThreadStatus,
             callbacks.ClearThreadStatus,
             () => threadPromptQueueCoordinator!.RefreshSelectedThreadQueueUi(),
-            (tab, cancellationToken) => threadCommandCoordinator!.DrainQueuedPromptAsync(tab, cancellationToken));
+            (tab, cancellationToken) => threadCommandCoordinator!.DrainQueuedPromptAsync(tab, cancellationToken),
+            projectFileSearchService);
         var threadCreationCoordinator = new ThreadCreationCoordinator(
             runtimeService,
             catalogOptions,

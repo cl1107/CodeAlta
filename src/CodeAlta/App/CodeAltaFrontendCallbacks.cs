@@ -38,6 +38,7 @@ internal sealed class CodeAltaFrontendCallbacks
     public required Action SyncSidebarSelectionToCurrentState { get; init; }
     public required Action RefreshChatSelectorsForDraftScope { get; init; }
     public required Action<OpenThreadState> RefreshChatSelectorsForThread { get; init; }
+    public required Action SyncChatSelectorItems { get; init; }
     public required Action<ThreadSessionState?> SyncPromptText { get; init; }
     public required Action UpdatePromptAvailabilityUi { get; init; }
     public required Action SyncThreadTabControl { get; init; }

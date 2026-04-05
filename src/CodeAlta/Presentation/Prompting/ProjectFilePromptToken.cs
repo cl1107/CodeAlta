@@ -9,4 +9,5 @@ internal sealed record ProjectFilePromptToken(
     string RawText,
     string? LookupText = null,
     ProjectFileLineRange? LineRange = null,
-    bool IsMalformed = false);
+    bool IsMalformed = false,
+    string? DisplayText = null);

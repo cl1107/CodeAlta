@@ -4,7 +4,9 @@ using CodeAlta.App.State;
 using CodeAlta.Catalog;
 using CodeAlta.Models;
 using CodeAlta.Orchestration.Runtime;
+using CodeAlta.Presentation.Prompting;
 using CodeAlta.Presentation.Timeline;
+using CodeAlta.Search;
 using CodeAlta.Threading;
 
 namespace CodeAlta.Tests;
@@ -298,10 +300,39 @@ public sealed class ThreadRuntimeEventCoordinatorTests
         Assert.IsNull(tab.ActiveRunId);
     }
 
+    [TestMethod]
+    public void HandleAgentEvent_InvalidatesProjectFileSearchWhenFileChangesArrive()
+    {
+        var thread = CreateThread();
+        var tab = CreateOpenThreadState(thread);
+        var searchService = new FakeProjectFileSearchService();
+        var coordinator = CreateCoordinator(thread, tab, projectFileSearchService: searchService);
+
+        coordinator.HandleAgentEvent(
+            thread,
+            tab,
+            new AgentActivityEvent(
+                AgentBackendIds.Codex,
+                "session-1",
+                DateTimeOffset.UtcNow,
+                null,
+                AgentActivityKind.FileChange,
+                AgentActivityPhase.Completed,
+                "activity-1",
+                null,
+                "write_file",
+                "Updated Program.cs"));
+
+        Assert.AreEqual(1, searchService.Invalidations.Count);
+        Assert.AreEqual(thread.WorkingDirectory, searchService.Invalidations[0].ProjectRoot);
+        Assert.AreEqual(ProjectFileInvalidationReason.FileSystemWrite, searchService.Invalidations[0].Reason);
+    }
+
     private static ThreadRuntimeEventCoordinator CreateCoordinator(
         WorkThreadDescriptor thread,
         OpenThreadState tab,
-        Action? refreshQueuedPromptList = null)
+        Action? refreshQueuedPromptList = null,
+        IProjectFileSearchService? projectFileSearchService = null)
     {
         return new ThreadRuntimeEventCoordinator(
             findThread: id => id == thread.ThreadId ? thread : null,
@@ -326,7 +357,8 @@ public sealed class ThreadRuntimeEventCoordinatorTests
                 state.HasCustomStatus = false;
             },
             refreshQueuedPromptList: refreshQueuedPromptList ?? (() => { }),
-            drainQueuedPromptAsync: static (_, _) => Task.CompletedTask);
+            drainQueuedPromptAsync: static (_, _) => Task.CompletedTask,
+            projectFileSearchService: projectFileSearchService ?? NullProjectFileSearchService.Instance);
     }
 
     private static OpenThreadState CreateOpenThreadState(WorkThreadDescriptor thread)
@@ -376,6 +408,35 @@ public sealed class ThreadRuntimeEventCoordinatorTests
         {
             ArgumentNullException.ThrowIfNull(action);
             return Task.FromResult(action());
+        }
+    }
+
+    private sealed class FakeProjectFileSearchService : IProjectFileSearchService
+    {
+        public List<(string ProjectRoot, ProjectFileInvalidationReason Reason)> Invalidations { get; } = [];
+
+        public ValueTask<IProjectFileSearchSession> CreateSessionAsync(
+            ProjectFileSearchSessionOptions options,
+            CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public ValueTask<ProjectFileResolution> ResolveAsync(
+            ProjectFileResolveQuery query,
+            CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public ValueTask RecordUsageAsync(
+            ProjectFileUsageEvent usageEvent,
+            CancellationToken cancellationToken = default)
+            => ValueTask.CompletedTask;
+
+        public ValueTask InvalidateAsync(
+            string projectRoot,
+            ProjectFileInvalidationReason reason,
+            CancellationToken cancellationToken = default)
+        {
+            Invalidations.Add((projectRoot, reason));
+            return ValueTask.CompletedTask;
         }
     }
 }

@@ -21,6 +21,7 @@ internal sealed class ChatSelectorCoordinator
     private readonly ThreadSelectionContext _threadSelection;
     private readonly ChatPreferenceContext _preferences;
     private readonly WorkspaceRefreshContext _workspaceRefresh;
+    private readonly Action _syncChatSelectorItems;
     private bool _selectorsRefreshing;
 
     public ChatSelectorCoordinator(
@@ -30,7 +31,8 @@ internal sealed class ChatSelectorCoordinator
         ChatSelectorStateContext selectorState,
         ThreadSelectionContext threadSelection,
         ChatPreferenceContext preferences,
-        WorkspaceRefreshContext workspaceRefresh)
+        WorkspaceRefreshContext workspaceRefresh,
+        Action syncChatSelectorItems)
     {
         ArgumentNullException.ThrowIfNull(workspaceViewModel);
         ArgumentNullException.ThrowIfNull(promptComposerViewModel);
@@ -39,6 +41,7 @@ internal sealed class ChatSelectorCoordinator
         ArgumentNullException.ThrowIfNull(threadSelection);
         ArgumentNullException.ThrowIfNull(preferences);
         ArgumentNullException.ThrowIfNull(workspaceRefresh);
+        ArgumentNullException.ThrowIfNull(syncChatSelectorItems);
 
         _workspaceViewModel = workspaceViewModel;
         _promptComposerViewModel = promptComposerViewModel;
@@ -47,6 +50,7 @@ internal sealed class ChatSelectorCoordinator
         _threadSelection = threadSelection;
         _preferences = preferences;
         _workspaceRefresh = workspaceRefresh;
+        _syncChatSelectorItems = syncChatSelectorItems;
     }
 
     public void RefreshForDraftScope(AgentBackendId? preferredBackendId = null)
@@ -87,6 +91,7 @@ internal sealed class ChatSelectorCoordinator
             _workspaceViewModel.CanSelectModel = backendState.Availability == ChatBackendAvailability.Ready;
             _workspaceViewModel.CanSelectReasoning = backendState.Availability == ChatBackendAvailability.Ready;
             _workspaceViewModel.CanToggleAutoScroll = false;
+            _syncChatSelectorItems();
         }
         finally
         {
@@ -138,6 +143,7 @@ internal sealed class ChatSelectorCoordinator
             _workspaceViewModel.CanSelectModel = backendState.Availability == ChatBackendAvailability.Ready;
             _workspaceViewModel.CanSelectReasoning = backendState.Availability == ChatBackendAvailability.Ready;
             _workspaceViewModel.CanToggleAutoScroll = true;
+            _syncChatSelectorItems();
         }
         finally
         {

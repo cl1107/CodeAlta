@@ -4,6 +4,7 @@ using CodeAlta.Catalog;
 using CodeAlta.Models;
 using CodeAlta.Orchestration.Runtime;
 using CodeAlta.Presentation.Shell;
+using CodeAlta.Search;
 using CodeAlta.Views;
 using XenoAtom.Logging;
 
@@ -21,6 +22,7 @@ internal sealed class ThreadRuntimeEventCoordinator
     private readonly Action<OpenThreadState> _clearThreadStatus;
     private readonly Action _refreshQueuedPromptList;
     private readonly Func<OpenThreadState, CancellationToken, Task> _drainQueuedPromptAsync;
+    private readonly IProjectFileSearchService _projectFileSearchService;
     private readonly ThreadRuntimeStateReducer _stateReducer;
     private readonly ThreadRuntimeTimelineRenderer _timelineRenderer;
 
@@ -35,7 +37,8 @@ internal sealed class ThreadRuntimeEventCoordinator
         Action<OpenThreadState, string, bool, StatusTone> setThreadStatus,
         Action<OpenThreadState> clearThreadStatus,
         Action refreshQueuedPromptList,
-        Func<OpenThreadState, CancellationToken, Task> drainQueuedPromptAsync)
+        Func<OpenThreadState, CancellationToken, Task> drainQueuedPromptAsync,
+        IProjectFileSearchService projectFileSearchService)
     {
         ArgumentNullException.ThrowIfNull(findThread);
         ArgumentNullException.ThrowIfNull(findOpenThread);
@@ -48,6 +51,7 @@ internal sealed class ThreadRuntimeEventCoordinator
         ArgumentNullException.ThrowIfNull(clearThreadStatus);
         ArgumentNullException.ThrowIfNull(refreshQueuedPromptList);
         ArgumentNullException.ThrowIfNull(drainQueuedPromptAsync);
+        ArgumentNullException.ThrowIfNull(projectFileSearchService);
 
         _findThread = findThread;
         _findOpenThread = findOpenThread;
@@ -59,6 +63,7 @@ internal sealed class ThreadRuntimeEventCoordinator
         _clearThreadStatus = clearThreadStatus;
         _refreshQueuedPromptList = refreshQueuedPromptList;
         _drainQueuedPromptAsync = drainQueuedPromptAsync;
+        _projectFileSearchService = projectFileSearchService;
         _stateReducer = new ThreadRuntimeStateReducer();
         _timelineRenderer = new ThreadRuntimeTimelineRenderer(getAutoApproveEnabled);
     }
@@ -95,6 +100,11 @@ internal sealed class ThreadRuntimeEventCoordinator
             }
         }
 
+        if (runtimeEvent is WorkThreadAgentEvent agentRuntimeEvent)
+        {
+            InvalidateProjectFileSearchIfNeeded(thread, agentRuntimeEvent.Event);
+        }
+
         ApplyReduction(tab, reduction);
     }
 
@@ -106,6 +116,7 @@ internal sealed class ThreadRuntimeEventCoordinator
 
         var reduction = _stateReducer.ReduceAgentEvent(thread, tab, @event, _isSelectedThread(thread.ThreadId));
         TryRenderInteraction(tab, () => _timelineRenderer.RenderAgentEvent(tab, @event), "agent event");
+        InvalidateProjectFileSearchIfNeeded(thread, @event);
         ApplyReduction(tab, reduction);
     }
 
@@ -139,6 +150,39 @@ internal sealed class ThreadRuntimeEventCoordinator
 
     public static string SummarizeContent(string content)
         => ThreadRuntimeStateReducer.SummarizeContent(content);
+
+    private void InvalidateProjectFileSearchIfNeeded(WorkThreadDescriptor thread, AgentEvent @event)
+    {
+        ArgumentNullException.ThrowIfNull(thread);
+        ArgumentNullException.ThrowIfNull(@event);
+
+        if (!ShouldInvalidateProjectFileSearch(@event) ||
+            string.IsNullOrWhiteSpace(thread.WorkingDirectory))
+        {
+            return;
+        }
+
+        _ = InvalidateProjectFileSearchAsync(thread.WorkingDirectory);
+    }
+
+    private async Task InvalidateProjectFileSearchAsync(string projectRoot)
+    {
+        try
+        {
+            await _projectFileSearchService.InvalidateAsync(projectRoot, ProjectFileInvalidationReason.FileSystemWrite);
+        }
+        catch
+        {
+        }
+    }
+
+    private static bool ShouldInvalidateProjectFileSearch(AgentEvent @event)
+        => @event switch
+        {
+            AgentActivityEvent { Kind: AgentActivityKind.FileChange } => true,
+            AgentSessionUpdateEvent { Kind: AgentSessionUpdateKind.DiffUpdated } => true,
+            _ => false,
+        };
 
     private void ApplyReduction(OpenThreadState? tab, ThreadRuntimeReductionResult reduction)
     {

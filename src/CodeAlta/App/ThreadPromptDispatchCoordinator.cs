@@ -136,6 +136,7 @@ internal sealed class ThreadPromptDispatchCoordinator
                     _projectFileSearchService,
                     cancellationToken);
             var dispatchAsSteer = steer && tab.ActiveRunId is not null;
+            _ = RecordResolvedReferenceUsageAsync(promptInput.ResolvedReferences);
             AgentRunId runId;
             if (dispatchAsSteer)
             {
@@ -220,5 +221,36 @@ internal sealed class ThreadPromptDispatchCoordinator
         }
 
         return builder.ToString().TrimEnd();
+    }
+
+    private async Task RecordResolvedReferenceUsageAsync(IReadOnlyList<ProjectFileResolution> resolutions)
+    {
+        if (resolutions.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var resolution in resolutions)
+        {
+            var item = resolution.Item;
+            if (item is null)
+            {
+                continue;
+            }
+
+            try
+            {
+                await _projectFileSearchService.RecordUsageAsync(
+                    new ProjectFileUsageEvent(
+                        item.ProjectRoot,
+                        item.RelativePath,
+                        item.Kind,
+                        DateTimeOffset.UtcNow,
+                        ProjectFileUsageAccessKind.PromptInserted));
+            }
+            catch
+            {
+            }
+        }
     }
 }
