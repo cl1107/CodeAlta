@@ -706,10 +706,8 @@ internal sealed class CodeAltaApp : IAsyncDisposable
     private Task CloseCurrentShellTabAsync()
         => GetSelectedThread() is not null ? CloseSelectedThreadAsync() : CloseDraftTabAsync();
 
-    private async Task OpenFolderAsync(string folderPath)
-    {
-        await _shellController.OpenFolderAsync(folderPath, CancellationToken.None);
-    }
+    private Task OpenFolderAsync(string folderPath, bool includeHidden)
+        => _shellController.OpenFolderAsync(folderPath, includeHidden, CancellationToken.None);
 
     private bool GetAutoApproveEnabled()
         => DefaultAutoApproveEnabled;
@@ -719,9 +717,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
     internal async Task InitializeChatBackendsAsync(CancellationToken cancellationToken)
         => await _chatBackendInitializationCoordinator.InitializeAsync(cancellationToken);
 
-    internal void ApplyRecoveredCatalogState(
-        IReadOnlyList<ProjectDescriptor> projects,
-        IReadOnlyList<WorkThreadDescriptor> threads)
+    internal void ApplyRecoveredCatalogState(IReadOnlyList<ProjectDescriptor> projects, IReadOnlyList<WorkThreadDescriptor> threads)
         => _threadStateCoordinator.ApplyRecoveredCatalogState(projects, threads);
 
     internal void TrySchedulePendingStartupThreadRestore(CancellationToken cancellationToken)

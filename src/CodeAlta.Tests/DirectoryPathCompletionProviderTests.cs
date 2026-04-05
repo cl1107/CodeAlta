@@ -72,15 +72,16 @@ public sealed class DirectoryPathCompletionProviderTests
     [TestMethod]
     public void Complete_ProjectReference_OffersMatchingProjects()
     {
-        var provider = new DirectoryPathCompletionProvider(
-            Environment.CurrentDirectory,
-            projects:
-            [
+            var projects = new[]
+            {
                 CreateProject("codealta", "CodeAlta"),
                 CreateProject("codex-cli", "Codex CLI"),
                 CreateProject("other", "Other"),
-            ]);
-        var snapshot = new TextDocument("Cod").CurrentSnapshot;
+            };
+            var provider = new DirectoryPathCompletionProvider(
+                Environment.CurrentDirectory,
+                projects: () => projects);
+            var snapshot = new TextDocument("Cod").CurrentSnapshot;
 
         var result = provider.Complete(new PromptEditorCompletionRequest(
             snapshot,
@@ -105,7 +106,7 @@ public sealed class DirectoryPathCompletionProviderTests
     {
         var provider = new DirectoryPathCompletionProvider(
             Environment.CurrentDirectory,
-            projects: [CreateProject("codealta", "CodeAlta")]);
+            projects: () => [CreateProject("codealta", "CodeAlta")]);
         var snapshot = new TextDocument(string.Empty).CurrentSnapshot;
 
         var result = provider.Complete(new PromptEditorCompletionRequest(
@@ -119,6 +120,39 @@ public sealed class DirectoryPathCompletionProviderTests
         Assert.IsNotNull(result.Candidates);
         Assert.AreEqual("CodeAlta", result.Candidates[0]);
         Assert.IsTrue(result.Candidates.Contains(Path.GetPathRoot(Environment.CurrentDirectory)!));
+    }
+
+    [TestMethod]
+    public void Complete_HiddenProjects_AreExcludedUntilIncludeHiddenIsEnabled()
+    {
+        var includeHidden = false;
+        var hiddenProject = CreateProject("hidden-project", "Hidden Project");
+        hiddenProject.Archived = true;
+        var provider = new DirectoryPathCompletionProvider(
+            Environment.CurrentDirectory,
+            includeHidden: () => includeHidden,
+            projects: () => [CreateProject("codealta", "CodeAlta"), hiddenProject]);
+        var snapshot = new TextDocument("Hid").CurrentSnapshot;
+
+        var hiddenResult = provider.Complete(new PromptEditorCompletionRequest(
+            snapshot,
+            CaretIndex: snapshot.Length,
+            SelectionStart: snapshot.Length,
+            SelectionLength: 0,
+            Modifiers: TerminalModifiers.None));
+
+        Assert.IsFalse(hiddenResult.Handled);
+
+        includeHidden = true;
+        hiddenResult = provider.Complete(new PromptEditorCompletionRequest(
+            snapshot,
+            CaretIndex: snapshot.Length,
+            SelectionStart: snapshot.Length,
+            SelectionLength: 0,
+            Modifiers: TerminalModifiers.None));
+
+        Assert.IsTrue(hiddenResult.Handled);
+        CollectionAssert.AreEqual(new[] { "Hidden Project", "hidden-project" }, hiddenResult.Candidates!.ToArray());
     }
 
     private static ProjectDescriptor CreateProject(string slug, string displayName)

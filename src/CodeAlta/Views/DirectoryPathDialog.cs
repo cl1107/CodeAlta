@@ -12,9 +12,10 @@ namespace CodeAlta.Views;
 
 internal sealed class DirectoryPathDialog
 {
-    private readonly Func<string, Task> _onSubmitAsync;
+    private readonly Func<string, bool, Task> _onSubmitAsync;
     private readonly Func<Visual?> _getFocusTarget;
     private readonly Func<Visual?> _getSubmitFocusTarget;
+    private readonly State<bool> _includeHidden = new(false);
     private readonly PromptEditor _editor;
     private readonly Dialog _dialog;
     private readonly State<string?> _validationText = new(null);
@@ -23,11 +24,11 @@ internal sealed class DirectoryPathDialog
         string title,
         string description,
         string submitText,
-        Func<string, Task> onSubmitAsync,
+        Func<string, bool, Task> onSubmitAsync,
         Func<Rectangle?> getBounds,
         Func<Visual?> getFocusTarget,
         Func<Visual?>? getSubmitFocusTarget = null,
-        IEnumerable<ProjectDescriptor>? projects = null,
+        Func<IEnumerable<ProjectDescriptor>>? getProjects = null,
         string? initialPath = null,
         string? placeholder = null)
     {
@@ -42,7 +43,9 @@ internal sealed class DirectoryPathDialog
         _getFocusTarget = getFocusTarget;
         _getSubmitFocusTarget = getSubmitFocusTarget ?? getFocusTarget;
 
-        var completionProvider = new DirectoryPathCompletionProvider(projects: projects);
+        var completionProvider = new DirectoryPathCompletionProvider(
+            includeHidden: () => _includeHidden.Value,
+            projects: getProjects);
         _editor = new PromptEditor()
             .PromptMarkup("[primary]Project[/][dim]/[/][primary]Path[/] ")
             .Placeholder(placeholder ?? "Enter a folder path...")
@@ -84,12 +87,15 @@ internal sealed class DirectoryPathDialog
         };
         submitButton.Click(() => _ = SubmitAsync());
 
+        var includeHiddenCheckBox = new CheckBox("Include hidden")
+            .IsChecked(_includeHidden);
+
         var validation = new ComputedVisual(
             () =>
             {
                 if (string.IsNullOrWhiteSpace(_validationText.Value))
                 {
-                    return new Markup("[dim]Tab completes projects and directories · Enter opens the project or path · Esc closes[/]");
+                    return new Markup("[dim]Tab completes visible projects and directories · Enter opens the project or path · Esc closes[/]");
                 }
 
                 return new TextBlock(() => _validationText.Value ?? string.Empty)
@@ -103,6 +109,7 @@ internal sealed class DirectoryPathDialog
                 Wrap = true,
             },
             _editor,
+            includeHiddenCheckBox,
             validation,
             new HStack(cancelButton, submitButton)
             {
@@ -150,7 +157,7 @@ internal sealed class DirectoryPathDialog
 
         try
         {
-            await _onSubmitAsync(_editor.Text.Trim());
+            await _onSubmitAsync(_editor.Text.Trim(), _includeHidden.Value);
             Close(_getSubmitFocusTarget);
         }
         catch (Exception ex)

@@ -168,7 +168,10 @@ internal sealed class CodeAltaShellController : IAsyncDisposable
         return UiDispatcher.InvokeAsync(() => _shell.OpenThread(threadId));
     }
 
-    public async Task<ProjectDescriptor> OpenFolderAsync(string folderPath, CancellationToken cancellationToken)
+    public Task<ProjectDescriptor> OpenFolderAsync(string folderPath, CancellationToken cancellationToken)
+        => OpenFolderAsync(folderPath, includeHidden: false, cancellationToken);
+
+    public async Task<ProjectDescriptor> OpenFolderAsync(string folderPath, bool includeHidden, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(folderPath);
         cancellationToken.ThrowIfCancellationRequested();
@@ -177,7 +180,7 @@ internal sealed class CodeAltaShellController : IAsyncDisposable
                 () => _shell.SetStatus($"Opening '{folderPath}'...", showSpinner: true))
             .ConfigureAwait(false);
 
-        var project = await ResolveOpenProjectAsync(folderPath, cancellationToken).ConfigureAwait(false);
+        var project = await ResolveOpenProjectAsync(folderPath, includeHidden, cancellationToken).ConfigureAwait(false);
         var projects = await _projectCatalog.LoadAsync(cancellationToken).ConfigureAwait(false);
         var threads = await _recoverableThreadSource.ListRecoverableThreadsAsync(cancellationToken).ConfigureAwait(false);
 
@@ -303,7 +306,10 @@ internal sealed class CodeAltaShellController : IAsyncDisposable
     internal Task InitializeAsync(CancellationToken cancellationToken)
         => RunInitializationAsync(cancellationToken);
 
-    private async Task<ProjectDescriptor> ResolveOpenProjectAsync(string folderPathOrProjectReference, CancellationToken cancellationToken)
+    private async Task<ProjectDescriptor> ResolveOpenProjectAsync(
+        string folderPathOrProjectReference,
+        bool includeHidden,
+        CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(folderPathOrProjectReference);
 
@@ -319,7 +325,10 @@ internal sealed class CodeAltaShellController : IAsyncDisposable
         }
 
         var projects = await _projectCatalog.LoadAsync(cancellationToken).ConfigureAwait(false);
-        var project = OpenProjectRequestResolver.ResolveProjectReference(projects, folderPathOrProjectReference);
+        var candidateProjects = includeHidden
+            ? projects
+            : projects.Where(static project => !project.Archived).ToArray();
+        var project = OpenProjectRequestResolver.ResolveProjectReference(candidateProjects, folderPathOrProjectReference);
         if (!project.Archived)
         {
             return project;

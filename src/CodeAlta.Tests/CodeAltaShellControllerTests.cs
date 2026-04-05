@@ -322,6 +322,43 @@ public sealed class CodeAltaShellControllerTests
     }
 
     [TestMethod]
+    public async Task OpenFolderAsync_HiddenProjectReference_RemainsHiddenUnlessIncluded()
+    {
+        var log = new List<string>();
+        var shell = new FakeShell(log);
+        var hiddenProject = new ProjectDescriptor
+        {
+            Id = "project-1",
+            Slug = "codealta",
+            Name = "CodeAlta",
+            DisplayName = "CodeAlta",
+            ProjectPath = @"C:\repo",
+            DefaultBranch = "main",
+            Archived = true,
+        };
+        var catalog = new FakeProjectCatalogStore(log, [hiddenProject]);
+        var controller = new CodeAltaShellController(
+            shell,
+            new FakeImporter(log),
+            catalog,
+            new FakeRecoverableThreadSource(log, [CreateThread("thread-1")]),
+            new FakeWorkThreadDeleter(log));
+        controller.AttachUiDispatcher(new FakeUiDispatcher());
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => controller.OpenFolderAsync("CodeAlta", includeHidden: false, CancellationToken.None));
+        Assert.IsTrue(hiddenProject.Archived);
+
+        log.Clear();
+        var reopenedProject = await controller.OpenFolderAsync("CodeAlta", includeHidden: true, CancellationToken.None);
+
+        Assert.AreSame(hiddenProject, reopenedProject);
+        Assert.IsFalse(hiddenProject.Archived);
+        CollectionAssert.Contains(log, "ProjectCatalog.Save:project-1");
+        CollectionAssert.Contains(log, "Shell.FocusPromptEditor");
+    }
+
+    [TestMethod]
     public async Task OpenFolderAsync_TildePath_ExpandsHomeDirectoryBeforeUpsert()
     {
         var log = new List<string>();

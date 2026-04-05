@@ -8,16 +8,19 @@ namespace CodeAlta.Views;
 internal sealed class DirectoryPathCompletionProvider
 {
     private readonly string _currentDirectory;
-    private readonly IReadOnlyList<string> _projectCandidates;
+    private readonly Func<bool> _includeHidden;
+    private readonly Func<IEnumerable<ProjectDescriptor>>? _getProjects;
 
     public DirectoryPathCompletionProvider(
         string? currentDirectory = null,
-        IEnumerable<ProjectDescriptor>? projects = null)
+        Func<bool>? includeHidden = null,
+        Func<IEnumerable<ProjectDescriptor>>? projects = null)
     {
         _currentDirectory = Path.GetFullPath(string.IsNullOrWhiteSpace(currentDirectory)
             ? Environment.CurrentDirectory
             : currentDirectory);
-        _projectCandidates = BuildProjectCandidates(projects);
+        _includeHidden = includeHidden ?? (() => false);
+        _getProjects = projects;
     }
 
     public PromptEditorCompletion Complete(in PromptEditorCompletionRequest request)
@@ -121,14 +124,15 @@ internal sealed class DirectoryPathCompletionProvider
 
     private IReadOnlyList<string> GetDefaultCandidates()
     {
+        var projectCandidates = BuildProjectCandidates(_getProjects, _includeHidden());
         var rootCandidates = GetRootCandidates();
-        if (_projectCandidates.Count == 0)
+        if (projectCandidates.Count == 0)
         {
             return rootCandidates;
         }
 
-        var candidates = new List<string>(_projectCandidates.Count + rootCandidates.Count);
-        candidates.AddRange(_projectCandidates);
+        var candidates = new List<string>(projectCandidates.Count + rootCandidates.Count);
+        candidates.AddRange(projectCandidates);
         candidates.AddRange(rootCandidates);
         return candidates;
     }
@@ -138,10 +142,10 @@ internal sealed class DirectoryPathCompletionProvider
         var trimmed = currentText.Trim();
         if (trimmed.Length == 0)
         {
-            return _projectCandidates;
+            return BuildProjectCandidates(_getProjects, _includeHidden());
         }
 
-        return _projectCandidates
+        return BuildProjectCandidates(_getProjects, _includeHidden())
             .Where(candidate => candidate.StartsWith(trimmed, StringComparison.OrdinalIgnoreCase))
             .ToArray();
     }
@@ -232,16 +236,19 @@ internal sealed class DirectoryPathCompletionProvider
         return string.Create(snapshot.Length, snapshot, static (span, source) => source.CopyTo(0, span));
     }
 
-    private static IReadOnlyList<string> BuildProjectCandidates(IEnumerable<ProjectDescriptor>? projects)
+    private static IReadOnlyList<string> BuildProjectCandidates(
+        Func<IEnumerable<ProjectDescriptor>>? getProjects,
+        bool includeHidden)
     {
-        if (projects is null)
+        if (getProjects is null)
         {
             return [];
         }
 
         var candidates = new List<string>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var project in projects
+        foreach (var project in getProjects()
+                     .Where(project => includeHidden || !project.Archived)
                      .OrderBy(static candidate => candidate.DisplayName, StringComparer.OrdinalIgnoreCase)
                      .ThenBy(static candidate => candidate.Name, StringComparer.OrdinalIgnoreCase)
                      .ThenBy(static candidate => candidate.Slug, StringComparer.OrdinalIgnoreCase))

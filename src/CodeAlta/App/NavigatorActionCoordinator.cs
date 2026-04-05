@@ -182,7 +182,7 @@ internal sealed class NavigatorActionCoordinator
             _getDialogBounds,
             _getFocusTarget,
             _getPromptFocusTarget,
-            _threadStateCoordinator.Projects,
+            () => _threadStateCoordinator.Projects,
             placeholder: "C:\\code\\SomeFolder or CodeAlta")
             .Show();
     }
@@ -264,10 +264,8 @@ internal sealed class NavigatorActionCoordinator
         }
     }
 
-    private async Task OpenFolderAsync(string folderPath)
-    {
-        await _shellController.OpenFolderAsync(folderPath, CancellationToken.None);
-    }
+    private async Task OpenFolderAsync(string folderPath, bool includeHidden)
+        => await _shellController.OpenFolderAsync(folderPath, includeHidden, CancellationToken.None);
 
     private static ProjectDescriptor CloneProject(ProjectDescriptor project)
     {

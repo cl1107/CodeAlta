@@ -28,7 +28,7 @@ internal sealed class ShellCommandSurfaceCoordinator
     private readonly Func<Rectangle?> _getHelpBounds;
     private readonly Func<Visual?> _getHelpFocusTarget;
     private readonly Func<IReadOnlyList<ProjectDescriptor>> _getProjects;
-    private readonly Func<string, Task> _openFolderAsync;
+    private readonly Func<string, bool, Task> _openFolderAsync;
     private readonly Func<WorkThreadDescriptor?> _getSelectedThread;
     private readonly Func<WorkThreadDescriptor, OpenThreadState> _ensureThreadTab;
     private readonly Action<string, bool, StatusTone> _setStatus;
@@ -44,7 +44,7 @@ internal sealed class ShellCommandSurfaceCoordinator
         ThreadWorkspaceViewModel threadWorkspaceViewModel,
         ThreadCommandCoordinator threadCommandCoordinator,
         Func<IReadOnlyList<ProjectDescriptor>> getProjects,
-        Func<string, Task> openFolderAsync,
+        Func<string, bool, Task> openFolderAsync,
         Func<string?> getPromptText,
         Func<Task> closeCurrentTabAsync,
         Action<string, bool, StatusTone> setStatus,
@@ -160,7 +160,7 @@ internal sealed class ShellCommandSurfaceCoordinator
             _getHelpBounds,
             _getHelpFocusTarget,
             _getHelpFocusTarget,
-            _getProjects(),
+            () => _getProjects(),
             initialPath,
             placeholder: "C:\\code\\SomeFolder or CodeAlta")
             .Show();
