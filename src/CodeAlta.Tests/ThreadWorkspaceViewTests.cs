@@ -1,12 +1,17 @@
+using System.Diagnostics;
 using System.Reflection;
 using CodeAlta.Frontend.Commands;
 using CodeAlta.Models;
 using CodeAlta.Presentation.Chat;
+using CodeAlta.Search;
 using CodeAlta.ViewModels;
 using CodeAlta.Views;
+using XenoAtom.Terminal;
+using XenoAtom.Terminal.Backends;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Controls;
 using XenoAtom.Terminal.UI.Commands;
+using XenoAtom.Terminal.UI.Hosting;
 
 namespace CodeAlta.Tests;
 
@@ -193,6 +198,89 @@ public sealed class ThreadWorkspaceViewTests
         Assert.IsTrue(view.AlwaysEnqueueCheckBox.IsEnabled);
     }
 
+    [TestMethod]
+    public void ExpandedPromptEditor_UsesProjectFileReferences()
+    {
+        using var tempDirectory = TempDirectory.Create();
+        var projectRoot = tempDirectory.Path;
+        Directory.CreateDirectory(Path.Combine(projectRoot, "src"));
+        File.WriteAllText(Path.Combine(projectRoot, "src", "app.cs"), string.Empty);
+
+        var searchSession = new FakeProjectFileSearchSession(
+            CreateState(
+                projectRoot,
+                [CreateResult(projectRoot, "src/app.cs")],
+                isRefreshing: false,
+                candidateCount: 1));
+        var searchService = new FakeProjectFileSearchService(searchSession);
+        var shellViewModel = new CodeAltaShellViewModel();
+        var workspaceViewModel = new ThreadWorkspaceViewModel();
+        var promptComposerViewModel = new PromptComposerViewModel();
+        var view = new ThreadWorkspaceView(
+            shellViewModel,
+            workspaceViewModel,
+            promptComposerViewModel,
+            [],
+            static () => new TextBlock(string.Empty),
+            static () => { },
+            static _ => { },
+            static () => { },
+            static () => { },
+            searchService,
+            () => projectRoot,
+            static _ => { },
+            static () => { },
+            static () => { },
+            static () => { },
+            static _ => { },
+            static _ => { },
+            static _ => { },
+            static (_, _) => { },
+            static (_, _) => { },
+            static () => { },
+            static () => { },
+            static () => { },
+            static () => { },
+            static _ => { },
+            static _ => { },
+            static _ => { },
+            static _ => { },
+            new State<string?>(string.Empty),
+            new State<float>(0),
+            static () => { });
+
+        using var terminalSession = Terminal.Open(new InMemoryTerminalBackend(new TerminalSize(120, 40)), new TerminalOptions { ImplicitStartInput = true }, force: true);
+        var app = new TerminalApp(
+            view.Root,
+            terminalSession.Instance,
+            new TerminalAppOptions
+            {
+                HostKind = TerminalHostKind.Fullscreen,
+            });
+
+        InvokeTerminalApp(app, "BeginRun");
+        try
+        {
+            view.OpenExpandedPromptDialog();
+
+            var dialog = GetPrivateField<Dialog>(view, "_expandedPromptDialog");
+            var scrollViewer = Assert.IsInstanceOfType<ScrollViewer>(dialog.Content);
+            var editor = Assert.IsInstanceOfType<ChatPromptEditor>(scrollViewer.Content);
+            app.Focus(editor);
+
+            InvokeTerminalApp(app, "DispatchTextInput", "@");
+
+            Assert.IsTrue(WaitForCondition(app, () => editor.HasProjectFileReferencePopup, TimeSpan.FromSeconds(1)));
+            Assert.IsTrue(WaitForCondition(app, () => editor.ProjectFileReferenceItems.Count == 1, TimeSpan.FromSeconds(1)));
+            Assert.AreEqual("src/app.cs", editor.ProjectFileReferenceItems[0].Result.Item.RelativePath);
+            Assert.AreEqual(1, searchSession.RefreshCount);
+        }
+        finally
+        {
+            InvokeTerminalApp(app, "EndRun");
+        }
+    }
+
     private static T GetPrivateField<T>(object instance, string fieldName)
         where T : class
     {
@@ -205,5 +293,182 @@ public sealed class ThreadWorkspaceViewTests
         var field = instance.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.IsNotNull(field);
         return Assert.IsInstanceOfType<T>(field.GetValue(instance));
+    }
+
+    private static ProjectFileSearchState CreateState(
+        string projectRoot,
+        IReadOnlyList<ProjectFileSearchResult> results,
+        bool isRefreshing,
+        int candidateCount,
+        string query = "")
+    {
+        return new ProjectFileSearchState
+        {
+            Query = query,
+            Results = results,
+            IsRefreshing = isRefreshing,
+            HasSnapshot = true,
+            RefreshGeneration = 1,
+            SnapshotGeneration = 1,
+            CandidateCount = candidateCount,
+            UpdatedAt = DateTimeOffset.UtcNow,
+        };
+    }
+
+    private static ProjectFileSearchResult CreateResult(
+        string projectRoot,
+        string relativePath,
+        ProjectFileSearchItemKind kind = ProjectFileSearchItemKind.File,
+        double score = 100)
+        => new(CreateItem(projectRoot, relativePath, kind), score, false);
+
+    private static ProjectFileSearchItem CreateItem(
+        string projectRoot,
+        string relativePath,
+        ProjectFileSearchItemKind kind = ProjectFileSearchItemKind.File)
+    {
+        var basename = Path.GetFileName(relativePath);
+        var extension = kind == ProjectFileSearchItemKind.Directory ? string.Empty : Path.GetExtension(basename);
+        return new ProjectFileSearchItem
+        {
+            Kind = kind,
+            ProjectRoot = projectRoot,
+            RelativePath = relativePath.Replace('\\', '/'),
+            FullPath = Path.Combine(projectRoot, relativePath.Replace('/', Path.DirectorySeparatorChar)),
+            Basename = basename,
+            ParentPath = Path.GetDirectoryName(relativePath)?.Replace('\\', '/') ?? string.Empty,
+            Extension = extension,
+            LastWriteTimeUtc = DateTimeOffset.UtcNow,
+            SearchFields = new ProjectFileSearchFields(
+                basename.ToLowerInvariant(),
+                relativePath.ToLowerInvariant(),
+                relativePath.Split('/').Select(static segment => segment.ToLowerInvariant()).ToArray(),
+                extension.ToLowerInvariant()),
+            Usage = null,
+        };
+    }
+
+    private static void InvokeTerminalApp(TerminalApp app, string methodName)
+    {
+        var method = typeof(TerminalApp).GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.IsNotNull(method);
+        method.Invoke(app, null);
+    }
+
+    private static void InvokeTerminalApp(TerminalApp app, string methodName, params object[] arguments)
+    {
+        var method = typeof(TerminalApp).GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.IsNotNull(method);
+        method.Invoke(app, arguments);
+    }
+
+    private static bool WaitForCondition(TerminalApp app, Func<bool> condition, TimeSpan timeout)
+    {
+        ArgumentNullException.ThrowIfNull(app);
+        ArgumentNullException.ThrowIfNull(condition);
+
+        var deadline = Stopwatch.GetTimestamp() + (long)(timeout.TotalSeconds * Stopwatch.Frequency);
+        while (Stopwatch.GetTimestamp() < deadline)
+        {
+            TickTerminalApp(app);
+            if (condition())
+            {
+                return true;
+            }
+
+            Thread.Sleep(10);
+        }
+
+        TickTerminalApp(app);
+        return condition();
+    }
+
+    private static void TickTerminalApp(TerminalApp app)
+    {
+        var method = typeof(TerminalApp).GetMethod("Tick", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.IsNotNull(method);
+        method.Invoke(app, [null]);
+    }
+
+    private sealed class FakeProjectFileSearchService(IProjectFileSearchSession session) : IProjectFileSearchService
+    {
+        public ValueTask<IProjectFileSearchSession> CreateSessionAsync(
+            ProjectFileSearchSessionOptions options,
+            CancellationToken cancellationToken = default)
+        {
+            _ = session.RefreshAsync(cancellationToken);
+            return ValueTask.FromResult(session);
+        }
+
+        public ValueTask<ProjectFileResolution> ResolveAsync(
+            ProjectFileResolveQuery query,
+            CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public ValueTask RecordUsageAsync(
+            ProjectFileUsageEvent usageEvent,
+            CancellationToken cancellationToken = default)
+            => ValueTask.CompletedTask;
+
+        public ValueTask InvalidateAsync(
+            string projectRoot,
+            ProjectFileInvalidationReason reason,
+            CancellationToken cancellationToken = default)
+            => ValueTask.CompletedTask;
+    }
+
+    private sealed class FakeProjectFileSearchSession(ProjectFileSearchState initialState) : IProjectFileSearchSession
+    {
+        private ProjectFileSearchState _current = initialState;
+
+        public ProjectFileSearchState Current => _current;
+
+        public int RefreshCount { get; private set; }
+
+        public event EventHandler<ProjectFileSearchStateChangedEventArgs>? Updated;
+
+        public ValueTask SetQueryAsync(string query, CancellationToken cancellationToken = default)
+        {
+            _current = _current with { Query = query };
+            Updated?.Invoke(this, new ProjectFileSearchStateChangedEventArgs(_current));
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask RefreshAsync(CancellationToken cancellationToken = default)
+        {
+            RefreshCount++;
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask DisposeAsync()
+            => ValueTask.CompletedTask;
+    }
+
+    private sealed class TempDirectory(string path) : IDisposable
+    {
+        public string Path { get; } = path;
+
+        public static TempDirectory Create()
+        {
+            var path = System.IO.Path.Combine(
+                System.IO.Path.GetTempPath(),
+                $"CodeAlta.Tests.{Guid.NewGuid():N}");
+            Directory.CreateDirectory(path);
+            return new TempDirectory(path);
+        }
+
+        public void Dispose()
+        {
+            try
+            {
+                if (Directory.Exists(Path))
+                {
+                    Directory.Delete(Path, recursive: true);
+                }
+            }
+            catch
+            {
+            }
+        }
     }
 }

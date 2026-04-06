@@ -25,6 +25,8 @@ internal sealed class ThreadWorkspaceView
     private readonly Dictionary<string, TabPage> _tabPages = new(StringComparer.OrdinalIgnoreCase);
     private readonly PromptComposerViewModel _promptComposerViewModel;
     private readonly Binding<string?> _promptTextBinding;
+    private readonly IProjectFileSearchService _projectFileSearchService;
+    private readonly Func<string?> _getPromptReferenceProjectRoot;
     private Dialog? _expandedPromptDialog;
 
     internal const TerminalKey ExpandPromptShortcutKey = TerminalKey.F6;
@@ -162,6 +164,8 @@ internal sealed class ThreadWorkspaceView
 
         _promptComposerViewModel = promptComposerViewModel;
         _promptTextBinding = promptText;
+        _projectFileSearchService = projectFileSearchService;
+        _getPromptReferenceProjectRoot = getPromptReferenceProjectRoot;
 
         ThreadCommandBar = new CommandBar
         {
@@ -498,7 +502,7 @@ internal sealed class ThreadWorkspaceView
             return;
         }
 
-        var editor = CreateStyledPromptEditor(_ => { }, onOpenHelp: null, onOpenCommandPalette: null, projectFileSearchService: null, getPromptReferenceProjectRoot: null, placeholder: null)
+        var editor = CreateStyledPromptEditor(_ => { }, onOpenHelp: null, onOpenCommandPalette: null, _projectFileSearchService, _getPromptReferenceProjectRoot, placeholder: null)
             .Placeholder(promptComposerViewModel.Bind.Placeholder)
             .Text(promptText)
             .MinHeight(12)
