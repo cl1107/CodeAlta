@@ -224,6 +224,91 @@ public sealed class LocalAgentSessionTests
                 }).ConfigureAwait(false);
     }
 
+    [TestMethod]
+    public async Task LocalAgentSession_CompactAsync_PersistsSnapshotAndReplaysFromSummary()
+    {
+        using var temp = TestTempDirectory.Create();
+        var store = new FileSystemLocalAgentSessionStore(new LocalAgentRuntimePathLayout(Path.Combine(temp.Path, "machine", "agents")));
+        var provider = CreateProvider();
+        var summary = CreateSummary("session-compact");
+        var state = CreateState("session-compact");
+        await store.UpsertProviderAsync(provider).ConfigureAwait(false);
+        await store.UpsertSessionAsync(summary).ConfigureAwait(false);
+        await store.UpsertStateAsync(state).ConfigureAwait(false);
+
+        await using (var session = new LocalAgentSession(
+                         AgentBackendIds.OpenAIResponses,
+                         provider,
+                         summary,
+                         state,
+                         [],
+                         store,
+                         new ScriptedTurnExecutor(
+                             (_, _, _) => Task.FromResult(
+                                 new LocalAgentTurnResponse
+                                 {
+                                     AssistantMessage = new LocalAgentConversationMessage(
+                                         LocalAgentConversationRole.Assistant,
+                                         [new LocalAgentMessagePart.Text("First answer.")]),
+                                 }),
+                             (_, _, _) => Task.FromResult(
+                                 new LocalAgentTurnResponse
+                                 {
+                                     AssistantMessage = new LocalAgentConversationMessage(
+                                         LocalAgentConversationRole.Assistant,
+                                         [new LocalAgentMessagePart.Text("Second answer.")]),
+                                 })),
+                         CreateOptions(provider, temp.Path)))
+        {
+            _ = await session.SendAsync(new AgentSendOptions { Input = AgentInput.Text("First prompt") }).ConfigureAwait(false);
+            _ = await session.SendAsync(new AgentSendOptions { Input = AgentInput.Text("Second prompt") }).ConfigureAwait(false);
+
+            var outcome = await ((IAgentCompactionOutcomeProvider)session).CompactWithOutcomeAsync().ConfigureAwait(false);
+            Assert.IsNotNull(outcome);
+            Assert.IsTrue(outcome.Success);
+            Assert.AreEqual(3, outcome.MessagesRemoved);
+        }
+
+        var persistedHistory = await store.ReadEventsAsync(provider.ProtocolFamily, provider.ProviderKey, summary.SessionId).ConfigureAwait(false);
+        Assert.IsTrue(persistedHistory.OfType<AgentRawEvent>().Any(static evt => evt.BackendEventType == "local.compactionSnapshot"));
+
+        var persistedState = await store.GetStateAsync(provider.ProtocolFamily, provider.ProviderKey, summary.SessionId).ConfigureAwait(false);
+        Assert.IsNotNull(persistedState);
+        Assert.IsNotNull(persistedState.CompactionEventOffset);
+
+        await using var resumedSession = new LocalAgentSession(
+            AgentBackendIds.OpenAIResponses,
+            provider,
+            summary,
+            persistedState,
+            persistedHistory,
+            store,
+            new ScriptedTurnExecutor(
+                (request, _, _) =>
+                {
+                    Assert.AreEqual(2, request.Conversation.Count);
+                    Assert.AreEqual(LocalAgentConversationRole.System, request.Conversation[0].Role);
+                    StringAssert.Contains(
+                        Assert.IsInstanceOfType<LocalAgentMessagePart.Text>(request.Conversation[0].Parts.Single()).Value,
+                        "First prompt");
+                    Assert.AreEqual(LocalAgentConversationRole.User, request.Conversation[1].Role);
+                    return Task.FromResult(
+                        new LocalAgentTurnResponse
+                        {
+                            AssistantMessage = new LocalAgentConversationMessage(
+                                LocalAgentConversationRole.Assistant,
+                                [new LocalAgentMessagePart.Text("Post-compaction answer.")]),
+                        });
+                }),
+            CreateOptions(provider, temp.Path));
+
+        _ = await resumedSession.SendAsync(
+                new AgentSendOptions
+                {
+                    Input = AgentInput.Text("Third prompt"),
+                }).ConfigureAwait(false);
+    }
+
     private static AgentSessionCreateOptions CreateOptions(LocalAgentProviderDescriptor provider, string workingDirectory)
     {
         return new AgentSessionCreateOptions

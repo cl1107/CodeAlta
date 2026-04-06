@@ -9,11 +9,12 @@ namespace CodeAlta.Agent.LocalRuntime;
 /// <summary>
 /// Shared session implementation for provider-backed local raw-API agents.
 /// </summary>
-public sealed class LocalAgentSession : IAgentSession
+public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomeProvider
 {
     private const string UserMessageEventType = "local.userMessage";
     private const string AssistantMessageEventType = "local.assistantMessage";
     private const string ToolMessageEventType = "local.toolMessage";
+    private const string CompactionSnapshotEventType = "local.compactionSnapshot";
 
     private readonly string _protocolFamily;
     private readonly string _providerKey;
@@ -25,6 +26,7 @@ public sealed class LocalAgentSession : IAgentSession
     private readonly SemaphoreSlim _stateGate = new(initialCount: 1, maxCount: 1);
     private readonly List<AgentEvent> _history;
     private readonly List<LocalAgentConversationMessage> _conversation;
+    private readonly string _compactionSummaryContentId = $"compaction:{Guid.CreateVersion7()}";
     private LocalAgentSessionSummary _summary;
     private LocalAgentSessionState _state;
     private CancellationTokenSource? _activeRunCancellation;
@@ -281,7 +283,77 @@ public sealed class LocalAgentSession : IAgentSession
 
     /// <inheritdoc />
     public Task CompactAsync(CancellationToken cancellationToken = default)
-        => throw new NotSupportedException("Local raw-API session compaction is not implemented yet.");
+        => CompactWithOutcomeAsync(cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<AgentCompactionOutcome?> CompactWithOutcomeAsync(CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        await _stateGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var effectiveConversation = _conversation
+                .Where(static message => message.Role is not LocalAgentConversationRole.System)
+                .ToArray();
+            if (effectiveConversation.Length == 0)
+            {
+                return new AgentCompactionOutcome(true, "Nothing to compact.");
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            var started = new AgentSessionUpdateEvent(
+                BackendId,
+                SessionId,
+                now,
+                null,
+                AgentSessionUpdateKind.CompactionStarted,
+                "Manual local compaction started.");
+
+            var snapshot = CreateCompactionSnapshot(_history.Count + 2, effectiveConversation);
+            var rawSnapshot = new AgentRawEvent(
+                BackendId,
+                SessionId,
+                now,
+                CompactionSnapshotEventType,
+                JsonSerializer.SerializeToElement(snapshot, AgentJsonSerializerContext.Default.LocalAgentCompactionSnapshot));
+
+            _conversation.Clear();
+            _conversation.Add(snapshot.SummaryMessage);
+
+            _state = _state with
+            {
+                CompactionEventOffset = _history.Count + 1,
+                CompactionSummaryContentId = _compactionSummaryContentId,
+                UpdatedAt = now,
+            };
+            _summary = _summary with
+            {
+                UpdatedAt = now,
+            };
+
+            var completed = new AgentSessionUpdateEvent(
+                BackendId,
+                SessionId,
+                now,
+                null,
+                AgentSessionUpdateKind.CompactionCompleted,
+                $"Manual local compaction summarized {snapshot.SummarizedMessageCount} messages.",
+                Usage: _summary.Usage);
+            await AppendEventsAsync([started, rawSnapshot, completed], cancellationToken).ConfigureAwait(false);
+            await _store.UpsertStateAsync(_state, cancellationToken).ConfigureAwait(false);
+            await _store.UpsertSessionAsync(_summary, cancellationToken).ConfigureAwait(false);
+
+            return new AgentCompactionOutcome(
+                Success: true,
+                Message: completed.Message,
+                MessagesRemoved: Math.Max(0, snapshot.SummarizedMessageCount - 1));
+        }
+        finally
+        {
+            _stateGate.Release();
+        }
+    }
 
     /// <inheritdoc />
     public Task<IReadOnlyList<AgentEvent>> GetHistoryAsync(CancellationToken cancellationToken = default)
@@ -653,6 +725,18 @@ public sealed class LocalAgentSession : IAgentSession
         var conversation = new List<LocalAgentConversationMessage>();
         foreach (var @event in history.OfType<AgentRawEvent>())
         {
+            if (@event.BackendEventType == CompactionSnapshotEventType)
+            {
+                var snapshot = @event.Raw.Deserialize(AgentJsonSerializerContext.Default.LocalAgentCompactionSnapshot);
+                conversation.Clear();
+                if (snapshot is not null)
+                {
+                    conversation.Add(snapshot.SummaryMessage);
+                }
+
+                continue;
+            }
+
             if (@event.BackendEventType == UserMessageEventType)
             {
                 var input = @event.Raw.Deserialize(AgentJsonSerializerContext.Default.AgentInput);
@@ -677,6 +761,98 @@ public sealed class LocalAgentSession : IAgentSession
         }
 
         return conversation;
+    }
+
+    private static LocalAgentCompactionSnapshot CreateCompactionSnapshot(
+        int includedEventCount,
+        IReadOnlyList<LocalAgentConversationMessage> conversation)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine("<compacted_history>");
+        builder.AppendLine("This is a local summary of earlier conversation state. Treat it as authoritative context.");
+        builder.AppendLine();
+
+        foreach (var message in conversation)
+        {
+            var line = RenderCompactionLine(message);
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                continue;
+            }
+
+            if (builder.Length + line.Length + Environment.NewLine.Length > 12_000)
+            {
+                builder.AppendLine("- ... earlier messages omitted for brevity ...");
+                break;
+            }
+
+            builder.Append("- ");
+            builder.AppendLine(line);
+        }
+
+        builder.AppendLine("</compacted_history>");
+        return new LocalAgentCompactionSnapshot
+        {
+            IncludedEventCount = includedEventCount,
+            SummarizedMessageCount = conversation.Count,
+            SummaryMessage = new LocalAgentConversationMessage(
+                LocalAgentConversationRole.System,
+                [new LocalAgentMessagePart.Text(builder.ToString().Trim())]),
+        };
+    }
+
+    private static string RenderCompactionLine(LocalAgentConversationMessage message)
+    {
+        var segments = new List<string>(message.Parts.Count);
+        foreach (var part in message.Parts)
+        {
+            switch (part)
+            {
+                case LocalAgentMessagePart.Text text when !string.IsNullOrWhiteSpace(text.Value):
+                    segments.Add(CompactText(text.Value));
+                    break;
+                case LocalAgentMessagePart.Reasoning reasoning when !string.IsNullOrWhiteSpace(reasoning.Value):
+                    segments.Add($"reasoning: {CompactText(reasoning.Value)}");
+                    break;
+                case LocalAgentMessagePart.ToolCall toolCall:
+                    segments.Add($"tool call {toolCall.Name}#{toolCall.CallId}");
+                    break;
+                case LocalAgentMessagePart.ToolResult toolResult:
+                    segments.Add($"tool result {toolResult.CallId}: {CompactText(RenderToolResult(toolResult.Result))}");
+                    break;
+                case LocalAgentMessagePart.Uri uri:
+                    segments.Add($"uri: {uri.Value}");
+                    break;
+                case LocalAgentMessagePart.Data data:
+                    segments.Add($"data: {data.Name ?? data.MediaType}");
+                    break;
+            }
+        }
+
+        if (segments.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var role = message.Role switch
+        {
+            LocalAgentConversationRole.User => "User",
+            LocalAgentConversationRole.Assistant => "Assistant",
+            LocalAgentConversationRole.Tool => "Tool",
+            LocalAgentConversationRole.System => "System",
+            _ => "Message",
+        };
+        return $"{role}: {string.Join(" | ", segments)}";
+    }
+
+    private static string CompactText(string text)
+    {
+        var condensed = string.Join(
+            " ",
+            text.Split(['\r', '\n', '\t', ' '], StringSplitOptions.RemoveEmptyEntries));
+        return condensed.Length <= 240
+            ? condensed
+            : condensed[..237] + "...";
     }
 
     private sealed class LocalUnsubscriber(Action dispose) : IDisposable
