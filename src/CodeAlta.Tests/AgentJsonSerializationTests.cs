@@ -1,5 +1,6 @@
 using System.Text.Json;
 using CodeAlta.Agent;
+using CodeAlta.Agent.LocalRuntime;
 
 namespace CodeAlta.Tests;
 
@@ -181,6 +182,29 @@ public sealed class AgentJsonSerializationTests
         Assert.AreEqual("contentCompleted", root.GetProperty("$type").GetString());
         Assert.AreEqual("item_123", root.GetProperty("details").GetProperty("providerItemId").GetString());
         Assert.AreEqual("abc", root.GetProperty("details").GetProperty("thoughtSignature").GetString());
+    }
+
+    [TestMethod]
+    public void LocalAgentConversationMessage_ToJson_SerializesPolymorphicParts()
+    {
+        using var argumentsDocument = JsonDocument.Parse("""{"path":"Program.cs"}""");
+        var message = new LocalAgentConversationMessage(
+            LocalAgentConversationRole.Assistant,
+            [
+                new LocalAgentMessagePart.Reasoning("Inspecting the file."),
+                new LocalAgentMessagePart.ToolCall("call-1", "read_file", argumentsDocument.RootElement.Clone()),
+                new LocalAgentMessagePart.ToolResult("call-1", new AgentToolResult(true, [new AgentToolResultItem.Text("done")]))
+            ]);
+
+        var json = JsonSerializer.Serialize(message, AgentJsonSerializerContext.Default.LocalAgentConversationMessage);
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+
+        Assert.AreEqual("Assistant", root.GetProperty("role").GetString());
+        Assert.AreEqual("reasoning", root.GetProperty("parts")[0].GetProperty("$type").GetString());
+        Assert.AreEqual("toolCall", root.GetProperty("parts")[1].GetProperty("$type").GetString());
+        Assert.AreEqual("Program.cs", root.GetProperty("parts")[1].GetProperty("arguments").GetProperty("path").GetString());
+        Assert.AreEqual("toolResult", root.GetProperty("parts")[2].GetProperty("$type").GetString());
     }
 
     [TestMethod]
