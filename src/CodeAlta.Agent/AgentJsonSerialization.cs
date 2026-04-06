@@ -2,6 +2,7 @@ using System.Collections;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
+using CodeAlta.Agent.LocalRuntime;
 
 namespace CodeAlta.Agent;
 
@@ -219,6 +220,11 @@ internal sealed class AgentObjectDictionaryJsonConverter : JsonConverter<IReadOn
 [JsonSerializable(typeof(CodexSessionMetadataDetails))]
 [JsonSerializable(typeof(CopilotSessionMetadataDetails))]
 [JsonSerializable(typeof(RawApiSessionMetadataDetails))]
+[JsonSerializable(typeof(LocalAgentTransportKind))]
+[JsonSerializable(typeof(LocalAgentProviderProfile))]
+[JsonSerializable(typeof(LocalAgentProviderDescriptor))]
+[JsonSerializable(typeof(LocalAgentSessionSummary))]
+[JsonSerializable(typeof(LocalAgentSessionState))]
 [JsonSerializable(typeof(AgentSessionUsage))]
 [JsonSerializable(typeof(AgentWindowUsageSnapshot))]
 [JsonSerializable(typeof(AgentOperationUsageSnapshot))]
@@ -296,6 +302,11 @@ internal partial class AgentJsonSerializerContext : JsonSerializerContext;
 [JsonSerializable(typeof(CodexSessionMetadataDetails))]
 [JsonSerializable(typeof(CopilotSessionMetadataDetails))]
 [JsonSerializable(typeof(RawApiSessionMetadataDetails))]
+[JsonSerializable(typeof(LocalAgentTransportKind))]
+[JsonSerializable(typeof(LocalAgentProviderProfile))]
+[JsonSerializable(typeof(LocalAgentProviderDescriptor))]
+[JsonSerializable(typeof(LocalAgentSessionSummary))]
+[JsonSerializable(typeof(LocalAgentSessionState))]
 [JsonSerializable(typeof(AgentSessionUsage))]
 [JsonSerializable(typeof(AgentWindowUsageSnapshot))]
 [JsonSerializable(typeof(AgentOperationUsageSnapshot))]
@@ -393,6 +404,33 @@ public static class AgentJsonExtensions
     /// <returns>The JSON representation.</returns>
     public static string ToJson(this AgentSessionMetadata value, bool indented = false)
         => Serialize(value, AgentJsonSerializerContext.Default.AgentSessionMetadata, AgentIndentedJsonSerializerContext.Default.AgentSessionMetadata, indented);
+
+    /// <summary>
+    /// Serializes the local provider descriptor to JSON.
+    /// </summary>
+    /// <param name="value">The value to serialize.</param>
+    /// <param name="indented">Whether to use indented formatting.</param>
+    /// <returns>The JSON representation.</returns>
+    public static string ToJson(this LocalAgentProviderDescriptor value, bool indented = false)
+        => Serialize(value, AgentJsonSerializerContext.Default.LocalAgentProviderDescriptor, AgentIndentedJsonSerializerContext.Default.LocalAgentProviderDescriptor, indented);
+
+    /// <summary>
+    /// Serializes the local session summary to JSON.
+    /// </summary>
+    /// <param name="value">The value to serialize.</param>
+    /// <param name="indented">Whether to use indented formatting.</param>
+    /// <returns>The JSON representation.</returns>
+    public static string ToJson(this LocalAgentSessionSummary value, bool indented = false)
+        => Serialize(value, AgentJsonSerializerContext.Default.LocalAgentSessionSummary, AgentIndentedJsonSerializerContext.Default.LocalAgentSessionSummary, indented);
+
+    /// <summary>
+    /// Serializes the local session state to JSON.
+    /// </summary>
+    /// <param name="value">The value to serialize.</param>
+    /// <param name="indented">Whether to use indented formatting.</param>
+    /// <returns>The JSON representation.</returns>
+    public static string ToJson(this LocalAgentSessionState value, bool indented = false)
+        => Serialize(value, AgentJsonSerializerContext.Default.LocalAgentSessionState, AgentIndentedJsonSerializerContext.Default.LocalAgentSessionState, indented);
 
     /// <summary>
     /// Serializes the model info to JSON.
