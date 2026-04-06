@@ -118,6 +118,7 @@ Current terminal shell capabilities:
   - Press `Ctrl+G Ctrl+S` to focus the sidebar on the current selection, `Ctrl+G Ctrl+P` to focus the prompt, `Ctrl+G Ctrl+U` or use the footer usage indicator to open the context/usage popup, and press `Ctrl+G Ctrl+T` or use the thread info icon in the footer to open the selected thread report.
   - Closing either popup restores focus to the thread prompt editor so the workflow stays keyboard-first.
   - Per-backend model and reasoning defaults are stored in `~/.codealta/config.toml`, with project-local overrides read from `<project>/.codealta/config.toml`.
+  - Raw OpenAI-compatible, Anthropic, and Google GenAI backends can also be configured in `~/.codealta/config.toml`; only providers with usable credentials or Vertex settings are registered at startup.
   - Thread-specific model and reasoning selections are preserved for reopened tabs through `~/.codealta/machine/ui-state.yaml`, so an existing thread keeps its model by default even after global or project defaults change.
   - The reasoning selector only shows concrete effort values. When a selected model supports `high`, CodeAlta prefers `high` by default.
   - Sending a prompt now follows an enqueue-first workflow for busy threads: `Ctrl+J`/`Ctrl+Enter` adds the prompt to a waiting list above the status line, where queued prompts can be edited, repeated, steered immediately, deleted, or cleared with `F10`. Steer requests that have been sent locally but not yet echoed back by the backend also appear at the top of that strip as transient pending rows.
@@ -145,6 +146,41 @@ Current terminal shell capabilities:
   - run `dotnet build` diagnostics with persisted artifacts.
 - MCP operations:
   - in-process MCP health check by listing registered `codealta.*` tools.
+
+## Raw-API Backend Configuration
+
+CodeAlta can host local agent runtimes backed by raw provider SDKs:
+
+- `OpenAI Responses`
+- `OpenAI Chat`
+- `Anthropic Messages`
+- `Google GenAI`
+
+These backends are configured from `~/.codealta/config.toml` under `raw_api.*.providers.*`. OpenAI-compatible providers can enable the Responses backend, the Chat backend, or both.
+
+Example:
+
+```toml
+[raw_api.openai.providers.openai]
+display_name = "OpenAI"
+api_key_env = "OPENAI_API_KEY"
+default_responses = true
+default_chat = true
+
+[raw_api.anthropic.providers.anthropic]
+display_name = "Anthropic"
+api_key_env = "ANTHROPIC_API_KEY"
+is_default = true
+
+[raw_api.google_genai.providers.vertex]
+display_name = "Vertex"
+use_vertex_ai = true
+project = "my-gcp-project"
+location = "europe-west4"
+is_default = true
+```
+
+Session state for these local runtimes is stored under `~/.codealta/machine/agents/<protocol-family>/<provider-key>/sessions/...` with `session.json`, `events.jsonl`, and `state.json`.
 
 ## Live Backend Smoke Tests
 
