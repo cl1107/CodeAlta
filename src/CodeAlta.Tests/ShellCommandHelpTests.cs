@@ -122,9 +122,11 @@ public sealed class ShellCommandHelpTests
         CollectionAssert.Contains(tabRightCommand.TextCommandAliases.ToArray(), "tab_right");
         StringAssert.Contains(tabRightCommand.CommandSearchText, "/tab_right");
         Assert.AreEqual(new KeyGesture(TerminalKey.Right, TerminalModifiers.Alt), tabRightCommand.Gesture);
+        Assert.AreEqual("Full Prompt", fullPromptCommand.DisplayLabelMarkup);
+        Assert.AreEqual("Close Tab", closeTabCommand.DisplayLabelMarkup);
         Assert.AreEqual("Steer", steerCommand.DisplayLabelMarkup);
         Assert.AreEqual(0, steerCommand.TextCommandAliases.Count);
         Assert.IsFalse(steerCommand.CommandSearchText.Contains("/steer", StringComparison.Ordinal));
-        Assert.AreEqual("/exit", exitCommand.DisplayLabelMarkup);
+        Assert.AreEqual("Exit", exitCommand.DisplayLabelMarkup);
     }
 }

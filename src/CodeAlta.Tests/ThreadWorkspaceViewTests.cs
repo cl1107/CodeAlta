@@ -85,7 +85,7 @@ public sealed class ThreadWorkspaceViewTests
     }
 
     [TestMethod]
-    public void ThreadInput_UsesSlashCommandLabelsAndSearchText()
+    public void ThreadInput_UsesHumanLabelsAndSlashCommandSearchText()
     {
         var shellViewModel = new CodeAltaShellViewModel();
         var workspaceViewModel = new ThreadWorkspaceViewModel();
@@ -132,7 +132,7 @@ public sealed class ThreadWorkspaceViewTests
         var steerCommand = Assert.IsInstanceOfType<Command>(
             view.ThreadInput.Commands.Single(command => string.Equals(command.Id, "CodeAlta.Thread.Steer", StringComparison.Ordinal)));
 
-        Assert.AreEqual("/close_tab", closeTabCommand.LabelMarkup);
+        Assert.AreEqual("Close Tab", closeTabCommand.LabelMarkup);
         Assert.AreEqual("close_tab", closeTabCommand.Name);
         StringAssert.Contains(closeTabCommand.SearchText, "/close_tab");
         StringAssert.Contains(closeTabCommand.SearchText, "/close");

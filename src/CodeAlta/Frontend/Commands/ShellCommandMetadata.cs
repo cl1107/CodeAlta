@@ -50,9 +50,7 @@ internal sealed record ShellCommandMetadata(
 {
     public string CommandName { get; } = ResolveCommandName(CommandName, Label);
     internal string SlashCommandText { get; } = $"/{ResolveCommandName(CommandName, Label)}";
-    internal string DisplayLabelMarkup { get; } = SupportsTextCommand
-        ? $"/{ResolveCommandName(CommandName, Label)}"
-        : AnsiMarkup.Escape(Label);
+    internal string DisplayLabelMarkup { get; } = AnsiMarkup.Escape(Label);
     internal string DescriptionMarkup { get; } = $"[dim]{AnsiMarkup.Escape(Description)}[/]";
 
     public IReadOnlyList<string> Aliases { get; } = BuildAliases(
