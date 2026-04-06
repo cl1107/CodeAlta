@@ -1,0 +1,55 @@
+using CodeAlta.Agent.LocalRuntime;
+
+namespace CodeAlta.Agent.Anthropic;
+
+/// <summary>
+/// Options for the Anthropic Messages backend.
+/// </summary>
+public sealed class AnthropicAgentBackendOptions
+{
+    /// <summary>
+    /// Gets or sets the optional root directory used to persist machine-local agent state.
+    /// </summary>
+    public string? StateRootPath { get; set; }
+
+    /// <summary>
+    /// Gets the configured Anthropic providers.
+    /// </summary>
+    public IList<AnthropicProviderOptions> Providers { get; } = [];
+}
+
+/// <summary>
+/// Describes one configured Anthropic provider.
+/// </summary>
+public sealed class AnthropicProviderOptions
+{
+    /// <summary>
+    /// Gets or sets the stable provider key used for local storage and configuration.
+    /// </summary>
+    public required string ProviderKey { get; set; }
+
+    /// <summary>
+    /// Gets or sets the provider display name.
+    /// </summary>
+    public string? DisplayName { get; set; }
+
+    /// <summary>
+    /// Gets or sets the API key used to authenticate requests.
+    /// </summary>
+    public string? ApiKey { get; set; }
+
+    /// <summary>
+    /// Gets or sets the base endpoint for the provider.
+    /// </summary>
+    public Uri? BaseUri { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether this provider is the default registration for the backend.
+    /// </summary>
+    public bool IsDefault { get; set; }
+
+    /// <summary>
+    /// Gets or sets the compatibility profile for the provider.
+    /// </summary>
+    public LocalAgentProviderProfile? Profile { get; set; }
+}

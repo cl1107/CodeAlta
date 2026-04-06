@@ -4,6 +4,7 @@
     <CentralPackageTransitivePinningEnabled>false</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
   <ItemGroup>
+    <PackageVersion Include="Anthropic" Version="12.11.0" />
     <PackageVersion Include="GitHub.Copilot.SDK" Version="0.2.1" />
     <PackageVersion Include="LLamaSharp" Version="0.26.0" />
     <PackageVersion Include="LLamaSharp.Backend.Cpu" Version="0.26.0" />
@@ -20,6 +21,8 @@
     <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="1.1.0" />
     <PackageVersion Include="NJsonSchema" Version="11.5.2" />
     <PackageVersion Include="NJsonSchema.CodeGeneration.CSharp" Version="11.5.2" />
+    <PackageVersion Include="Google.GenAI" Version="1.6.1" />
+    <PackageVersion Include="OpenAI" Version="2.2.0" />
     <PackageVersion Include="SharpYaml" Version="3.7.0" />
     <PackageVersion Include="Tomlyn" Version="2.3.0" />
     <PackageVersion Include="XenoAtom.CommandLine.Terminal" Version="2.0.2" />
