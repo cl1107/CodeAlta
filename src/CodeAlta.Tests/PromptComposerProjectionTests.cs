@@ -68,7 +68,9 @@ public sealed class PromptComposerProjectionTests
             selectedThreadCanCompact: false,
             selectedThreadCanAbort: false);
 
-        Assert.AreEqual("Start a thread for CodeAlta...", projection.Placeholder);
+        Assert.AreEqual(
+            $"Start a thread. / commands, ? help, @ project files, Enter newline, {GetSendShortcutLabel()} send, F5 steer.",
+            projection.Placeholder);
         Assert.IsTrue(projection.IsEnabled);
         Assert.IsTrue(projection.CanSend);
         Assert.IsFalse(projection.CanSteer);
@@ -125,6 +127,9 @@ public sealed class PromptComposerProjectionTests
             selectedThreadCanCompact: true,
             selectedThreadCanAbort: false);
 
+        Assert.AreEqual(
+            $"Continue the selected thread. / commands, ? help, @ project files, Enter newline, {GetSendShortcutLabel()} send, F5 steer.",
+            projection.Placeholder);
         Assert.IsTrue(projection.CanSend);
         Assert.IsTrue(projection.CanSteer);
         Assert.IsFalse(projection.CanAbort);
@@ -212,8 +217,14 @@ public sealed class PromptComposerProjectionTests
             selectedThreadCanCompact: false,
             selectedThreadCanAbort: false);
 
+        Assert.AreEqual(
+            $"Start a thread. / commands, ? help, Enter newline, {GetSendShortcutLabel()} send, F5 steer.",
+            projection.Placeholder);
         Assert.IsTrue(projection.CanCloseTab);
     }
+
+    private static string GetSendShortcutLabel()
+        => OperatingSystem.IsWindows() ? "Ctrl+Enter" : "Ctrl+J";
 
     private static WorkThreadDescriptor CreateThread(string title)
     {

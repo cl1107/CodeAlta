@@ -50,6 +50,19 @@ internal sealed class ChatPromptEditor : PromptEditor, IProjectFileReferencePopu
     protected override void OnKeyDown(KeyEventArgs e)
     {
         ArgumentNullException.ThrowIfNull(e);
+
+        if (!e.Handled &&
+            OperatingSystem.IsWindows() &&
+            EnterMode == PromptEditorEnterMode.EnterInsertsNewLine &&
+            e.Key == TerminalKey.Enter &&
+            (e.Modifiers & TerminalModifiers.Ctrl) != 0)
+        {
+            Accept();
+            e.Handled = true;
+            _projectFileReferencePopupController?.HandleEditorStateChanged();
+            return;
+        }
+
         base.OnKeyDown(e);
         _projectFileReferencePopupController?.HandleEditorStateChanged();
     }

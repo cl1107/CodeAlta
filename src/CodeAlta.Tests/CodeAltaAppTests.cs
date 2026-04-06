@@ -2279,6 +2279,55 @@ public sealed class CodeAltaAppTests
         Assert.IsFalse(editor.TryHandleTransientShortcutInput("/"));
     }
 
+    [TestMethod]
+    public void ChatPromptEditor_CurrentPlatformSendShortcut_AcceptsPrompt()
+    {
+        string? acceptedText = null;
+        var editor = new ChatPromptEditor(text => acceptedText = text)
+            .EnterMode(PromptEditorEnterMode.EnterInsertsNewLine);
+        var root = new VStack { editor };
+
+        using var session = Terminal.Open(new InMemoryTerminalBackend(new TerminalSize(80, 20)), new TerminalOptions { ImplicitStartInput = true }, force: true);
+        var app = new TerminalApp(
+            root,
+            session.Instance,
+            new TerminalAppOptions
+            {
+                HostKind = TerminalHostKind.Fullscreen,
+            });
+
+        InvokeTerminalApp(app, "BeginRun");
+        try
+        {
+            app.Focus(editor);
+            TickTerminalApp(app);
+
+            var backend = (InMemoryTerminalBackend)session.Instance.Backend;
+            backend.PushEvent(new TerminalTextEvent { Text = "hello" });
+            TickTerminalApp(app);
+
+            backend.PushEvent(OperatingSystem.IsWindows()
+                ? new TerminalKeyEvent
+                {
+                    Key = TerminalKey.Enter,
+                    Modifiers = TerminalModifiers.Ctrl,
+                }
+                : new TerminalKeyEvent
+                {
+                    Key = TerminalKey.Unknown,
+                    Char = TerminalChar.CtrlJ,
+                    Modifiers = TerminalModifiers.Ctrl,
+                });
+            TickTerminalApp(app);
+
+            Assert.AreEqual("hello", acceptedText);
+        }
+        finally
+        {
+            InvokeTerminalApp(app, "EndRun");
+        }
+    }
+
     private static void TickTerminalApp(TerminalApp app)
     {
         var tickMethod = typeof(TerminalApp).GetMethod("Tick", BindingFlags.Instance | BindingFlags.NonPublic);

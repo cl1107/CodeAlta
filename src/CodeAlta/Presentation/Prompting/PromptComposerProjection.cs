@@ -23,6 +23,9 @@ namespace CodeAlta.Presentation.Prompting
 
     internal static class PromptComposerProjectionBuilder
     {
+        internal static string BuildDefaultPromptPlaceholder()
+            => BuildReadyPromptPlaceholder(isContinuation: false, hasProjectContext: false);
+
         public static PromptComposerProjection Build(
             WorkThreadDescriptor? selectedThread,
             ProjectDescriptor? selectedProject,
@@ -72,19 +75,11 @@ namespace CodeAlta.Presentation.Prompting
             ProjectDescriptor? selectedProject,
             bool globalScopeSelected)
         {
-            if (thread is not null)
-            {
-                return $"Continue '{thread.Title}'...";
-            }
+            var hasProjectContext =
+                thread?.Kind == WorkThreadKind.ProjectThread ||
+                (!globalScopeSelected && selectedProject is not null);
 
-            if (globalScopeSelected)
-            {
-                return "Start a global thread...";
-            }
-
-            return selectedProject is null
-                ? "Select a project to start a thread..."
-                : $"Start a thread for {selectedProject.DisplayName}...";
+            return BuildReadyPromptPlaceholder(thread is not null, hasProjectContext);
         }
 
         internal static string BuildPromptUnavailablePlaceholder(
@@ -132,5 +127,35 @@ namespace CodeAlta.Presentation.Prompting
                 ? "Select a connected backend to send prompts."
                 : "No chat backend is connected. Browse threads and projects, but prompt sending is unavailable.";
         }
+
+        private static string BuildReadyPromptPlaceholder(bool isContinuation, bool hasProjectContext)
+        {
+            var action = isContinuation
+                ? "Continue the selected thread."
+                : "Start a thread.";
+
+            return $"{action} {BuildReadyPromptGuidance(hasProjectContext)}";
+        }
+
+        private static string BuildReadyPromptGuidance(bool hasProjectContext)
+        {
+            var segments = new List<string>(6)
+            {
+                "/ commands",
+                "? help",
+            };
+            if (hasProjectContext)
+            {
+                segments.Add("@ project files");
+            }
+
+            segments.Add("Enter newline");
+            segments.Add($"{GetPromptSendShortcutLabel()} send");
+            segments.Add("F5 steer");
+            return string.Join(", ", segments) + ".";
+        }
+
+        private static string GetPromptSendShortcutLabel()
+            => OperatingSystem.IsWindows() ? "Ctrl+Enter" : "Ctrl+J";
     }
 }

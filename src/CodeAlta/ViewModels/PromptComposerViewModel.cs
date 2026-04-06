@@ -1,3 +1,4 @@
+using CodeAlta.Presentation.Prompting;
 using XenoAtom.Terminal.UI;
 
 namespace CodeAlta.ViewModels;
@@ -6,7 +7,7 @@ public sealed partial class PromptComposerViewModel
 {
     public PromptComposerViewModel()
     {
-        Placeholder = "Start a thread...";
+        Placeholder = PromptComposerProjectionBuilder.BuildDefaultPromptPlaceholder();
         IsEnabled = true;
         CanSend = true;
     }
