@@ -9,7 +9,6 @@ namespace CodeAlta.CodexSdk;
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
 [JsonDerivedType(typeof(ApiKeyv2), typeDiscriminator: "apiKey")]
 [JsonDerivedType(typeof(Chatgptv2), typeDiscriminator: "chatgpt")]
-[JsonDerivedType(typeof(ChatgptDeviceCodev2), typeDiscriminator: "chatgptDeviceCode")]
 [JsonDerivedType(typeof(ChatgptAuthTokensv2), typeDiscriminator: "chatgptAuthTokens")]
 public abstract partial record LoginAccountParams
 {
@@ -20,8 +19,6 @@ public abstract partial record LoginAccountParams
     }
 
     public sealed partial record Chatgptv2 : LoginAccountParams;
-
-    public sealed partial record ChatgptDeviceCodev2 : LoginAccountParams;
 
     /// <summary>
     /// [UNSTABLE] FOR OPENAI INTERNAL USE ONLY - DO NOT USE. The access token must contain the same scopes that Codex-managed ChatGPT auth tokens have.
