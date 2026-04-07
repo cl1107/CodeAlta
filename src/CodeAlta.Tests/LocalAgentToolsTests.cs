@@ -267,6 +267,43 @@ public sealed class LocalAgentToolsTests
     }
 
     [TestMethod]
+    public void LocalAgentToolBridge_CreateOpenAIStrictInputSchema_MakesOptionalFieldsNullableAndRequired()
+    {
+        using var temp = TestTempDirectory.Create();
+        var tools = LocalAgentBuiltInToolFactory.CreateDefaultTools(CreateOptions(temp.Path));
+        var readFile = tools.Single(static tool => tool.Spec.Name == "read_file");
+        var requestUserInput = tools.Single(static tool => tool.Spec.Name == "request_user_input");
+
+        var readFileSchema = LocalAgentToolBridge.CreateOpenAIStrictInputSchema(readFile.Spec.InputSchema);
+        CollectionAssert.AreEquivalent(
+            new[] { "path", "offset", "limit" },
+            readFileSchema.GetProperty("required").EnumerateArray().Select(static item => item.GetString()).ToArray());
+        CollectionAssert.AreEquivalent(
+            new[] { "integer", "null" },
+            readFileSchema.GetProperty("properties").GetProperty("offset").GetProperty("type").EnumerateArray().Select(static item => item.GetString()).ToArray());
+        Assert.IsFalse(readFileSchema.GetProperty("properties").GetProperty("offset").TryGetProperty("minimum", out _));
+        StringAssert.Contains(
+            readFileSchema.GetProperty("properties").GetProperty("offset").GetProperty("description").GetString(),
+            "minimum: 1");
+
+        var requestUserInputSchema = LocalAgentToolBridge.CreateOpenAIStrictInputSchema(requestUserInput.Spec.InputSchema);
+        var optionSchema = requestUserInputSchema
+            .GetProperty("properties")
+            .GetProperty("prompts")
+            .GetProperty("items")
+            .GetProperty("properties")
+            .GetProperty("options")
+            .GetProperty("items");
+        CollectionAssert.AreEquivalent(
+            new[] { "label", "description" },
+            optionSchema.GetProperty("required").EnumerateArray().Select(static item => item.GetString()).ToArray());
+        CollectionAssert.AreEquivalent(
+            new[] { "string", "null" },
+            optionSchema.GetProperty("properties").GetProperty("description").GetProperty("type").EnumerateArray().Select(static item => item.GetString()).ToArray());
+        Assert.IsFalse(requestUserInputSchema.GetProperty("properties").GetProperty("prompts").GetProperty("items").TryGetProperty("additionalProperties", out var nestedAdditionalProperties) && nestedAdditionalProperties.ValueKind != JsonValueKind.False);
+    }
+
+    [TestMethod]
     public async Task ApplyPatchTool_CreatesUpdatesMovesAndDeletesFiles()
     {
         using var temp = TestTempDirectory.Create();

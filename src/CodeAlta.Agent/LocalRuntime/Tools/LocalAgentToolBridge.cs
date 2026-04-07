@@ -1,3 +1,5 @@
+using System.Text;
+using System.Text.Json;
 using Microsoft.Extensions.AI;
 
 namespace CodeAlta.Agent.LocalRuntime.Tools;
@@ -7,6 +9,32 @@ namespace CodeAlta.Agent.LocalRuntime.Tools;
 /// </summary>
 public static class LocalAgentToolBridge
 {
+    private static readonly HashSet<string> UnsupportedOpenAIStrictKeywords =
+    [
+        "contentEncoding",
+        "contentMediaType",
+        "not",
+        "minLength",
+        "maxLength",
+        "pattern",
+        "format",
+        "minimum",
+        "maximum",
+        "multipleOf",
+        "patternProperties",
+        "minItems",
+        "maxItems",
+        "unevaluatedProperties",
+        "propertyNames",
+        "minProperties",
+        "maxProperties",
+        "unevaluatedItems",
+        "contains",
+        "minContains",
+        "maxContains",
+        "uniqueItems",
+    ];
+
     /// <summary>
     /// Converts tool definitions into <see cref="AITool"/> declarations.
     /// </summary>
@@ -32,6 +60,23 @@ public static class LocalAgentToolBridge
         }
 
         return declarations;
+    }
+
+    /// <summary>
+    /// Normalizes a tool schema for OpenAI strict function calling.
+    /// </summary>
+    /// <param name="schema">The original tool input schema.</param>
+    /// <returns>A schema compatible with OpenAI strict mode.</returns>
+    internal static JsonElement CreateOpenAIStrictInputSchema(JsonElement schema)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+        {
+            WriteOpenAIStrictSchema(writer, schema, forceNullable: false);
+        }
+
+        using var document = JsonDocument.Parse(stream.ToArray());
+        return document.RootElement.Clone();
     }
 
     /// <summary>
@@ -116,5 +161,277 @@ public static class LocalAgentToolBridge
                 return uniqueCandidate;
             }
         }
+    }
+
+    private static void WriteOpenAIStrictSchema(Utf8JsonWriter writer, JsonElement schema, bool forceNullable)
+    {
+        ArgumentNullException.ThrowIfNull(writer);
+
+        if (forceNullable &&
+            schema.ValueKind == JsonValueKind.Object &&
+            !schema.TryGetProperty("type", out _) &&
+            !schema.TryGetProperty("anyOf", out _))
+        {
+            writer.WriteStartObject();
+            writer.WritePropertyName("anyOf");
+            writer.WriteStartArray();
+            WriteOpenAIStrictSchema(writer, schema, forceNullable: false);
+            WriteNullSchema(writer);
+            writer.WriteEndArray();
+            writer.WriteEndObject();
+            return;
+        }
+
+        if (schema.ValueKind != JsonValueKind.Object)
+        {
+            schema.WriteTo(writer);
+            return;
+        }
+
+        var description = schema.TryGetProperty("description", out var descriptionProperty) && descriptionProperty.ValueKind == JsonValueKind.String
+            ? descriptionProperty.GetString()
+            : null;
+        var extraDescriptionLines = new List<string>();
+        var hasProperties = schema.TryGetProperty("properties", out var properties) && properties.ValueKind == JsonValueKind.Object;
+        var requiredPropertyNames = hasProperties
+            ? GetRequiredPropertyNames(schema)
+            : null;
+        var shouldWriteAdditionalPropertiesFalse = hasProperties || IsObjectType(schema);
+
+        writer.WriteStartObject();
+        foreach (var property in schema.EnumerateObject())
+        {
+            if (hasProperties && property.NameEquals("required"))
+            {
+                continue;
+            }
+
+            if (property.NameEquals("description"))
+            {
+                continue;
+            }
+
+            if (UnsupportedOpenAIStrictKeywords.Contains(property.Name))
+            {
+                extraDescriptionLines.Add($"{property.Name}: {property.Value.GetRawText()}");
+                continue;
+            }
+
+            if (property.NameEquals("properties"))
+            {
+                writer.WritePropertyName(property.Name);
+                writer.WriteStartObject();
+                foreach (var childProperty in property.Value.EnumerateObject())
+                {
+                    writer.WritePropertyName(childProperty.Name);
+                    WriteOpenAIStrictSchema(
+                        writer,
+                        childProperty.Value,
+                        forceNullable: requiredPropertyNames is null || !requiredPropertyNames.Contains(childProperty.Name));
+                }
+
+                writer.WriteEndObject();
+                continue;
+            }
+
+            if (property.NameEquals("items"))
+            {
+                writer.WritePropertyName(property.Name);
+                WriteOpenAIStrictSchema(writer, property.Value, forceNullable: false);
+                continue;
+            }
+
+            if (property.NameEquals("anyOf"))
+            {
+                writer.WritePropertyName(property.Name);
+                WriteSchemaVariantArray(writer, property.Value, appendNullVariant: forceNullable);
+                continue;
+            }
+
+            if (property.NameEquals("oneOf") || property.NameEquals("allOf"))
+            {
+                writer.WritePropertyName(property.Name);
+                WriteSchemaVariantArray(writer, property.Value, appendNullVariant: false);
+                continue;
+            }
+
+            if (property.NameEquals("additionalProperties"))
+            {
+                if (!shouldWriteAdditionalPropertiesFalse)
+                {
+                    property.WriteTo(writer);
+                }
+
+                continue;
+            }
+
+            if (property.NameEquals("type") && forceNullable)
+            {
+                writer.WritePropertyName(property.Name);
+                WriteNullableType(writer, property.Value);
+                continue;
+            }
+
+            property.WriteTo(writer);
+        }
+
+        if (!string.IsNullOrWhiteSpace(description) || extraDescriptionLines.Count > 0)
+        {
+            writer.WriteString("description", AppendDescription(description, extraDescriptionLines));
+        }
+
+        if (hasProperties)
+        {
+            writer.WritePropertyName("required");
+            writer.WriteStartArray();
+            foreach (var propertyName in properties.EnumerateObject().Select(static property => property.Name))
+            {
+                writer.WriteStringValue(propertyName);
+            }
+
+            writer.WriteEndArray();
+        }
+
+        if (shouldWriteAdditionalPropertiesFalse)
+        {
+            writer.WriteBoolean("additionalProperties", false);
+        }
+
+        writer.WriteEndObject();
+    }
+
+    private static HashSet<string> GetRequiredPropertyNames(JsonElement schema)
+    {
+        var requiredNames = new HashSet<string>(StringComparer.Ordinal);
+        if (schema.TryGetProperty("required", out var required) && required.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in required.EnumerateArray())
+            {
+                if (item.ValueKind == JsonValueKind.String && item.GetString() is { Length: > 0 } name)
+                {
+                    requiredNames.Add(name);
+                }
+            }
+        }
+
+        return requiredNames;
+    }
+
+    private static void WriteSchemaVariantArray(Utf8JsonWriter writer, JsonElement variants, bool appendNullVariant)
+    {
+        writer.WriteStartArray();
+        var hasNullVariant = false;
+        foreach (var variant in variants.EnumerateArray())
+        {
+            if (IsNullSchema(variant))
+            {
+                hasNullVariant = true;
+            }
+
+            WriteOpenAIStrictSchema(writer, variant, forceNullable: false);
+        }
+
+        if (appendNullVariant && !hasNullVariant)
+        {
+            WriteNullSchema(writer);
+        }
+
+        writer.WriteEndArray();
+    }
+
+    private static void WriteNullableType(Utf8JsonWriter writer, JsonElement typeElement)
+    {
+        if (typeElement.ValueKind == JsonValueKind.String)
+        {
+            var typeName = typeElement.GetString();
+            if (string.Equals(typeName, "null", StringComparison.Ordinal))
+            {
+                writer.WriteStringValue("null");
+                return;
+            }
+
+            writer.WriteStartArray();
+            writer.WriteStringValue(typeName);
+            writer.WriteStringValue("null");
+            writer.WriteEndArray();
+            return;
+        }
+
+        if (typeElement.ValueKind == JsonValueKind.Array)
+        {
+            writer.WriteStartArray();
+            var hasNullType = false;
+            foreach (var item in typeElement.EnumerateArray())
+            {
+                if (item.ValueKind == JsonValueKind.String && string.Equals(item.GetString(), "null", StringComparison.Ordinal))
+                {
+                    hasNullType = true;
+                }
+
+                item.WriteTo(writer);
+            }
+
+            if (!hasNullType)
+            {
+                writer.WriteStringValue("null");
+            }
+
+            writer.WriteEndArray();
+            return;
+        }
+
+        typeElement.WriteTo(writer);
+    }
+
+    private static bool IsNullSchema(JsonElement schema)
+        => schema.ValueKind == JsonValueKind.Object &&
+           schema.TryGetProperty("type", out var typeProperty) &&
+           typeProperty.ValueKind == JsonValueKind.String &&
+           string.Equals(typeProperty.GetString(), "null", StringComparison.Ordinal);
+
+    private static void WriteNullSchema(Utf8JsonWriter writer)
+    {
+        writer.WriteStartObject();
+        writer.WriteString("type", "null");
+        writer.WriteEndObject();
+    }
+
+    private static bool IsObjectType(JsonElement schema)
+    {
+        if (!schema.TryGetProperty("type", out var typeProperty))
+        {
+            return false;
+        }
+
+        return typeProperty.ValueKind switch
+        {
+            JsonValueKind.String => string.Equals(typeProperty.GetString(), "object", StringComparison.Ordinal),
+            JsonValueKind.Array => typeProperty.EnumerateArray().Any(static item =>
+                item.ValueKind == JsonValueKind.String &&
+                string.Equals(item.GetString(), "object", StringComparison.Ordinal)),
+            _ => false,
+        };
+    }
+
+    private static string AppendDescription(string? description, IReadOnlyList<string> extraDescriptionLines)
+    {
+        if (extraDescriptionLines.Count == 0)
+        {
+            return description ?? string.Empty;
+        }
+
+        var builder = new StringBuilder();
+        if (!string.IsNullOrWhiteSpace(description))
+        {
+            builder.Append(description.Trim());
+            builder.AppendLine();
+        }
+
+        foreach (var line in extraDescriptionLines)
+        {
+            builder.AppendLine(line);
+        }
+
+        return builder.ToString().TrimEnd();
     }
 }

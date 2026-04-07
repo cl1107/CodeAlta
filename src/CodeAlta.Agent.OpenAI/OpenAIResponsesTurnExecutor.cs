@@ -304,7 +304,7 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
     private static FunctionTool CreateFunctionTool(AgentToolDefinition tool)
         => ResponseTool.CreateFunctionTool(
             LocalAgentToolBridge.GetRegisteredToolName(tool.Spec.Name),
-            BinaryData.FromString(tool.Spec.InputSchema.GetRawText()),
+            BinaryData.FromString(LocalAgentToolBridge.CreateOpenAIStrictInputSchema(tool.Spec.InputSchema).GetRawText()),
             strictModeEnabled: true,
             functionDescription: tool.Spec.Description);
 

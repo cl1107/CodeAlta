@@ -1,5 +1,7 @@
 #pragma warning disable OPENAI001
+#pragma warning disable SCME0001
 
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using System.Text.Json;
 using CodeAlta.Agent.LocalRuntime;
@@ -28,6 +30,8 @@ internal sealed class OpenAIChatTurnExecutor(OpenAIProviderOptions provider) : I
         var options = CreateOptions(request);
         var streamedToolCalls = new Dictionary<int, StreamingToolCallState>();
         var streamedContent = new StringBuilder();
+        var streamedRefusal = new StringBuilder();
+        var streamedReasoning = new StringBuilder();
         ChatTokenUsage? usage = null;
         string? completionId = null;
         string? modelId = null;
@@ -52,6 +56,32 @@ internal sealed class OpenAIChatTurnExecutor(OpenAIProviderOptions provider) : I
                         },
                         cancellationToken).ConfigureAwait(false);
                 }
+            }
+
+            if (!string.IsNullOrEmpty(update.RefusalUpdate))
+            {
+                streamedRefusal.Append(update.RefusalUpdate);
+                await onUpdate(
+                    new LocalAgentTurnDelta
+                    {
+                        Kind = AgentContentKind.Assistant,
+                        ContentId = completionId ?? $"assistant:{Guid.CreateVersion7()}",
+                        Text = update.RefusalUpdate,
+                    },
+                    cancellationToken).ConfigureAwait(false);
+            }
+
+            if (TryGetReasoningDelta(update, out var reasoningDelta))
+            {
+                streamedReasoning.Append(reasoningDelta);
+                await onUpdate(
+                    new LocalAgentTurnDelta
+                    {
+                        Kind = AgentContentKind.Reasoning,
+                        ContentId = completionId ?? $"reasoning:{Guid.CreateVersion7()}",
+                        Text = reasoningDelta,
+                    },
+                    cancellationToken).ConfigureAwait(false);
             }
 
             foreach (var toolUpdate in update.ToolCallUpdates)
@@ -84,6 +114,16 @@ internal sealed class OpenAIChatTurnExecutor(OpenAIProviderOptions provider) : I
         if (streamedContent.Length > 0)
         {
             parts.Add(new LocalAgentMessagePart.Text(streamedContent.ToString()));
+        }
+
+        if (streamedRefusal.Length > 0)
+        {
+            parts.Add(new LocalAgentMessagePart.Text(streamedRefusal.ToString()));
+        }
+
+        if (streamedReasoning.Length > 0)
+        {
+            parts.Add(new LocalAgentMessagePart.Reasoning(streamedReasoning.ToString(), ProtectedData: null));
         }
 
         foreach (var toolState in streamedToolCalls.OrderBy(static pair => pair.Key).Select(static pair => pair.Value))
@@ -174,7 +214,7 @@ internal sealed class OpenAIChatTurnExecutor(OpenAIProviderOptions provider) : I
                 ChatTool.CreateFunctionTool(
                     LocalAgentToolBridge.GetRegisteredToolName(tool.Spec.Name),
                     tool.Spec.Description,
-                    BinaryData.FromString(tool.Spec.InputSchema.GetRawText()),
+                    BinaryData.FromString(LocalAgentToolBridge.CreateOpenAIStrictInputSchema(tool.Spec.InputSchema).GetRawText()),
                     functionSchemaIsStrict: true));
         }
 
@@ -356,6 +396,10 @@ internal sealed class OpenAIChatTurnExecutor(OpenAIProviderOptions provider) : I
             .OfType<LocalAgentMessagePart.Text>()
             .Select(static part => part.Value)
             .FirstOrDefault(static value => !string.IsNullOrWhiteSpace(value));
+
+    private static bool TryGetReasoningDelta(StreamingChatCompletionUpdate update, [NotNullWhen(true)] out string? reasoningText)
+        => update.Patch.TryGetValue("$.choices[0].delta.reasoning_content"u8, out reasoningText) && !string.IsNullOrWhiteSpace(reasoningText)
+           || update.Patch.TryGetValue("$.choices[0].delta.reasoning"u8, out reasoningText) && !string.IsNullOrWhiteSpace(reasoningText);
 
     private static string MergeSystemAndDeveloperInstructions(string? systemMessage, string developerInstructions)
         => string.IsNullOrWhiteSpace(systemMessage)

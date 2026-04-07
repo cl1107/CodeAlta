@@ -8,6 +8,9 @@ namespace CodeAlta.Orchestration.Runtime;
 /// </summary>
 public sealed class AgentInstructionTemplateProvider
 {
+    private const string SystemPromptResourceName = "CodeAlta.Orchestration.Runtime.Prompts.system_prompt.md";
+    private static readonly Lazy<string> DefaultSystemPrompt = new(LoadDefaultSystemPrompt);
+
     /// <summary>
     /// Builds the instruction bundle for a coordinator session.
     /// </summary>
@@ -26,7 +29,10 @@ public sealed class AgentInstructionTemplateProvider
         ArgumentNullException.ThrowIfNull(thread);
         ArgumentNullException.ThrowIfNull(profile);
 
-        return AgentInstructionBundle.Empty;
+        return new AgentInstructionBundle
+        {
+            SystemMessage = DefaultSystemPrompt.Value
+        };
     }
 
     /// <summary>
@@ -47,6 +53,24 @@ public sealed class AgentInstructionTemplateProvider
         ArgumentNullException.ThrowIfNull(thread);
         ArgumentNullException.ThrowIfNull(profile);
 
-        return AgentInstructionBundle.Empty;
+        return new AgentInstructionBundle
+        {
+            SystemMessage = DefaultSystemPrompt.Value
+        };
+    }
+
+    private static string LoadDefaultSystemPrompt()
+    {
+        var assembly = typeof(AgentInstructionTemplateProvider).Assembly;
+        using var stream = assembly.GetManifestResourceStream(SystemPromptResourceName)
+            ?? throw new InvalidOperationException($"Embedded system prompt '{SystemPromptResourceName}' was not found.");
+        using var reader = new StreamReader(stream);
+        var prompt = reader.ReadToEnd().Trim();
+        if (string.IsNullOrWhiteSpace(prompt))
+        {
+            throw new InvalidOperationException($"Embedded system prompt '{SystemPromptResourceName}' is empty.");
+        }
+
+        return prompt;
     }
 }

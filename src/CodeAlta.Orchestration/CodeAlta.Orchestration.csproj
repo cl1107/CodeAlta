@@ -17,5 +17,8 @@
     <Compile Remove="Mcp\**\*.cs" />
   </ItemGroup>
 
-</Project>
+  <ItemGroup>
+    <EmbeddedResource Include="Runtime\Prompts\system_prompt.md" />
+  </ItemGroup>
 
+</Project>

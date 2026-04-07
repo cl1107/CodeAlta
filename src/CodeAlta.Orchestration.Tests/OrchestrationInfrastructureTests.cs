@@ -74,7 +74,7 @@ public sealed class OrchestrationInfrastructureTests
     }
 
     [TestMethod]
-    public void AgentInstructionTemplateProvider_DoesNotOverrideInstructions()
+    public void AgentInstructionTemplateProvider_LoadsDefaultSystemPrompt()
     {
         var provider = new AgentInstructionTemplateProvider();
         var project = new ProjectDescriptor
@@ -115,7 +115,8 @@ public sealed class OrchestrationInfrastructureTests
 
         var instructions = provider.BuildCoordinatorInstructions(thread, project, profile);
 
-        Assert.IsNull(instructions.SystemMessage);
+        Assert.IsFalse(string.IsNullOrWhiteSpace(instructions.SystemMessage));
+        StringAssert.Contains(instructions.SystemMessage, "You are CodeAlta");
         Assert.IsNull(instructions.DeveloperInstructions);
     }
 
@@ -329,7 +330,8 @@ public sealed class OrchestrationInfrastructureTests
         Assert.IsNotNull(fakeBackend.LastCreateOptions);
         Assert.AreEqual("gpt-5.4", fakeBackend.LastCreateOptions.Model);
         Assert.AreEqual(AgentReasoningEffort.High, fakeBackend.LastCreateOptions.ReasoningEffort);
-        Assert.IsNull(fakeBackend.LastCreateOptions.SystemMessage);
+        Assert.IsFalse(string.IsNullOrWhiteSpace(fakeBackend.LastCreateOptions.SystemMessage));
+        StringAssert.Contains(fakeBackend.LastCreateOptions.SystemMessage, "You are CodeAlta");
         Assert.IsNull(fakeBackend.LastCreateOptions.DeveloperInstructions);
 
         var history = await runtime.GetHistoryAsync(thread.ThreadId).ConfigureAwait(false);

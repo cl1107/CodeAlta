@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using CodeAlta.Acp;
 using CodeAlta.Agent;
@@ -45,8 +46,8 @@ public sealed class AcpAgentBackendIntegrationTests
         Assert.AreEqual("initialize", (await harness.ReadObservedMessageAsync(cancellationTokenSource.Token).ConfigureAwait(false)).Method);
         Assert.AreEqual("session/new", (await harness.ReadObservedMessageAsync(cancellationTokenSource.Token).ConfigureAwait(false)).Method);
 
-        var events = new List<AgentEvent>();
-        using var subscription = session.Subscribe(events.Add);
+        var events = new ConcurrentQueue<AgentEvent>();
+        using var subscription = session.Subscribe(events.Enqueue);
 
         var sendTask = session.SendAsync(
             new AgentSendOptions { Input = AgentInput.Text("Inspect the repository.") },
@@ -269,8 +270,8 @@ public sealed class AcpAgentBackendIntegrationTests
         _ = await harness.ReadObservedMessageAsync(cancellationTokenSource.Token).ConfigureAwait(false);
         _ = await harness.ReadObservedMessageAsync(cancellationTokenSource.Token).ConfigureAwait(false);
 
-        var events = new List<AgentEvent>();
-        using var subscription = session.Subscribe(events.Add);
+        var events = new ConcurrentQueue<AgentEvent>();
+        using var subscription = session.Subscribe(events.Enqueue);
 
         var permissionResponse = await harness.SendServerRequestAsync<RequestPermissionResponse>(
                 "session/request_permission",
@@ -408,8 +409,8 @@ public sealed class AcpAgentBackendIntegrationTests
         _ = await harness.ReadObservedMessageAsync(cancellationTokenSource.Token).ConfigureAwait(false);
         _ = await harness.ReadObservedMessageAsync(cancellationTokenSource.Token).ConfigureAwait(false);
 
-        var events = new List<AgentEvent>();
-        using var subscription = session.Subscribe(events.Add);
+        var events = new ConcurrentQueue<AgentEvent>();
+        using var subscription = session.Subscribe(events.Enqueue);
 
         var elicitationResponse = await harness.SendServerRequestAsync<ElicitationResponse>(
                 "session/elicitation",

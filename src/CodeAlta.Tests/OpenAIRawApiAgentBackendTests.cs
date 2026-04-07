@@ -182,6 +182,107 @@ public sealed class OpenAIRawApiAgentBackendTests
         Assert.AreEqual("chatcmpl-1", details.ProviderSessionId);
     }
 
+    [TestMethod]
+    public async Task OpenAIChatAgentBackend_MapsRefusalUpdatesToAssistantContent()
+    {
+        using var temp = TestTempDirectory.Create();
+        var chatClient = new RecordingOpenAIChatClient(
+        [
+            OpenAIChatModelFactory.StreamingChatCompletionUpdate(
+                completionId: "chatcmpl-refusal",
+                refusalUpdate: "I can't help with that request.",
+                model: "gpt-chat-test"),
+        ]);
+
+        await using var backend = new OpenAIChatAgentBackend(new OpenAIChatAgentBackendOptions
+        {
+            StateRootPath = temp.Path,
+            Providers =
+            {
+                new OpenAIProviderOptions
+                {
+                    ProviderKey = "openai",
+                    IsDefault = true,
+                    ChatClientFactory = _ => chatClient,
+                },
+            },
+        });
+
+        await using var session = await backend.CreateSessionAsync(new AgentSessionCreateOptions
+        {
+            Model = "gpt-chat-test",
+            WorkingDirectory = temp.Path,
+            OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
+        }).ConfigureAwait(false);
+
+        _ = await session.SendAsync(new AgentSendOptions
+        {
+            Input = new AgentInput([new AgentInputItem.Text("Refuse this")]),
+        }).ConfigureAwait(false);
+
+        var history = await session.GetHistoryAsync().ConfigureAwait(false);
+        Assert.IsTrue(history.OfType<AgentContentCompletedEvent>().Any(static e =>
+            e.Kind == AgentContentKind.Assistant &&
+            e.Content == "I can't help with that request."));
+    }
+
+    [TestMethod]
+    public async Task OpenAIChatAgentBackend_MapsReasoningDeltasFromPatch()
+    {
+        using var temp = TestTempDirectory.Create();
+        var chatClient = new RecordingOpenAIChatClient(
+        [
+            DeserializeStreamingChatCompletionUpdate(
+                """
+                {
+                  "id": "chatcmpl-reasoning",
+                  "object": "chat.completion.chunk",
+                  "created": 1744060800,
+                  "model": "gpt-chat-test",
+                  "choices": [
+                    {
+                      "index": 0,
+                      "delta": {
+                        "reasoning_content": "Thinking through the repository layout."
+                      }
+                    }
+                  ]
+                }
+                """),
+        ]);
+
+        await using var backend = new OpenAIChatAgentBackend(new OpenAIChatAgentBackendOptions
+        {
+            StateRootPath = temp.Path,
+            Providers =
+            {
+                new OpenAIProviderOptions
+                {
+                    ProviderKey = "openai",
+                    IsDefault = true,
+                    ChatClientFactory = _ => chatClient,
+                },
+            },
+        });
+
+        await using var session = await backend.CreateSessionAsync(new AgentSessionCreateOptions
+        {
+            Model = "gpt-chat-test",
+            WorkingDirectory = temp.Path,
+            OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
+        }).ConfigureAwait(false);
+
+        _ = await session.SendAsync(new AgentSendOptions
+        {
+            Input = new AgentInput([new AgentInputItem.Text("Think")]),
+        }).ConfigureAwait(false);
+
+        var history = await session.GetHistoryAsync().ConfigureAwait(false);
+        Assert.IsTrue(history.OfType<AgentContentCompletedEvent>().Any(static e =>
+            e.Kind == AgentContentKind.Reasoning &&
+            e.Content == "Thinking through the repository layout."));
+    }
+
     private static StreamingResponseUpdate CreateAssistantResponseUpdate(
         string responseId,
         string modelId,
@@ -238,6 +339,20 @@ public sealed class OpenAIRawApiAgentBackendTests
         var data = BinaryData.FromString(json);
         using var document = JsonDocument.Parse(data);
         return (StreamingResponseUpdate)DeserializeStreamingResponseUpdateMethod.Invoke(
+            obj: null,
+            parameters:
+            [
+                document.RootElement,
+                data,
+                new ModelReaderWriterOptions("J"),
+            ])!;
+    }
+
+    private static StreamingChatCompletionUpdate DeserializeStreamingChatCompletionUpdate(string json)
+    {
+        var data = BinaryData.FromString(json);
+        using var document = JsonDocument.Parse(data);
+        return (StreamingChatCompletionUpdate)DeserializeStreamingChatCompletionUpdateMethod.Invoke(
             obj: null,
             parameters:
             [
@@ -349,6 +464,12 @@ public sealed class OpenAIRawApiAgentBackendTests
             "DeserializeStreamingResponseUpdate",
             BindingFlags.NonPublic | BindingFlags.Static)
         ?? throw new InvalidOperationException("The OpenAI package no longer exposes the expected response-stream deserializer.");
+
+    private static readonly MethodInfo DeserializeStreamingChatCompletionUpdateMethod =
+        typeof(StreamingChatCompletionUpdate).GetMethod(
+            "DeserializeStreamingChatCompletionUpdate",
+            BindingFlags.NonPublic | BindingFlags.Static)
+        ?? throw new InvalidOperationException("The OpenAI package no longer exposes the expected chat-stream deserializer.");
 
     private sealed class TestAsyncCollectionResult<T>(IReadOnlyList<T> values) : AsyncCollectionResult<T>
     {
