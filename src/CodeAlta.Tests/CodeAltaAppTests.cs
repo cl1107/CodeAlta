@@ -146,6 +146,18 @@ public sealed class CodeAltaAppTests
     }
 
     [TestMethod]
+    public void ReasoningContent_KeepsHeadingVisibleWhenNoBodyExists()
+    {
+        const string content = "**Planning tool utilization**";
+
+        var markdown = ChatMarkdownFormatter.FormatChatContentMarkdown(AgentContentKind.Reasoning, content);
+        var headerSecondary = ChatMarkdownFormatter.GetChatContentHeaderSecondary(AgentContentKind.Reasoning, content);
+
+        Assert.AreEqual("**Planning tool utilization**", markdown);
+        Assert.AreEqual("Planning tool utilization", headerSecondary);
+    }
+
+    [TestMethod]
     public void FormatChatPlanMarkdown_RendersExplanationAndStatuses()
     {
         var markdown = ChatMarkdownFormatter.FormatChatPlanMarkdown(

@@ -155,6 +155,7 @@ internal static class CodexAgentMapper
             Cwd = workingDirectory,
             Model = model,
             Effort = ToCodexReasoningEffort(reasoningEffort),
+            Summary = CreateDefaultReasoningSummary(),
             SandboxPolicy = CreateSandboxPolicy(sandboxMode, workingDirectory),
         };
     }
@@ -1163,7 +1164,7 @@ internal static class CodexAgentMapper
                 sessionId,
                 timestamp,
                 runId,
-                AgentContentKind.Reasoning,
+                GetReasoningContentKind(reasoning.Content, reasoning.Summary),
                 reasoning.Id,
                 notification.TurnId,
                 ExtractReasoningThreadText(reasoning)),
@@ -1322,7 +1323,7 @@ internal static class CodexAgentMapper
                 sessionId,
                 timestamp,
                 runId,
-                AgentContentKind.Reasoning,
+                GetReasoningContentKind(reasoning.Content, reasoning.Summary),
                 $"reasoning:{notification.TurnId}",
                 notification.TurnId,
                 ExtractReasoningResponseText(reasoning)),
@@ -2473,6 +2474,17 @@ internal static class CodexAgentMapper
                 : string.Empty;
     }
 
+    private static AgentContentKind GetReasoningContentKind<TContent, TSummary>(
+        IReadOnlyList<TContent>? content,
+        IReadOnlyList<TSummary>? summary)
+    {
+        return content is { Count: > 0 }
+            ? AgentContentKind.Reasoning
+            : summary is { Count: > 0 }
+                ? AgentContentKind.ReasoningSummary
+                : AgentContentKind.Reasoning;
+    }
+
     private static string ExtractMessageResponseText(ResponseItem.MessageResponseItem message)
     {
         return string.Join(
@@ -2760,7 +2772,15 @@ internal static class CodexAgentMapper
             config = new Dictionary<string, JsonElement>(StringComparer.Ordinal)
             {
                 ["model_reasoning_effort"] = CreateStringElement(
-                    mappedReasoningEffort.Value.ToString().ToLowerInvariant())
+                    mappedReasoningEffort.Value.ToString().ToLowerInvariant()),
+                ["model_reasoning_summary"] = CreateStringElement("auto")
+            };
+        }
+        else
+        {
+            config = new Dictionary<string, JsonElement>(StringComparer.Ordinal)
+            {
+                ["model_reasoning_summary"] = CreateStringElement("auto")
             };
         }
 
@@ -2777,6 +2797,9 @@ internal static class CodexAgentMapper
 
         return config;
     }
+
+    private static ReasoningSummary CreateDefaultReasoningSummary()
+        => new ReasoningSummary.Auto();
 
     private static void AddCodexMcpServerConfig(
         IDictionary<string, JsonElement> config,

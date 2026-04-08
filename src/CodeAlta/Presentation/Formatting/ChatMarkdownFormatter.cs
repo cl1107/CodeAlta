@@ -496,7 +496,8 @@ internal static class ChatMarkdownFormatter
             return string.Empty;
         }
 
-        if (TryExtractReasoningHeading(normalized, out _, out var remainder) && remainder is not null)
+        if (TryExtractReasoningHeading(normalized, out _, out var remainder) &&
+            !string.IsNullOrWhiteSpace(remainder))
         {
             return remainder;
         }

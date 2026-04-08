@@ -157,6 +157,25 @@ public sealed class CodexAgentMapperTests
         Assert.IsNotNull(parameters.Config);
         Assert.IsTrue(parameters.Config.ContainsKey("model_reasoning_effort"));
         Assert.AreEqual("high", parameters.Config["model_reasoning_effort"].GetString());
+        Assert.AreEqual("auto", parameters.Config["model_reasoning_summary"].GetString());
+    }
+
+    [TestMethod]
+    public void ToThreadStartParams_DefaultsReasoningSummaryToAuto()
+    {
+        var parameters = CodexAgentMapper.ToThreadStartParams(
+            new AgentSessionCreateOptions
+            {
+                Model = "gpt-5-mini",
+                OnPermissionRequest = static (_, _) =>
+                    Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
+            },
+            new AskForApproval.OnRequest(),
+            SandboxMode.DangerFullAccess);
+
+        Assert.IsNotNull(parameters.Config);
+        Assert.AreEqual("auto", parameters.Config["model_reasoning_summary"].GetString());
+        Assert.IsFalse(parameters.Config.ContainsKey("model_reasoning_effort"));
     }
 
     [TestMethod]
@@ -248,6 +267,7 @@ public sealed class CodexAgentMapperTests
         Assert.AreEqual(@"C:\repo", parameters.Cwd);
         Assert.AreEqual("gpt-5-mini", parameters.Model);
         Assert.AreEqual(ReasoningEffort.Medium, parameters.Effort);
+        Assert.IsInstanceOfType<ReasoningSummary.Auto>(parameters.Summary);
         Assert.IsInstanceOfType<SandboxPolicy.DangerFullAccessSandboxPolicy>(parameters.SandboxPolicy);
         Assert.AreEqual(1, parameters.Input.Count);
     }
@@ -357,6 +377,48 @@ public sealed class CodexAgentMapperTests
         var mappedError = (AgentErrorEvent)errorEvent;
         Assert.AreEqual("boom", mappedError.Message);
         Assert.AreEqual("turn-3", mappedError.RunId?.Value);
+    }
+
+    [TestMethod]
+    public void ToAgentEvent_MapsReasoningDeltasToReasoningContent()
+    {
+        var timestamp = DateTimeOffset.Parse("2026-02-25T10:00:00+00:00");
+
+        var summaryDeltaNotification = new CodexNotification.ReasoningSummaryTextDelta(
+            new ReasoningSummaryTextDeltaNotification
+            {
+                ThreadId = "thread-1",
+                TurnId = "turn-1",
+                ItemId = "item-1",
+                SummaryIndex = 2,
+                Delta = "Checking repository layout.",
+            });
+
+        var summaryDelta = CodexAgentMapper.ToAgentEvent("thread-1", summaryDeltaNotification, timestamp);
+
+        Assert.IsInstanceOfType<AgentContentDeltaEvent>(summaryDelta);
+        var mappedSummaryDelta = (AgentContentDeltaEvent)summaryDelta;
+        Assert.AreEqual(AgentContentKind.ReasoningSummary, mappedSummaryDelta.Kind);
+        Assert.AreEqual("item-1", mappedSummaryDelta.ContentId);
+        Assert.AreEqual("Checking repository layout.", mappedSummaryDelta.Delta);
+
+        var rawDeltaNotification = new CodexNotification.ReasoningTextDelta(
+            new ReasoningTextDeltaNotification
+            {
+                ThreadId = "thread-1",
+                TurnId = "turn-1",
+                ItemId = "item-2",
+                ContentIndex = 1,
+                Delta = "Raw hidden chain of thought",
+            });
+
+        var rawDelta = CodexAgentMapper.ToAgentEvent("thread-1", rawDeltaNotification, timestamp);
+
+        Assert.IsInstanceOfType<AgentContentDeltaEvent>(rawDelta);
+        var mappedRawDelta = (AgentContentDeltaEvent)rawDelta;
+        Assert.AreEqual(AgentContentKind.Reasoning, mappedRawDelta.Kind);
+        Assert.AreEqual("item-2", mappedRawDelta.ContentId);
+        Assert.AreEqual("Raw hidden chain of thought", mappedRawDelta.Delta);
     }
 
     [TestMethod]
@@ -842,6 +904,58 @@ public sealed class CodexAgentMapperTests
     }
 
     [TestMethod]
+    public void ToAgentEvent_MapsSummaryOnlyReasoningThreadCompletionToReasoningSummary()
+    {
+        var timestamp = DateTimeOffset.Parse("2026-04-08T20:40:00+00:00");
+        var notification = new CodexNotification.ItemCompleted(
+            new ItemCompletedNotification
+            {
+                ThreadId = "thread-1",
+                TurnId = "turn-1",
+                Item = new ThreadItem.ReasoningThreadItem
+                {
+                    Id = "rs_1",
+                    Summary = ["Inspecting repository instructions."]
+                }
+            });
+
+        var @event = CodexAgentMapper.ToAgentEvent("thread-1", notification, timestamp);
+
+        Assert.IsInstanceOfType<AgentContentCompletedEvent>(@event);
+        var content = (AgentContentCompletedEvent)@event;
+        Assert.AreEqual(AgentContentKind.ReasoningSummary, content.Kind);
+        Assert.AreEqual("rs_1", content.ContentId);
+        Assert.AreEqual("Inspecting repository instructions.", content.Content);
+    }
+
+    [TestMethod]
+    public void ToAgentEvent_MapsSummaryOnlyRawReasoningCompletionToReasoningSummary()
+    {
+        var timestamp = DateTimeOffset.Parse("2026-04-08T20:40:00+00:00");
+        var notification = new CodexNotification.RawResponseItemCompleted(
+            new RawResponseItemCompletedNotification
+            {
+                ThreadId = "thread-1",
+                TurnId = "turn-1",
+                Item = new ResponseItem.ReasoningResponseItem
+                {
+                    Summary =
+                    [
+                        new ReasoningItemReasoningSummary { Text = "Inspecting repository instructions." }
+                    ]
+                }
+            });
+
+        var @event = CodexAgentMapper.ToAgentEvent("thread-1", notification, timestamp);
+
+        Assert.IsInstanceOfType<AgentContentCompletedEvent>(@event);
+        var content = (AgentContentCompletedEvent)@event;
+        Assert.AreEqual(AgentContentKind.ReasoningSummary, content.Kind);
+        Assert.AreEqual("reasoning:turn-1", content.ContentId);
+        Assert.AreEqual("Inspecting repository instructions.", content.Content);
+    }
+
+    [TestMethod]
     public void ToHistoryEvents_MapsUserMessageItemsToUserContent()
     {
         var thread = new CodeAlta.CodexSdk.Thread
@@ -874,6 +988,38 @@ public sealed class CodexAgentMapperTests
         var content = (AgentContentCompletedEvent)events[0];
         Assert.AreEqual(AgentContentKind.User, content.Kind);
         Assert.AreEqual("Could you summarize the repo?", content.Content);
+    }
+
+    [TestMethod]
+    public void ToHistoryEvents_MapsSummaryOnlyReasoningItemsToReasoningSummary()
+    {
+        var thread = new CodeAlta.CodexSdk.Thread
+        {
+            UpdatedAt = DateTimeOffset.Parse("2026-04-08T20:40:00+00:00").ToUnixTimeSeconds(),
+            Turns =
+            [
+                new Turn
+                {
+                    Id = "turn-1",
+                    Status = TurnStatus.Completed,
+                    Items =
+                    [
+                        new ThreadItem.ReasoningThreadItem
+                        {
+                            Id = "rs_1",
+                            Summary = ["Inspecting repository instructions."]
+                        }
+                    ]
+                }
+            ]
+        };
+
+        var events = CodexAgentMapper.ToHistoryEvents("thread-1", thread);
+
+        var content = events.OfType<AgentContentCompletedEvent>().Single();
+        Assert.AreEqual(AgentContentKind.ReasoningSummary, content.Kind);
+        Assert.AreEqual("rs_1", content.ContentId);
+        Assert.AreEqual("Inspecting repository instructions.", content.Content);
     }
 
     [TestMethod]

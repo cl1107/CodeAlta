@@ -256,6 +256,7 @@ public sealed class CodexAgentSession : ICodexAgentSession
                 lock (_handlerLock)
                 {
                     _activeRunId = null;
+                    _agentMessageKindsByItemId.Clear();
                 }
                 break;
             case AgentContentDeltaEvent { Kind: AgentContentKind.Assistant } delta when delta.RunId is not null:
@@ -281,12 +282,12 @@ public sealed class CodexAgentSession : ICodexAgentSession
         {
             switch (notification)
             {
-                case CodexNotification.ItemStarted { Data.Item: ThreadItem.AgentMessageThreadItem message }:
-                    _agentMessageKindsByItemId[message.Id] = CodexAgentMapper.ToAgentContentKind(message.Phase);
+                case CodexNotification.ItemStarted { Data.Item: ThreadItem.AgentMessageThreadItem startedMessage }:
+                    _agentMessageKindsByItemId[startedMessage.Id] = CodexAgentMapper.ToAgentContentKind(startedMessage.Phase);
                     break;
 
-                case CodexNotification.ItemCompleted { Data.Item: ThreadItem.AgentMessageThreadItem message }:
-                    _agentMessageKindsByItemId.Remove(message.Id, out _);
+                case CodexNotification.ItemCompleted { Data.Item: ThreadItem.AgentMessageThreadItem completedMessage }:
+                    _agentMessageKindsByItemId[completedMessage.Id] = CodexAgentMapper.ToAgentContentKind(completedMessage.Phase);
                     break;
             }
         }
