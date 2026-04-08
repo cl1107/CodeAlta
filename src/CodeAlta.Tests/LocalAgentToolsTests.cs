@@ -38,14 +38,14 @@ public sealed class LocalAgentToolsTests
     }
 
     [TestMethod]
-    public async Task GrepFilesTool_UsesXenoAtomGlobPatternMatching()
+    public async Task GrepTool_UsesXenoAtomGlobPatternMatching()
     {
         using var temp = TestTempDirectory.Create();
         await File.WriteAllLinesAsync(Path.Combine(temp.Path, "file7.txt"), ["match"]).ConfigureAwait(false);
         await File.WriteAllLinesAsync(Path.Combine(temp.Path, "filex.txt"), ["match"]).ConfigureAwait(false);
 
         var tools = LocalAgentBuiltInToolFactory.CreateDefaultTools(CreateOptions(temp.Path));
-        var tool = tools.Single(static tool => tool.Spec.Name == "grep_files");
+        var tool = tools.Single(static tool => tool.Spec.Name == "grep");
         using var args = JsonDocument.Parse("""{"pattern":"match","glob":"file[0-9].txt"}""");
 
         var result = await tool.Handler(
@@ -65,7 +65,7 @@ public sealed class LocalAgentToolsTests
     }
 
     [TestMethod]
-    public async Task GrepFilesTool_HonorsGitIgnoreWhenSearchingInsideRepository()
+    public async Task GrepTool_HonorsGitIgnoreWhenSearchingInsideRepository()
     {
         using var temp = TestTempDirectory.Create();
         Directory.CreateDirectory(Path.Combine(temp.Path, ".git"));
@@ -83,7 +83,7 @@ public sealed class LocalAgentToolsTests
         await File.WriteAllLinesAsync(Path.Combine(temp.Path, "ignored.txt"), ["match"]).ConfigureAwait(false);
 
         var tools = LocalAgentBuiltInToolFactory.CreateDefaultTools(CreateOptions(temp.Path));
-        var tool = tools.Single(static tool => tool.Spec.Name == "grep_files");
+        var tool = tools.Single(static tool => tool.Spec.Name == "grep");
         using var args = JsonDocument.Parse("""{"pattern":"match","glob":"*.txt"}""");
 
         var result = await tool.Handler(
@@ -100,6 +100,32 @@ public sealed class LocalAgentToolsTests
         var output = Assert.IsInstanceOfType<AgentToolResultItem.Text>(result.Items.Single()).Value;
         StringAssert.Contains(output, "tracked.txt:1: match");
         Assert.IsFalse(output.Contains("ignored.txt:1: match", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public async Task GrepTool_SearchesSingleFileUsingRegularExpressions()
+    {
+        using var temp = TestTempDirectory.Create();
+        var filePath = Path.Combine(temp.Path, "sample.txt");
+        await File.WriteAllLinesAsync(filePath, ["Alpha", "Beta42", "Beta"]).ConfigureAwait(false);
+
+        var tools = LocalAgentBuiltInToolFactory.CreateDefaultTools(CreateOptions(temp.Path));
+        var tool = tools.Single(static tool => tool.Spec.Name == "grep");
+        using var args = JsonDocument.Parse("""{"path":"sample.txt","pattern":"^Beta\\d+$"}""");
+
+        var result = await tool.Handler(
+                new AgentToolInvocation(
+                    AgentBackendIds.OpenAIResponses,
+                    "session-1",
+                    "tool-1",
+                    tool.Spec.Name,
+                    args.RootElement.Clone()),
+                CancellationToken.None)
+            .ConfigureAwait(false);
+
+        Assert.IsTrue(result.Success);
+        var output = Assert.IsInstanceOfType<AgentToolResultItem.Text>(result.Items.Single()).Value;
+        Assert.AreEqual("sample.txt:2: Beta42", output);
     }
 
     [TestMethod]

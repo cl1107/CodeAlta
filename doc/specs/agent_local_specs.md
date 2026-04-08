@@ -326,7 +326,7 @@ Recommended baseline:
 
 - `read_file`
 - `list_dir`
-- `grep_files`
+- `grep`
 - `webget`
 - `shell_command`
 - `apply_patch`

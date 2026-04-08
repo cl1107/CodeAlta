@@ -43,13 +43,13 @@ public static class LocalAgentBuiltInToolFactory
         }
         """);
 
-    private static readonly JsonElement GrepFilesSchema = ParseSchema(
+    private static readonly JsonElement GrepSchema = ParseSchema(
         """
         {
           "type": "object",
           "properties": {
-            "pattern": { "type": "string", "description": "Search pattern." },
-            "path": { "type": "string", "description": "Root directory to search. Defaults to the session working directory." },
+            "pattern": { "type": "string", "description": "Regular expression to search within each line." },
+            "path": { "type": "string", "description": "File or directory to search. Defaults to the session working directory." },
             "glob": { "type": "string", "description": "Optional file-name glob like *.cs." },
             "caseSensitive": { "type": "boolean", "description": "Whether matching is case-sensitive." },
             "maxMatches": { "type": "integer", "description": "Maximum matches to return.", "minimum": 1 }
@@ -175,10 +175,10 @@ public static class LocalAgentBuiltInToolFactory
                 (invocation, cancellationToken) => ListDirectoryAsync(options, invocation, cancellationToken)),
             new AgentToolDefinition(
                 new AgentToolSpec(
-                    "grep_files",
-                    "Search text files under a directory for a pattern.",
-                    GrepFilesSchema),
-                (invocation, cancellationToken) => GrepFilesAsync(options, invocation, cancellationToken)),
+                    "grep",
+                    "Search a file or directory for line-based regular-expression matches.",
+                    GrepSchema),
+                (invocation, cancellationToken) => GrepAsync(options, invocation, cancellationToken)),
             new AgentToolDefinition(
                 new AgentToolSpec(
                     "webget",
@@ -287,16 +287,16 @@ public static class LocalAgentBuiltInToolFactory
             [new AgentToolResultItem.Text(string.Join(Environment.NewLine, entries))]));
     }
 
-    private static async Task<AgentToolResult> GrepFilesAsync(
+    private static Task<AgentToolResult> GrepAsync(
         LocalAgentBuiltInToolOptions options,
         AgentToolInvocation invocation,
         CancellationToken cancellationToken)
     {
         var pattern = GetRequiredString(invocation.Arguments, "pattern");
-        var root = ResolvePath(options.WorkingDirectory, GetOptionalString(invocation.Arguments, "path"));
-        if (!Directory.Exists(root))
+        var targetPath = ResolvePath(options.WorkingDirectory, GetOptionalString(invocation.Arguments, "path"));
+        if (!File.Exists(targetPath) && !Directory.Exists(targetPath))
         {
-            return Failure($"Directory '{root}' was not found.");
+            return Task.FromResult(Failure($"Path '{targetPath}' was not found."));
         }
 
         var glob = GetOptionalString(invocation.Arguments, "glob");
@@ -307,7 +307,7 @@ public static class LocalAgentBuiltInToolFactory
             var parseResult = GlobPattern.TryParse(glob);
             if (!parseResult.Success)
             {
-                return Failure($"Invalid glob pattern '{glob}'.");
+                return Task.FromResult(Failure($"Invalid glob pattern '{glob}'."));
             }
 
             globPattern = parseResult.Pattern;
@@ -316,36 +316,48 @@ public static class LocalAgentBuiltInToolFactory
 
         var caseSensitive = GetOptionalBool(invocation.Arguments, "caseSensitive") ?? false;
         var maxMatches = Math.Clamp(GetOptionalInt(invocation.Arguments, "maxMatches") ?? options.MaxGrepMatches, 1, options.MaxGrepMatches);
-        var comparison = caseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
-        var matches = new List<string>(maxMatches);
-        var walkOptions = new FileTreeWalkOptions
+        Regex regex;
+        try
         {
-            CancellationToken = cancellationToken,
-            RepositoryContext = RepositoryDiscovery.TryDiscover(root, out var repositoryContext) ? repositoryContext : null,
-        };
+            regex = new Regex(
+                pattern,
+                RegexOptions.Compiled | RegexOptions.CultureInvariant | (caseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase),
+                matchTimeout: TimeSpan.FromSeconds(2));
+        }
+        catch (ArgumentException ex)
+        {
+            return Task.FromResult(Failure($"Invalid regular expression '{pattern}': {ex.Message}"));
+        }
 
-        foreach (var entry in FileTreeWalker.Enumerate(root, walkOptions))
+        var matches = new List<string>(maxMatches);
+
+        IEnumerable<FileTreeEntry>? entries = null;
+        if (Directory.Exists(targetPath))
+        {
+            var walkOptions = new FileTreeWalkOptions
+            {
+                CancellationToken = cancellationToken,
+                RepositoryContext = RepositoryDiscovery.TryDiscover(targetPath, out var repositoryContext) ? repositoryContext : null,
+            };
+            entries = FileTreeWalker.Enumerate(targetPath, walkOptions);
+        }
+
+        foreach (var file in EnumerateSearchFiles(targetPath, entries))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (entry.IsDirectory)
+            if (globPattern is not null && !GlobMatches(globPattern, file, useRelativePathGlob))
             {
                 continue;
             }
 
-            if (globPattern is not null && !GlobMatches(globPattern, entry, useRelativePathGlob))
+            if (IsImagePath(file.FullPath))
             {
                 continue;
             }
 
-            if (IsImagePath(entry.FullPath))
-            {
-                continue;
-            }
-
-            string[] lines;
             try
             {
-                lines = await File.ReadAllLinesAsync(entry.FullPath, cancellationToken).ConfigureAwait(false);
+                SearchFileLines(file.FullPath, file.DisplayPath, regex, maxMatches, matches, cancellationToken);
             }
             catch (IOException)
             {
@@ -355,26 +367,20 @@ public static class LocalAgentBuiltInToolFactory
             {
                 continue;
             }
-
-            for (var index = 0; index < lines.Length; index++)
+            catch (DecoderFallbackException)
             {
-                if (lines[index].IndexOf(pattern, comparison) < 0)
-                {
-                    continue;
-                }
+                continue;
+            }
 
-                matches.Add($"{entry.RelativePath}:{index + 1}: {lines[index]}");
-                if (matches.Count >= maxMatches)
-                {
-                    goto Done;
-                }
+            if (matches.Count >= maxMatches)
+            {
+                break;
             }
         }
 
-Done:
-        return new AgentToolResult(
+        return Task.FromResult(new AgentToolResult(
             true,
-            [new AgentToolResultItem.Text(matches.Count == 0 ? "(no matches)" : string.Join(Environment.NewLine, matches))]);
+            [new AgentToolResultItem.Text(matches.Count == 0 ? "(no matches)" : string.Join(Environment.NewLine, matches))]));
     }
 
     private static async Task<AgentToolResult> WebGetAsync(
@@ -688,6 +694,61 @@ Done:
             ? globPattern.IsMatch(entry.RelativePath)
             : globPattern.IsMatch(entry.Name);
 
+    private static bool GlobMatches(GlobPattern globPattern, SearchFileTarget entry, bool useRelativePath)
+        => useRelativePath
+            ? globPattern.IsMatch(entry.RelativePath)
+            : globPattern.IsMatch(entry.Name);
+
+    private static IEnumerable<SearchFileTarget> EnumerateSearchFiles(
+        string targetPath,
+        IEnumerable<FileTreeEntry>? directoryEntries)
+    {
+        if (File.Exists(targetPath))
+        {
+            var fileName = Path.GetFileName(targetPath);
+            yield return new SearchFileTarget(targetPath, fileName, fileName, fileName);
+            yield break;
+        }
+
+        foreach (var entry in directoryEntries ?? [])
+        {
+            if (entry.IsDirectory)
+            {
+                continue;
+            }
+
+            yield return new SearchFileTarget(entry.FullPath, entry.RelativePath, entry.RelativePath, entry.Name);
+        }
+    }
+
+    private static void SearchFileLines(
+        string fullPath,
+        string displayPath,
+        Regex regex,
+        int maxMatches,
+        List<string> matches,
+        CancellationToken cancellationToken)
+    {
+        using var reader = new StreamReader(fullPath);
+        string? line;
+        var lineNumber = 0;
+        while ((line = reader.ReadLine()) is not null)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lineNumber++;
+            if (!regex.IsMatch(line))
+            {
+                continue;
+            }
+
+            matches.Add($"{displayPath}:{lineNumber}: {line}");
+            if (matches.Count >= maxMatches)
+            {
+                break;
+            }
+        }
+    }
+
     private static ShellProcessSpec CreateShellProcessSpec(string command, string workdir, bool login)
     {
         if (OperatingSystem.IsWindows())
@@ -813,4 +874,6 @@ Done:
     }
 
     private sealed record ShellProcessSpec(ProcessStartInfo StartInfo);
+
+    private readonly record struct SearchFileTarget(string FullPath, string DisplayPath, string RelativePath, string Name);
 }
