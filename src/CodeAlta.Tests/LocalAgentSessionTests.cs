@@ -625,6 +625,125 @@ public sealed class LocalAgentSessionTests
     }
 
     [TestMethod]
+    public void LocalAgentCompactionSerializer_BuildSummaryRequestBody_EnforcesGlobalToolOutputCapAcrossManyOutputs()
+    {
+        var messagesToSummarize = new List<LocalAgentConversationMessage>();
+        foreach (var index in Enumerable.Range(1, 4))
+        {
+            messagesToSummarize.Add(
+                new LocalAgentConversationMessage(
+                    LocalAgentConversationRole.Assistant,
+                    [new LocalAgentMessagePart.ToolCall($"call-{index}", "shell_command", JsonSerializer.SerializeToElement(new { command = $"step {index}" }))]));
+            messagesToSummarize.Add(
+                new LocalAgentConversationMessage(
+                    LocalAgentConversationRole.Tool,
+                    [
+                        new LocalAgentMessagePart.ToolResult(
+                            $"call-{index}",
+                            new AgentToolResult(
+                                Success: index == 4,
+                                [new AgentToolResultItem.Text($"result {index}: " + new string((char)('a' + index), 240))],
+                                Error: index == 4 ? null : $"error {index}")),
+                    ]));
+        }
+
+        var preparation = new LocalAgentCompactionPreparation(
+            Trigger: LocalAgentCompactionTrigger.Threshold,
+            MessagesToSummarize: messagesToSummarize,
+            TurnPrefixMessages: [],
+            MessagesToKeep: [],
+            AnchorContentId: "user:latest",
+            IsSplitTurn: false,
+            TokensBefore: new LocalAgentTokenEstimate(3000, "test", IsEstimated: true),
+            PreviousSummary: null);
+
+        var result = LocalAgentCompactionSerializer.BuildSummaryRequestBody(
+            preparation,
+            latestUserRequest: "Continue",
+            readFiles: [],
+            modifiedFiles: [],
+            LocalAgentCompactionSettings.Default with
+            {
+                ToolResultCharsPerItem = 120,
+                ToolResultCharsTotal = 180,
+            });
+
+        Assert.IsTrue(result.Statistics.SerializedToolResultCharacters <= 180);
+        Assert.IsTrue(result.Statistics.OmittedToolResultCount >= 2);
+        StringAssert.Contains(result.UserMessage, "callId=call-4");
+    }
+
+    [TestMethod]
+    public void LocalAgentCompactionSerializer_BuildSummaryRequestBody_OmitsReasoningWhenBudgetIsExhausted()
+    {
+        var preparation = new LocalAgentCompactionPreparation(
+            Trigger: LocalAgentCompactionTrigger.Manual,
+            MessagesToSummarize:
+            [
+                new LocalAgentConversationMessage(
+                    LocalAgentConversationRole.Assistant,
+                    [
+                        new LocalAgentMessagePart.Reasoning("First long reasoning block " + new string('x', 300)),
+                    ]),
+                new LocalAgentConversationMessage(
+                    LocalAgentConversationRole.Assistant,
+                    [
+                        new LocalAgentMessagePart.Reasoning("Second long reasoning block " + new string('y', 300)),
+                    ]),
+            ],
+            TurnPrefixMessages: [],
+            MessagesToKeep: [],
+            AnchorContentId: null,
+            IsSplitTurn: false,
+            TokensBefore: new LocalAgentTokenEstimate(800, "test", IsEstimated: true),
+            PreviousSummary: null);
+
+        var result = LocalAgentCompactionSerializer.BuildSummaryRequestBody(
+            preparation,
+            latestUserRequest: "Continue",
+            readFiles: [],
+            modifiedFiles: [],
+            LocalAgentCompactionSettings.Default with
+            {
+                ReasoningCharsPerItem = 80,
+                ReasoningCharsTotal = 80,
+            });
+
+        Assert.IsTrue(result.Statistics.SerializedReasoningCharacters <= 80);
+        Assert.IsTrue(result.Statistics.OmittedReasoningCount >= 1);
+        StringAssert.Contains(result.UserMessage, "[Assistant reasoning summary]");
+    }
+
+    [TestMethod]
+    public void LocalAgentCompactionSerializer_BuildSummaryRequestBody_RendersModifiedFilesBeforeReadFiles()
+    {
+        var preparation = new LocalAgentCompactionPreparation(
+            Trigger: LocalAgentCompactionTrigger.Manual,
+            MessagesToSummarize:
+            [
+                new LocalAgentConversationMessage(LocalAgentConversationRole.User, [new LocalAgentMessagePart.Text("Continue")]),
+            ],
+            TurnPrefixMessages: [],
+            MessagesToKeep: [],
+            AnchorContentId: null,
+            IsSplitTurn: false,
+            TokensBefore: new LocalAgentTokenEstimate(100, "test", IsEstimated: true),
+            PreviousSummary: null);
+
+        var result = LocalAgentCompactionSerializer.BuildSummaryRequestBody(
+            preparation,
+            latestUserRequest: "Continue",
+            readFiles: ["C:\\repo\\older-read.cs", "C:\\repo\\recent-read.cs"],
+            modifiedFiles: ["C:\\repo\\recent-edit.cs"],
+            settings: LocalAgentCompactionSettings.Default);
+
+        var modifiedIndex = result.UserMessage.IndexOf("### Modified", StringComparison.Ordinal);
+        var readIndex = result.UserMessage.IndexOf("### Read", StringComparison.Ordinal);
+        Assert.IsTrue(modifiedIndex >= 0);
+        Assert.IsTrue(readIndex > modifiedIndex);
+    }
+
+    [TestMethod]
     public void LocalAgentCompactionPlanner_Preparation_UsesRecentSuffixTargetTokens()
     {
         var conversation = new[]
@@ -881,6 +1000,102 @@ public sealed class LocalAgentSessionTests
         Assert.IsNotNull(outcome);
         Assert.IsTrue(outcome.Success);
         CollectionAssert.AreEqual(new int?[] { 320 }, observedMaxOutputTokens);
+    }
+
+    [TestMethod]
+    public async Task LocalAgentSession_CompactAsync_ClampsSummaryOutputTokensToProviderLimit()
+    {
+        using var temp = TestTempDirectory.Create();
+        var store = new FileSystemLocalAgentSessionStore(new LocalAgentRuntimePathLayout(Path.Combine(temp.Path, "machine", "agents")));
+        var provider = CreateProvider(LocalAgentCompactionSettings.Default with
+        {
+            SummaryOutputTokens = 320,
+            ReservedOutputTokens = 64,
+            RecentSuffixTargetTokens = 160,
+        });
+        var summary = CreateSummary("session-summary-output-clamped");
+        var state = CreateState("session-summary-output-clamped");
+        await store.UpsertProviderAsync(provider).ConfigureAwait(false);
+        await store.UpsertSessionAsync(summary).ConfigureAwait(false);
+        await store.UpsertStateAsync(state).ConfigureAwait(false);
+
+        var observedMaxOutputTokens = new List<int?>();
+        await using var session = new LocalAgentSession(
+            AgentBackendIds.OpenAIResponses,
+            provider,
+            summary,
+            state,
+            [],
+            store,
+            new ScriptedTurnExecutor(
+                [
+                    new AgentModelInfo(
+                        "gpt-5.4",
+                        "GPT-5.4",
+                        Capabilities: new Dictionary<string, object?>(StringComparer.Ordinal)
+                        {
+                            ["contextWindow"] = 4096L,
+                            ["inputTokenLimit"] = 2048L,
+                            ["outputTokenLimit"] = 64L,
+                        }),
+                ],
+                (request, _, _) =>
+                {
+                    observedMaxOutputTokens.Add(request.MaxOutputTokens);
+                    return Task.FromResult(
+                        new LocalAgentTurnResponse
+                        {
+                            AssistantMessage = new LocalAgentConversationMessage(
+                                LocalAgentConversationRole.Assistant,
+                                [new LocalAgentMessagePart.Text(
+                                    """
+                                    ## Objective
+                                    Keep working.
+                                    ## Active User Request
+                                    Follow up.
+                                    ## Constraints
+                                    - Preserve behavior.
+                                    ## Progress
+                                    ### Done
+                                    - Captured state.
+                                    ### In Progress
+                                    - Compaction.
+                                    ### Blocked
+                                    - None recorded.
+                                    ## Decisions
+                                    - Clamp summary output to the provider limit.
+                                    ## Next Steps
+                                    - Continue.
+                                    ## Critical Context
+                                    - Keep the summary tight.
+                                    ## Relevant Files
+                                    - None tracked.
+                                    """)]),
+                        });
+                },
+                (_, _, _) => Task.FromResult(
+                    new LocalAgentTurnResponse
+                    {
+                        AssistantMessage = new LocalAgentConversationMessage(
+                            LocalAgentConversationRole.Assistant,
+                            [new LocalAgentMessagePart.Text("First answer " + new string('a', 160))]),
+                    }),
+                (_, _, _) => Task.FromResult(
+                    new LocalAgentTurnResponse
+                    {
+                        AssistantMessage = new LocalAgentConversationMessage(
+                            LocalAgentConversationRole.Assistant,
+                            [new LocalAgentMessagePart.Text("Second answer " + new string('b', 160))]),
+                    })),
+            CreateOptions(provider, temp.Path));
+
+        _ = await session.SendAsync(new AgentSendOptions { Input = AgentInput.Text("First prompt " + new string('x', 180)) }).ConfigureAwait(false);
+        _ = await session.SendAsync(new AgentSendOptions { Input = AgentInput.Text("Second prompt " + new string('y', 180)) }).ConfigureAwait(false);
+
+        var outcome = await ((IAgentCompactionOutcomeProvider)session).CompactWithOutcomeAsync().ConfigureAwait(false);
+        Assert.IsNotNull(outcome);
+        Assert.IsTrue(outcome.Success);
+        CollectionAssert.AreEqual(new int?[] { 64 }, observedMaxOutputTokens);
     }
 
     [TestMethod]
@@ -1263,6 +1478,64 @@ public sealed class LocalAgentSessionTests
             () => ((IAgentCompactionOutcomeProvider)session).CompactWithOutcomeAsync()).ConfigureAwait(false);
 
         Assert.AreEqual(1, summaryAttempts);
+        var persistedState = await store.GetStateAsync(provider.ProtocolFamily, provider.ProviderKey, summary.SessionId).ConfigureAwait(false);
+        Assert.IsNotNull(persistedState);
+        Assert.IsNull(persistedState.CompactionCheckpointEventId);
+    }
+
+    [TestMethod]
+    public async Task LocalAgentSession_CompactAsync_RejectsMalformedStructuredSummary()
+    {
+        using var temp = TestTempDirectory.Create();
+        var store = new FileSystemLocalAgentSessionStore(new LocalAgentRuntimePathLayout(Path.Combine(temp.Path, "machine", "agents")));
+        var provider = CreateProvider(LocalAgentCompactionSettings.Default with
+        {
+            RecentSuffixTargetTokens = 160,
+        });
+        var summary = CreateSummary("session-summary-malformed");
+        var state = CreateState("session-summary-malformed");
+        await store.UpsertProviderAsync(provider).ConfigureAwait(false);
+        await store.UpsertSessionAsync(summary).ConfigureAwait(false);
+        await store.UpsertStateAsync(state).ConfigureAwait(false);
+
+        await using var session = new LocalAgentSession(
+            AgentBackendIds.OpenAIResponses,
+            provider,
+            summary,
+            state,
+            [],
+            store,
+            new ScriptedTurnExecutor(
+                [new AgentModelInfo("gpt-5.4", "GPT-5.4")],
+                (_, _, _) => Task.FromResult(
+                    new LocalAgentTurnResponse
+                    {
+                        AssistantMessage = new LocalAgentConversationMessage(
+                            LocalAgentConversationRole.Assistant,
+                            [new LocalAgentMessagePart.Text("## Objective\nThis summary is malformed because required sections are missing.")]),
+                    }),
+                (_, _, _) => Task.FromResult(
+                    new LocalAgentTurnResponse
+                    {
+                        AssistantMessage = new LocalAgentConversationMessage(
+                            LocalAgentConversationRole.Assistant,
+                            [new LocalAgentMessagePart.Text("First answer " + new string('a', 160))]),
+                    }),
+                (_, _, _) => Task.FromResult(
+                    new LocalAgentTurnResponse
+                    {
+                        AssistantMessage = new LocalAgentConversationMessage(
+                            LocalAgentConversationRole.Assistant,
+                            [new LocalAgentMessagePart.Text("Second answer " + new string('b', 160))]),
+                    })),
+            CreateOptions(provider, temp.Path));
+
+        _ = await session.SendAsync(new AgentSendOptions { Input = AgentInput.Text("First prompt " + new string('x', 180)) }).ConfigureAwait(false);
+        _ = await session.SendAsync(new AgentSendOptions { Input = AgentInput.Text("Second prompt " + new string('y', 180)) }).ConfigureAwait(false);
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => ((IAgentCompactionOutcomeProvider)session).CompactWithOutcomeAsync()).ConfigureAwait(false);
+
         var persistedState = await store.GetStateAsync(provider.ProtocolFamily, provider.ProviderKey, summary.SessionId).ConfigureAwait(false);
         Assert.IsNotNull(persistedState);
         Assert.IsNull(persistedState.CompactionCheckpointEventId);

@@ -96,7 +96,7 @@ internal static class LocalAgentCompactionSerializer
         AddRankedMessages(rankedMessages, preparation.TurnPrefixMessages, SectionRank.RetainedPrefix, ref recency);
         AddRankedMessages(rankedMessages, preparation.MessagesToKeep, SectionRank.RetainedSuffix, ref recency);
 
-        foreach (var rankedMessage in rankedMessages.OrderByDescending(static item => item.Priority).ThenByDescending(static item => item.Recency))
+        foreach (var rankedMessage in OrderRankedMessages(rankedMessages, state.Settings))
         {
             for (var partIndex = 0; partIndex < rankedMessage.Message.Parts.Count; partIndex++)
             {
@@ -126,6 +126,27 @@ internal static class LocalAgentCompactionSerializer
         {
             target.Add(new RankedMessage(message, ComputePriority(message, sectionRank), recency++));
         }
+    }
+
+    private static IOrderedEnumerable<RankedMessage> OrderRankedMessages(
+        IEnumerable<RankedMessage> rankedMessages,
+        LocalAgentCompactionSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(rankedMessages);
+        ArgumentNullException.ThrowIfNull(settings);
+
+        var ordered = rankedMessages.OrderByDescending(static item => item.Priority);
+        if (settings.PreferRecentToolOutputs)
+        {
+            ordered = ordered.ThenByDescending(static item => item.ContainsToolResult ? item.Recency : int.MinValue);
+        }
+
+        if (settings.PreferRecentMessages)
+        {
+            ordered = ordered.ThenByDescending(static item => item.Recency);
+        }
+
+        return ordered;
     }
 
     private static int ComputePriority(LocalAgentConversationMessage message, SectionRank sectionRank)
@@ -493,19 +514,19 @@ internal static class LocalAgentCompactionSerializer
         }
 
         var builder = new StringBuilder();
-        if (readFiles.Count > 0)
+        if (modifiedFiles.Count > 0)
         {
-            builder.AppendLine("### Read");
-            foreach (var path in readFiles)
+            builder.AppendLine("### Modified");
+            foreach (var path in modifiedFiles)
             {
                 builder.Append("- ").AppendLine(path);
             }
         }
 
-        if (modifiedFiles.Count > 0)
+        if (readFiles.Count > 0)
         {
-            builder.AppendLine("### Modified");
-            foreach (var path in modifiedFiles)
+            builder.AppendLine("### Read");
+            foreach (var path in readFiles)
             {
                 builder.Append("- ").AppendLine(path);
             }
@@ -597,7 +618,10 @@ internal static class LocalAgentCompactionSerializer
                 ReducedOversizedAnchor);
     }
 
-    private readonly record struct RankedMessage(LocalAgentConversationMessage Message, int Priority, int Recency);
+    private readonly record struct RankedMessage(LocalAgentConversationMessage Message, int Priority, int Recency)
+    {
+        public bool ContainsToolResult => Message.Parts.Any(static part => part is LocalAgentMessagePart.ToolResult);
+    }
 
     private enum SectionRank
     {

@@ -206,7 +206,7 @@ internal sealed class LocalAgentCompactionSummarizer(ILocalAgentCompactionSummar
             TokensBefore: preparation.TokensBefore.Tokens,
             TokensAfter: null,
             MessagesSummarized: preparation.MessagesToSummarize.Count,
-            ChunkCount: Math.Max(1 + additionalSummaryCallCount, 1),
+            ChunkCount: 1,
             CompressionRatio: null,
             SerializerStatistics: serialization.Statistics,
             ReadFiles: fileActivity.ReadFiles,
@@ -322,7 +322,7 @@ internal sealed class LocalAgentCompactionSummarizer(ILocalAgentCompactionSummar
             ? throw new InvalidOperationException("Chunked compaction did not produce a final summary.")
             : finalResult with
             {
-                ChunkCount = Math.Max(totalChunkCount + additionalSummaryCallCount, chunks.Count + additionalSummaryCallCount),
+                ChunkCount = Math.Max(totalChunkCount, chunks.Count),
                 SerializerStatistics = aggregatedStatistics,
             };
     }
@@ -549,24 +549,30 @@ internal sealed class LocalAgentCompactionSummarizer(ILocalAgentCompactionSummar
 
     private static FileActivity ExtractFileActivity(IReadOnlyList<AgentEvent> history)
     {
-        var readFiles = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
-        var modifiedFiles = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        var readFiles = new List<string>();
+        var modifiedFiles = new List<string>();
+        var seenReadFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seenModifiedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var activity in history.OfType<AgentActivityEvent>())
+        foreach (var activity in history.OfType<AgentActivityEvent>().Reverse())
         {
             if (activity.Kind is not AgentActivityKind.ToolCall || activity.Details is not { } details)
             {
                 continue;
             }
 
-            AddPaths(details, "readFiles", readFiles);
-            AddPaths(details, "modifiedFiles", modifiedFiles);
+            AddPaths(details, "modifiedFiles", modifiedFiles, seenModifiedFiles);
+            AddPaths(details, "readFiles", readFiles, seenReadFiles);
         }
 
-        return new FileActivity([.. readFiles], [.. modifiedFiles]);
+        return new FileActivity(readFiles, modifiedFiles);
     }
 
-    private static void AddPaths(JsonElement details, string propertyName, ISet<string> target)
+    private static void AddPaths(
+        JsonElement details,
+        string propertyName,
+        ICollection<string> target,
+        ISet<string> seenPaths)
     {
         if (!details.TryGetProperty(propertyName, out var property) || property.ValueKind is not JsonValueKind.Array)
         {
@@ -576,7 +582,7 @@ internal sealed class LocalAgentCompactionSummarizer(ILocalAgentCompactionSummar
         foreach (var item in property.EnumerateArray())
         {
             var path = item.GetString();
-            if (!string.IsNullOrWhiteSpace(path))
+            if (!string.IsNullOrWhiteSpace(path) && seenPaths.Add(path))
             {
                 target.Add(path);
             }

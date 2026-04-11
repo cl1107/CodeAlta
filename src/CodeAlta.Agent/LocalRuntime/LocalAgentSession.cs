@@ -945,10 +945,13 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
         var desired = settings.SummaryOutputTokens > 0
             ? settings.SummaryOutputTokens
             : LocalAgentCompactionSettings.Default.SummaryOutputTokens;
-        var limit = budget.OutputTokenLimit is > 0
-            ? Math.Min(budget.OutputTokenLimit.Value, desired)
+        var reservedCap = settings.ReservedOutputTokens > 0
+            ? Math.Min(desired, settings.ReservedOutputTokens)
             : desired;
-        return (int)Math.Max(Math.Min(limit, Math.Max(settings.ReservedOutputTokens, 128)), 128);
+        var providerCap = budget.OutputTokenLimit is > 0
+            ? Math.Min(reservedCap, (int)budget.OutputTokenLimit.Value)
+            : reservedCap;
+        return Math.Max(providerCap, 1);
     }
 
     private static bool FitsResolvedPromptBudget(long promptTokens, LocalAgentTokenBudget budget)
@@ -1269,15 +1272,34 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
                 ? path
                 : Path.Combine(workingDirectory ?? Environment.CurrentDirectory, path));
 
-        var readFiles = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
-        var modifiedFiles = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        var readFiles = new List<string>();
+        var modifiedFiles = new List<string>();
+        var seenReadFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seenModifiedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        void AddReadFile(string path)
+        {
+            if (seenReadFiles.Add(path))
+            {
+                readFiles.Add(path);
+            }
+        }
+
+        void AddModifiedFile(string path)
+        {
+            if (seenModifiedFiles.Add(path))
+            {
+                modifiedFiles.Add(path);
+            }
+        }
+
         switch (toolCall.Name)
         {
             case "read_file":
             case "view_image":
                 if (GetPath(toolCall.Arguments, "path") is { Length: > 0 } readPath)
                 {
-                    readFiles.Add(Resolve(readPath));
+                    AddReadFile(Resolve(readPath));
                 }
 
                 break;
@@ -1287,7 +1309,7 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
                     var resolvedGrepPath = Resolve(grepPath);
                     if (File.Exists(resolvedGrepPath))
                     {
-                        readFiles.Add(resolvedGrepPath);
+                        AddReadFile(resolvedGrepPath);
                     }
                 }
 
@@ -1299,14 +1321,14 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
                 {
                     foreach (var path in LocalAgentApplyPatch.GetTouchedPaths(patchInput.GetString()!, workingDirectory ?? Environment.CurrentDirectory))
                     {
-                        modifiedFiles.Add(path);
+                        AddModifiedFile(path);
                     }
                 }
 
                 break;
         }
 
-        return new ToolFileActivity([.. readFiles], [.. modifiedFiles]);
+        return new ToolFileActivity(readFiles, modifiedFiles);
     }
 
     private static List<LocalAgentConversationMessage> ReplayConversation(
