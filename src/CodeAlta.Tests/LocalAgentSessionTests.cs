@@ -41,6 +41,8 @@ public sealed class LocalAgentSessionTests
         Assert.IsNotNull(bundle.DeveloperInstructions);
         StringAssert.Contains(bundle.DeveloperInstructions, "developer guidance");
         StringAssert.Contains(bundle.RuntimeContext, $"Current date: {DateTimeOffset.Now:yyyy-MM-dd}");
+        StringAssert.Contains(bundle.RuntimeContext, "Platform: Windows");
+        StringAssert.Contains(bundle.RuntimeContext, "Default shell for `shell_command`: `pwsh`");
         StringAssert.Contains(bundle.RuntimeContext, $"Current working directory: `{Path.GetFullPath(workingDirectory)}`");
         StringAssert.Contains(bundle.RuntimeContext, $"Project root: `{Path.GetFullPath(projectRoot)}`");
         StringAssert.Contains(bundle.DeveloperInstructions, repoClaude);
@@ -80,6 +82,8 @@ public sealed class LocalAgentSessionTests
                     Assert.AreEqual(LocalAgentConversationRole.User, request.Conversation[0].Role);
                     Assert.IsNotNull(request.DeveloperInstructions);
                     StringAssert.Contains(request.DeveloperInstructions, $"Current date: {DateTimeOffset.Now:yyyy-MM-dd}");
+                    StringAssert.Contains(request.DeveloperInstructions, "Platform: Windows");
+                    StringAssert.Contains(request.DeveloperInstructions, "Default shell for `shell_command`: `pwsh`");
                     StringAssert.Contains(request.DeveloperInstructions, $"Current working directory: `{Path.GetFullPath(temp.Path)}`");
                     await onUpdate(
                             new LocalAgentTurnDelta

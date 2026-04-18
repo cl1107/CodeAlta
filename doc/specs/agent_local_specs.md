@@ -229,7 +229,7 @@ Inputs may include:
 
 - system instructions
 - developer instructions
-- explicit runtime context such as current date, current working directory, and project roots
+- explicit runtime context such as current date, platform/shell, current working directory, and project roots
 - user input
 - project instructions
 - the largest matching local instruction file per directory among `AGENTS.md`, `CLAUDE.md`, and `.github/copilot-instructions.md`

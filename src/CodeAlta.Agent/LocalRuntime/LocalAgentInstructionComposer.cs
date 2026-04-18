@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -48,6 +49,8 @@ internal static class LocalAgentInstructionComposer
         var lines = new List<string>
         {
             $"Current date: {DateTimeOffset.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}",
+            $"Platform: {GetPlatformLabel()}",
+            $"Default shell for `shell_command`: `{GetDefaultShellLabel()}`",
         };
 
         var normalizedWorkingDirectory = NormalizePath(workingDirectory);
@@ -139,6 +142,39 @@ internal static class LocalAgentInstructionComposer
         }
 
         return Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+    }
+
+    private static string GetPlatformLabel()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return "Windows";
+        }
+
+        if (OperatingSystem.IsMacOS())
+        {
+            return "macOS";
+        }
+
+        if (OperatingSystem.IsLinux())
+        {
+            return "Linux";
+        }
+
+        return RuntimeInformation.OSDescription.Trim();
+    }
+
+    private static string GetDefaultShellLabel()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return "pwsh";
+        }
+
+        var shell = Environment.GetEnvironmentVariable("SHELL");
+        return string.IsNullOrWhiteSpace(shell)
+            ? "/bin/sh"
+            : shell.Trim();
     }
 
     private static string ComputeHash(string? systemMessage, string? developerInstructions, string? runtimeContext)
