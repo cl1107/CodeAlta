@@ -902,7 +902,9 @@ public static class LocalAgentBuiltInToolFactory
 
     private static int? GetOptionalInt(JsonElement element, string propertyName)
     {
-        return element.TryGetProperty(propertyName, out var property) && property.TryGetInt32(out var value)
+        return element.TryGetProperty(propertyName, out var property) &&
+               property.ValueKind == JsonValueKind.Number &&
+               property.TryGetInt32(out var value)
             ? value
             : null;
     }

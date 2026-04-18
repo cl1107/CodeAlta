@@ -284,6 +284,42 @@ public sealed class LocalAgentToolsTests
     }
 
     [TestMethod]
+    public async Task ShellCommandTool_TreatsNullOptionalArgumentsAsMissing()
+    {
+        using var temp = TestTempDirectory.Create();
+        var tools = LocalAgentBuiltInToolFactory.CreateDefaultTools(CreateOptions(temp.Path));
+        var tool = tools.Single(static tool => tool.Spec.Name == "shell_command");
+        var command = OperatingSystem.IsWindows()
+            ? "Write-Output 'null option handling'"
+            : "printf 'null option handling\\n'";
+        using var args = JsonDocument.Parse(
+            $$"""
+            {
+              "command": {{JsonSerializer.Serialize(command)}},
+              "workdir": null,
+              "timeoutMs": null,
+              "login": null
+            }
+            """);
+
+        var result = await tool.Handler(
+                new AgentToolInvocation(
+                    AgentBackendIds.OpenAIResponses,
+                    "session-1",
+                    "tool-1",
+                    tool.Spec.Name,
+                    args.RootElement.Clone()),
+                CancellationToken.None)
+            .ConfigureAwait(false);
+
+        Assert.IsTrue(result.Success);
+        var output = Assert.IsInstanceOfType<AgentToolResultItem.Text>(result.Items.Single()).Value;
+        StringAssert.Contains(output, "exit_code: 0");
+        StringAssert.Contains(output, "null option handling");
+        StringAssert.Contains(output, temp.Path);
+    }
+
+    [TestMethod]
     public async Task ShellCommandTool_RespectsDeniedPermissionDecision()
     {
         using var temp = TestTempDirectory.Create();
