@@ -4,7 +4,7 @@
     <CentralPackageTransitivePinningEnabled>false</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="Anthropic" Version="12.13.0" />
+    <PackageVersion Include="Anthropic" Version="12.16.0" />
     <PackageVersion Include="GitHub.Copilot.SDK" Version="0.2.2" />
     <PackageVersion Include="LLamaSharp" Version="0.26.0" />
     <PackageVersion Include="LLamaSharp.Backend.Cpu" Version="0.26.0" />
@@ -14,7 +14,7 @@
     <PackageVersion Include="Markdig" Version="1.1.2" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.3.0" />
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.5" />
-    <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.4.1" />
+    <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.5.0" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.4" />
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.4" />
     <PackageVersion Include="ModelContextProtocol" Version="1.1.0" />
@@ -29,8 +29,8 @@
     <PackageVersion Include="XenoAtom.Logging" Version="1.1.2" />
     <PackageVersion Include="XenoAtom.Logging.Terminal" Version="1.1.2" />
     <PackageVersion Include="XenoAtom.Glob" Version="1.0.0" />
-    <PackageVersion Include="XenoAtom.Terminal.UI" Version="2.8.0" />
-    <PackageVersion Include="XenoAtom.Terminal.UI.Extensions.Markdown" Version="2.8.0" />
-    <PackageVersion Include="XenoAtom.Terminal.UI.Extensions.Screenshot" Version="2.8.0" />
+    <PackageVersion Include="XenoAtom.Terminal.UI" Version="2.8.1" />
+    <PackageVersion Include="XenoAtom.Terminal.UI.Extensions.Markdown" Version="2.8.1" />
+    <PackageVersion Include="XenoAtom.Terminal.UI.Extensions.Screenshot" Version="2.8.1" />
   </ItemGroup>
 </Project>
