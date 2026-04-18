@@ -102,13 +102,20 @@ Do not encode provider aliases into backend ids.
 
 Configured providers are loaded from `~/.codealta/config.toml` through `CodeAlta.Catalog.CodeAltaConfigStore`, under:
 
-- `[raw_api.openai.providers.<provider-key>]`
-- `[raw_api.anthropic.providers.<provider-key>]`
-- `[raw_api.google_genai.providers.<provider-key>]`
+- `[providers.<provider-key>]`
+
+Each configured entry describes one endpoint registration. Key fields include:
+
+- `provider = "openai" | "anthropic" | "google_genai"`
+- `wire_api` for providers that expose multiple wire formats, such as OpenAI-compatible `chat` vs `responses`
+- shared endpoint/auth fields such as `display_name`, `api_key`, `api_key_env`, and `base_uri`
+- provider-specific fields such as `organization_id`, `project_id`, `use_vertex_ai`, `project`, and `location`
+
+Legacy sections under `[raw_api.providers.*]`, `[raw_api.openai.providers.*]`, `[raw_api.anthropic.providers.*]`, and `[raw_api.google_genai.providers.*]` remain readable for backward compatibility, but new configuration should use the unified `providers.*` layout.
 
 Runtime registration is conditional:
 
-- OpenAI-compatible providers require a resolved API key and may enable `openai-responses`, `openai-chat`, or both
+- OpenAI-compatible providers require a resolved API key and map to either `openai-responses` or `openai-chat` based on `wire_api`
 - Anthropic providers require a resolved API key
 - Google GenAI providers require either an API key or a valid Vertex configuration with `use_vertex_ai = true`, `project`, and `location`
 
@@ -222,9 +229,10 @@ Inputs may include:
 
 - system instructions
 - developer instructions
+- explicit runtime context such as current date, current working directory, and project roots
 - user input
 - project instructions
-- `AGENTS.md`
+- the largest matching local instruction file per directory among `AGENTS.md`, `CLAUDE.md`, and `.github/copilot-instructions.md`
 - thread-level templates
 
 If a provider does not support the `developer` role, the adapter deterministically folds that content into the supported instruction surface.

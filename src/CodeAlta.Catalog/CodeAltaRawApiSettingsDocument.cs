@@ -14,6 +14,12 @@ public sealed class CodeAltaRawApiSettingsDocument
     public CodeAltaRawApiCompactionDocument? Compaction { get; set; }
 
     /// <summary>
+    /// Gets or sets unified raw-API provider definitions keyed by stable provider key.
+    /// </summary>
+    [JsonPropertyName("providers")]
+    public Dictionary<string, CodeAltaRawApiProviderDocument> Providers { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
     /// Gets or sets OpenAI-compatible provider settings.
     /// </summary>
     [JsonPropertyName("openai")]
@@ -321,6 +327,126 @@ public sealed class CodeAltaRawApiModelOverrideDocument
 }
 
 /// <summary>
+/// Represents one configured raw-API provider endpoint.
+/// </summary>
+public sealed class CodeAltaRawApiProviderDocument
+{
+    /// <summary>
+    /// Gets or sets the normalized provider key.
+    /// </summary>
+    [JsonIgnore]
+    public string ProviderKey { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets whether the provider registration is enabled.
+    /// </summary>
+    [JsonPropertyName("enabled")]
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets the user-facing provider display name.
+    /// </summary>
+    [JsonPropertyName("display_name")]
+    public string? DisplayName { get; set; }
+
+    /// <summary>
+    /// Gets or sets the raw provider family, such as openai, anthropic, or google_genai.
+    /// </summary>
+    [JsonPropertyName("provider")]
+    public string? Provider { get; set; }
+
+    /// <summary>
+    /// Gets or sets the wire API used by the endpoint.
+    /// </summary>
+    [JsonPropertyName("wire_api")]
+    public string? WireApi { get; set; }
+
+    /// <summary>
+    /// Gets or sets the API key literal when configured directly.
+    /// </summary>
+    [JsonPropertyName("api_key")]
+    public string? ApiKey { get; set; }
+
+    /// <summary>
+    /// Gets or sets the environment variable used to resolve the API key.
+    /// </summary>
+    [JsonPropertyName("api_key_env")]
+    public string? ApiKeyEnv { get; set; }
+
+    /// <summary>
+    /// Gets or sets the base endpoint override.
+    /// </summary>
+    [JsonPropertyName("base_uri")]
+    public string? BaseUri { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether this provider is the backend default.
+    /// </summary>
+    [JsonPropertyName("is_default")]
+    public bool IsDefault { get; set; }
+
+    /// <summary>
+    /// Gets or sets the optional OpenAI organization id.
+    /// </summary>
+    [JsonPropertyName("organization_id")]
+    public string? OrganizationId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the optional OpenAI project id.
+    /// </summary>
+    [JsonPropertyName("project_id")]
+    public string? ProjectId { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether the provider should use Vertex AI.
+    /// </summary>
+    [JsonPropertyName("use_vertex_ai")]
+    public bool UseVertexAI { get; set; }
+
+    /// <summary>
+    /// Gets or sets the Google Cloud project for Vertex AI.
+    /// </summary>
+    [JsonPropertyName("project")]
+    public string? Project { get; set; }
+
+    /// <summary>
+    /// Gets or sets the Google Cloud location for Vertex AI.
+    /// </summary>
+    [JsonPropertyName("location")]
+    public string? Location { get; set; }
+
+    /// <summary>
+    /// Gets or sets the optional models.dev provider identifier used to enrich model metadata.
+    /// </summary>
+    [JsonPropertyName("models_dev_provider_id")]
+    public string? ModelsDevProviderId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the optional fixed model identifier for single-model endpoints.
+    /// </summary>
+    [JsonPropertyName("single_model_id")]
+    public string? SingleModelId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the optional compatibility-profile override.
+    /// </summary>
+    [JsonPropertyName("profile")]
+    public CodeAltaRawApiProviderProfileDocument? Profile { get; set; }
+
+    /// <summary>
+    /// Gets or sets the optional compaction override.
+    /// </summary>
+    [JsonPropertyName("compaction")]
+    public CodeAltaRawApiCompactionDocument? Compaction { get; set; }
+
+    /// <summary>
+    /// Gets or sets optional per-model metadata overrides.
+    /// </summary>
+    [JsonPropertyName("model_overrides")]
+    public Dictionary<string, CodeAltaRawApiModelOverrideDocument>? ModelOverrides { get; set; }
+}
+
+/// <summary>
 /// Represents one configured OpenAI-compatible provider.
 /// </summary>
 public sealed class CodeAltaOpenAIProviderDocument
@@ -378,6 +504,12 @@ public sealed class CodeAltaOpenAIProviderDocument
     /// </summary>
     [JsonPropertyName("models_dev_provider_id")]
     public string? ModelsDevProviderId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the optional fixed model identifier for single-model endpoints.
+    /// </summary>
+    [JsonPropertyName("single_model_id")]
+    public string? SingleModelId { get; set; }
 
     /// <summary>
     /// Gets or sets whether the Responses backend is enabled for this provider.

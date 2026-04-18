@@ -20,6 +20,12 @@ public sealed class CodeAltaConfigDocument
     public CodeAltaAcpSettingsDocument Acp { get; set; } = new();
 
     /// <summary>
+    /// Gets or sets unified raw-API provider endpoint configuration keyed by provider key.
+    /// </summary>
+    [JsonPropertyName("providers")]
+    public Dictionary<string, CodeAltaRawApiProviderDocument> Providers { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
     /// Gets or sets raw-API provider configuration.
     /// </summary>
     [JsonPropertyName("raw_api")]

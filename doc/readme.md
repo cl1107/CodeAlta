@@ -156,36 +156,56 @@ CodeAlta can host local agent runtimes backed by raw provider SDKs:
 - `Anthropic Messages`
 - `Google GenAI`
 
-These backends are configured from `~/.codealta/config.toml` under `raw_api.*.providers.*`. OpenAI-compatible providers can enable the Responses backend, the Chat backend, or both. Each provider can optionally map to a models.dev provider id and override individual model limits so context usage stays consistent even when the upstream SDK does not expose context-window metadata.
+These backends are configured from `~/.codealta/config.toml` under `providers.<provider-key>`. Each entry represents one endpoint registration plus one wire API. For example, OpenAI-compatible endpoints use `provider = "openai"` and can set `wire_api = "chat"` or `wire_api = "responses"`; when omitted, OpenAI defaults to `chat`. Anthropic and Google GenAI use provider-specific defaults, so `wire_api` can usually be omitted there. Each provider can optionally map to a models.dev provider id and override individual model limits so context usage stays consistent even when the upstream SDK does not expose context-window metadata. Legacy sections under `raw_api.providers.*`, `raw_api.openai.providers.*`, `raw_api.anthropic.providers.*`, and `raw_api.google_genai.providers.*` are still accepted for backward compatibility.
 
 Example:
 
 ```toml
-[raw_api.openai.providers.openai]
+[providers.openai_chat]
 display_name = "OpenAI"
+provider = "openai"
 api_key_env = "OPENAI_API_KEY"
 models_dev_provider_id = "openai"
-default_responses = true
-default_chat = true
+is_default = true
 
-[raw_api.openai.providers.openai.model_overrides.gpt-5]
+[providers.openai_chat.model_overrides.gpt-5]
 context_window = 400000
 output_token_limit = 128000
 
-[raw_api.anthropic.providers.anthropic]
+[providers.openai_responses]
+display_name = "OpenAI Responses"
+provider = "openai"
+api_key_env = "OPENAI_API_KEY"
+wire_api = "responses"
+base_uri = "https://api.openai.com/v1"
+
+[providers.minimax]
+display_name = "MiniMax 2.7"
+provider = "openai"
+api_key_env = "MINIMAX_API_KEY"
+base_uri = "https://api.minimax.io/v1"
+wire_api = "chat"
+single_model_id = "MiniMax-M2.7"
+is_default = true
+
+[providers.anthropic]
 display_name = "Anthropic"
+provider = "anthropic"
 api_key_env = "ANTHROPIC_API_KEY"
 models_dev_provider_id = "anthropic"
 is_default = true
 
-[raw_api.google_genai.providers.vertex]
+[providers.vertex]
 display_name = "Vertex"
+provider = "google_genai"
 use_vertex_ai = true
 project = "my-gcp-project"
 location = "europe-west4"
 models_dev_provider_id = "google"
 is_default = true
 ```
+
+Model discovery still comes from the upstream provider API when supported. `model_overrides` enriches or corrects discovered model metadata, while `single_model_id` can pin a provider to one fixed model for single-model endpoints. When an OpenAI-compatible endpoint does not implement `/models`, CodeAlta can also fall back to the local `models.dev` catalog if the provider key or `models_dev_provider_id` maps to a known catalog provider such as `minimax`.
 
 The bundled snapshot lives in `src/CodeAlta.Agent/Data/models_dev_db.json`. To refresh it manually, run:
 

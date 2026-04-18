@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -10,6 +11,7 @@ internal static class LocalAgentInstructionComposer
         ArgumentNullException.ThrowIfNull(options);
 
         var systemMessage = Normalize(options.SystemMessage);
+        var runtimeContext = BuildRuntimeContextSection(options.WorkingDirectory, options.ProjectRoots);
         var developerSections = new List<string>();
         if (!string.IsNullOrWhiteSpace(options.DeveloperInstructions))
         {
@@ -34,17 +36,53 @@ internal static class LocalAgentInstructionComposer
         var developerInstructions = developerSections.Count == 0
             ? null
             : string.Join(Environment.NewLine + Environment.NewLine, developerSections);
-        var hash = ComputeHash(systemMessage, developerInstructions);
-        return new LocalAgentInstructionBundle(systemMessage, developerInstructions, hash);
+        var hash = ComputeHash(systemMessage, developerInstructions, runtimeContext);
+        return new LocalAgentInstructionBundle(systemMessage, developerInstructions, runtimeContext, hash);
     }
 
     private static string? Normalize(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
+    private static string BuildRuntimeContextSection(string? workingDirectory, IReadOnlyList<string> projectRoots)
+    {
+        var lines = new List<string>
+        {
+            $"Current date: {DateTimeOffset.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}",
+        };
+
+        var normalizedWorkingDirectory = NormalizePath(workingDirectory);
+        if (normalizedWorkingDirectory is not null)
+        {
+            lines.Add($"Current working directory: `{normalizedWorkingDirectory}`");
+        }
+
+        var normalizedProjectRoots = projectRoots
+            .Select(NormalizePath)
+            .Where(static path => path is not null)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Cast<string>()
+            .ToArray();
+        if (normalizedProjectRoots.Length > 0)
+        {
+            lines.Add(
+                normalizedProjectRoots.Length == 1
+                    ? $"Project root: `{normalizedProjectRoots[0]}`"
+                    : $"Project roots: {string.Join(", ", normalizedProjectRoots.Select(static root => $"`{root}`"))}");
+        }
+
+        return string.Join(Environment.NewLine, lines);
+    }
+
     private static IReadOnlyList<string> EnumerateAgentInstructionFiles(string? workingDirectory, IReadOnlyList<string> projectRoots)
     {
         var files = new List<string>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var candidateRelativePaths = new[]
+        {
+            "AGENTS.md",
+            "CLAUDE.md",
+            Path.Combine(".github", "copilot-instructions.md"),
+        };
 
         void AddWalk(string? root)
         {
@@ -70,10 +108,16 @@ internal static class LocalAgentInstructionComposer
             while (stack.Count > 0)
             {
                 var directory = stack.Pop();
-                var file = Path.Combine(directory, "AGENTS.md");
-                if (File.Exists(file) && seen.Add(file))
+                var selectedFile = candidateRelativePaths
+                    .Select(relativePath => Path.Combine(directory, relativePath))
+                    .Where(File.Exists)
+                    .Select(path => new FileInfo(path))
+                    .OrderByDescending(static file => file.Length)
+                    .ThenBy(static file => file.FullName, StringComparer.OrdinalIgnoreCase)
+                    .FirstOrDefault();
+                if (selectedFile is not null && seen.Add(selectedFile.FullName))
                 {
-                    files.Add(file);
+                    files.Add(selectedFile.FullName);
                 }
             }
         }
@@ -87,9 +131,19 @@ internal static class LocalAgentInstructionComposer
         return files;
     }
 
-    private static string ComputeHash(string? systemMessage, string? developerInstructions)
+    private static string? NormalizePath(string? path)
     {
-        var payload = $"{systemMessage ?? string.Empty}\n---\n{developerInstructions ?? string.Empty}";
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return null;
+        }
+
+        return Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+    }
+
+    private static string ComputeHash(string? systemMessage, string? developerInstructions, string? runtimeContext)
+    {
+        var payload = $"{systemMessage ?? string.Empty}\n---\n{developerInstructions ?? string.Empty}\n---\n{runtimeContext ?? string.Empty}";
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(payload));
         return Convert.ToHexString(bytes);
     }
@@ -98,4 +152,5 @@ internal static class LocalAgentInstructionComposer
 internal sealed record LocalAgentInstructionBundle(
     string? SystemMessage,
     string? DeveloperInstructions,
+    string RuntimeContext,
     string InstructionHash);

@@ -4,11 +4,13 @@ using CodeAlta.CodexSdk;
 using CodeAlta.Models;
 using CodeAlta.Orchestration.Runtime;
 using CodeAlta.Presentation.Chat;
+using XenoAtom.Logging;
 
 namespace CodeAlta.App;
 
 internal sealed class ChatBackendInitializationCoordinator
 {
+    private static readonly Logger Logger = LogManager.GetLogger("CodeAlta.App.ChatBackendInitialization");
     private readonly AgentHub _agentHub;
     private readonly IReadOnlyList<AgentBackendDescriptor> _backendDescriptors;
     private readonly Dictionary<string, ChatBackendState> _chatBackendStates;
@@ -86,6 +88,7 @@ internal sealed class ChatBackendInitializationCoordinator
     private async Task RefreshAsync(AgentBackendId backendId, CancellationToken cancellationToken)
     {
         var state = _chatBackendStates[backendId.Value];
+        LogInfo($"Refreshing chat backend backend={backendId.Value} displayName={state.DisplayName}");
         _dispatchToUi(
             () =>
             {
@@ -111,12 +114,17 @@ internal sealed class ChatBackendInitializationCoordinator
                         state.SelectedReasoningEffort);
                     state.Availability = ChatBackendAvailability.Ready;
                     state.StatusMessage = ChatBackendPresentation.BuildReadyStatusMessage(state);
+                    LogInfo(
+                        $"Chat backend ready backend={backendId.Value} displayName={state.DisplayName} models={models.Count} status={state.StatusMessage}");
                     _refreshHeaderAndThreadWorkspace();
                 });
         }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
             var (availability, statusMessage) = ClassifyFailure(state, ex);
+            LogWarn(
+                ex,
+                $"Chat backend initialization failed backend={backendId.Value} displayName={state.DisplayName} classifiedAvailability={availability} status={statusMessage}");
             _dispatchToUi(
                 () =>
                 {
@@ -146,5 +154,21 @@ internal sealed class ChatBackendInitializationCoordinator
                     state.StatusMessage = progress.Message;
                     _refreshHeaderAndThreadWorkspace();
                 }));
+    }
+
+    private static void LogInfo(string message)
+    {
+        if (LogManager.IsInitialized && Logger.IsEnabled(LogLevel.Info))
+        {
+            Logger.Info(message);
+        }
+    }
+
+    private static void LogWarn(Exception exception, string message)
+    {
+        if (LogManager.IsInitialized && Logger.IsEnabled(LogLevel.Warn))
+        {
+            Logger.Warn(exception, message);
+        }
     }
 }

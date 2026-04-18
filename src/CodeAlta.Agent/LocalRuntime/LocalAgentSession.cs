@@ -163,6 +163,9 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
             var allTools = BuildAvailableTools();
             var modelInfo = await ResolveModelInfoAsync(linkedCts.Token).ConfigureAwait(false);
             var toolMap = LocalAgentToolBridge.CreateDefinitionMap(allTools);
+            var requestDeveloperInstructions = CombineDeveloperInstructions(
+                instructionBundle.DeveloperInstructions,
+                instructionBundle.RuntimeContext);
 
             while (true)
             {
@@ -187,7 +190,7 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
                 var turnRequest = CreateTurnRequest(
                     runId,
                     instructionBundle.SystemMessage,
-                    instructionBundle.DeveloperInstructions,
+                    requestDeveloperInstructions,
                     modelInfo,
                     allTools);
                 var response = await ExecuteTurnWithOverflowRecoveryAsync(
@@ -461,6 +464,15 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
             ? [.. builtIns, .. _options.Tools]
             : builtIns;
     }
+
+    private static string CombineDeveloperInstructions(string? developerInstructions, string runtimeContext)
+        => string.IsNullOrWhiteSpace(developerInstructions)
+            ? runtimeContext
+            : $"""
+               {developerInstructions.Trim()}
+
+               {runtimeContext}
+               """;
 
     private LocalAgentTurnRequest CreateTurnRequest(
         AgentRunId runId,

@@ -1,4 +1,5 @@
 using CodeAlta.Agent.ModelCatalog;
+using XenoAtom.Logging;
 
 namespace CodeAlta.Agent.LocalRuntime;
 
@@ -7,6 +8,7 @@ namespace CodeAlta.Agent.LocalRuntime;
 /// </summary>
 public sealed class LocalAgentBackend : IAgentBackend
 {
+    private static readonly Logger Logger = LogManager.GetLogger("CodeAlta.Agent.LocalRuntime");
     private readonly LocalAgentBackendOptions _options;
     private readonly ILocalAgentSessionStore _store;
     private readonly IReadOnlyDictionary<string, LocalAgentBackendProviderRegistration> _providersByKey;
@@ -86,15 +88,39 @@ public sealed class LocalAgentBackend : IAgentBackend
         foreach (var provider in _options.Providers)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var models = await provider.TurnExecutor.ListModelsAsync(provider.Provider, cancellationToken).ConfigureAwait(false);
+            LogInfo(
+                $"Listing models backend={BackendId.Value} provider={provider.Provider.ProviderKey} displayName={provider.Provider.DisplayName} protocol={provider.Provider.ProtocolFamily} baseUri={FormatUri(provider.Provider.BaseUri)}");
+
+            IReadOnlyList<AgentModelInfo> models;
+            try
+            {
+                models = await provider.TurnExecutor.ListModelsAsync(provider.Provider, cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                LogWarn(
+                    ex,
+                    $"Failed to list models backend={BackendId.Value} provider={provider.Provider.ProviderKey} displayName={provider.Provider.DisplayName} protocol={provider.Provider.ProtocolFamily} baseUri={FormatUri(provider.Provider.BaseUri)}");
+                throw;
+            }
+
+            LogInfo(
+                $"Listed models backend={BackendId.Value} provider={provider.Provider.ProviderKey} displayName={provider.Provider.DisplayName} count={models.Count}");
             results.AddRange(models);
         }
 
-        return results
+        var mergedModels = results
             .GroupBy(static model => model.Id, StringComparer.OrdinalIgnoreCase)
             .Select(static group => group.First())
             .OrderBy(static model => model.DisplayName ?? model.Id, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+
+        LogInfo($"Backend model catalog ready backend={BackendId.Value} providers={_options.Providers.Count} models={mergedModels.Length}");
+        return mergedModels;
     }
 
     /// <inheritdoc />
@@ -393,5 +419,24 @@ public sealed class LocalAgentBackend : IAgentBackend
             summary.ProtocolFamily,
             summary.ProviderKey,
             summary.ModelId);
+    }
+
+    private static string FormatUri(Uri? uri)
+        => uri?.ToString() ?? "<default>";
+
+    private static void LogInfo(string message)
+    {
+        if (LogManager.IsInitialized && Logger.IsEnabled(LogLevel.Info))
+        {
+            Logger.Info(message);
+        }
+    }
+
+    private static void LogWarn(Exception exception, string message)
+    {
+        if (LogManager.IsInitialized && Logger.IsEnabled(LogLevel.Warn))
+        {
+            Logger.Warn(exception, message);
+        }
     }
 }

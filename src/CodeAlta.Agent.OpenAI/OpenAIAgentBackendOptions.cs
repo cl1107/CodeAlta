@@ -90,6 +90,11 @@ public sealed class OpenAIProviderOptions
     public string? ModelsDevProviderId { get; set; }
 
     /// <summary>
+    /// Gets or sets the optional fixed model identifier to expose when the provider endpoint serves a single model.
+    /// </summary>
+    public string? SingleModelId { get; set; }
+
+    /// <summary>
     /// Gets or sets per-model metadata overrides.
     /// </summary>
     public IReadOnlyDictionary<string, AgentModelOverride>? ModelOverrides { get; set; }

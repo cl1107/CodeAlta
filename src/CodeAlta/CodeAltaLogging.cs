@@ -45,8 +45,9 @@ internal static class CodeAltaLogging
             }
         };
 
-        config.RootLogger.MinimumLevel = LogLevel.Error;
+        config.RootLogger.MinimumLevel = LogLevel.Warn;
         config.RootLogger.Writers.Add(new FileLogWriter(fileWriterOptions));
+        config.Loggers.Add("CodeAlta", LogLevel.Info);
         config.Loggers.Add(CodexAgentLoggerName, LogLevel.Debug);
         return config;
     }

@@ -72,6 +72,7 @@ internal sealed class ChatAgentConnection : IAsyncDisposable
             _connectedBackendId is { } existingBackendId &&
             string.Equals(existingBackendId.Value, backendId.Value, StringComparison.OrdinalIgnoreCase))
         {
+            LogInfo($"Restarting chat connection agentId={existingAgentId.Value} backend={backendId.Value} model={model ?? "<default>"} reasoning={reasoningEffort?.ToString() ?? "<default>"}");
             LogDebug($"Restarting existing chat session agentId={existingAgentId.Value} backend={backendId.Value}");
             _eventSubscription?.Dispose();
             _eventSubscription = null;
@@ -82,6 +83,7 @@ internal sealed class ChatAgentConnection : IAsyncDisposable
         {
             if (_connectedAgentId is { } previousAgentId)
             {
+                LogInfo($"Switching chat connection from agentId={previousAgentId.Value} backend={_connectedBackendId?.Value ?? "<none>"} to backend={backendId.Value}");
                 LogDebug($"Stopping previous chat session agentId={previousAgentId.Value}");
                 _eventSubscription?.Dispose();
                 _eventSubscription = null;
@@ -117,6 +119,7 @@ internal sealed class ChatAgentConnection : IAsyncDisposable
                     },
                     cancellationToken)
                 .ConfigureAwait(false);
+            LogInfo($"Started chat session agentId={agentId.Value} backend={backendId.Value} model={model ?? "<default>"} reasoning={reasoningEffort?.ToString() ?? "<default>"}");
             LogDebug($"Started chat session agentId={agentId.Value} backend={backendId.Value}");
 
             newSubscription = await _agentHub.SubscribeSessionEventsAsync(
@@ -138,6 +141,7 @@ internal sealed class ChatAgentConnection : IAsyncDisposable
         _connectedBackendId = backendId;
         _connectedModel = model;
         _connectedReasoningEffort = reasoningEffort;
+        LogInfo($"Chat connection ready agentId={agentId.Value} backend={backendId.Value} model={model ?? "<default>"} reasoning={reasoningEffort?.ToString() ?? "<default>"}");
         LogDebug($"Chat connection ready agentId={agentId.Value} backend={backendId.Value}");
         return agentId;
     }
@@ -173,6 +177,14 @@ internal sealed class ChatAgentConnection : IAsyncDisposable
         if (LogManager.IsInitialized && Logger.IsEnabled(LogLevel.Debug))
         {
             Logger.Debug(message);
+        }
+    }
+
+    private static void LogInfo(string message)
+    {
+        if (LogManager.IsInitialized && Logger.IsEnabled(LogLevel.Info))
+        {
+            Logger.Info(message);
         }
     }
 }

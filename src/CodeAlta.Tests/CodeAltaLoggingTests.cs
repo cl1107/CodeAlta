@@ -1,5 +1,5 @@
-using XenoAtom.Logging.Writers;
 using XenoAtom.Logging;
+using XenoAtom.Logging.Writers;
 
 namespace CodeAlta.Tests;
 
@@ -30,14 +30,82 @@ public sealed class CodeAltaLoggingTests
         Assert.AreEqual(FileLogWriterFailureMode.Ignore, options.FailureMode);
     }
 
-    [TestMethod]
-    public void CreateConfig_OnlyLogsErrorsByDefault()
+    [TestInitialize]
+    public void Initialize()
     {
-        var homeRoot = Path.Combine(Path.GetTempPath(), ".codealta-test-home");
+        LogManager.Shutdown();
+    }
 
-        var config = CodeAltaLogging.CreateConfig(homeRoot);
+    [TestCleanup]
+    public void Cleanup()
+    {
+        LogManager.Shutdown();
+    }
 
-        Assert.AreEqual(LogLevel.Error, config.RootLogger.MinimumLevel);
-        Assert.AreEqual(LogLevel.Debug, config.GetLoggerConfig(CodeAltaLogging.CodexAgentLoggerName).MinimumLevel);
+    [TestMethod]
+    public void CreateConfig_LogsCodeAltaInfoAndOtherWarnings()
+    {
+        using var temp = TempDirectory.Create();
+        Directory.CreateDirectory(Path.Combine(temp.Path, "logs"));
+
+        var writer = new CaptureLogWriter();
+        var config = CodeAltaLogging.CreateConfig(temp.Path);
+        config.RootLogger.Writers.Add(writer);
+
+        LogManager.InitializeForAsync(config);
+
+        LogManager.GetLogger("CodeAlta.ChatAgentConnection").Info("codealta-info");
+        LogManager.GetLogger("External.Component").Info("external-info");
+        LogManager.GetLogger("External.Component").Warn("external-warn");
+        LogManager.GetLogger(CodeAltaLogging.CodexAgentLoggerName).Debug("codex-debug");
+
+        LogManager.Shutdown();
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "Info|CodeAlta.ChatAgentConnection|codealta-info",
+                "Warn|External.Component|external-warn",
+                $"Debug|{CodeAltaLogging.CodexAgentLoggerName}|codex-debug",
+            },
+            writer.Messages.ToArray());
+    }
+
+    private sealed class CaptureLogWriter : LogWriter
+    {
+        private readonly object _gate = new();
+
+        public List<string> Messages { get; } = [];
+
+        protected override void Log(LogMessage logMessage)
+        {
+            lock (_gate)
+            {
+                Messages.Add($"{logMessage.Level}|{logMessage.Logger.Name}|{logMessage.Text.ToString()}");
+            }
+        }
+    }
+
+    private sealed class TempDirectory(string path) : IDisposable
+    {
+        public string Path { get; } = path;
+
+        public static TempDirectory Create()
+        {
+            var path = System.IO.Path.Combine(
+                AppContext.BaseDirectory,
+                "codealta-logging-tests",
+                Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(path);
+            return new TempDirectory(path);
+        }
+
+        public void Dispose()
+        {
+            if (Directory.Exists(Path))
+            {
+                Directory.Delete(Path, recursive: true);
+            }
+        }
     }
 }

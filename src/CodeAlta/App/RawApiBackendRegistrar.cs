@@ -6,11 +6,14 @@ using CodeAlta.Agent.LocalRuntime.Compaction;
 using CodeAlta.Agent.ModelCatalog;
 using CodeAlta.Agent.OpenAI;
 using CodeAlta.Catalog;
+using XenoAtom.Logging;
 
 namespace CodeAlta.App;
 
 internal static class RawApiBackendRegistrar
 {
+    private static readonly Logger Logger = LogManager.GetLogger("CodeAlta.RawApi");
+
     public static IReadOnlyList<AgentBackendDescriptor> RegisterConfiguredBackends(
         AgentBackendFactory backendFactory,
         CodeAltaConfigStore configStore,
@@ -49,6 +52,8 @@ internal static class RawApiBackendRegistrar
             var apiKey = ResolveSecret(definition.ApiKey, definition.ApiKeyEnv);
             if (string.IsNullOrWhiteSpace(apiKey))
             {
+                LogInfo(
+                    $"Skipping raw-API provider backend=<openai> provider={definition.ProviderKey} displayName={FormatDisplayName(definition.DisplayName)} reason=missing-credentials");
                 continue;
             }
 
@@ -56,6 +61,8 @@ internal static class RawApiBackendRegistrar
 
             if (definition.EnableResponses)
             {
+                LogInfo(
+                    $"Configuring raw-API provider backend={AgentBackendIds.OpenAIResponses.Value} provider={definition.ProviderKey} displayName={FormatDisplayName(definition.DisplayName)} baseUri={FormatUri(baseUri)} default={definition.DefaultResponses}");
                 responseOptions.Providers.Add(new OpenAIProviderOptions
                 {
                     ProviderKey = definition.ProviderKey,
@@ -67,7 +74,12 @@ internal static class RawApiBackendRegistrar
                     IsDefault = definition.DefaultResponses,
                     Profile = CreateOpenAIResponsesProfile(definition.Profile),
                     Compaction = CreateCompactionSettings(definition.Compaction),
-                    ModelsDevProviderId = ResolveModelsDevProviderId(definition.ModelsDevProviderId, "openai"),
+                    ModelsDevProviderId = ResolveModelsDevProviderId(
+                        definition.ModelsDevProviderId,
+                        definition.ProviderKey,
+                        "openai",
+                        modelCatalog),
+                    SingleModelId = NormalizeText(definition.SingleModelId),
                     ModelOverrides = CreateModelOverrides(definition.ModelOverrides),
                     ModelCatalog = modelCatalog,
                 });
@@ -75,6 +87,8 @@ internal static class RawApiBackendRegistrar
 
             if (definition.EnableChat)
             {
+                LogInfo(
+                    $"Configuring raw-API provider backend={AgentBackendIds.OpenAIChat.Value} provider={definition.ProviderKey} displayName={FormatDisplayName(definition.DisplayName)} baseUri={FormatUri(baseUri)} default={definition.DefaultChat}");
                 chatOptions.Providers.Add(new OpenAIProviderOptions
                 {
                     ProviderKey = definition.ProviderKey,
@@ -86,7 +100,12 @@ internal static class RawApiBackendRegistrar
                     IsDefault = definition.DefaultChat,
                     Profile = CreateOpenAIChatProfile(definition.Profile),
                     Compaction = CreateCompactionSettings(definition.Compaction),
-                    ModelsDevProviderId = ResolveModelsDevProviderId(definition.ModelsDevProviderId, "openai"),
+                    ModelsDevProviderId = ResolveModelsDevProviderId(
+                        definition.ModelsDevProviderId,
+                        definition.ProviderKey,
+                        "openai",
+                        modelCatalog),
+                    SingleModelId = NormalizeText(definition.SingleModelId),
                     ModelOverrides = CreateModelOverrides(definition.ModelOverrides),
                     ModelCatalog = modelCatalog,
                 });
@@ -96,13 +115,19 @@ internal static class RawApiBackendRegistrar
         if (responseOptions.Providers.Count > 0)
         {
             backendFactory.RegisterOpenAIResponses(responseOptions);
-            descriptors.Add(new AgentBackendDescriptor(AgentBackendIds.OpenAIResponses, "OpenAI Responses"));
+            var displayName = ResolveBackendDisplayName("OpenAI Responses", responseOptions.Providers.Select(static provider => provider.DisplayName));
+            descriptors.Add(new AgentBackendDescriptor(AgentBackendIds.OpenAIResponses, displayName));
+            LogInfo(
+                $"Registered raw-API backend backend={AgentBackendIds.OpenAIResponses.Value} displayName={displayName} providers={responseOptions.Providers.Count}");
         }
 
         if (chatOptions.Providers.Count > 0)
         {
             backendFactory.RegisterOpenAIChat(chatOptions);
-            descriptors.Add(new AgentBackendDescriptor(AgentBackendIds.OpenAIChat, "OpenAI Chat"));
+            var displayName = ResolveBackendDisplayName("OpenAI Chat", chatOptions.Providers.Select(static provider => provider.DisplayName));
+            descriptors.Add(new AgentBackendDescriptor(AgentBackendIds.OpenAIChat, displayName));
+            LogInfo(
+                $"Registered raw-API backend backend={AgentBackendIds.OpenAIChat.Value} displayName={displayName} providers={chatOptions.Providers.Count}");
         }
     }
 
@@ -123,9 +148,13 @@ internal static class RawApiBackendRegistrar
             var apiKey = ResolveSecret(definition.ApiKey, definition.ApiKeyEnv);
             if (string.IsNullOrWhiteSpace(apiKey))
             {
+                LogInfo(
+                    $"Skipping raw-API provider backend=<anthropic> provider={definition.ProviderKey} displayName={FormatDisplayName(definition.DisplayName)} reason=missing-credentials");
                 continue;
             }
 
+            LogInfo(
+                $"Configuring raw-API provider backend={AgentBackendIds.AnthropicMessages.Value} provider={definition.ProviderKey} displayName={FormatDisplayName(definition.DisplayName)} baseUri={FormatUri(ParseUri(definition.BaseUri))} default={definition.IsDefault}");
             options.Providers.Add(new AnthropicProviderOptions
             {
                 ProviderKey = definition.ProviderKey,
@@ -135,7 +164,11 @@ internal static class RawApiBackendRegistrar
                 IsDefault = definition.IsDefault,
                 Profile = CreateAnthropicProfile(definition.Profile),
                 Compaction = CreateCompactionSettings(definition.Compaction),
-                ModelsDevProviderId = ResolveModelsDevProviderId(definition.ModelsDevProviderId, "anthropic"),
+                ModelsDevProviderId = ResolveModelsDevProviderId(
+                    definition.ModelsDevProviderId,
+                    definition.ProviderKey,
+                    "anthropic",
+                    modelCatalog),
                 ModelOverrides = CreateModelOverrides(definition.ModelOverrides),
                 ModelCatalog = modelCatalog,
             });
@@ -147,7 +180,10 @@ internal static class RawApiBackendRegistrar
         }
 
         backendFactory.RegisterAnthropic(options);
-        descriptors.Add(new AgentBackendDescriptor(AgentBackendIds.AnthropicMessages, "Anthropic Messages"));
+        var displayName = ResolveBackendDisplayName("Anthropic Messages", options.Providers.Select(static provider => provider.DisplayName));
+        descriptors.Add(new AgentBackendDescriptor(AgentBackendIds.AnthropicMessages, displayName));
+        LogInfo(
+            $"Registered raw-API backend backend={AgentBackendIds.AnthropicMessages.Value} displayName={displayName} providers={options.Providers.Count}");
     }
 
     private static void RegisterGoogleGenAIBackend(
@@ -167,15 +203,21 @@ internal static class RawApiBackendRegistrar
             var apiKey = ResolveSecret(definition.ApiKey, definition.ApiKeyEnv);
             if (!definition.UseVertexAI && string.IsNullOrWhiteSpace(apiKey))
             {
+                LogInfo(
+                    $"Skipping raw-API provider backend=<google-genai> provider={definition.ProviderKey} displayName={FormatDisplayName(definition.DisplayName)} reason=missing-credentials");
                 continue;
             }
 
             if (definition.UseVertexAI &&
                 (string.IsNullOrWhiteSpace(definition.Project) || string.IsNullOrWhiteSpace(definition.Location)))
             {
+                LogInfo(
+                    $"Skipping raw-API provider backend=<google-genai> provider={definition.ProviderKey} displayName={FormatDisplayName(definition.DisplayName)} reason=incomplete-vertex-settings");
                 continue;
             }
 
+            LogInfo(
+                $"Configuring raw-API provider backend={AgentBackendIds.GoogleGenAI.Value} provider={definition.ProviderKey} displayName={FormatDisplayName(definition.DisplayName)} baseUri={FormatUri(ParseUri(definition.BaseUri))} default={definition.IsDefault} vertex={definition.UseVertexAI}");
             options.Providers.Add(new GoogleGenAIProviderOptions
             {
                 ProviderKey = definition.ProviderKey,
@@ -188,7 +230,11 @@ internal static class RawApiBackendRegistrar
                 IsDefault = definition.IsDefault,
                 Profile = CreateGoogleGenAIProfile(definition.Profile),
                 Compaction = CreateCompactionSettings(definition.Compaction),
-                ModelsDevProviderId = ResolveModelsDevProviderId(definition.ModelsDevProviderId, "google"),
+                ModelsDevProviderId = ResolveModelsDevProviderId(
+                    definition.ModelsDevProviderId,
+                    definition.ProviderKey,
+                    "google",
+                    modelCatalog),
                 ModelOverrides = CreateModelOverrides(definition.ModelOverrides),
                 ModelCatalog = modelCatalog,
             });
@@ -200,7 +246,10 @@ internal static class RawApiBackendRegistrar
         }
 
         backendFactory.RegisterGoogleGenAI(options);
-        descriptors.Add(new AgentBackendDescriptor(AgentBackendIds.GoogleGenAI, "Google GenAI"));
+        var displayName = ResolveBackendDisplayName("Google GenAI", options.Providers.Select(static provider => provider.DisplayName));
+        descriptors.Add(new AgentBackendDescriptor(AgentBackendIds.GoogleGenAI, displayName));
+        LogInfo(
+            $"Registered raw-API backend backend={AgentBackendIds.GoogleGenAI.Value} displayName={displayName} providers={options.Providers.Count}");
     }
 
     private static string? ResolveSecret(string? literal, string? environmentVariableName)
@@ -324,8 +373,41 @@ internal static class RawApiBackendRegistrar
     private static string? NormalizeText(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
-    private static string ResolveModelsDevProviderId(string? configuredProviderId, string defaultProviderId)
-        => NormalizeText(configuredProviderId)?.ToLowerInvariant() ?? defaultProviderId;
+    private static string ResolveModelsDevProviderId(
+        string? configuredProviderId,
+        string providerKey,
+        string defaultProviderId,
+        ModelsDevCatalogService? modelCatalog)
+    {
+        var configured = NormalizeText(configuredProviderId)?.ToLowerInvariant();
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            return configured;
+        }
+
+        var normalizedProviderKey = NormalizeText(providerKey)?.ToLowerInvariant();
+        if (!string.IsNullOrWhiteSpace(normalizedProviderKey) &&
+            modelCatalog?.TryGetProvider(normalizedProviderKey, out _) == true)
+        {
+            return normalizedProviderKey;
+        }
+
+        return defaultProviderId;
+    }
+
+    private static string ResolveBackendDisplayName(string fallbackDisplayName, IEnumerable<string?> providerDisplayNames)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(fallbackDisplayName);
+        ArgumentNullException.ThrowIfNull(providerDisplayNames);
+
+        var distinctDisplayNames = providerDisplayNames
+            .Select(NormalizeText)
+            .Where(static displayName => !string.IsNullOrWhiteSpace(displayName))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return distinctDisplayNames.Length == 1 ? distinctDisplayNames[0]! : fallbackDisplayName.Trim();
+    }
 
     private static IReadOnlyDictionary<string, AgentModelOverride>? CreateModelOverrides(
         Dictionary<string, CodeAltaRawApiModelOverrideDocument>? overrides)
@@ -390,4 +472,18 @@ internal static class RawApiBackendRegistrar
             "summary_only" => LocalAgentCompactionReasoningMode.SummaryOnly,
             _ => LocalAgentCompactionReasoningMode.Adaptive,
         };
+
+    private static string FormatDisplayName(string? displayName)
+        => NormalizeText(displayName) ?? "<none>";
+
+    private static string FormatUri(Uri? uri)
+        => uri?.ToString() ?? "<default>";
+
+    private static void LogInfo(string message)
+    {
+        if (LogManager.IsInitialized && Logger.IsEnabled(LogLevel.Info))
+        {
+            Logger.Info(message);
+        }
+    }
 }

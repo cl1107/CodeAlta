@@ -7,11 +7,14 @@ using OpenAI;
 using OpenAI.Chat;
 using OpenAI.Models;
 using OpenAI.Responses;
+using XenoAtom.Logging;
 
 namespace CodeAlta.Agent.OpenAI;
 
 internal static class OpenAIProviderSdkFactory
 {
+    private static readonly Logger Logger = LogManager.GetLogger("CodeAlta.Agent.OpenAI");
+
     public static OpenAIClient CreateClient(OpenAIProviderOptions provider)
         => new(CreateCredential(provider), CreateClientOptions(provider));
 
@@ -33,35 +36,58 @@ internal static class OpenAIProviderSdkFactory
         LocalAgentProviderDescriptor providerDescriptor,
         CancellationToken cancellationToken)
     {
-        IReadOnlyList<AgentModelInfo> models;
-        if (provider.ModelListAsync is not null)
-        {
-            models = await provider.ModelListAsync(cancellationToken).ConfigureAwait(false);
-            return AgentModelMetadataEnricher.EnrichModels(
-                models,
-                provider.ModelCatalog,
-                provider.ModelsDevProviderId,
-                provider.ModelOverrides);
-        }
-
-        var client = CreateModelClient(provider);
-        var collection = await client.GetModelsAsync(cancellationToken).ConfigureAwait(false);
-        models = collection.Value
-            .Select(model => new AgentModelInfo(
-                model.Id,
-                DisplayName: model.Id,
-                Provider: providerDescriptor.ProviderKey,
-                Capabilities: new Dictionary<string, object?>(StringComparer.Ordinal)
-                {
-                    ["createdAt"] = model.CreatedAt,
-                    ["ownedBy"] = model.OwnedBy,
-                }))
-            .ToArray();
+        var models = await ListModelsCoreAsync(provider, providerDescriptor, cancellationToken).ConfigureAwait(false);
         return AgentModelMetadataEnricher.EnrichModels(
             models,
             provider.ModelCatalog,
             provider.ModelsDevProviderId,
             provider.ModelOverrides);
+    }
+
+    private static async Task<IReadOnlyList<AgentModelInfo>> ListModelsCoreAsync(
+        OpenAIProviderOptions provider,
+        LocalAgentProviderDescriptor providerDescriptor,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(provider.SingleModelId))
+            {
+                LogInfo(
+                    $"Using configured single-model catalog backend={providerDescriptor.BackendId.Value} provider={providerDescriptor.ProviderKey} displayName={providerDescriptor.DisplayName} model={provider.SingleModelId.Trim()}");
+                return
+                [
+                    CreateSingleModelInfo(provider.SingleModelId, providerDescriptor),
+                ];
+            }
+
+            if (provider.ModelListAsync is not null)
+            {
+                return await provider.ModelListAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            var client = CreateModelClient(provider);
+            var collection = await client.GetModelsAsync(cancellationToken).ConfigureAwait(false);
+            return collection.Value
+                .Select(model => new AgentModelInfo(
+                    model.Id,
+                    DisplayName: model.Id,
+                    Provider: providerDescriptor.ProviderKey,
+                    Capabilities: new Dictionary<string, object?>(StringComparer.Ordinal)
+                    {
+                        ["createdAt"] = model.CreatedAt,
+                        ["ownedBy"] = model.OwnedBy,
+                    }))
+                .ToArray();
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex) when (TryListModelsFromCatalog(provider, providerDescriptor, ex, out var models))
+        {
+            return models;
+        }
     }
 
     private static ApiKeyCredential CreateCredential(OpenAIProviderOptions provider)
@@ -74,4 +100,102 @@ internal static class OpenAIProviderSdkFactory
             OrganizationId = provider.OrganizationId,
             ProjectId = provider.ProjectId,
         };
+
+    private static bool TryListModelsFromCatalog(
+        OpenAIProviderOptions provider,
+        LocalAgentProviderDescriptor providerDescriptor,
+        Exception exception,
+        out IReadOnlyList<AgentModelInfo> models)
+    {
+        models = [];
+
+        if (provider.ModelCatalog is null ||
+            string.IsNullOrWhiteSpace(provider.ModelsDevProviderId) ||
+            !ShouldUseCatalogFallback(provider, exception) ||
+            provider.ModelCatalog.TryGetProvider(provider.ModelsDevProviderId, out var modelsDevProvider) is not true)
+        {
+            return false;
+        }
+
+        var catalogModels = modelsDevProvider.Models.Values
+            .Where(static model => !string.IsNullOrWhiteSpace(model.Id))
+            .GroupBy(static model => model.Id!, StringComparer.OrdinalIgnoreCase)
+            .Select(group =>
+            {
+                var model = group.First();
+                return new AgentModelInfo(
+                    model.Id!.Trim(),
+                    DisplayName: model.Name,
+                    Provider: providerDescriptor.ProviderKey);
+            })
+            .OrderBy(static model => model.DisplayName ?? model.Id, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (catalogModels.Length == 0)
+        {
+            return false;
+        }
+
+        LogWarn(
+            exception,
+            $"Remote model discovery failed; falling back to models.dev catalog backend={providerDescriptor.BackendId.Value} provider={providerDescriptor.ProviderKey} displayName={providerDescriptor.DisplayName} modelsDevProviderId={provider.ModelsDevProviderId}");
+        LogInfo(
+            $"Using models.dev fallback catalog backend={providerDescriptor.BackendId.Value} provider={providerDescriptor.ProviderKey} displayName={providerDescriptor.DisplayName} modelsDevProviderId={provider.ModelsDevProviderId} models={catalogModels.Length}");
+        models = catalogModels;
+        return true;
+    }
+
+    private static bool ShouldUseCatalogFallback(OpenAIProviderOptions provider, Exception exception)
+    {
+        if (string.Equals(provider.ModelsDevProviderId, "openai", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return TryGetStatusCode(exception, out var statusCode) && statusCode == 404;
+    }
+
+    private static bool TryGetStatusCode(Exception exception, out int statusCode)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+
+        if (exception is ClientResultException clientResultException)
+        {
+            statusCode = clientResultException.Status;
+            return true;
+        }
+
+        statusCode = 0;
+        return false;
+    }
+
+    private static AgentModelInfo CreateSingleModelInfo(
+        string modelId,
+        LocalAgentProviderDescriptor providerDescriptor)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(modelId);
+        ArgumentNullException.ThrowIfNull(providerDescriptor);
+
+        var trimmedModelId = modelId.Trim();
+        return new AgentModelInfo(
+            trimmedModelId,
+            DisplayName: trimmedModelId,
+            Provider: providerDescriptor.ProviderKey);
+    }
+
+    private static void LogInfo(string message)
+    {
+        if (LogManager.IsInitialized && Logger.IsEnabled(LogLevel.Info))
+        {
+            Logger.Info(message);
+        }
+    }
+
+    private static void LogWarn(Exception exception, string message)
+    {
+        if (LogManager.IsInitialized && Logger.IsEnabled(LogLevel.Warn))
+        {
+            Logger.Warn(exception, message);
+        }
+    }
 }

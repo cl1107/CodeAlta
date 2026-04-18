@@ -9,15 +9,22 @@ namespace CodeAlta.Tests;
 public sealed class LocalAgentSessionTests
 {
     [TestMethod]
-    public void LocalAgentInstructionComposer_ComposesDeveloperInstructionsAndAgentFiles()
+    public void LocalAgentInstructionComposer_ComposesDeveloperInstructionsAndLargestContextFilesPerDirectory()
     {
         using var temp = TestTempDirectory.Create();
         var repoRoot = Path.Combine(temp.Path, "repo");
         var projectRoot = Path.Combine(repoRoot, "src", "Project");
         var workingDirectory = Path.Combine(projectRoot, "Nested");
         Directory.CreateDirectory(workingDirectory);
-        File.WriteAllText(Path.Combine(repoRoot, "AGENTS.md"), "root instructions");
-        File.WriteAllText(Path.Combine(projectRoot, "AGENTS.md"), "project instructions");
+        Directory.CreateDirectory(Path.Combine(projectRoot, ".github"));
+        var repoAgents = Path.Combine(repoRoot, "AGENTS.md");
+        var repoClaude = Path.Combine(repoRoot, "CLAUDE.md");
+        var projectAgents = Path.Combine(projectRoot, "AGENTS.md");
+        var projectCopilot = Path.Combine(projectRoot, ".github", "copilot-instructions.md");
+        File.WriteAllText(repoAgents, "root");
+        File.WriteAllText(repoClaude, "root claude instructions are longer");
+        File.WriteAllText(projectAgents, "project agents");
+        File.WriteAllText(projectCopilot, "project copilot instructions are much longer than agents");
 
         var bundle = LocalAgentInstructionComposer.Compose(
             new AgentSessionCreateOptions
@@ -33,10 +40,15 @@ public sealed class LocalAgentSessionTests
         Assert.AreEqual("system guidance", bundle.SystemMessage);
         Assert.IsNotNull(bundle.DeveloperInstructions);
         StringAssert.Contains(bundle.DeveloperInstructions, "developer guidance");
-        StringAssert.Contains(bundle.DeveloperInstructions, Path.Combine(repoRoot, "AGENTS.md"));
-        StringAssert.Contains(bundle.DeveloperInstructions, "root instructions");
-        StringAssert.Contains(bundle.DeveloperInstructions, Path.Combine(projectRoot, "AGENTS.md"));
-        StringAssert.Contains(bundle.DeveloperInstructions, "project instructions");
+        StringAssert.Contains(bundle.RuntimeContext, $"Current date: {DateTimeOffset.Now:yyyy-MM-dd}");
+        StringAssert.Contains(bundle.RuntimeContext, $"Current working directory: `{Path.GetFullPath(workingDirectory)}`");
+        StringAssert.Contains(bundle.RuntimeContext, $"Project root: `{Path.GetFullPath(projectRoot)}`");
+        StringAssert.Contains(bundle.DeveloperInstructions, repoClaude);
+        StringAssert.Contains(bundle.DeveloperInstructions, "root claude instructions are longer");
+        Assert.IsFalse(bundle.DeveloperInstructions.Contains(repoAgents, StringComparison.Ordinal));
+        StringAssert.Contains(bundle.DeveloperInstructions, projectCopilot);
+        StringAssert.Contains(bundle.DeveloperInstructions, "project copilot instructions are much longer than agents");
+        Assert.IsFalse(bundle.DeveloperInstructions.Contains(projectAgents, StringComparison.Ordinal));
         Assert.AreEqual(64, bundle.InstructionHash.Length);
     }
 
@@ -66,6 +78,9 @@ public sealed class LocalAgentSessionTests
                 {
                     Assert.AreEqual(1, request.Conversation.Count);
                     Assert.AreEqual(LocalAgentConversationRole.User, request.Conversation[0].Role);
+                    Assert.IsNotNull(request.DeveloperInstructions);
+                    StringAssert.Contains(request.DeveloperInstructions, $"Current date: {DateTimeOffset.Now:yyyy-MM-dd}");
+                    StringAssert.Contains(request.DeveloperInstructions, $"Current working directory: `{Path.GetFullPath(temp.Path)}`");
                     await onUpdate(
                             new LocalAgentTurnDelta
                             {
