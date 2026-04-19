@@ -13,6 +13,11 @@ public sealed class WorkThreadExecutionOptions
     public required AgentBackendId BackendId { get; init; }
 
     /// <summary>
+    /// Gets or initializes the provider key that should be selected within the backend.
+    /// </summary>
+    public string? ProviderKey { get; init; }
+
+    /// <summary>
     /// Gets or initializes the working directory for the thread session.
     /// </summary>
     public required string WorkingDirectory { get; init; }

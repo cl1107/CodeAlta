@@ -293,6 +293,7 @@ public sealed class CatalogInfrastructureTests
         Assert.AreEqual(descriptor.ProjectRef, reloaded.ProjectRef);
         Assert.AreEqual(descriptor.ParentThreadId, reloaded.ParentThreadId);
         Assert.AreEqual(descriptor.BackendId, reloaded.BackendId);
+        Assert.AreEqual(descriptor.ResolvedProviderKey, reloaded.ResolvedProviderKey);
         Assert.AreEqual(descriptor.BackendSessionId, reloaded.BackendSessionId);
         Assert.AreEqual(descriptor.StartedAt, reloaded.StartedAt);
         Assert.AreEqual(7, reloaded.MessageCount);

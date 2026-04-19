@@ -73,7 +73,8 @@ internal sealed class CodeAltaFrontendComposition
         var promptComposerViewModel = new PromptComposerViewModel();
         var sessionUsageViewModel = new SessionUsageViewModel();
         var chatBackendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
-        var backendPreferences = new ChatBackendPreferenceCoordinator(new CodeAltaConfigStore(catalogOptions), CodeAlta.Views.CodeAltaApp.UiLogger);
+        var configStore = new CodeAltaConfigStore(catalogOptions);
+        var backendPreferences = new ChatBackendPreferenceCoordinator(configStore, CodeAlta.Views.CodeAltaApp.UiLogger);
         var shellController = new CodeAltaShellController(
             shell,
             knownProjectImporter,
@@ -141,6 +142,7 @@ internal sealed class CodeAltaFrontendComposition
             threadSelectionContext,
             chatPreferenceContext,
             workspaceRefreshContext,
+            configStore.GetEffectiveDefaultProvider,
             callbacks.SyncChatSelectorItems);
 
         ThreadPromptQueueCoordinator? threadPromptQueueCoordinator = null;

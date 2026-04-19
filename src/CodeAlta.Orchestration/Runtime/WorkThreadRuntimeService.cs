@@ -175,6 +175,7 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
             ThreadId = string.Empty,
             Kind = WorkThreadKind.GlobalThread,
             BackendId = options.BackendId.Value,
+            ProviderKey = options.ProviderKey ?? options.BackendId.Value,
             BackendSessionId = string.Empty,
             WorkingDirectory = options.WorkingDirectory,
             Title = string.IsNullOrWhiteSpace(title) ? "Global Thread" : title.Trim(),
@@ -207,6 +208,7 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
             ThreadId = string.Empty,
             Kind = WorkThreadKind.ProjectThread,
             BackendId = options.BackendId.Value,
+            ProviderKey = options.ProviderKey ?? options.BackendId.Value,
             BackendSessionId = string.Empty,
             ProjectRef = project.Id,
             WorkingDirectory = options.WorkingDirectory,
@@ -246,6 +248,7 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
             ThreadId = string.Empty,
             Kind = WorkThreadKind.InternalThread,
             BackendId = options.BackendId.Value,
+            ProviderKey = options.ProviderKey ?? options.BackendId.Value,
             BackendSessionId = string.Empty,
             ProjectRef = targetProjectId,
             ParentThreadId = parentThread.ThreadId,
@@ -331,6 +334,7 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
 
         var sessionOptions = new AgentSessionResumeOptions
         {
+            ProviderKey = options.ProviderKey ?? thread.ResolvedProviderKey,
             Model = options.Model ?? coordinatorProfile.DefaultModel,
             ReasoningEffort = options.ReasoningEffort ?? ParseReasoningEffort(coordinatorProfile.DefaultReasoningEffort),
             Streaming = true,
@@ -354,6 +358,7 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
         }
 
         thread.BackendId = options.BackendId.Value;
+        thread.ProviderKey = options.ProviderKey ?? options.BackendId.Value;
         thread.BackendSessionId = backendSessionId;
         thread.WorkingDirectory = options.WorkingDirectory;
         thread.ThreadId = CreateThreadId(options.BackendId, backendSessionId);
@@ -368,6 +373,7 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
         entry = new ThreadSessionEntry(
             agentId,
             options.BackendId,
+            options.ProviderKey ?? thread.ResolvedProviderKey,
             backendSessionId,
             options.WorkingDirectory,
             options.Model ?? coordinatorProfile.DefaultModel,
@@ -589,6 +595,7 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
                 ThreadId = CreateThreadId(backendId, session.SessionId),
                 Kind = WorkThreadKind.GlobalThread,
                 BackendId = backendId.Value,
+                ProviderKey = session.ProviderKey ?? backendId.Value,
                 BackendSessionId = session.SessionId,
                 WorkingDirectory = normalizedCwd,
                 Title = BuildThreadTitle(session, "Global Thread"),
@@ -613,6 +620,7 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
             ThreadId = CreateThreadId(backendId, session.SessionId),
             Kind = WorkThreadKind.ProjectThread,
             BackendId = backendId.Value,
+            ProviderKey = session.ProviderKey ?? backendId.Value,
             BackendSessionId = session.SessionId,
             ProjectRef = project.Id,
             WorkingDirectory = normalizedCwd,
@@ -714,6 +722,7 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
         public ThreadSessionEntry(
             AgentId agentId,
             AgentBackendId backendId,
+            string providerKey,
             string backendSessionId,
             string workingDirectory,
             string? model,
@@ -723,6 +732,7 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
         {
             AgentId = agentId;
             BackendId = backendId;
+            ProviderKey = providerKey;
             BackendSessionId = backendSessionId;
             WorkingDirectory = workingDirectory;
             Model = model;
@@ -734,6 +744,8 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
         public AgentId AgentId { get; }
 
         public AgentBackendId BackendId { get; }
+
+        public string ProviderKey { get; }
 
         public string BackendSessionId { get; }
 
@@ -753,6 +765,7 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
         {
             return !IsTerminated
                 && string.Equals(BackendId.Value, options.BackendId.Value, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(ProviderKey, options.ProviderKey ?? options.BackendId.Value, StringComparison.OrdinalIgnoreCase)
                 && string.Equals(BackendSessionId, backendSessionId, StringComparison.Ordinal)
                 && string.Equals(WorkingDirectory, options.WorkingDirectory, StringComparison.Ordinal)
                 && string.Equals(Model, options.Model, StringComparison.Ordinal)

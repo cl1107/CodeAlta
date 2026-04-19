@@ -307,6 +307,7 @@ public sealed class OrchestrationInfrastructureTests
             new WorkThreadExecutionOptions
             {
                 BackendId = new AgentBackendId("fake"),
+                ProviderKey = "compat-provider",
                 WorkingDirectory = project.ProjectPath,
                 ProjectRoots = [project.ProjectPath],
                 OnPermissionRequest = static (_, _) =>
@@ -319,6 +320,7 @@ public sealed class OrchestrationInfrastructureTests
                 new WorkThreadExecutionOptions
                 {
                     BackendId = new AgentBackendId("fake"),
+                    ProviderKey = "compat-provider",
                     WorkingDirectory = project.ProjectPath,
                     ProjectRoots = [project.ProjectPath],
                     OnPermissionRequest = static (_, _) =>
@@ -328,6 +330,8 @@ public sealed class OrchestrationInfrastructureTests
             .ConfigureAwait(false);
 
         Assert.IsNotNull(fakeBackend.LastCreateOptions);
+        Assert.AreEqual("compat-provider", thread.ProviderKey);
+        Assert.AreEqual("compat-provider", fakeBackend.LastCreateOptions.ProviderKey);
         Assert.AreEqual("gpt-5.4", fakeBackend.LastCreateOptions.Model);
         Assert.AreEqual(AgentReasoningEffort.High, fakeBackend.LastCreateOptions.ReasoningEffort);
         Assert.IsFalse(string.IsNullOrWhiteSpace(fakeBackend.LastCreateOptions.SystemMessage));

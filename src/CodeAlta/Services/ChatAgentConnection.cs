@@ -107,6 +107,7 @@ internal sealed class ChatAgentConnection : IAsyncDisposable
                     agentId,
                     new AgentSessionCreateOptions
                     {
+                        ProviderKey = backendId.Value,
                         Model = model,
                         ReasoningEffort = reasoningEffort,
                         Streaming = true,

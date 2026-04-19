@@ -63,6 +63,7 @@ public sealed class ChatSelectorCoordinatorTests
             threadSelection,
             preferences,
             workspaceRefresh,
+            static _ => null,
             () => syncCallCount++);
 
         coordinator.RefreshForDraftScope(AgentBackendIds.Codex);

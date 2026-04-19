@@ -103,6 +103,7 @@ internal sealed class ThreadExecutionOptionsFactory
         return new WorkThreadExecutionOptions
         {
             BackendId = backendId,
+            ProviderKey = backendId.Value,
             WorkingDirectory = workingDirectory,
             ProjectRoots = projectRoots,
             Model = model,
@@ -122,6 +123,7 @@ internal sealed class ThreadExecutionOptionsFactory
         return new WorkThreadExecutionOptions
         {
             BackendId = new AgentBackendId(thread.BackendId),
+            ProviderKey = thread.ResolvedProviderKey,
             WorkingDirectory = workingDirectory,
             ProjectRoots = projectRoots,
             Model = tab.ModelId,
@@ -145,6 +147,7 @@ internal sealed class ThreadExecutionOptionsFactory
         return new WorkThreadExecutionOptions
         {
             BackendId = tab.BackendId,
+            ProviderKey = tab.BackendId.Value,
             WorkingDirectory = workingDirectory,
             ProjectRoots = projectRoots,
             Model = tab.ModelId,

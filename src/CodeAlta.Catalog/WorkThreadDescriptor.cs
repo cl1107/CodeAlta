@@ -26,6 +26,12 @@ public sealed class WorkThreadDescriptor
     public string BackendId { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the provider key selected for the thread.
+    /// </summary>
+    [JsonPropertyName("provider_key")]
+    public string? ProviderKey { get; set; }
+
+    /// <summary>
     /// Gets or sets the backend-owned session identifier.
     /// </summary>
     [JsonPropertyName("backend_session_id")]
@@ -111,6 +117,12 @@ public sealed class WorkThreadDescriptor
     /// Gets a value indicating whether the thread can no longer change backends.
     /// </summary>
     public bool IsBackendLocked => StartedAt is not null;
+
+    /// <summary>
+    /// Gets the provider key to use for execution.
+    /// </summary>
+    [JsonIgnore]
+    public string ResolvedProviderKey => string.IsNullOrWhiteSpace(ProviderKey) ? BackendId : ProviderKey;
 
     /// <summary>
     /// Marks the thread as started.

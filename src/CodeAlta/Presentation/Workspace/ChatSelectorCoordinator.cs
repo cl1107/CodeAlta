@@ -22,6 +22,7 @@ internal sealed class ChatSelectorCoordinator
     private readonly ThreadSelectionContext _threadSelection;
     private readonly ChatPreferenceContext _preferences;
     private readonly WorkspaceRefreshContext _workspaceRefresh;
+    private readonly Func<string?, string?> _getEffectiveDefaultProviderKey;
     private readonly Action _syncChatSelectorItems;
     private bool _selectorsRefreshing;
 
@@ -33,6 +34,7 @@ internal sealed class ChatSelectorCoordinator
         ThreadSelectionContext threadSelection,
         ChatPreferenceContext preferences,
         WorkspaceRefreshContext workspaceRefresh,
+        Func<string?, string?> getEffectiveDefaultProviderKey,
         Action syncChatSelectorItems)
         : this(
             ChatBackendPresentation.CreateBackendStates().Values
@@ -45,6 +47,7 @@ internal sealed class ChatSelectorCoordinator
             threadSelection,
             preferences,
             workspaceRefresh,
+            getEffectiveDefaultProviderKey,
             syncChatSelectorItems)
     {
     }
@@ -58,6 +61,7 @@ internal sealed class ChatSelectorCoordinator
         ThreadSelectionContext threadSelection,
         ChatPreferenceContext preferences,
         WorkspaceRefreshContext workspaceRefresh,
+        Func<string?, string?> getEffectiveDefaultProviderKey,
         Action syncChatSelectorItems)
     {
         ArgumentNullException.ThrowIfNull(backendDescriptors);
@@ -68,6 +72,7 @@ internal sealed class ChatSelectorCoordinator
         ArgumentNullException.ThrowIfNull(threadSelection);
         ArgumentNullException.ThrowIfNull(preferences);
         ArgumentNullException.ThrowIfNull(workspaceRefresh);
+        ArgumentNullException.ThrowIfNull(getEffectiveDefaultProviderKey);
         ArgumentNullException.ThrowIfNull(syncChatSelectorItems);
 
         _backendDescriptors = backendDescriptors;
@@ -78,6 +83,7 @@ internal sealed class ChatSelectorCoordinator
         _threadSelection = threadSelection;
         _preferences = preferences;
         _workspaceRefresh = workspaceRefresh;
+        _getEffectiveDefaultProviderKey = getEffectiveDefaultProviderKey;
         _syncChatSelectorItems = syncChatSelectorItems;
     }
 
@@ -332,6 +338,11 @@ internal sealed class ChatSelectorCoordinator
                     return options[backendIndex].BackendId;
                 }
 
+                if (ResolveConfiguredDefaultBackendId(options) is { } configuredDefaultBackendId)
+                {
+                    return configuredDefaultBackendId;
+                }
+
                 var readyBackend = options.FirstOrDefault(option => IsChatBackendReady(option.BackendId));
                 if (readyBackend is not null)
                 {
@@ -391,6 +402,11 @@ internal sealed class ChatSelectorCoordinator
             }
         }
 
+        if (ResolveConfiguredDefaultBackendId(backendOptions) is { } configuredDefaultBackendId)
+        {
+            return configuredDefaultBackendId;
+        }
+
         var readyBackend = backendOptions.FirstOrDefault(option => IsChatBackendReady(option.BackendId));
         if (readyBackend is not null)
         {
@@ -443,5 +459,21 @@ internal sealed class ChatSelectorCoordinator
     private AgentBackendId GetDefaultBackendId()
     {
         return _backendDescriptors.FirstOrDefault()?.BackendId ?? AgentBackendIds.Codex;
+    }
+
+    private AgentBackendId? ResolveConfiguredDefaultBackendId(IReadOnlyList<ChatBackendOption> options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        var projectRoot = _threadSelection.GetSelectedProject()?.ProjectPath;
+        var configuredProviderKey = _getEffectiveDefaultProviderKey(projectRoot);
+        if (string.IsNullOrWhiteSpace(configuredProviderKey))
+        {
+            return null;
+        }
+
+        return options.FirstOrDefault(option =>
+                string.Equals(option.BackendId.Value, configuredProviderKey, StringComparison.OrdinalIgnoreCase))
+            ?.BackendId;
     }
 }

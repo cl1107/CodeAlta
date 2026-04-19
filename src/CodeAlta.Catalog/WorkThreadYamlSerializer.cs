@@ -20,6 +20,9 @@ public sealed class WorkThreadYamlSerializer
         [JsonPropertyName("backend_id")]
         public string? BackendId { get; set; }
 
+        [JsonPropertyName("provider_key")]
+        public string? ProviderKey { get; set; }
+
         [JsonPropertyName("backend_session_id")]
         public string? BackendSessionId { get; set; }
 
@@ -97,6 +100,7 @@ public sealed class WorkThreadYamlSerializer
             ThreadId = frontMatter.ThreadId ?? string.Empty,
             Kind = ParseKind(frontMatter.Kind),
             BackendId = frontMatter.BackendId ?? string.Empty,
+            ProviderKey = frontMatter.ProviderKey ?? frontMatter.BackendId,
             BackendSessionId = frontMatter.BackendSessionId ?? string.Empty,
             ProjectRef = frontMatter.ProjectRef,
             ParentThreadId = frontMatter.ParentThreadId,
@@ -133,6 +137,7 @@ public sealed class WorkThreadYamlSerializer
                 _ => throw new InvalidOperationException($"Unsupported thread kind '{descriptor.Kind}'."),
             },
             BackendId = descriptor.BackendId,
+            ProviderKey = descriptor.ResolvedProviderKey,
             BackendSessionId = descriptor.BackendSessionId,
             ProjectRef = descriptor.ProjectRef,
             ParentThreadId = descriptor.ParentThreadId,
