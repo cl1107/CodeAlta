@@ -762,12 +762,12 @@ The runtime should reject or retry clearly bad checkpoints, for example:
 
 ## 23. Configuration
 
-Use a global default block plus per-provider override blocks.
+Use provider-local compaction blocks, with runtime defaults filled in when a provider omits a field.
 
 Recommended normalized shape:
 
 ```toml
-[raw_api.compaction]
+[providers.openai.compaction]
 enabled = true
 trigger_threshold = 0.85
 reserved_output_tokens = 4096
@@ -789,8 +789,6 @@ reasoning_mode = "adaptive" # none | adaptive | summary_only
 max_chunk_passes = 4
 allow_oversized_anchor_reduction = true
 ```
-
-Per-provider overrides remain supported.
 
 Notes:
 
