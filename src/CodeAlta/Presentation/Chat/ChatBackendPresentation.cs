@@ -13,7 +13,7 @@ internal static class ChatBackendPresentation
         return CreateBackendStates(
         [
             new AgentBackendDescriptor(AgentBackendIds.Codex, "Codex"),
-            new AgentBackendDescriptor(AgentBackendIds.Copilot, "Copilot"),
+            new AgentBackendDescriptor(AgentBackendIds.Copilot, "GitHub Copilot"),
         ]);
     }
 
@@ -33,7 +33,7 @@ internal static class ChatBackendPresentation
         return BuildBackendOptions(
         [
             new AgentBackendDescriptor(AgentBackendIds.Codex, "Codex"),
-            new AgentBackendDescriptor(AgentBackendIds.Copilot, "Copilot"),
+            new AgentBackendDescriptor(AgentBackendIds.Copilot, "GitHub Copilot"),
         ]);
     }
 
@@ -199,7 +199,7 @@ internal static class ChatBackendPresentation
     {
         ArgumentNullException.ThrowIfNull(backendState);
 
-        var trimmed = string.IsNullOrWhiteSpace(message) ? "Failed to initialize backend." : message.Trim();
+        var trimmed = string.IsNullOrWhiteSpace(message) ? "Failed to initialize provider." : message.Trim();
         return $"{backendState.DisplayName} failed: {trimmed}";
     }
 

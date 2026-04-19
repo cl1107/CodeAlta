@@ -11,6 +11,7 @@ internal sealed class NavigatorActionCoordinator
 {
     private readonly CodeAltaShellController _shellController;
     private readonly ShellThreadStateCoordinator _threadStateCoordinator;
+    private readonly Func<string?, string> _resolveProviderDisplayName;
     private readonly Func<Rectangle?> _getDialogBounds;
     private readonly Func<Visual?> _getFocusTarget;
     private readonly Func<Visual?> _getPromptFocusTarget;
@@ -20,6 +21,7 @@ internal sealed class NavigatorActionCoordinator
     public NavigatorActionCoordinator(
         CodeAltaShellController shellController,
         ShellThreadStateCoordinator threadStateCoordinator,
+        Func<string?, string> resolveProviderDisplayName,
         Func<Rectangle?> getDialogBounds,
         Func<Visual?> getFocusTarget,
         Func<Visual?> getPromptFocusTarget,
@@ -28,6 +30,7 @@ internal sealed class NavigatorActionCoordinator
     {
         ArgumentNullException.ThrowIfNull(shellController);
         ArgumentNullException.ThrowIfNull(threadStateCoordinator);
+        ArgumentNullException.ThrowIfNull(resolveProviderDisplayName);
         ArgumentNullException.ThrowIfNull(getDialogBounds);
         ArgumentNullException.ThrowIfNull(getFocusTarget);
         ArgumentNullException.ThrowIfNull(getPromptFocusTarget);
@@ -36,6 +39,7 @@ internal sealed class NavigatorActionCoordinator
 
         _shellController = shellController;
         _threadStateCoordinator = threadStateCoordinator;
+        _resolveProviderDisplayName = resolveProviderDisplayName;
         _getDialogBounds = getDialogBounds;
         _getFocusTarget = getFocusTarget;
         _getPromptFocusTarget = getPromptFocusTarget;
@@ -122,6 +126,7 @@ internal sealed class NavigatorActionCoordinator
             new ProjectThreadsDialog(
                 CreateGlobalDialogProject(),
                 globalThreads,
+                _resolveProviderDisplayName,
                 threadIds => DeleteProjectThreadsAsync(projectId: null, threadIds),
                 threadId => _shellController.OpenThreadAsync(threadId, CancellationToken.None),
                 _getDialogBounds,
@@ -146,6 +151,7 @@ internal sealed class NavigatorActionCoordinator
         new ProjectThreadsDialog(
             project,
             threads,
+            _resolveProviderDisplayName,
             threadIds => DeleteProjectThreadsAsync(projectId, threadIds),
             threadId => _shellController.OpenThreadAsync(threadId, CancellationToken.None),
             _getDialogBounds,

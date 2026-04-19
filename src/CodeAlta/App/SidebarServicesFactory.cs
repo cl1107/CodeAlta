@@ -13,6 +13,7 @@ internal static class SidebarServicesFactory
         CatalogOptions catalogOptions,
         CodeAltaShellController shellController,
         ShellThreadStateCoordinator threadStateCoordinator,
+        Func<string?, string> resolveProviderDisplayName,
         Func<Visual?> getPromptFocusTarget,
         Action refreshCatalogAndThreadWorkspace,
         Action<string, bool, StatusTone> setStatus,
@@ -22,6 +23,7 @@ internal static class SidebarServicesFactory
         ArgumentNullException.ThrowIfNull(catalogOptions);
         ArgumentNullException.ThrowIfNull(shellController);
         ArgumentNullException.ThrowIfNull(threadStateCoordinator);
+        ArgumentNullException.ThrowIfNull(resolveProviderDisplayName);
         ArgumentNullException.ThrowIfNull(getPromptFocusTarget);
         ArgumentNullException.ThrowIfNull(refreshCatalogAndThreadWorkspace);
         ArgumentNullException.ThrowIfNull(setStatus);
@@ -31,6 +33,7 @@ internal static class SidebarServicesFactory
         var navigatorActions = new NavigatorActionCoordinator(
             shellController,
             threadStateCoordinator,
+            resolveProviderDisplayName,
             () => GetSidebarDialogBounds(sidebar),
             () => GetSidebarFocusTarget(sidebar),
             getPromptFocusTarget,

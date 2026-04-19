@@ -8,9 +8,9 @@ namespace CodeAlta.Presentation.Sidebar;
 
 internal static class SidebarThreadPresentation
 {
-    public static SidebarAccent ResolveThreadAccent(string? backendId, WorkThreadKind kind)
+    public static SidebarAccent ResolveThreadAccent(string? providerKey, WorkThreadKind kind)
     {
-        if (string.Equals(backendId, AgentBackendIds.Copilot.Value, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(providerKey, AgentBackendIds.Copilot.Value, StringComparison.OrdinalIgnoreCase))
         {
             return SidebarAccent.CopilotThread;
         }
@@ -24,39 +24,44 @@ internal static class SidebarThreadPresentation
         };
     }
 
-    public static string ResolveBackendDisplayName(string? backendId)
+    public static string ResolveProviderDisplayName(string? providerKey, string? displayName = null)
     {
-        if (string.Equals(backendId, AgentBackendIds.Copilot.Value, StringComparison.OrdinalIgnoreCase))
+        if (!string.IsNullOrWhiteSpace(displayName))
         {
-            return "Copilot";
+            return displayName.Trim();
         }
 
-        if (string.Equals(backendId, AgentBackendIds.Codex.Value, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(providerKey, AgentBackendIds.Copilot.Value, StringComparison.OrdinalIgnoreCase))
+        {
+            return "GitHub Copilot";
+        }
+
+        if (string.Equals(providerKey, AgentBackendIds.Codex.Value, StringComparison.OrdinalIgnoreCase))
         {
             return "Codex";
         }
 
-        if (!string.IsNullOrWhiteSpace(backendId) &&
-            backendId.StartsWith("acp:", StringComparison.OrdinalIgnoreCase))
+        if (!string.IsNullOrWhiteSpace(providerKey) &&
+            providerKey.StartsWith("acp:", StringComparison.OrdinalIgnoreCase))
         {
-            return FormatBackendToken(backendId["acp:".Length..]);
+            return FormatProviderToken(providerKey["acp:".Length..]);
         }
 
-        return string.IsNullOrWhiteSpace(backendId)
+        return string.IsNullOrWhiteSpace(providerKey)
             ? "Unknown"
-            : backendId.Trim();
+            : providerKey.Trim();
     }
 
-    public static string BuildBackendMarkup(string? backendId, WorkThreadKind kind)
+    public static string BuildProviderMarkup(string? providerKey, string? displayName, WorkThreadKind kind)
     {
-        var accent = ResolveThreadAccent(backendId, kind);
-        return $"[{UiPalette.GetSidebarAccentMarkup(accent)}]{NerdFont.MdCircleSmall}[/] {AnsiMarkup.Escape(ResolveBackendDisplayName(backendId))}";
+        var accent = ResolveThreadAccent(providerKey, kind);
+        return $"[{UiPalette.GetSidebarAccentMarkup(accent)}]{NerdFont.MdCircleSmall}[/] {AnsiMarkup.Escape(ResolveProviderDisplayName(providerKey, displayName))}";
     }
 
     public static string BuildEditedPromptIconMarkup(SidebarAccent accent)
         => $"[{UiPalette.GetSidebarAccentMarkup(accent)}]{NerdFont.MdSquareEditOutline}[/]";
 
-    private static string FormatBackendToken(string token)
+    private static string FormatProviderToken(string token)
     {
         if (string.IsNullOrWhiteSpace(token))
         {

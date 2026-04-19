@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Reflection;
 using CodeAlta.Agent;
 using CodeAlta.App;
 using CodeAlta.App.Context;
@@ -53,7 +54,7 @@ public sealed class ChatSelectorCoordinatorTests
         var workspaceRefresh = new WorkspaceRefreshContext(
             static () => { },
             static () => { });
-        var threadSelection = (ThreadSelectionContext)RuntimeHelpers.GetUninitializedObject(typeof(ThreadSelectionContext));
+        var threadSelection = CreateThreadSelectionContext();
         var syncCallCount = 0;
         var coordinator = new ChatSelectorCoordinator(
             workspaceViewModel,
@@ -86,6 +87,115 @@ public sealed class ChatSelectorCoordinatorTests
                 ChatBackendPreferenceCoordinator.FindModel(backendState.Models, backendState.SelectedModelId),
                 backendState.SelectedReasoningEffort);
         }
+    }
+
+    [TestMethod]
+    public void GetPreferredBackendId_UsesConfiguredDefaultProvider()
+    {
+        var workspaceViewModel = new ThreadWorkspaceViewModel();
+        var promptComposerViewModel = new PromptComposerViewModel();
+        AgentBackendDescriptor[] backendDescriptors =
+        [
+            new AgentBackendDescriptor(AgentBackendIds.Codex, "Codex"),
+            new AgentBackendDescriptor(new AgentBackendId("zai"), "ZAI"),
+        ];
+        var backendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
+        backendStates[AgentBackendIds.Codex.Value].Availability = ChatBackendAvailability.Ready;
+        backendStates["zai"].Availability = ChatBackendAvailability.Ready;
+
+        var coordinator = CreateCoordinator(
+            backendDescriptors,
+            workspaceViewModel,
+            promptComposerViewModel,
+            backendStates,
+            static _ => "zai");
+
+        var preferredBackendId = coordinator.GetPreferredBackendId();
+
+        Assert.AreEqual("zai", preferredBackendId.Value);
+    }
+
+    [TestMethod]
+    public void GetPreferredBackendId_FallsBackToFirstReadyProviderDeterministically()
+    {
+        var workspaceViewModel = new ThreadWorkspaceViewModel();
+        var promptComposerViewModel = new PromptComposerViewModel();
+        AgentBackendDescriptor[] backendDescriptors =
+        [
+            new AgentBackendDescriptor(new AgentBackendId("zai"), "ZAI"),
+            new AgentBackendDescriptor(new AgentBackendId("openai"), "OpenAI"),
+            new AgentBackendDescriptor(AgentBackendIds.Codex, "Codex"),
+        ];
+        var backendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
+        backendStates["zai"].Availability = ChatBackendAvailability.Unsupported;
+        backendStates["openai"].Availability = ChatBackendAvailability.Ready;
+        backendStates[AgentBackendIds.Codex.Value].Availability = ChatBackendAvailability.Ready;
+
+        var coordinator = CreateCoordinator(
+            backendDescriptors,
+            workspaceViewModel,
+            promptComposerViewModel,
+            backendStates,
+            static _ => null);
+
+        var preferredBackendId = coordinator.GetPreferredBackendId();
+
+        Assert.AreEqual("openai", preferredBackendId.Value);
+    }
+
+    private static ChatSelectorCoordinator CreateCoordinator(
+        IReadOnlyList<AgentBackendDescriptor> backendDescriptors,
+        ThreadWorkspaceViewModel workspaceViewModel,
+        PromptComposerViewModel promptComposerViewModel,
+        Dictionary<string, ChatBackendState> backendStates,
+        Func<string?, string?> getEffectiveDefaultProviderKey)
+    {
+        var selectorState = new ChatSelectorStateContext(
+            workspaceViewModel,
+            static () => new InlineUiDispatcher(),
+            static () => { });
+        var preferences = new ChatPreferenceContext(
+            ApplyDraftBackendPreference,
+            static _ => throw new NotSupportedException(),
+            static (_, _, _) => { },
+            static (_, _, _, _, _) => { });
+        var workspaceRefresh = new WorkspaceRefreshContext(
+            static () => { },
+            static () => { });
+        var threadSelection = CreateThreadSelectionContext();
+        return new ChatSelectorCoordinator(
+            backendDescriptors,
+            workspaceViewModel,
+            promptComposerViewModel,
+            backendStates,
+            selectorState,
+            threadSelection,
+            preferences,
+            workspaceRefresh,
+            getEffectiveDefaultProviderKey,
+            static () => { });
+    }
+
+    private static ThreadSelectionContext CreateThreadSelectionContext()
+    {
+        var coordinator = (ShellThreadStateCoordinator)RuntimeHelpers.GetUninitializedObject(typeof(ShellThreadStateCoordinator));
+        var selectionCoordinatorField = typeof(ShellThreadStateCoordinator).GetField("_selectionCoordinator", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.IsNotNull(selectionCoordinatorField);
+        selectionCoordinatorField.SetValue(coordinator, new ShellSelectionCoordinator());
+        return new ThreadSelectionContext(
+            coordinator,
+            static (_, _) => Task.CompletedTask,
+            static _ => false);
+    }
+
+    private static void ApplyDraftBackendPreference(ChatBackendState backendState)
+    {
+        backendState.SelectedModelId = ChatBackendPresentation.ResolvePreferredModelId(
+            backendState.Models,
+            backendState.SelectedModelId);
+        backendState.SelectedReasoningEffort = ChatBackendPresentation.ResolvePreferredReasoningEffort(
+            ChatBackendPreferenceCoordinator.FindModel(backendState.Models, backendState.SelectedModelId),
+            backendState.SelectedReasoningEffort);
     }
 
     private sealed class InlineUiDispatcher : IUiDispatcher

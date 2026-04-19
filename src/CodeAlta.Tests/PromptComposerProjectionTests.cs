@@ -17,7 +17,7 @@ public sealed class PromptComposerProjectionTests
             thread,
             selectedProject: null,
             globalScopeSelected: false,
-            backendDisplayName: "Codex",
+            providerDisplayName: "Codex",
             availability: ChatBackendAvailability.Connecting,
             anyBackendReady: false,
             draftTabOpen: false,
@@ -57,7 +57,7 @@ public sealed class PromptComposerProjectionTests
             selectedThread: null,
             selectedProject: project,
             globalScopeSelected: false,
-            backendDisplayName: "Codex",
+            providerDisplayName: "Codex",
             availability: ChatBackendAvailability.Ready,
             anyBackendReady: true,
             draftTabOpen: true,
@@ -84,13 +84,13 @@ public sealed class PromptComposerProjectionTests
     }
 
     [TestMethod]
-    public void Build_UsesMissingBackendMessagingWhenNoBackendIsReady()
+    public void Build_UsesMissingProviderMessagingWhenNoProviderIsReady()
     {
         var projection = PromptComposerProjectionBuilder.Build(
             selectedThread: null,
             selectedProject: null,
             globalScopeSelected: true,
-            backendDisplayName: "Codex",
+            providerDisplayName: "Codex",
             availability: ChatBackendAvailability.Unsupported,
             anyBackendReady: false,
             draftTabOpen: true,
@@ -101,9 +101,9 @@ public sealed class PromptComposerProjectionTests
             selectedThreadCanCompact: false,
             selectedThreadCanAbort: false);
 
-        Assert.AreEqual("Install or connect a backend to start a thread...", projection.Placeholder);
+        Assert.AreEqual("Install or connect a provider to start a thread...", projection.Placeholder);
         Assert.IsTrue(projection.HasUnavailableStatus);
-        Assert.AreEqual("No chat backend is connected. Browse threads and projects, but prompt sending is unavailable.", projection.UnavailableStatusMessage);
+        Assert.AreEqual("No chat provider is connected. Browse threads and projects, but prompt sending is unavailable.", projection.UnavailableStatusMessage);
         Assert.AreEqual(StatusTone.Warning, projection.UnavailableStatusTone);
     }
 
@@ -116,7 +116,7 @@ public sealed class PromptComposerProjectionTests
             thread,
             selectedProject: null,
             globalScopeSelected: false,
-            backendDisplayName: "Codex",
+            providerDisplayName: "Codex",
             availability: ChatBackendAvailability.Ready,
             anyBackendReady: true,
             draftTabOpen: false,
@@ -147,7 +147,7 @@ public sealed class PromptComposerProjectionTests
             thread,
             selectedProject: null,
             globalScopeSelected: false,
-            backendDisplayName: "Codex",
+            providerDisplayName: "Codex",
             availability: ChatBackendAvailability.Ready,
             anyBackendReady: true,
             draftTabOpen: false,
@@ -170,7 +170,7 @@ public sealed class PromptComposerProjectionTests
             thread,
             selectedProject: null,
             globalScopeSelected: false,
-            backendDisplayName: "Codex",
+            providerDisplayName: "Codex",
             availability: ChatBackendAvailability.Ready,
             anyBackendReady: true,
             draftTabOpen: false,
@@ -184,7 +184,7 @@ public sealed class PromptComposerProjectionTests
             thread,
             selectedProject: null,
             globalScopeSelected: false,
-            backendDisplayName: "Codex",
+            providerDisplayName: "Codex",
             availability: ChatBackendAvailability.Ready,
             anyBackendReady: true,
             draftTabOpen: false,
@@ -206,7 +206,7 @@ public sealed class PromptComposerProjectionTests
             selectedThread: null,
             selectedProject: null,
             globalScopeSelected: true,
-            backendDisplayName: "Codex",
+            providerDisplayName: "Codex",
             availability: ChatBackendAvailability.Ready,
             anyBackendReady: true,
             draftTabOpen: true,

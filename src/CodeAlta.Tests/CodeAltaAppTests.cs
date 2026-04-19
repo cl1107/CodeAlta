@@ -623,7 +623,7 @@ public sealed class CodeAltaAppTests
     }
 
     [TestMethod]
-    public void BuildPromptUnavailablePlaceholder_UsesBackendStateAndSelection()
+    public void BuildPromptUnavailablePlaceholder_UsesProviderStateAndSelection()
     {
         var thread = new WorkThreadDescriptor
         {
@@ -644,12 +644,12 @@ public sealed class CodeAltaAppTests
             "Waiting for Codex to reconnect...",
             PromptComposerProjectionBuilder.BuildPromptUnavailablePlaceholder(thread, "Codex", ChatBackendAvailability.Connecting, anyBackendReady: false));
         Assert.AreEqual(
-            "Install or connect a backend to start a thread...",
+            "Install or connect a provider to start a thread...",
             PromptComposerProjectionBuilder.BuildPromptUnavailablePlaceholder(null, "Codex", ChatBackendAvailability.Unsupported, anyBackendReady: false));
     }
 
     [TestMethod]
-    public void BuildPromptUnavailableStatusText_DescribesConnectingAndMissingBackends()
+    public void BuildPromptUnavailableStatusText_DescribesConnectingAndMissingProviders()
     {
         var thread = new WorkThreadDescriptor
         {
@@ -670,7 +670,7 @@ public sealed class CodeAltaAppTests
             "Reconnecting 'Review startup' to Codex. Prompt sending is temporarily unavailable.",
             PromptComposerProjectionBuilder.BuildPromptUnavailableStatusText(thread, "Codex", ChatBackendAvailability.Connecting, anyBackendReady: false));
         Assert.AreEqual(
-            "No chat backend is connected. Browse threads and projects, but prompt sending is unavailable.",
+            "No chat provider is connected. Browse threads and projects, but prompt sending is unavailable.",
             PromptComposerProjectionBuilder.BuildPromptUnavailableStatusText(null, "Codex", ChatBackendAvailability.Unsupported, anyBackendReady: false));
     }
 
@@ -2192,13 +2192,21 @@ public sealed class CodeAltaAppTests
     }
 
     [TestMethod]
-    public void BuildSidebarThreadBackendMarkup_UsesSidebarAccentAndBackendLabel()
+    public void BuildSidebarThreadProviderMarkup_UsesSidebarAccentAndProviderLabel()
     {
-        var markup = SidebarThreadPresentation.BuildBackendMarkup(AgentBackendIds.Copilot.Value, WorkThreadKind.ProjectThread);
+        var markup = SidebarThreadPresentation.BuildProviderMarkup(AgentBackendIds.Copilot.Value, displayName: null, WorkThreadKind.ProjectThread);
 
         StringAssert.Contains(markup, UiPalette.GetSidebarAccentMarkup(SidebarAccent.CopilotThread));
-        StringAssert.Contains(markup, "Copilot");
+        StringAssert.Contains(markup, "GitHub Copilot");
         StringAssert.Contains(markup, NerdFont.MdCircleSmall.ToString());
+    }
+
+    [TestMethod]
+    public void ResolveProviderDisplayName_PrefersConfiguredDisplayName()
+    {
+        var displayName = SidebarThreadPresentation.ResolveProviderDisplayName("myresponses", "OpenAI (Responses)");
+
+        Assert.AreEqual("OpenAI (Responses)", displayName);
     }
 
     [TestMethod]

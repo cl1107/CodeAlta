@@ -9,7 +9,7 @@ internal static class ThreadInfoFormatter
     {
         if (isLoading)
         {
-            return "Loading thread information from the active backend and history.";
+            return "Loading thread information from the active provider and history.";
         }
 
         if (!string.IsNullOrWhiteSpace(errorMessage))
@@ -99,7 +99,7 @@ internal static class ThreadInfoFormatter
     private static void AppendOverview(StringBuilder builder, ThreadInfoReport report)
     {
         StartSection(builder, "Overview");
-        builder.Append("- Backend: ").AppendLine(report.BackendName);
+        builder.Append("- Provider: ").AppendLine(report.BackendName);
         builder.Append("- Session ID: `").Append(report.BackendSessionId).AppendLine("`");
         builder.Append("- Working directory: `").Append(report.WorkingDirectory).AppendLine("`");
         builder.Append("- Model: ").AppendLine(report.ModelName ?? "(default model)");
@@ -109,9 +109,9 @@ internal static class ThreadInfoFormatter
     private static void AppendTiming(StringBuilder builder, ThreadInfoReport report)
     {
         StartSection(builder, "Timing");
-        builder.Append("- Backend created: ").AppendLine(FormatTimestamp(report.CreatedAt));
+        builder.Append("- Provider session created: ").AppendLine(FormatTimestamp(report.CreatedAt));
         builder.Append("- Conversation started: ").AppendLine(FormatTimestamp(report.StartedAt));
-        builder.Append("- Last backend update: ").AppendLine(FormatTimestamp(report.LastUpdatedAt));
+        builder.Append("- Last provider update: ").AppendLine(FormatTimestamp(report.LastUpdatedAt));
         builder.Append("- Elapsed: ").AppendLine(FormatElapsed(report.Elapsed));
     }
 
@@ -131,11 +131,11 @@ internal static class ThreadInfoFormatter
         StartSection(builder, "Storage");
         if (storageLocation is null)
         {
-            builder.AppendLine("- Backend path: Not exposed by the backend.");
+            builder.AppendLine("- Session path: Not exposed by the provider.");
             return;
         }
 
-        builder.Append("- Backend path: `").Append(storageLocation.Path).AppendLine("`");
+        builder.Append("- Session path: `").Append(storageLocation.Path).AppendLine("`");
         builder.Append("- Path kind: ").AppendLine(storageLocation.Kind switch
         {
             ThreadInfoStorageKind.File => "File",
@@ -157,7 +157,7 @@ internal static class ThreadInfoFormatter
             return;
         }
 
-        StartSection(builder, "Backend-specific details");
+        StartSection(builder, "Provider-specific details");
         foreach (var fact in backendFacts)
         {
             builder.Append("- ")

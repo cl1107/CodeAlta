@@ -72,7 +72,7 @@ public sealed class ThreadInfoReportTests
     }
 
     [TestMethod]
-    public void BuildMarkdown_IncludesStorageConversationAndBackendSections()
+    public void BuildMarkdown_IncludesStorageConversationAndProviderSections()
     {
         var report = new ThreadInfoReport(
             ThreadTitle: "Investigate startup",
@@ -101,7 +101,7 @@ public sealed class ThreadInfoReportTests
         StringAssert.Contains(markdown, "## Timing");
         StringAssert.Contains(markdown, "## Conversation");
         StringAssert.Contains(markdown, "## Storage");
-        StringAssert.Contains(markdown, "## Backend-specific details");
+        StringAssert.Contains(markdown, "## Provider-specific details");
         StringAssert.Contains(markdown, "Total messages: 4");
         StringAssert.Contains(markdown, "File size: 2.0 KiB");
     }

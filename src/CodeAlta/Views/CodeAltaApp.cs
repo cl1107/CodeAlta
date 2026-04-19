@@ -385,7 +385,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
     private void ApplyPendingSidebarSelection()
         => _sidebarCoordinator.ApplyPendingSelection();
 
-    internal void PrepareForRun() => SetStatus("Connecting to available backends...", showSpinner: true);
+    internal void PrepareForRun() => SetStatus("Connecting to available providers...", showSpinner: true);
     internal Visual GetRoot() => EnsureShellView().Root;
 
     internal TerminalLoopResult Tick(CancellationToken cancellationToken)

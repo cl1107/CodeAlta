@@ -124,11 +124,13 @@ internal sealed class CodeAltaFrontendComposition
         var workspaceRefreshContext = new WorkspaceRefreshContext(
             callbacks.InvalidateSelectedSessionUsage,
             callbacks.RefreshHeaderAndThreadWorkspace);
+        var resolveProviderDisplayName = CreateProviderDisplayNameResolver(backendDescriptors);
         var (navigatorActionCoordinator, sidebarCoordinator) = SidebarServicesFactory.Create(
             sidebarViewModel,
             catalogOptions,
             shellController,
             threadStateCoordinator,
+            resolveProviderDisplayName,
             callbacks.GetPromptFocusTarget,
             callbacks.RefreshCatalogAndThreadWorkspace,
             callbacks.SetStatus,
@@ -274,6 +276,28 @@ internal sealed class CodeAltaFrontendComposition
             ShellWorkspaceContext = shellWorkspaceContext,
             ThreadSelectionContext = threadSelectionContext,
             WorkspaceRefreshContext = workspaceRefreshContext,
+        };
+    }
+
+    private static Func<string?, string> CreateProviderDisplayNameResolver(
+        IReadOnlyList<AgentBackendDescriptor> backendDescriptors)
+    {
+        ArgumentNullException.ThrowIfNull(backendDescriptors);
+
+        var displayNames = backendDescriptors.ToDictionary(
+            static descriptor => descriptor.BackendId.Value,
+            static descriptor => descriptor.DisplayName,
+            StringComparer.OrdinalIgnoreCase);
+        return providerKey =>
+        {
+            if (!string.IsNullOrWhiteSpace(providerKey) &&
+                displayNames.TryGetValue(providerKey, out var displayName) &&
+                !string.IsNullOrWhiteSpace(displayName))
+            {
+                return displayName;
+            }
+
+            return Presentation.Sidebar.SidebarThreadPresentation.ResolveProviderDisplayName(providerKey);
         };
     }
 }

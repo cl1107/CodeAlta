@@ -20,6 +20,7 @@ internal sealed class ProjectThreadsDialog
     private readonly ProjectThreadsDialogViewModel _viewModel = new();
     private readonly Func<IReadOnlyList<string>, Task> _deleteThreadsAsync;
     private readonly Func<string, Task> _openThreadAsync;
+    private readonly Func<string?, string> _resolveProviderDisplayName;
     private readonly Func<Visual?> _getFocusTarget;
     private readonly DataGridListDocument<ProjectThreadsDialogRowViewModel> _document;
     private readonly Dialog _dialog;
@@ -28,6 +29,7 @@ internal sealed class ProjectThreadsDialog
     public ProjectThreadsDialog(
         ProjectDescriptor project,
         IReadOnlyList<WorkThreadDescriptor> threads,
+        Func<string?, string> resolveProviderDisplayName,
         Func<IReadOnlyList<string>, Task> deleteThreadsAsync,
         Func<string, Task> openThreadAsync,
         Func<Rectangle?> getBounds,
@@ -35,11 +37,13 @@ internal sealed class ProjectThreadsDialog
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(threads);
+        ArgumentNullException.ThrowIfNull(resolveProviderDisplayName);
         ArgumentNullException.ThrowIfNull(deleteThreadsAsync);
         ArgumentNullException.ThrowIfNull(openThreadAsync);
         ArgumentNullException.ThrowIfNull(getBounds);
         ArgumentNullException.ThrowIfNull(getFocusTarget);
 
+        _resolveProviderDisplayName = resolveProviderDisplayName;
         _deleteThreadsAsync = deleteThreadsAsync;
         _openThreadAsync = openThreadAsync;
         _getFocusTarget = getFocusTarget;
@@ -51,7 +55,7 @@ internal sealed class ProjectThreadsDialog
                 .OrderByDescending(static thread => thread.LastActiveAt)
                 .ThenBy(static thread => thread.Title, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(static thread => thread.ThreadId, StringComparer.OrdinalIgnoreCase)
-                .Select(thread => CreateRow(thread, nowUtc))
+                .Select(thread => CreateRow(thread, nowUtc, _resolveProviderDisplayName))
                 .ToArray());
 
         _document = new DataGridListDocument<ProjectThreadsDialogRowViewModel>();
@@ -59,7 +63,7 @@ internal sealed class ProjectThreadsDialog
         {
             _document
                 .AddColumn(new DataGridColumnInfo<bool>("select", "✅", false, ProjectThreadsDialogRowViewModel.Accessor.IsSelected))
-                .AddColumn(new DataGridColumnInfo<string>("backend", "🤖 Model", true, ProjectThreadsDialogRowViewModel.Accessor.BackendDisplayName))
+                .AddColumn(new DataGridColumnInfo<string>("backend", "🤖 Provider", true, ProjectThreadsDialogRowViewModel.Accessor.BackendDisplayName))
                 .AddColumn(new DataGridColumnInfo<string>("title", "🧵 Thread", false, ProjectThreadsDialogRowViewModel.Accessor.Title))
                 .AddColumn(new DataGridColumnInfo<DateTimeOffset?>("updated", "🕒 Updated", true, ProjectThreadsDialogRowViewModel.Accessor.LastUpdatedAt))
                 .AddColumn(new DataGridColumnInfo<int?>("messages", "💬 Messages", true, ProjectThreadsDialogRowViewModel.Accessor.MessageCount))
@@ -93,7 +97,7 @@ internal sealed class ProjectThreadsDialog
         static Visual BuildBackendCell(DataTemplateValue<string> value, in DataTemplateContext _)
         {
             var row = (ProjectThreadsDialogRowViewModel)value.GetBinding().Owner;
-            return new Markup(() => SidebarThreadPresentation.BuildBackendMarkup(row.BackendId, row.ThreadKind))
+            return new Markup(() => SidebarThreadPresentation.BuildProviderMarkup(row.BackendId, row.BackendDisplayName, row.ThreadKind))
                 .Wrap(false)
                 .Tooltip(new TextBlock(() => string.IsNullOrWhiteSpace(row.BackendId)
                     ? row.BackendDisplayName
@@ -138,7 +142,7 @@ internal sealed class ProjectThreadsDialog
         grid.Columns.Add(new DataGridColumn<string>
         {
             Key = "backend",
-            Header = new TextBlock("🤖 Model"),
+            Header = new TextBlock("🤖 Provider"),
             TypedValueAccessor = ProjectThreadsDialogRowViewModel.Accessor.BackendDisplayName,
             Width = GridLength.Auto,
             Sortable = true,
@@ -304,15 +308,20 @@ internal sealed class ProjectThreadsDialog
         }
     }
 
-    private static ProjectThreadsDialogRowViewModel CreateRow(WorkThreadDescriptor thread, DateTimeOffset nowUtc)
+    private static ProjectThreadsDialogRowViewModel CreateRow(
+        WorkThreadDescriptor thread,
+        DateTimeOffset nowUtc,
+        Func<string?, string> resolveProviderDisplayName)
     {
+        ArgumentNullException.ThrowIfNull(resolveProviderDisplayName);
+
         var display = SidebarRelativeTimeFormatter.Format(thread.LastActiveAt, nowUtc);
         return new ProjectThreadsDialogRowViewModel
         {
             ThreadId = thread.ThreadId,
             Title = thread.Title,
             BackendId = thread.BackendId,
-            BackendDisplayName = SidebarThreadPresentation.ResolveBackendDisplayName(thread.BackendId),
+            BackendDisplayName = resolveProviderDisplayName(thread.BackendId),
             ThreadKind = thread.Kind,
             LastUpdatedAt = thread.LastActiveAt,
             LastUpdatedRelative = display.RelativeText,

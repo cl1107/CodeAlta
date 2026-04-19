@@ -30,7 +30,7 @@ namespace CodeAlta.Presentation.Prompting
             WorkThreadDescriptor? selectedThread,
             ProjectDescriptor? selectedProject,
             bool globalScopeSelected,
-            string backendDisplayName,
+            string providerDisplayName,
             ChatBackendAvailability availability,
             bool anyBackendReady,
             bool draftTabOpen,
@@ -41,14 +41,14 @@ namespace CodeAlta.Presentation.Prompting
             bool selectedThreadCanCompact,
             bool selectedThreadCanAbort)
         {
-            ArgumentException.ThrowIfNullOrWhiteSpace(backendDisplayName);
+            ArgumentException.ThrowIfNullOrWhiteSpace(providerDisplayName);
 
             var isUnavailable = availability != ChatBackendAvailability.Ready;
             var placeholder = isUnavailable
-                ? BuildPromptUnavailablePlaceholder(selectedThread, backendDisplayName, availability, anyBackendReady)
+                ? BuildPromptUnavailablePlaceholder(selectedThread, providerDisplayName, availability, anyBackendReady)
                 : BuildPromptPlaceholder(selectedThread, selectedProject, globalScopeSelected);
             var unavailableStatusMessage = isUnavailable
-                ? BuildPromptUnavailableStatusText(selectedThread, backendDisplayName, availability, anyBackendReady)
+                ? BuildPromptUnavailableStatusText(selectedThread, providerDisplayName, availability, anyBackendReady)
                 : null;
             var unavailableStatusTone = availability == ChatBackendAvailability.Connecting
                 ? StatusTone.Info
@@ -84,48 +84,48 @@ namespace CodeAlta.Presentation.Prompting
 
         internal static string BuildPromptUnavailablePlaceholder(
             WorkThreadDescriptor? thread,
-            string backendDisplayName,
+            string providerDisplayName,
             ChatBackendAvailability availability,
             bool anyBackendReady)
         {
             if (thread is not null)
             {
                 return availability == ChatBackendAvailability.Connecting
-                    ? $"Waiting for {backendDisplayName} to reconnect..."
-                    : $"'{thread.Title}' is unavailable until {backendDisplayName} is connected.";
+                    ? $"Waiting for {providerDisplayName} to reconnect..."
+                    : $"'{thread.Title}' is unavailable until {providerDisplayName} is connected.";
             }
 
             if (availability == ChatBackendAvailability.Connecting)
             {
-                return $"Connecting to {backendDisplayName}...";
+                return $"Connecting to {providerDisplayName}...";
             }
 
             return anyBackendReady
-                ? "Select a connected backend to start a thread..."
-                : "Install or connect a backend to start a thread...";
+                ? "Select a connected provider to start a thread..."
+                : "Install or connect a provider to start a thread...";
         }
 
         internal static string BuildPromptUnavailableStatusText(
             WorkThreadDescriptor? thread,
-            string backendDisplayName,
+            string providerDisplayName,
             ChatBackendAvailability availability,
             bool anyBackendReady)
         {
             if (thread is not null)
             {
                 return availability == ChatBackendAvailability.Connecting
-                    ? $"Reconnecting '{thread.Title}' to {backendDisplayName}. Prompt sending is temporarily unavailable."
-                    : $"'{thread.Title}' is unavailable because {backendDisplayName} is not connected.";
+                    ? $"Reconnecting '{thread.Title}' to {providerDisplayName}. Prompt sending is temporarily unavailable."
+                    : $"'{thread.Title}' is unavailable because {providerDisplayName} is not connected.";
             }
 
             if (availability == ChatBackendAvailability.Connecting)
             {
-                return $"Connecting to {backendDisplayName}. Prompt sending will be available once the backend is ready.";
+                return $"Connecting to {providerDisplayName}. Prompt sending will be available once the provider is ready.";
             }
 
             return anyBackendReady
-                ? "Select a connected backend to send prompts."
-                : "No chat backend is connected. Browse threads and projects, but prompt sending is unavailable.";
+                ? "Select a connected provider to send prompts."
+                : "No chat provider is connected. Browse threads and projects, but prompt sending is unavailable.";
         }
 
         private static string BuildReadyPromptPlaceholder(bool isContinuation, bool hasProjectContext)
