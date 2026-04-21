@@ -330,7 +330,6 @@ Recommended baseline:
 - `replace_in_file`
 - `rename_file_or_dir`
 - `delete_file_or_dir`
-- `request_user_input`
 
 Official OpenAI providers (`https://api.openai.com/`, matched on base URL/host rather than full path) should additionally expose:
 
@@ -338,6 +337,7 @@ Official OpenAI providers (`https://api.openai.com/`, matched on base URL/host r
 
 Optional later additions:
 
+- `request_user_input` once the host supports structured UI feedback
 - MCP bridge tools
 - artifact/file bundle tools
 - richer search/index tools

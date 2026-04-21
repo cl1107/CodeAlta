@@ -277,56 +277,6 @@ public sealed class LocalAgentToolsTests
     }
 
     [TestMethod]
-    public async Task RequestUserInputTool_DelegatesToConfiguredHandler()
-    {
-        AgentUserInputRequest? observed = null;
-        var options = CreateOptions(
-            Environment.CurrentDirectory,
-            onUserInputRequest: (request, _) =>
-            {
-                observed = request;
-                return Task.FromResult(new AgentUserInputResponse(new Dictionary<string, string>
-                {
-                    ["provider"] = "openai",
-                }));
-            });
-        var tools = LocalAgentBuiltInToolFactory.CreateDefaultTools(options);
-        var tool = tools.Single(static tool => tool.Spec.Name == "request_user_input");
-        using var args = JsonDocument.Parse(
-            """
-            {
-              "prompts": [
-                {
-                  "id": "provider",
-                  "question": "Pick a provider",
-                  "header": "Provider",
-                  "allowFreeform": false,
-                  "options": [
-                    { "label": "OpenAI", "description": "Use OpenAI." }
-                  ]
-                }
-              ]
-            }
-            """);
-
-        var result = await tool.Handler(
-                new AgentToolInvocation(
-                    AgentBackendIds.OpenAIResponses,
-                    "session-1",
-                    "tool-1",
-                    tool.Spec.Name,
-                    args.RootElement.Clone()),
-                CancellationToken.None)
-            .ConfigureAwait(false);
-
-        Assert.IsNotNull(observed);
-        Assert.AreEqual("provider", observed.Form.Prompts.Single().Id);
-        Assert.IsTrue(result.Success);
-        var output = Assert.IsInstanceOfType<AgentToolResultItem.Text>(result.Items.Single()).Value;
-        StringAssert.Contains(output, "\"provider\":\"openai\"");
-    }
-
-    [TestMethod]
     public async Task ShellCommandTool_UsesPlatformShellAndCapturesOutput()
     {
         using var temp = TestTempDirectory.Create();
@@ -522,7 +472,6 @@ public sealed class LocalAgentToolsTests
         using var temp = TestTempDirectory.Create();
         var tools = LocalAgentBuiltInToolFactory.CreateDefaultTools(CreateOptions(temp.Path));
         var readFile = tools.Single(static tool => tool.Spec.Name == "read_file");
-        var requestUserInput = tools.Single(static tool => tool.Spec.Name == "request_user_input");
         var applyPatch = tools.Single(static tool => tool.Spec.Name == "apply_patch");
 
         var readFileSchema = LocalAgentToolBridge.CreateOpenAIStrictInputSchema(readFile.Spec.InputSchema);
@@ -536,22 +485,6 @@ public sealed class LocalAgentToolsTests
         StringAssert.Contains(
             readFileSchema.GetProperty("properties").GetProperty("offset").GetProperty("description").GetString(),
             "negative value to count from the end");
-
-        var requestUserInputSchema = LocalAgentToolBridge.CreateOpenAIStrictInputSchema(requestUserInput.Spec.InputSchema);
-        var optionSchema = requestUserInputSchema
-            .GetProperty("properties")
-            .GetProperty("prompts")
-            .GetProperty("items")
-            .GetProperty("properties")
-            .GetProperty("options")
-            .GetProperty("items");
-        CollectionAssert.AreEquivalent(
-            new[] { "label", "description" },
-            optionSchema.GetProperty("required").EnumerateArray().Select(static item => item.GetString()).ToArray());
-        CollectionAssert.AreEquivalent(
-            new[] { "string", "null" },
-            optionSchema.GetProperty("properties").GetProperty("description").GetProperty("type").EnumerateArray().Select(static item => item.GetString()).ToArray());
-        Assert.IsFalse(requestUserInputSchema.GetProperty("properties").GetProperty("prompts").GetProperty("items").TryGetProperty("additionalProperties", out var nestedAdditionalProperties) && nestedAdditionalProperties.ValueKind != JsonValueKind.False);
 
         var applyPatchSchema = LocalAgentToolBridge.CreateOpenAIStrictInputSchema(applyPatch.Spec.InputSchema);
         Assert.AreEqual("Use the `apply_patch` tool to edit files.", applyPatch.Spec.Description);
@@ -584,6 +517,9 @@ public sealed class LocalAgentToolsTests
         Assert.IsTrue(officialOpenAiTools.Any(static tool => tool.Spec.Name == "apply_patch"));
         Assert.IsFalse(compatibleTools.Any(static tool => tool.Spec.Name == "apply_patch"));
         Assert.IsFalse(anthropicTools.Any(static tool => tool.Spec.Name == "apply_patch"));
+        Assert.IsFalse(officialOpenAiTools.Any(static tool => tool.Spec.Name == "request_user_input"));
+        Assert.IsFalse(compatibleTools.Any(static tool => tool.Spec.Name == "request_user_input"));
+        Assert.IsFalse(anthropicTools.Any(static tool => tool.Spec.Name == "request_user_input"));
         Assert.IsFalse(officialOpenAiTools.Any(static tool => tool.Spec.Name == "view_image"));
         Assert.IsFalse(compatibleTools.Any(static tool => tool.Spec.Name == "view_image"));
         Assert.IsFalse(anthropicTools.Any(static tool => tool.Spec.Name == "view_image"));

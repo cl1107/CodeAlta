@@ -275,12 +275,9 @@ public static class LocalAgentBuiltInToolFactory
                     ApplyPatchToolDescription,
                     ApplyPatchSchema),
                 (invocation, cancellationToken) => ApplyPatchAsync(options, invocation, cancellationToken)),
-            new AgentToolDefinition(
-                new AgentToolSpec(
-                    "request_user_input",
-                    "Pause and request structured user input from the host.",
-                    RequestUserInputSchema),
-                (invocation, cancellationToken) => RequestUserInputAsync(options, invocation, cancellationToken)),
+            // Intentionally not registered yet: the local raw-API host does not currently expose
+            // the structured UI feedback loop needed to pause for request_user_input safely.
+            // Keep the implementation around so the tool can be enabled once the host supports it.
         ];
 
         return tools
