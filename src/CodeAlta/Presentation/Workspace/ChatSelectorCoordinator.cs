@@ -264,6 +264,7 @@ internal sealed class ChatSelectorCoordinator
             draftBackendState.SelectedModelId = draftOptions[newIndex].ModelId;
             var preferredModel = ChatBackendPreferenceCoordinator.FindModel(draftBackendState.Models, draftBackendState.SelectedModelId);
             draftBackendState.SelectedReasoningEffort = ChatBackendPresentation.ResolvePreferredReasoningEffort(preferredModel, preferredReasoningEffort: null);
+            UpdateModelSelectorState(draftOptions, newIndex, preferredModel, draftBackendState.SelectedReasoningEffort);
             _preferences.RememberGlobalBackendPreference(backendId, draftBackendState.SelectedModelId, draftBackendState.SelectedReasoningEffort);
             RefreshForDraftScope(backendId);
             _workspaceRefresh.InvalidateSelectedSessionUsage();
@@ -281,6 +282,7 @@ internal sealed class ChatSelectorCoordinator
         tab.ModelId = options[newIndex].ModelId;
         var selectedModel = ChatBackendPreferenceCoordinator.FindModel(backendState.Models, tab.ModelId);
         tab.ReasoningEffort = ChatBackendPresentation.ResolvePreferredReasoningEffort(selectedModel, preferredReasoningEffort: null);
+        UpdateModelSelectorState(options, newIndex, selectedModel, tab.ReasoningEffort);
         _preferences.RememberThreadPreference(tab.Thread.ThreadId, tab.ModelId, tab.ReasoningEffort, tab.AutoScroll, true);
         backendState.SelectedModelId = tab.ModelId;
         backendState.SelectedReasoningEffort = tab.ReasoningEffort;
@@ -446,6 +448,34 @@ internal sealed class ChatSelectorCoordinator
     private bool HasAnyReadyChatBackend()
     {
         return _chatBackendStates.Values.Any(static state => state.Availability == ChatBackendAvailability.Ready);
+    }
+
+    private void UpdateModelSelectorState(
+        IReadOnlyList<ChatModelOption> modelOptions,
+        int selectedModelIndex,
+        AgentModelInfo? selectedModel,
+        AgentReasoningEffort? selectedReasoningEffort)
+    {
+        ArgumentNullException.ThrowIfNull(modelOptions);
+
+        var reasoningOptions = ChatBackendPresentation.BuildReasoningOptions(selectedModel);
+        var selectedReasoningIndex = Math.Clamp(
+            reasoningOptions.FindIndex(option => option.Effort == selectedReasoningEffort),
+            0,
+            Math.Max(0, reasoningOptions.Count - 1));
+
+        var wasRefreshing = _selectorsRefreshing;
+        _selectorsRefreshing = true;
+        try
+        {
+            _selectorState.SetModelSelection(modelOptions, selectedModelIndex);
+            _selectorState.SetReasoningSelection(reasoningOptions, selectedReasoningIndex);
+            _syncChatSelectorItems();
+        }
+        finally
+        {
+            _selectorsRefreshing = wasRefreshing;
+        }
     }
 
     private PromptComposerProjection BuildPromptComposerProjection()

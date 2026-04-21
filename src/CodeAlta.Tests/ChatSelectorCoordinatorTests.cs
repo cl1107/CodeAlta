@@ -262,6 +262,60 @@ public sealed class ChatSelectorCoordinatorTests
         Assert.AreEqual(1, refreshedSelectionCount);
     }
 
+    [TestMethod]
+    public void OnModelSelectionChanged_ImmediatelyUpdatesSelectedIndexForOpenThread()
+    {
+        using var temp = TempDirectory.Create();
+        var threadStateCoordinator = CreateThreadStateCoordinator(temp.Path, out var thread);
+        var threadSelection = new ThreadSelectionContext(
+            threadStateCoordinator,
+            static (_, _) => Task.CompletedTask,
+            static _ => true);
+        var tab = threadStateCoordinator.EnsureThreadTab(thread);
+
+        var workspaceViewModel = new ThreadWorkspaceViewModel();
+        var promptComposerViewModel = new PromptComposerViewModel();
+        AgentBackendDescriptor[] backendDescriptors =
+        [
+            new(new AgentBackendId("openai"), "OpenAI"),
+        ];
+        var backendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
+        backendStates["openai"].Availability = ChatBackendAvailability.Ready;
+        backendStates["openai"].Models.Add(new AgentModelInfo("gpt-5.4", DisplayName: "GPT-5.4"));
+        backendStates["openai"].Models.Add(new AgentModelInfo("gpt-5.4-mini", DisplayName: "GPT-5.4 Mini"));
+
+        var selectorState = new ChatSelectorStateContext(
+            workspaceViewModel,
+            static () => new InlineUiDispatcher(),
+            static () => { });
+        var preferences = new ChatPreferenceContext(
+            ApplyDraftBackendPreference,
+            static _ => { },
+            static (_, _, _) => { },
+            static (_, _, _, _, _) => { });
+        var workspaceRefresh = new WorkspaceRefreshContext(
+            static () => { },
+            static () => { });
+        var coordinator = new ChatSelectorCoordinator(
+            backendDescriptors,
+            workspaceViewModel,
+            promptComposerViewModel,
+            backendStates,
+            selectorState,
+            threadSelection,
+            preferences,
+            workspaceRefresh,
+            static _ => null,
+            static () => { },
+            static (_, _) => true);
+
+        coordinator.RefreshForThread(tab);
+        coordinator.OnModelSelectionChanged(newIndex: 1);
+
+        Assert.AreEqual(1, workspaceViewModel.SelectedModelIndex);
+        Assert.AreEqual("gpt-5.4-mini", tab.ModelId);
+    }
+
     private static ChatSelectorCoordinator CreateCoordinator(
         IReadOnlyList<AgentBackendDescriptor> backendDescriptors,
         ThreadWorkspaceViewModel workspaceViewModel,
