@@ -49,6 +49,7 @@ internal sealed class ModelProvidersDialog
     private readonly List<ModelProviderEditorItemViewModel> _providers = [];
     private Visual? _detailContent;
     private bool _dirty;
+    private int _activeOperationCount;
     private int _selectedIndex = -1;
     private string _statusText = "[dim]Configure model providers and save to refresh the runtime.[/]";
 
@@ -214,19 +215,31 @@ internal sealed class ModelProvidersDialog
             return;
         }
 
-        _providers.Clear();
-        _providers.AddRange(_loadDefinitions().Select(CreateEditorItem));
-        _providerList.Items.Clear();
-        foreach (var provider in _providers)
+        if (!TryBeginDialogOperation("reload provider configuration"))
         {
-            _providerList.Items.Add(provider);
+            return;
         }
 
-        _dirty = false;
-        _statusText = _providers.Count == 0
-            ? "[warning]No providers are configured yet. Add one, or enable Codex/Copilot.[/]"
-            : "[dim]Provider configuration loaded from disk.[/]";
-        SelectProvider(_providers.Count == 0 ? -1 : 0);
+        try
+        {
+            _providers.Clear();
+            _providers.AddRange(_loadDefinitions().Select(CreateEditorItem));
+            _providerList.Items.Clear();
+            foreach (var provider in _providers)
+            {
+                _providerList.Items.Add(provider);
+            }
+
+            _dirty = false;
+            _statusText = _providers.Count == 0
+                ? "[warning]No providers are configured yet. Add one, or enable Codex/Copilot.[/]"
+                : "[dim]Provider configuration loaded from disk.[/]";
+            SelectProvider(_providers.Count == 0 ? -1 : 0);
+        }
+        finally
+        {
+            EndDialogOperation();
+        }
     }
 
     private void AddProvider()
@@ -275,6 +288,11 @@ internal sealed class ModelProvidersDialog
             return;
         }
 
+        if (!TryBeginDialogOperation("save provider changes"))
+        {
+            return;
+        }
+
         try
         {
             _statusText = "[primary]Saving provider configuration...[/]";
@@ -285,6 +303,10 @@ internal sealed class ModelProvidersDialog
         catch (Exception ex)
         {
             _statusText = $"[error]{AnsiMarkup.Escape(ex.GetBaseException().Message)}[/]";
+        }
+        finally
+        {
+            EndDialogOperation();
         }
     }
 
@@ -303,6 +325,11 @@ internal sealed class ModelProvidersDialog
             return;
         }
 
+        if (!TryBeginDialogOperation("test a provider"))
+        {
+            return;
+        }
+
         try
         {
             _statusText = $"[primary]Testing {AnsiMarkup.Escape(item.Label)}...[/]";
@@ -314,6 +341,10 @@ internal sealed class ModelProvidersDialog
         catch (Exception ex)
         {
             _statusText = $"[error]{AnsiMarkup.Escape(ex.GetBaseException().Message)}[/]";
+        }
+        finally
+        {
+            EndDialogOperation();
         }
     }
 
@@ -700,6 +731,12 @@ internal sealed class ModelProvidersDialog
 
     private void RequestClose()
     {
+        if (_activeOperationCount > 0)
+        {
+            _statusText = "[warning]Please wait for the current provider operation to complete before closing this dialog.[/]";
+            return;
+        }
+
         if (!_dirty)
         {
             Close();
@@ -744,6 +781,28 @@ internal sealed class ModelProvidersDialog
         => message.Content is TextBlock textBlock
             ? textBlock.Text ?? string.Empty
             : message.Content.ToString() ?? string.Empty;
+
+    private bool TryBeginDialogOperation(string operationDescription)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationDescription);
+
+        if (_activeOperationCount > 0)
+        {
+            _statusText = $"[warning]Please wait for the current provider operation to complete before trying to {AnsiMarkup.Escape(operationDescription)}.[/]";
+            return false;
+        }
+
+        _activeOperationCount++;
+        return true;
+    }
+
+    private void EndDialogOperation()
+    {
+        if (_activeOperationCount > 0)
+        {
+            _activeOperationCount--;
+        }
+    }
 
     private static ModelProviderEditorItemViewModel.IBindings GetBindings(ModelProviderEditorItemViewModel item)
     {
