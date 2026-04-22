@@ -118,6 +118,31 @@ public sealed class LocalAgentToolsTests
     }
 
     [TestMethod]
+    public async Task ReadFileTool_ReturnsEmptyTextWhenOffsetIsPastEndOfFile()
+    {
+        using var temp = TestTempDirectory.Create();
+        var filePath = Path.Combine(temp.Path, "sample.txt");
+        await File.WriteAllLinesAsync(filePath, ["alpha", "beta"]).ConfigureAwait(false);
+
+        var tools = LocalAgentBuiltInToolFactory.CreateDefaultTools(CreateOptions(temp.Path));
+        var tool = tools.Single(static tool => tool.Spec.Name == "read_file");
+        using var args = JsonDocument.Parse("""{"path":"sample.txt","offset":10}""");
+
+        var result = await tool.Handler(
+                new AgentToolInvocation(
+                    AgentBackendIds.OpenAIResponses,
+                    "session-1",
+                    "tool-1",
+                    tool.Spec.Name,
+                    args.RootElement.Clone()),
+                CancellationToken.None)
+            .ConfigureAwait(false);
+
+        Assert.IsTrue(result.Success);
+        Assert.AreEqual(string.Empty, Assert.IsInstanceOfType<AgentToolResultItem.Text>(result.Items.Single()).Value);
+    }
+
+    [TestMethod]
     public async Task GrepTool_UsesXenoAtomGlobPatternMatching()
     {
         using var temp = TestTempDirectory.Create();
@@ -311,6 +336,30 @@ public sealed class LocalAgentToolsTests
     }
 
     [TestMethod]
+    public async Task GrepTool_ReturnsNoMatchesSentinelWhenNothingMatches()
+    {
+        using var temp = TestTempDirectory.Create();
+        await File.WriteAllLinesAsync(Path.Combine(temp.Path, "sample.txt"), ["alpha", "beta"]).ConfigureAwait(false);
+
+        var tools = LocalAgentBuiltInToolFactory.CreateDefaultTools(CreateOptions(temp.Path));
+        var tool = tools.Single(static tool => tool.Spec.Name == "grep");
+        using var args = JsonDocument.Parse("""{"pattern":"gamma"}""");
+
+        var result = await tool.Handler(
+                new AgentToolInvocation(
+                    AgentBackendIds.OpenAIResponses,
+                    "session-1",
+                    "tool-1",
+                    tool.Spec.Name,
+                    args.RootElement.Clone()),
+                CancellationToken.None)
+            .ConfigureAwait(false);
+
+        Assert.IsTrue(result.Success);
+        Assert.AreEqual("(no matches)", Assert.IsInstanceOfType<AgentToolResultItem.Text>(result.Items.Single()).Value);
+    }
+
+    [TestMethod]
     public async Task WebGetTool_FetchesAndSimplifiesHtml()
     {
         using var htmlContent = new StringContent("<html><body><h1>Hello</h1><p>world</p></body></html>");
@@ -368,6 +417,39 @@ public sealed class LocalAgentToolsTests
         Assert.IsTrue(result.Success);
         var output = Assert.IsInstanceOfType<AgentToolResultItem.Text>(result.Items.Single()).Value;
         Assert.AreEqual("<html><body><h1>Hello</h1><p>world</p></body></html>", output);
+    }
+
+    [TestMethod]
+    public async Task WebGetTool_CanIncludeHttpStatusMetadataWhenRequested()
+    {
+        using var content = new StringContent("""{"ok":true}""");
+        content.Headers.ContentType = new("application/json");
+        using var handler = new StubHttpMessageHandler(
+            new HttpResponseMessage(HttpStatusCode.Accepted)
+            {
+                ReasonPhrase = "Accepted",
+                Content = content,
+            });
+        using var httpClient = new HttpClient(handler);
+        var tools = LocalAgentBuiltInToolFactory.CreateDefaultTools(CreateOptions(Environment.CurrentDirectory, httpClient: httpClient));
+        var tool = tools.Single(static tool => tool.Spec.Name == "webget");
+        using var args = JsonDocument.Parse("""{"url":"https://example.test/jobs/42","includeHttpStatus":true}""");
+
+        var result = await tool.Handler(
+                new AgentToolInvocation(
+                    AgentBackendIds.OpenAIResponses,
+                    "session-1",
+                    "tool-1",
+                    tool.Spec.Name,
+                    args.RootElement.Clone()),
+                CancellationToken.None)
+            .ConfigureAwait(false);
+
+        Assert.IsTrue(result.Success);
+        var output = Assert.IsInstanceOfType<AgentToolResultItem.Text>(result.Items.Single()).Value;
+        StringAssert.Contains(output, "HTTP 202 Accepted");
+        StringAssert.Contains(output, "content-type: application/json");
+        StringAssert.Contains(output, "{\"ok\":true}");
     }
 
     [TestMethod]
@@ -717,6 +799,8 @@ public sealed class LocalAgentToolsTests
         var readFile = tools.Single(static tool => tool.Spec.Name == "read_file");
         var grep = tools.Single(static tool => tool.Spec.Name == "grep");
         var webGet = tools.Single(static tool => tool.Spec.Name == "webget");
+        var replaceInFile = tools.Single(static tool => tool.Spec.Name == "replace_in_file");
+        var renameFileOrDir = tools.Single(static tool => tool.Spec.Name == "rename_file_or_dir");
         var shellCommand = tools.Single(static tool => tool.Spec.Name == "shell_command");
         var applyPatch = tools.Single(static tool => tool.Spec.Name == "apply_patch");
 
@@ -735,16 +819,19 @@ public sealed class LocalAgentToolsTests
         StringAssert.Contains(
             readFileSchema.GetProperty("properties").GetProperty("offset").GetProperty("description").GetString(),
             "0 is invalid");
-        StringAssert.Contains(readFile.Spec.Description, "Offsets past EOF return an empty result");
+        StringAssert.Contains(readFile.Spec.Description, "Offsets past EOF return an empty text result");
 
         var grepSchema = LocalAgentToolBridge.CreateOpenAIStrictInputSchema(grep.Spec.InputSchema);
         StringAssert.Contains(grep.Spec.Description, "defaults to case-insensitive");
+        StringAssert.Contains(grep.Spec.Description, "returns '(no matches)'");
         StringAssert.Contains(
             grepSchema.GetProperty("properties").GetProperty("caseSensitive").GetProperty("description").GetString(),
             "Defaults to false");
 
         var webGetSchema = LocalAgentToolBridge.CreateOpenAIStrictInputSchema(webGet.Spec.InputSchema);
+        StringAssert.Contains(webGet.Spec.Description, "returns a text result containing the fetched body");
         StringAssert.Contains(webGet.Spec.Description, "set rawHtml=true to return raw HTML markup");
+        StringAssert.Contains(webGet.Spec.Description, "includeHttpStatus=true");
         StringAssert.Contains(
             webGetSchema.GetProperty("properties").GetProperty("timeoutSeconds").GetProperty("description").GetString(),
             "Defaults to");
@@ -754,6 +841,21 @@ public sealed class LocalAgentToolsTests
         StringAssert.Contains(
             webGetSchema.GetProperty("properties").GetProperty("rawHtml").GetProperty("description").GetString(),
             "Defaults to false");
+        StringAssert.Contains(
+            webGetSchema.GetProperty("properties").GetProperty("includeHttpStatus").GetProperty("description").GetString(),
+            "Defaults to false");
+
+        StringAssert.Contains(replaceInFile.Spec.Description, "leaves the file unchanged");
+        StringAssert.Contains(
+            LocalAgentToolBridge.CreateOpenAIStrictInputSchema(replaceInFile.Spec.InputSchema)
+                .GetProperty("properties").GetProperty("replace_all").GetProperty("description").GetString(),
+            "leaves the file unchanged");
+
+        StringAssert.Contains(renameFileOrDir.Spec.Description, "Will not overwrite");
+        StringAssert.Contains(
+            LocalAgentToolBridge.CreateOpenAIStrictInputSchema(renameFileOrDir.Spec.InputSchema)
+                .GetProperty("properties").GetProperty("new_path").GetProperty("description").GetString(),
+            "Will not overwrite");
 
         StringAssert.Contains(shellCommand.Spec.Description, "Some hosts may auto-approve");
         StringAssert.Contains(shellCommand.Spec.Description, "exit_code");

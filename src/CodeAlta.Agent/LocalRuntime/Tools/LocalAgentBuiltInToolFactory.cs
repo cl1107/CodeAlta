@@ -22,11 +22,11 @@ public static class LocalAgentBuiltInToolFactory
     private const string WriteFileToolDescription =
         "Write an entire text file in one deterministic operation. Creates parent directories as needed and replaces any existing file.";
     private const string ReplaceInFileToolDescription =
-        "Replace exact text in a file. Deterministic only: no regex, no fuzzy matching. When replace_all is false the file must contain exactly one match.";
+        "Replace exact text in a file. Deterministic only: no regex, no fuzzy matching. When replace_all is false, the tool errors unless exactly one match exists and leaves the file unchanged. Use replace_all=true to replace every match.";
     private const string DeleteFileOrDirToolDescription =
         "Delete a file or a directory inside the working directory. Directory deletes are recursive.";
     private const string RenameFileOrDirToolDescription =
-        "Rename or move a file or directory inside the working directory.";
+        "Rename or move a file or directory inside the working directory. Will not overwrite an existing destination.";
     private const string ApplyPatchToolDescription =
         "Use the `apply_patch` tool to edit files.";
 
@@ -51,7 +51,7 @@ public static class LocalAgentBuiltInToolFactory
             "path": { "type": "string", "description": "File path relative to the working directory." },
             "old_string": { "type": "string", "description": "Exact text to replace. Newlines are matched exactly, with deterministic normalization to the file's newline style when needed." },
             "new_string": { "type": "string", "description": "Replacement text." },
-            "replace_all": { "type": "boolean", "description": "Replace every exact match. When false, exactly one match must exist." }
+            "replace_all": { "type": "boolean", "description": "Replace every exact match. When false, the tool errors unless exactly one match exists and leaves the file unchanged." }
           },
           "required": ["path", "old_string", "new_string"],
           "additionalProperties": false
@@ -76,7 +76,7 @@ public static class LocalAgentBuiltInToolFactory
           "type": "object",
           "properties": {
             "old_path": { "type": "string", "description": "Existing file or directory path relative to the working directory." },
-            "new_path": { "type": "string", "description": "Destination path relative to the working directory." }
+            "new_path": { "type": "string", "description": "Destination path relative to the working directory. Will not overwrite an existing destination." }
           },
           "required": ["old_path", "new_path"],
           "additionalProperties": false
@@ -151,7 +151,7 @@ public static class LocalAgentBuiltInToolFactory
             new AgentToolDefinition(
                 new AgentToolSpec(
                     "read_file",
-                    $"Read a local text file by line number. Offsets are 1-based; use a negative offset to count from the end (-1 is the last line). Offsets past EOF return an empty result, and oversized negative offsets clamp to line 1. Omitting limit returns up to {options.DefaultReadFileLineLimit} lines by default.",
+                    $"Read a local text file by line number. Offsets are 1-based; use a negative offset to count from the end (-1 is the last line). Offsets past EOF return an empty text result, and oversized negative offsets clamp to line 1. Omitting limit returns up to {options.DefaultReadFileLineLimit} lines by default.",
                     CreateReadFileSchema(options)),
                 (invocation, cancellationToken) => ReadFileAsync(options, invocation, cancellationToken)),
             new AgentToolDefinition(
@@ -163,13 +163,13 @@ public static class LocalAgentBuiltInToolFactory
             new AgentToolDefinition(
                 new AgentToolSpec(
                     "grep",
-                    $"Search files for line-based matches using a .NET regular expression. Recurses into directories, defaults to case-insensitive matching, and skips likely-binary files.",
+                    $"Search files for line-based matches using a .NET regular expression. Recurses into directories, defaults to case-insensitive matching, skips likely-binary files, and returns '(no matches)' when nothing matches.",
                     CreateGrepSchema(options)),
                 (invocation, cancellationToken) => GrepAsync(options, invocation, cancellationToken)),
             new AgentToolDefinition(
                 new AgentToolSpec(
                     "webget",
-                    $"Fetch text-like web content from a known absolute URL. By default, HTML responses are simplified to plain text; set rawHtml=true to return raw HTML markup. JSON and XML are returned as text bodies. Applies content-type checks and a {options.MaxWebGetBytes.ToString(CultureInfo.InvariantCulture)}-byte limit; default timeout is {FormatSeconds(options.WebGetTimeout)} seconds.",
+                    $"Fetch text-like web content from a known absolute URL. On success, returns a text result containing the fetched body. By default, HTML responses are simplified to plain text; set rawHtml=true to return raw HTML markup. Set includeHttpStatus=true to prefix the HTTP status line and response content type before the body. JSON and XML are returned as text bodies. Applies content-type checks and a {options.MaxWebGetBytes.ToString(CultureInfo.InvariantCulture)}-byte limit; default timeout is {FormatSeconds(options.WebGetTimeout)} seconds.",
                     CreateWebGetSchema(options)),
                 (invocation, cancellationToken) => WebGetAsync(options, httpClient, invocation, cancellationToken)),
             new AgentToolDefinition(
@@ -434,6 +434,7 @@ public static class LocalAgentBuiltInToolFactory
 
         var timeoutOverride = GetOptionalInt(invocation.Arguments, "timeoutSeconds");
         var rawHtml = GetOptionalBool(invocation.Arguments, "rawHtml") ?? false;
+        var includeHttpStatus = GetOptionalBool(invocation.Arguments, "includeHttpStatus") ?? false;
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var effectiveTimeout = timeoutOverride is > 0 ? TimeSpan.FromSeconds(timeoutOverride.Value) : options.WebGetTimeout;
         linkedCts.CancelAfter(effectiveTimeout);
@@ -486,6 +487,11 @@ public static class LocalAgentBuiltInToolFactory
                  string.Equals(mediaType, "application/xhtml+xml", StringComparison.OrdinalIgnoreCase)))
             {
                 text = SimplifyHtml(text);
+            }
+
+            if (includeHttpStatus)
+            {
+                text = FormatWebGetSuccessResponse(response, text);
             }
 
             var trimmedText = text.Trim();
@@ -1256,7 +1262,7 @@ public static class LocalAgentBuiltInToolFactory
               "type": "object",
               "properties": {
                 "path": { "type": "string", "description": "Path to the file to read." },
-                "offset": { "type": "integer", "description": "1-based line offset. Use a negative value to count from the end (-1 is the last line). 0 is invalid. Offsets past EOF return an empty result, and oversized negative offsets clamp to line 1." },
+                "offset": { "type": "integer", "description": "1-based line offset. Use a negative value to count from the end (-1 is the last line). 0 is invalid. Offsets past EOF return an empty text result, and oversized negative offsets clamp to line 1." },
                 "limit": { "type": "integer", "description": "Maximum number of lines to return. Defaults to {{options.DefaultReadFileLineLimit}} and is capped at {{options.MaxReadFileLineLimit}}.", "minimum": 1 }
               },
               "required": ["path"],
@@ -1299,9 +1305,10 @@ public static class LocalAgentBuiltInToolFactory
             {
               "type": "object",
               "properties": {
-                "url": { "type": "string", "description": "Absolute http or https URL to fetch. By default, HTML responses are simplified to plain text; JSON and XML are returned as text bodies after webget's content-type and size checks." },
+                "url": { "type": "string", "description": "Absolute http or https URL to fetch. On success, webget returns a text result containing the fetched body. By default, HTML responses are simplified to plain text; JSON and XML are returned as text bodies after webget's content-type and size checks." },
                 "timeoutSeconds": { "type": "integer", "description": "Optional timeout override in seconds. Defaults to {{FormatSeconds(options.WebGetTimeout)}} seconds.", "minimum": 1 },
-                "rawHtml": { "type": "boolean", "description": "When true, return raw HTML markup instead of simplified plain text for HTML/XHTML responses. Defaults to false." }
+                "rawHtml": { "type": "boolean", "description": "When true, return raw HTML markup instead of simplified plain text for HTML/XHTML responses. Defaults to false." },
+                "includeHttpStatus": { "type": "boolean", "description": "When true, prefix the HTTP status line and response content type before the returned body text. Defaults to false." }
               },
               "required": ["url"],
               "additionalProperties": false
@@ -1329,6 +1336,28 @@ public static class LocalAgentBuiltInToolFactory
            string.Equals(mediaType, "application/json", StringComparison.OrdinalIgnoreCase) ||
            string.Equals(mediaType, "application/xml", StringComparison.OrdinalIgnoreCase) ||
            string.Equals(mediaType, "application/xhtml+xml", StringComparison.OrdinalIgnoreCase);
+
+    private static string FormatWebGetSuccessResponse(HttpResponseMessage response, string body)
+    {
+        var builder = new StringBuilder();
+        builder.Append("HTTP ").Append((int)response.StatusCode);
+        if (!string.IsNullOrWhiteSpace(response.ReasonPhrase))
+        {
+            builder.Append(' ').Append(response.ReasonPhrase);
+        }
+
+        var contentType = response.Content.Headers.ContentType?.ToString();
+        if (!string.IsNullOrWhiteSpace(contentType))
+        {
+            builder.AppendLine();
+            builder.Append("content-type: ").Append(contentType);
+        }
+
+        builder.AppendLine();
+        builder.AppendLine();
+        builder.Append(body);
+        return builder.ToString();
+    }
 
     private static string WrapWindowsShellCommand(string command)
     {

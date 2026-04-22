@@ -362,6 +362,7 @@ Optional later additions:
 - should fetch and return webpage content in a model-friendly text form
 - HTML responses may be simplified to plain text instead of returning raw markup, as long as that is documented clearly
 - it may offer an explicit raw-HTML escape hatch when markup is actually needed, but plain-text extraction should remain the default
+- on success it should clearly document that the default payload is the fetched body text, and any optional HTTP status/metadata prefix should be opt-in to avoid breaking body-only workflows
 - should be usable for documentation pages, raw text resources, and simple HTTP retrieval
 - it is distinct from search because the agent often already has the target URL
 - it should support basic safeguards such as size limits, content-type checks, and timeout controls
@@ -372,12 +373,16 @@ Optional later additions:
 Deterministic edit tools for all providers
 - `write_file` should replace a file's full contents in one call
 - `replace_in_file` should perform exact-string replacement only, with no regex and no fuzzy matching
+- `replace_in_file` should be explicit that `replace_all=false` errors unless exactly one match exists, and that this failure leaves the file unchanged
 - `rename_file_or_dir` should rename or move files and directories
+- `rename_file_or_dir` should be explicit that it will not overwrite an existing destination
 - `delete_file_or_dir` should delete files or directories recursively
 - these tools should stay easy to describe, easy to call, and return clear failure messages
 - path-like tool arguments should resolve relative paths from the session working directory while still accepting absolute paths unchanged
 - `read_file` should support negative line offsets to read from the end of a text file (`-1` = last line)
 - `read_file` offsets are 1-based, so `0` should be rejected explicitly rather than silently acting like an empty range
+- `read_file` should document that offsets past EOF return an empty text result rather than an error
+- `grep` should document its no-match sentinel if it returns a literal string such as `(no matches)` instead of an empty array/object
 - `read_file` descriptions should document the default line limit used when `limit` is omitted
 - `list_dir` should fail clearly when the target path exists but is not a directory
 - `list_dir` should use an explicit empty-directory marker instead of returning a visually blank result
