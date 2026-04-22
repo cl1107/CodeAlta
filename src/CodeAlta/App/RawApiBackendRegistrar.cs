@@ -28,288 +28,341 @@ internal static class RawApiBackendRegistrar
         var descriptors = new List<AgentBackendDescriptor>();
         foreach (var definition in configStore.LoadGlobalProviderDefinitions())
         {
-            switch (definition.ProviderType)
+            if (TryCreateBackendRegistration(definition, stateRootPath, modelCatalog, out var descriptor, out var createBackend))
             {
-                case "openai-chat":
-                    RegisterOpenAIChatProvider(backendFactory, stateRootPath, definition, descriptors, modelCatalog);
-                    break;
-                case "openai-responses":
-                    RegisterOpenAIResponsesProvider(backendFactory, stateRootPath, definition, descriptors, modelCatalog);
-                    break;
-                case "anthropic":
-                    RegisterAnthropicProvider(backendFactory, stateRootPath, definition, descriptors, modelCatalog);
-                    break;
-                case "google-genai":
-                    RegisterGoogleGenAIProvider(backendFactory, stateRootPath, definition, descriptors, modelCatalog);
-                    break;
-                case "vertex-ai":
-                    RegisterVertexAIProvider(backendFactory, stateRootPath, definition, descriptors, modelCatalog);
-                    break;
+                backendFactory.RegisterOrReplace(descriptor.BackendId, createBackend);
+                descriptors.Add(descriptor);
             }
         }
 
         return descriptors;
     }
 
-    private static void RegisterOpenAIChatProvider(
+    public static IReadOnlyList<AgentBackendDescriptor> RegisterOrReplaceConfiguredBackends(
         AgentBackendFactory backendFactory,
+        IEnumerable<CodeAltaProviderDocument> definitions,
         string stateRootPath,
+        ModelsDevCatalogService? modelCatalog = null)
+    {
+        ArgumentNullException.ThrowIfNull(backendFactory);
+        ArgumentNullException.ThrowIfNull(definitions);
+        ArgumentException.ThrowIfNullOrWhiteSpace(stateRootPath);
+
+        var descriptors = new List<AgentBackendDescriptor>();
+        foreach (var definition in definitions)
+        {
+            if (!TryCreateBackendRegistration(definition, stateRootPath, modelCatalog, out var descriptor, out var createBackend))
+            {
+                continue;
+            }
+
+            backendFactory.RegisterOrReplace(descriptor.BackendId, createBackend);
+            descriptors.Add(descriptor);
+        }
+
+        return descriptors;
+    }
+
+    public static bool TryCreateBackendRegistration(
         CodeAltaProviderDocument definition,
-        List<AgentBackendDescriptor> descriptors,
-        ModelsDevCatalogService? modelCatalog)
+        string stateRootPath,
+        ModelsDevCatalogService? modelCatalog,
+        out AgentBackendDescriptor descriptor,
+        out Func<IAgentBackend> createBackend)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        ArgumentException.ThrowIfNullOrWhiteSpace(stateRootPath);
+
+        switch (definition.ProviderType)
+        {
+            case "openai-chat":
+                return TryCreateOpenAIChatProvider(definition, stateRootPath, modelCatalog, out descriptor, out createBackend);
+            case "openai-responses":
+                return TryCreateOpenAIResponsesProvider(definition, stateRootPath, modelCatalog, out descriptor, out createBackend);
+            case "anthropic":
+                return TryCreateAnthropicProvider(definition, stateRootPath, modelCatalog, out descriptor, out createBackend);
+            case "google-genai":
+                return TryCreateGoogleGenAIProvider(definition, stateRootPath, modelCatalog, out descriptor, out createBackend);
+            case "vertex-ai":
+                return TryCreateVertexAIProvider(definition, stateRootPath, modelCatalog, out descriptor, out createBackend);
+            default:
+                descriptor = null!;
+                createBackend = null!;
+                return false;
+        }
+    }
+
+    private static bool TryCreateOpenAIChatProvider(
+        CodeAltaProviderDocument definition,
+        string stateRootPath,
+        ModelsDevCatalogService? modelCatalog,
+        out AgentBackendDescriptor descriptor,
+        out Func<IAgentBackend> createBackend)
     {
         var apiKey = ResolveSecret(definition.ApiKey, definition.ApiKeyEnv);
         if (string.IsNullOrWhiteSpace(apiKey))
         {
             LogInfo(
                 $"Skipping provider provider={definition.ProviderKey} type={definition.ProviderType} displayName={FormatDisplayName(definition.DisplayName)} reason=missing-credentials");
-            return;
+            descriptor = null!;
+            createBackend = null!;
+            return false;
         }
 
         var backendId = new AgentBackendId(definition.ProviderKey);
         var displayName = ResolveProviderDisplayName(definition);
         var baseUri = ParseUri(definition.ApiUrl);
-        backendFactory.RegisterOpenAIChat(
-            new OpenAIChatAgentBackendOptions
+        var options = new OpenAIChatAgentBackendOptions
+        {
+            BackendIdOverride = backendId,
+            DisplayNameOverride = displayName,
+            StateRootPath = stateRootPath,
+            Providers =
             {
-                BackendIdOverride = backendId,
-                DisplayNameOverride = displayName,
-                StateRootPath = stateRootPath,
-                Providers =
+                new OpenAIProviderOptions
                 {
-                    new OpenAIProviderOptions
-                    {
-                        ProviderKey = definition.ProviderKey,
-                        DisplayName = displayName,
-                        ApiKey = apiKey,
-                        BaseUri = baseUri,
-                        OrganizationId = definition.OrganizationId,
-                        ProjectId = definition.ProjectId,
-                        IsDefault = true,
-                        Profile = CreateOpenAIChatProfile(definition.ProviderKey, baseUri, definition.Profile),
-                        Compaction = CreateCompactionSettings(definition.Compaction),
-                        ModelsDevProviderId = ResolveModelsDevProviderId(
-                            definition.ModelsDevProviderId,
-                            definition.ProviderKey,
-                            "openai",
-                            modelCatalog),
-                        SingleModelId = NormalizeText(definition.SingleModelId),
-                        ExtraBody = RawApiProviderDefaultsCatalog.ApplyOpenAIExtraBodyDefaults(
-                            LocalAgentTransportKind.OpenAIChatCompletions,
-                            definition.ProviderKey,
-                            baseUri,
-                            CreateExtraBody(definition.ExtraBody)),
-                        ModelOverrides = CreateModelOverrides(definition.ModelOverrides),
-                        ModelCatalog = modelCatalog,
-                    },
+                    ProviderKey = definition.ProviderKey,
+                    DisplayName = displayName,
+                    ApiKey = apiKey,
+                    BaseUri = baseUri,
+                    OrganizationId = definition.OrganizationId,
+                    ProjectId = definition.ProjectId,
+                    IsDefault = true,
+                    Profile = CreateOpenAIChatProfile(definition.ProviderKey, baseUri, definition.Profile),
+                    Compaction = CreateCompactionSettings(definition.Compaction),
+                    ModelsDevProviderId = ResolveModelsDevProviderId(
+                        definition.ModelsDevProviderId,
+                        definition.ProviderKey,
+                        "openai",
+                        modelCatalog),
+                    SingleModelId = NormalizeText(definition.SingleModelId),
+                    ExtraBody = RawApiProviderDefaultsCatalog.ApplyOpenAIExtraBodyDefaults(
+                        LocalAgentTransportKind.OpenAIChatCompletions,
+                        definition.ProviderKey,
+                        baseUri,
+                        CreateExtraBody(definition.ExtraBody)),
+                    ModelOverrides = CreateModelOverrides(definition.ModelOverrides),
+                    ModelCatalog = modelCatalog,
                 },
-            });
+            },
+        };
 
-        descriptors.Add(new AgentBackendDescriptor(backendId, displayName));
+        descriptor = new AgentBackendDescriptor(backendId, displayName);
+        createBackend = () => new OpenAIChatAgentBackend(options);
         LogInfo(
             $"Registered provider backend={backendId.Value} type={definition.ProviderType} displayName={displayName} apiUrl={FormatUri(baseUri)}");
+        return true;
     }
 
-    private static void RegisterOpenAIResponsesProvider(
-        AgentBackendFactory backendFactory,
-        string stateRootPath,
+    private static bool TryCreateOpenAIResponsesProvider(
         CodeAltaProviderDocument definition,
-        List<AgentBackendDescriptor> descriptors,
-        ModelsDevCatalogService? modelCatalog)
+        string stateRootPath,
+        ModelsDevCatalogService? modelCatalog,
+        out AgentBackendDescriptor descriptor,
+        out Func<IAgentBackend> createBackend)
     {
         var apiKey = ResolveSecret(definition.ApiKey, definition.ApiKeyEnv);
         if (string.IsNullOrWhiteSpace(apiKey))
         {
             LogInfo(
                 $"Skipping provider provider={definition.ProviderKey} type={definition.ProviderType} displayName={FormatDisplayName(definition.DisplayName)} reason=missing-credentials");
-            return;
+            descriptor = null!;
+            createBackend = null!;
+            return false;
         }
 
         var backendId = new AgentBackendId(definition.ProviderKey);
         var displayName = ResolveProviderDisplayName(definition);
         var baseUri = ParseUri(definition.ApiUrl);
-        backendFactory.RegisterOpenAIResponses(
-            new OpenAIResponsesAgentBackendOptions
+        var options = new OpenAIResponsesAgentBackendOptions
+        {
+            BackendIdOverride = backendId,
+            DisplayNameOverride = displayName,
+            StateRootPath = stateRootPath,
+            Providers =
             {
-                BackendIdOverride = backendId,
-                DisplayNameOverride = displayName,
-                StateRootPath = stateRootPath,
-                Providers =
+                new OpenAIProviderOptions
                 {
-                    new OpenAIProviderOptions
-                    {
-                        ProviderKey = definition.ProviderKey,
-                        DisplayName = displayName,
-                        ApiKey = apiKey,
-                        BaseUri = baseUri,
-                        OrganizationId = definition.OrganizationId,
-                        ProjectId = definition.ProjectId,
-                        IsDefault = true,
-                        Profile = CreateOpenAIResponsesProfile(definition.ProviderKey, baseUri, definition.Profile),
-                        Compaction = CreateCompactionSettings(definition.Compaction),
-                        ModelsDevProviderId = ResolveModelsDevProviderId(
-                            definition.ModelsDevProviderId,
-                            definition.ProviderKey,
-                            "openai",
-                            modelCatalog),
-                        SingleModelId = NormalizeText(definition.SingleModelId),
-                        ExtraBody = RawApiProviderDefaultsCatalog.ApplyOpenAIExtraBodyDefaults(
-                            LocalAgentTransportKind.OpenAIResponses,
-                            definition.ProviderKey,
-                            baseUri,
-                            CreateExtraBody(definition.ExtraBody)),
-                        ModelOverrides = CreateModelOverrides(definition.ModelOverrides),
-                        ModelCatalog = modelCatalog,
-                    },
+                    ProviderKey = definition.ProviderKey,
+                    DisplayName = displayName,
+                    ApiKey = apiKey,
+                    BaseUri = baseUri,
+                    OrganizationId = definition.OrganizationId,
+                    ProjectId = definition.ProjectId,
+                    IsDefault = true,
+                    Profile = CreateOpenAIResponsesProfile(definition.ProviderKey, baseUri, definition.Profile),
+                    Compaction = CreateCompactionSettings(definition.Compaction),
+                    ModelsDevProviderId = ResolveModelsDevProviderId(
+                        definition.ModelsDevProviderId,
+                        definition.ProviderKey,
+                        "openai",
+                        modelCatalog),
+                    SingleModelId = NormalizeText(definition.SingleModelId),
+                    ExtraBody = RawApiProviderDefaultsCatalog.ApplyOpenAIExtraBodyDefaults(
+                        LocalAgentTransportKind.OpenAIResponses,
+                        definition.ProviderKey,
+                        baseUri,
+                        CreateExtraBody(definition.ExtraBody)),
+                    ModelOverrides = CreateModelOverrides(definition.ModelOverrides),
+                    ModelCatalog = modelCatalog,
                 },
-            });
+            },
+        };
 
-        descriptors.Add(new AgentBackendDescriptor(backendId, displayName));
+        descriptor = new AgentBackendDescriptor(backendId, displayName);
+        createBackend = () => new OpenAIResponsesAgentBackend(options);
         LogInfo(
             $"Registered provider backend={backendId.Value} type={definition.ProviderType} displayName={displayName} apiUrl={FormatUri(baseUri)}");
+        return true;
     }
 
-    private static void RegisterAnthropicProvider(
-        AgentBackendFactory backendFactory,
-        string stateRootPath,
+    private static bool TryCreateAnthropicProvider(
         CodeAltaProviderDocument definition,
-        List<AgentBackendDescriptor> descriptors,
-        ModelsDevCatalogService? modelCatalog)
+        string stateRootPath,
+        ModelsDevCatalogService? modelCatalog,
+        out AgentBackendDescriptor descriptor,
+        out Func<IAgentBackend> createBackend)
     {
         var apiKey = ResolveSecret(definition.ApiKey, definition.ApiKeyEnv);
         if (string.IsNullOrWhiteSpace(apiKey))
         {
             LogInfo(
                 $"Skipping provider provider={definition.ProviderKey} type={definition.ProviderType} displayName={FormatDisplayName(definition.DisplayName)} reason=missing-credentials");
-            return;
+            descriptor = null!;
+            createBackend = null!;
+            return false;
         }
 
         var backendId = new AgentBackendId(definition.ProviderKey);
         var displayName = ResolveProviderDisplayName(definition);
         var baseUri = ParseUri(definition.ApiUrl);
-        backendFactory.RegisterAnthropic(
-            new AnthropicAgentBackendOptions
+        var options = new AnthropicAgentBackendOptions
+        {
+            BackendIdOverride = backendId,
+            DisplayNameOverride = displayName,
+            StateRootPath = stateRootPath,
+            Providers =
             {
-                BackendIdOverride = backendId,
-                DisplayNameOverride = displayName,
-                StateRootPath = stateRootPath,
-                Providers =
+                new AnthropicProviderOptions
                 {
-                    new AnthropicProviderOptions
-                    {
-                        ProviderKey = definition.ProviderKey,
-                        DisplayName = displayName,
-                        ApiKey = apiKey,
-                        BaseUri = baseUri,
-                        IsDefault = true,
-                        Profile = CreateAnthropicProfile(definition.Profile),
-                        Compaction = CreateCompactionSettings(definition.Compaction),
-                        ModelsDevProviderId = ResolveModelsDevProviderId(
-                            definition.ModelsDevProviderId,
-                            definition.ProviderKey,
-                            "anthropic",
-                            modelCatalog),
-                        SingleModelId = NormalizeText(definition.SingleModelId),
-                        ModelOverrides = CreateModelOverrides(definition.ModelOverrides),
-                        ModelCatalog = modelCatalog,
-                    },
+                    ProviderKey = definition.ProviderKey,
+                    DisplayName = displayName,
+                    ApiKey = apiKey,
+                    BaseUri = baseUri,
+                    IsDefault = true,
+                    Profile = CreateAnthropicProfile(definition.Profile),
+                    Compaction = CreateCompactionSettings(definition.Compaction),
+                    ModelsDevProviderId = ResolveModelsDevProviderId(
+                        definition.ModelsDevProviderId,
+                        definition.ProviderKey,
+                        "anthropic",
+                        modelCatalog),
+                    SingleModelId = NormalizeText(definition.SingleModelId),
+                    ModelOverrides = CreateModelOverrides(definition.ModelOverrides),
+                    ModelCatalog = modelCatalog,
                 },
-            });
+            },
+        };
 
-        descriptors.Add(new AgentBackendDescriptor(backendId, displayName));
+        descriptor = new AgentBackendDescriptor(backendId, displayName);
+        createBackend = () => new AnthropicAgentBackend(options);
         LogInfo(
             $"Registered provider backend={backendId.Value} type={definition.ProviderType} displayName={displayName} apiUrl={FormatUri(baseUri)}");
+        return true;
     }
 
-    private static void RegisterGoogleGenAIProvider(
-        AgentBackendFactory backendFactory,
-        string stateRootPath,
+    private static bool TryCreateGoogleGenAIProvider(
         CodeAltaProviderDocument definition,
-        List<AgentBackendDescriptor> descriptors,
-        ModelsDevCatalogService? modelCatalog)
+        string stateRootPath,
+        ModelsDevCatalogService? modelCatalog,
+        out AgentBackendDescriptor descriptor,
+        out Func<IAgentBackend> createBackend)
     {
         var apiKey = ResolveSecret(definition.ApiKey, definition.ApiKeyEnv);
         if (string.IsNullOrWhiteSpace(apiKey))
         {
             LogInfo(
                 $"Skipping provider provider={definition.ProviderKey} type={definition.ProviderType} displayName={FormatDisplayName(definition.DisplayName)} reason=missing-credentials");
-            return;
+            descriptor = null!;
+            createBackend = null!;
+            return false;
         }
 
-        RegisterGoogleProvider(
-            backendFactory,
-            stateRootPath,
+        return TryCreateGoogleProvider(
             definition,
-            descriptors,
+            stateRootPath,
             modelCatalog,
             useVertexAI: false,
-            apiKey);
+            apiKey,
+            out descriptor,
+            out createBackend);
     }
 
-    private static void RegisterVertexAIProvider(
-        AgentBackendFactory backendFactory,
-        string stateRootPath,
+    private static bool TryCreateVertexAIProvider(
         CodeAltaProviderDocument definition,
-        List<AgentBackendDescriptor> descriptors,
-        ModelsDevCatalogService? modelCatalog)
+        string stateRootPath,
+        ModelsDevCatalogService? modelCatalog,
+        out AgentBackendDescriptor descriptor,
+        out Func<IAgentBackend> createBackend)
     {
-        RegisterGoogleProvider(
-            backendFactory,
-            stateRootPath,
+        return TryCreateGoogleProvider(
             definition,
-            descriptors,
+            stateRootPath,
             modelCatalog,
             useVertexAI: true,
-            apiKey: null);
+            apiKey: null,
+            out descriptor,
+            out createBackend);
     }
 
-    private static void RegisterGoogleProvider(
-        AgentBackendFactory backendFactory,
-        string stateRootPath,
+    private static bool TryCreateGoogleProvider(
         CodeAltaProviderDocument definition,
-        List<AgentBackendDescriptor> descriptors,
+        string stateRootPath,
         ModelsDevCatalogService? modelCatalog,
         bool useVertexAI,
-        string? apiKey)
+        string? apiKey,
+        out AgentBackendDescriptor descriptor,
+        out Func<IAgentBackend> createBackend)
     {
         var backendId = new AgentBackendId(definition.ProviderKey);
         var displayName = ResolveProviderDisplayName(definition);
         var baseUri = ParseUri(definition.ApiUrl);
-        backendFactory.RegisterGoogleGenAI(
-            new GoogleGenAIAgentBackendOptions
+        var options = new GoogleGenAIAgentBackendOptions
+        {
+            BackendIdOverride = backendId,
+            DisplayNameOverride = displayName,
+            StateRootPath = stateRootPath,
+            Providers =
             {
-                BackendIdOverride = backendId,
-                DisplayNameOverride = displayName,
-                StateRootPath = stateRootPath,
-                Providers =
+                new GoogleGenAIProviderOptions
                 {
-                    new GoogleGenAIProviderOptions
-                    {
-                        ProviderKey = definition.ProviderKey,
-                        DisplayName = displayName,
-                        ApiKey = apiKey,
-                        UseVertexAI = useVertexAI,
-                        Project = definition.Project,
-                        Location = definition.Location,
-                        BaseUri = baseUri,
-                        IsDefault = true,
-                        Profile = CreateGoogleGenAIProfile(definition.Profile),
-                        Compaction = CreateCompactionSettings(definition.Compaction),
-                        ModelsDevProviderId = ResolveModelsDevProviderId(
-                            definition.ModelsDevProviderId,
-                            definition.ProviderKey,
-                            "google",
-                            modelCatalog),
-                        SingleModelId = NormalizeText(definition.SingleModelId),
-                        ModelOverrides = CreateModelOverrides(definition.ModelOverrides),
-                        ModelCatalog = modelCatalog,
-                    },
+                    ProviderKey = definition.ProviderKey,
+                    DisplayName = displayName,
+                    ApiKey = apiKey,
+                    UseVertexAI = useVertexAI,
+                    Project = definition.Project,
+                    Location = definition.Location,
+                    BaseUri = baseUri,
+                    IsDefault = true,
+                    Profile = CreateGoogleGenAIProfile(definition.Profile),
+                    Compaction = CreateCompactionSettings(definition.Compaction),
+                    ModelsDevProviderId = ResolveModelsDevProviderId(
+                        definition.ModelsDevProviderId,
+                        definition.ProviderKey,
+                        "google",
+                        modelCatalog),
+                    SingleModelId = NormalizeText(definition.SingleModelId),
+                    ModelOverrides = CreateModelOverrides(definition.ModelOverrides),
+                    ModelCatalog = modelCatalog,
                 },
-            });
+            },
+        };
 
-        descriptors.Add(new AgentBackendDescriptor(backendId, displayName));
+        descriptor = new AgentBackendDescriptor(backendId, displayName);
+        createBackend = () => new GoogleGenAIAgentBackend(options);
         LogInfo(
             $"Registered provider backend={backendId.Value} type={definition.ProviderType} displayName={displayName} apiUrl={FormatUri(baseUri)} vertex={useVertexAI}");
+        return true;
     }
 
     private static string ResolveProviderDisplayName(CodeAltaProviderDocument definition)

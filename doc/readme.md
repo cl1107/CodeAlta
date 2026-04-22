@@ -110,16 +110,17 @@ Current terminal shell capabilities:
   - Chat screen powered by `PromptEditor` (input) and `DocumentFlow` + `MarkdownControl` (rendered conversation history).
   - Automatically probes and initializes both Copilot and Codex backends. Codex is pinned to the SDK-generated release tag and is downloaded on demand into `~/.alta/cache/bin/codex/<tag>/` when missing.
   - Codex backend sessions default to `danger-full-access` (no sandbox) in CodeAlta so prompts can inspect sibling projects outside the current working directory without first switching the session root.
-  - Provider, model, and reasoning-effort selectors are shown under the prompt.
+  - Provider, model, and reasoning-effort selectors are shown under the prompt, while the footer now shows a compact provider summary button with enabled-provider and error counts.
   - Press `F6` or use the `Full Prompt` button to edit the current draft in a large 80%-screen prompt window; `Esc` closes it and keeps the edited draft.
   - Type `@` in the prompt to open a resizable project file/folder picker dialog with its own search box. Accepted entries become markdown links such as `[Program.cs](src/CodeAlta/Program.cs)`, raw `@path` and `@"path with spaces"` references still resolve on submit, optional `:line` or `:start-end` suffixes map to attachment line ranges, and accepted references are sent as structured file/directory inputs.
   - Press `Ctrl+E` or run `/edit` to open the project file picker in editor mode. Selected files open in reusable tabs beside thread/session tabs with TextMate syntax highlighting, line/column status, dirty markers, `Ctrl+S` save, reload prompts for on-disk changes, and close confirmation for unsaved edits.
   - Press `F1`, type `/help`, or enter `?` in the prompt to open shell command discovery. Textual shell commands now include `/open`, `/edit`, `/abort`, `/compact`, `/close`, `/queue`, `/exit`, `/tab_left`, `/tab_right`, `/go_to_sidebar`, and `/go_to_prompt`; `F5` steers, `F7` delegates, and `ALT+LEFT` / `ALT+RIGHT` switch between open tabs.
   - Press `Ctrl+O`, run `/open`, or use the always-visible `+` action on the `Projects` sidebar row to open a project dialog with project-name and directory completion. Rooted paths such as `/`, `C:`, `D:`, and `~` open folders, visible projects match the sidebar display names by default, and an `Include hidden` toggle opts archived projects back into completion and opening while successful opens return focus to the prompt.
-  - Press `Ctrl+G Ctrl+S` to focus the sidebar on the current selection, `Ctrl+G Ctrl+P` to focus the prompt, `Ctrl+G Ctrl+U` or use the footer usage indicator to open the context/usage popup, and press `Ctrl+G Ctrl+T` or use the thread info icon in the footer to open the selected thread report.
+  - Press `Ctrl+G Ctrl+S` to focus the sidebar on the current selection, `Ctrl+G Ctrl+P` to focus the prompt, `Ctrl+G Ctrl+M` or use the footer provider summary to open the model providers dialog, `Ctrl+G Ctrl+U` or use the footer usage indicator to open the context/usage popup, and press `Ctrl+G Ctrl+T` or use the thread info icon in the footer to open the selected thread report.
   - Closing either popup restores focus to the thread prompt editor so the workflow stays keyboard-first.
   - Per-provider model and reasoning defaults are stored in `~/.alta/config.toml`, with project-local overrides read from `<project>/.alta/config.toml`.
-- OpenAI-compatible, Anthropic, and Google GenAI providers can also be configured in `~/.alta/config.toml`; only providers with usable credentials or Vertex settings are registered at startup. Local raw-API providers enrich model metadata from the bundled `models_dev_db.json` snapshot, apply per-provider `models_dev_provider_id` mappings and optional `model_overrides`, and refresh the models.dev catalog in the background at runtime.
+  - The model providers dialog supports add/delete, enable/disable, save/reload, validation, and per-provider connectivity tests. If no enabled providers are configured, CodeAlta opens this dialog on startup and prompts the user to configure one.
+  - OpenAI-compatible, Anthropic, and Google GenAI providers can also be configured in `~/.alta/config.toml`; only providers with usable credentials or Vertex settings are registered at startup. Local raw-API providers enrich model metadata from the bundled `models_dev_db.json` snapshot, apply per-provider `models_dev_provider_id` mappings and optional `model_overrides`, and refresh the models.dev catalog in the background at runtime.
   - Thread-specific model and reasoning selections are preserved for reopened tabs through `~/.alta/ui-state.yaml`, so an existing thread keeps its model by default even after global or project defaults change.
   - The reasoning selector only shows concrete effort values. When a selected model supports `high`, CodeAlta prefers `high` by default.
   - Sending a prompt now follows an enqueue-first workflow for busy threads: `Ctrl+J`/`Ctrl+Enter` adds the prompt to a waiting list above the status line, where queued prompts can be edited, repeated, steered immediately when the backend supports live steering, deleted, or cleared with `F10`. Steer requests that have been sent locally but not yet echoed back by the backend also appear at the top of that strip as transient pending rows, and unsupported backends such as the current local raw-API OpenAI/Anthropic/Google runtimes automatically re-queue the prompt for the next turn.
@@ -165,6 +166,8 @@ Built-in providers use reserved keys:
 - `providers.codex` → `type = "codex"`
 - `providers.copilot` → `type = "copilot"`
 
+Both reserved providers are present in the model providers dialog even when they are not explicitly configured in `config.toml`. They now default to disabled so a first-time user must explicitly opt into Codex, Copilot, or another provider before starting a thread.
+
 Additional local providers can target raw provider SDKs such as:
 
 - `OpenAI Responses`
@@ -174,6 +177,16 @@ Additional local providers can target raw provider SDKs such as:
 - `Vertex AI`
 
 These providers are configured from `~/.alta/config.toml` under `providers.<provider-key>`. Each entry represents one provider registration and uses a single canonical `type` field such as `openai-chat`, `openai-responses`, `anthropic`, `google-genai`, or `vertex-ai`. OpenAI-compatible and Anthropic-compatible endpoints may set `api_url`; Vertex uses `project` and `location` instead. Each provider can optionally map to a models.dev provider id and override individual model limits so context usage stays consistent even when the upstream SDK does not expose context-window metadata.
+
+The preferred workflow is now the in-app model providers dialog (`Ctrl+G Ctrl+M`), which edits the same file. The dialog:
+
+- uses a left/right split layout for provider selection and editing
+- supports provider add/delete plus enable/disable toggles
+- validates provider keys, endpoint URLs, required credentials, and conflicting entries before save
+- lets users store API keys directly in config or point to an environment variable
+- can save, reload from disk, and test a provider before applying changes
+- preserves advanced TOML sections such as `profile`, `compaction`, `extra_body`, and `model_overrides` even though those advanced sections are still edited manually today
+
 When CodeAlta writes `config.toml` back, it now omits properties that match built-in defaults such as `enabled = true`, reserved-provider `type`/`display_name`, and default compaction values.
 
 Default provider selection is configured separately:

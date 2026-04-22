@@ -70,6 +70,8 @@ internal sealed class CodeAltaApp : IAsyncDisposable
     private readonly WorkspaceRefreshContext _workspaceRefreshContext;
     private readonly AcpManagementCoordinator? _acpManagementCoordinator;
     private readonly AcpFrontendCoordinator _acpUi;
+    private readonly ProviderFrontendCoordinator _providerUi;
+    private readonly ProviderDialogCoordinator _providerDialogCoordinator;
     private readonly FileEditorWorkspaceCoordinator _fileEditorWorkspaceCoordinator;
     private readonly InitialCatalogStateCoordinator _initialCatalogStateCoordinator;
     private CodeAltaShellView? _shellView;
@@ -78,6 +80,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
     private ThreadInfoPresenter? _threadInfoPresenter;
     private IUiDispatcher? _uiDispatcher;
     private bool _disableTerminalLoopCallback;
+    private bool _startupProviderDialogHandled;
     private WorkThreadViewState _viewState
     {
         get => _threadStateCoordinator.ViewState;
@@ -256,6 +259,11 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             DispatchToUi,
             RefreshSelectionAndThreadWorkspace,
             SetStatus);
+        _providerUi = new ProviderFrontendCoordinator(_ownedServices, _catalogOptions, _chatBackendInitializationCoordinator, _chatBackendStates, DispatchToUi, RefreshSelectionAndThreadWorkspace, SetStatus);
+        _providerDialogCoordinator = new ProviderDialogCoordinator(
+            _providerUi,
+            () => DialogBoundsResolver.ResolveAppBounds(ThreadInput is Visual threadInput ? threadInput : _sidebarCoordinator.View.Tree),
+            () => ThreadInput is Visual threadInput ? threadInput : _sidebarCoordinator.View.Tree);
         _acpManagementCoordinator = AcpManagementCoordinatorFactory.Create(
             _ownedServices,
             _catalogOptions,
@@ -296,6 +304,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             _threadCommandCoordinator,
             () => _threadStateCoordinator.Projects,
             OpenFolderAsync,
+            OpenModelProvidersAsync,
             _fileEditorWorkspaceCoordinator.ShowOpenFilePickerAsync,
             () => ReadBindableState(() => _promptDraftUiCoordinator.PromptText),
             () => _fileEditorWorkspaceCoordinator.GetSelectedFileTab() is { } fileTab
@@ -434,7 +443,21 @@ internal sealed class CodeAltaApp : IAsyncDisposable
     }
 
     private bool TryResolveInitialCatalogState(CancellationToken cancellationToken)
-        => _initialCatalogStateCoordinator.TryResolve(cancellationToken);
+    {
+        if (!_initialCatalogStateCoordinator.TryResolve(cancellationToken))
+        {
+            return false;
+        }
+
+        if (!_startupProviderDialogHandled && !_providerUi.HasAnyEnabledProviders())
+        {
+            _startupProviderDialogHandled = true;
+            SetStatus("No model providers are enabled. Open Model Providers (Ctrl+G Ctrl+M) to configure one.", false, StatusTone.Warning);
+            _ = OpenModelProvidersAsync();
+        }
+
+        return true;
+    }
 
     private void RefreshChatSelectorsForDraftScope(AgentBackendId? preferredBackendId = null)
         => _chatSelectorCoordinator.RefreshForDraftScope(preferredBackendId);
@@ -479,6 +502,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             anchor => EnsureThreadInfoPresenter().TogglePopup(anchor),
             () => ObserveUiTask(_shellCommandSurfaceCoordinator.ShowHelpAsync(), "show help"),
             () => _shellCommandSurfaceCoordinator.ShowCommandPalette(),
+            () => ObserveUiTask(OpenModelProvidersAsync(), "open model providers"),
             _ownedServices?.ProjectFileSearchService ?? NullProjectFileSearchService.Instance,
             () => PromptReferenceProjectRootResolver.Resolve(GetSelectedThread(), GetProjectById, GetSelectedProject),
             acceptedPrompt => ObserveUiTask(_shellCommandSurfaceCoordinator.HandleAcceptedPromptAsync(acceptedPrompt), "submit the current prompt"),
@@ -668,6 +692,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
     internal void FocusPromptEditor() { ActivateThreadSurface(); ThreadPaneLayout?.App?.Focus(ThreadInput); }
 
     internal void OpenAcpManagement() { if (_acpManagementCoordinator is null) { SetStatus("ACP management is unavailable in this app instance.", tone: StatusTone.Warning); return; } _acpManagementCoordinator.Open(); }
+    internal Task OpenModelProvidersAsync() => _providerDialogCoordinator.OpenAsync();
     internal void FocusSidebar() { SyncSidebarSelectionToCurrentState(); ApplyPendingSidebarSelection(); _sidebarCoordinator.View.Tree.App?.Focus(_sidebarCoordinator.View.Tree); }
     private async Task CloseSelectedThreadAsync()
         => await _threadStateCoordinator.CloseSelectedThreadAsync();
@@ -704,4 +729,5 @@ internal sealed class CodeAltaApp : IAsyncDisposable
 
     private WorkThreadDescriptor? FindThread(string? threadId)
         => _threadStateCoordinator.FindThread(threadId);
+
 }

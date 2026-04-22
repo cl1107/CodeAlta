@@ -13,6 +13,10 @@ internal static class ShellCommandCatalog
         new KeyGesture(TerminalChar.CtrlG, TerminalModifiers.Ctrl),
         new KeyGesture(TerminalChar.CtrlP, TerminalModifiers.Ctrl));
 
+    public static readonly KeySequence ModelProvidersShortcutSequence = new(
+        new KeyGesture(TerminalChar.CtrlG, TerminalModifiers.Ctrl),
+        new KeyGesture(TerminalChar.CtrlM, TerminalModifiers.Ctrl));
+
     public static readonly KeySequence SessionUsageShortcutSequence = new(
         new KeyGesture(TerminalChar.CtrlG, TerminalModifiers.Ctrl),
         new KeyGesture(TerminalChar.CtrlU, TerminalModifiers.Ctrl));
@@ -99,6 +103,17 @@ internal static class ShellCommandCatalog
             Sequence: FocusPromptShortcutSequence,
             Aliases: ["prompt"],
             ShowInCommandBar: false),
+        new(
+            "CodeAlta.Providers.Manage",
+            "Model Providers",
+            "Configure enabled model providers, credentials, and connection details.",
+            ShellCommandHelpCategory.General,
+            ShellCommandScope.AnyShell,
+            ShellCommandAvailability.Always,
+            Sequence: ModelProvidersShortcutSequence,
+            CommandName: "model_providers",
+            Aliases: ["providers", "models"],
+            ShowInCommandBar: true),
         new(
             "CodeAlta.Thread.SessionUsage",
             "Context Usage",

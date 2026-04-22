@@ -118,6 +118,40 @@ internal static class ChatBackendPresentation
         return prefix + string.Join("   ", items);
     }
 
+    public static string BuildProviderSummaryMarkup(
+        IEnumerable<ChatBackendState> backendStates,
+        bool isInitializing)
+    {
+        ArgumentNullException.ThrowIfNull(backendStates);
+
+        var states = backendStates.ToArray();
+        if (isInitializing)
+        {
+            return $"[primary]{NerdFont.MdTimerOutline} Detecting providers[/]";
+        }
+
+        var providerCount = states.Length;
+        var errorCount = states.Count(static state =>
+            state.Availability is ChatBackendAvailability.Unsupported or ChatBackendAvailability.Failed);
+        var readyCount = states.Count(static state => state.Availability == ChatBackendAvailability.Ready);
+        var tone = errorCount > 0
+            ? "warning"
+            : readyCount > 0
+                ? "success"
+                : "muted";
+        var icon = errorCount > 0
+            ? $"{NerdFont.MdAlertOutline}"
+            : readyCount > 0
+                ? $"{NerdFont.MdCheckCircleOutline}"
+                : $"{NerdFont.MdTuneVariant}";
+        var providerLabel = providerCount == 1 ? "provider" : "providers";
+        var errorSegment = errorCount > 0
+            ? $" [warning]· {errorCount} error{(errorCount == 1 ? string.Empty : "s")}[/]"
+            : string.Empty;
+
+        return $"[{tone}]{icon} {providerCount} {providerLabel}[/]{errorSegment}";
+    }
+
     public static string? ResolvePreferredModelId(
         IReadOnlyList<AgentModelInfo> models,
         string? preferredModelId)

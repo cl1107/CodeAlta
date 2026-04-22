@@ -644,7 +644,7 @@ public sealed class CodeAltaAppTests
             "Waiting for Codex to reconnect...",
             PromptComposerProjectionBuilder.BuildPromptUnavailablePlaceholder(thread, "Codex", ChatBackendAvailability.Connecting, anyBackendReady: false));
         Assert.AreEqual(
-            "Install or connect a provider to start a thread...",
+            "Configure model providers (Ctrl+G Ctrl+M) to start a thread...",
             PromptComposerProjectionBuilder.BuildPromptUnavailablePlaceholder(null, "Codex", ChatBackendAvailability.Unsupported, anyBackendReady: false));
     }
 
@@ -670,7 +670,7 @@ public sealed class CodeAltaAppTests
             "Reconnecting 'Review startup' to Codex. Prompt sending is temporarily unavailable.",
             PromptComposerProjectionBuilder.BuildPromptUnavailableStatusText(thread, "Codex", ChatBackendAvailability.Connecting, anyBackendReady: false));
         Assert.AreEqual(
-            "No chat provider is connected. Browse threads and projects, but prompt sending is unavailable.",
+            "No model provider is ready. Open Model Providers (Ctrl+G Ctrl+M) to configure one.",
             PromptComposerProjectionBuilder.BuildPromptUnavailableStatusText(null, "Codex", ChatBackendAvailability.Unsupported, anyBackendReady: false));
     }
 
@@ -1636,6 +1636,27 @@ public sealed class CodeAltaAppTests
         StringAssert.Contains(markup, "Codex");
         StringAssert.Contains(markup, "Copilot");
         Assert.IsFalse(markup.Contains("CLI not found", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void BuildProviderSummaryMarkup_IncludesProviderAndErrorCounts()
+    {
+        var states = new[]
+        {
+            new ChatBackendState(AgentBackendIds.Codex, "Codex")
+            {
+                Availability = ChatBackendAvailability.Ready,
+            },
+            new ChatBackendState(AgentBackendIds.Copilot, "Copilot")
+            {
+                Availability = ChatBackendAvailability.Failed,
+            },
+        };
+
+        var markup = ChatBackendPresentation.BuildProviderSummaryMarkup(states, isInitializing: false);
+
+        StringAssert.Contains(markup, "2 providers");
+        StringAssert.Contains(markup, "1 error");
     }
 
     [TestMethod]

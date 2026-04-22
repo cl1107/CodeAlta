@@ -9,6 +9,7 @@ public sealed partial class ThreadWorkspaceViewModel
     public ThreadWorkspaceViewModel()
     {
         BackendStatusMarkup = string.Empty;
+        ProviderSummaryMarkup = string.Empty;
         AutoScroll = true;
         SelectedBackendIndex = -1;
         SelectedModelIndex = -1;
@@ -21,6 +22,9 @@ public sealed partial class ThreadWorkspaceViewModel
 
     [Bindable]
     public partial string BackendStatusMarkup { get; set; }
+
+    [Bindable]
+    public partial string ProviderSummaryMarkup { get; set; }
 
     [Bindable]
     public partial bool CanSelectBackend { get; set; }

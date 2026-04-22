@@ -70,6 +70,8 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
 
     public CodexInstallProgressReporter CodexInstallProgress => _codexInstallProgress;
 
+    internal ModelsDevCatalogService ModelsDevCatalogService => _modelsDevCatalogService;
+
     public AcpAgentRegistryService AcpAgentRegistryService { get; }
 
     public ProjectCatalog ProjectCatalog { get; }
@@ -242,6 +244,73 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
             new AgentBackendDescriptor(AgentBackendIds.Codex, "Codex"),
             new AgentBackendDescriptor(AgentBackendIds.Copilot, "GitHub Copilot"),
         ];
+    }
+
+    public async Task<IReadOnlyList<AgentBackendDescriptor>> RefreshProviderBackendsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var providerDefinitions = _configStore.LoadGlobalProviderDefinitions(includeDisabled: true)
+            .ToDictionary(static definition => definition.ProviderKey, StringComparer.OrdinalIgnoreCase);
+        var expectedBackendIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var providerDescriptors = new List<AgentBackendDescriptor>();
+
+        if (providerDefinitions.TryGetValue("codex", out var codexProvider) && codexProvider.Enabled != false)
+        {
+            var codexPath = ResolveCodexExecutablePath(Environment.GetEnvironmentVariable(CodexPathOverrideEnvironmentVariable));
+            await AgentHub.UnloadBackendAsync(AgentBackendIds.Codex, cancellationToken).ConfigureAwait(false);
+            _backendFactory.RegisterOrReplaceCodex(
+                new CodexAgentBackendOptions
+                {
+                    ProcessOptions = new CodexProcessOptions
+                    {
+                        CodexPath = codexPath,
+                        LocalRootPath = Path.Combine(CatalogOptions.GlobalRoot, "cache"),
+                        ReleaseTag = codexPath is null ? CodexClient.CompiledAgainstReleaseTag : null,
+                        Progress = codexPath is null ? _codexInstallProgress : null,
+                    },
+                });
+            providerDescriptors.Add(new AgentBackendDescriptor(AgentBackendIds.Codex, codexProvider.DisplayName ?? "Codex"));
+            expectedBackendIds.Add(AgentBackendIds.Codex.Value);
+        }
+
+        if (providerDefinitions.TryGetValue("copilot", out var copilotProvider) && copilotProvider.Enabled != false)
+        {
+            await AgentHub.UnloadBackendAsync(AgentBackendIds.Copilot, cancellationToken).ConfigureAwait(false);
+            _backendFactory.RegisterOrReplaceCopilot(new CopilotAgentBackendOptions());
+            providerDescriptors.Add(new AgentBackendDescriptor(AgentBackendIds.Copilot, copilotProvider.DisplayName ?? "GitHub Copilot"));
+            expectedBackendIds.Add(AgentBackendIds.Copilot.Value);
+        }
+
+        providerDescriptors.AddRange(
+            RawApiBackendRegistrar.RegisterOrReplaceConfiguredBackends(
+                _backendFactory,
+                providerDefinitions.Values.Where(static definition => definition.Enabled != false),
+                CatalogOptions.GlobalRoot,
+                _modelsDevCatalogService));
+        foreach (var descriptor in providerDescriptors)
+        {
+            expectedBackendIds.Add(descriptor.BackendId.Value);
+        }
+
+        foreach (var descriptor in _backendDescriptors
+                     .Where(static descriptor => !descriptor.BackendId.Value.StartsWith("acp:", StringComparison.OrdinalIgnoreCase))
+                     .ToArray())
+        {
+            if (expectedBackendIds.Contains(descriptor.BackendId.Value))
+            {
+                continue;
+            }
+
+            await AgentHub.UnloadBackendAsync(descriptor.BackendId, cancellationToken).ConfigureAwait(false);
+            _backendFactory.Unregister(descriptor.BackendId);
+        }
+
+        _backendDescriptors.RemoveAll(static descriptor => !descriptor.BackendId.Value.StartsWith("acp:", StringComparison.OrdinalIgnoreCase));
+        _backendDescriptors.InsertRange(
+            0,
+            providerDescriptors.OrderBy(static descriptor => descriptor.DisplayName, StringComparer.OrdinalIgnoreCase));
+
+        return _backendDescriptors;
     }
 
     public async Task<IReadOnlyList<AgentBackendDescriptor>> RefreshAcpBackendsAsync(

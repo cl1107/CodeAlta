@@ -109,6 +109,20 @@ internal sealed class ChatSelectorCoordinator
         try
         {
             var backendOptions = ChatBackendPresentation.BuildBackendOptions(_backendDescriptors);
+            _workspaceViewModel.ProviderSummaryMarkup = ChatBackendPresentation.BuildProviderSummaryMarkup(_chatBackendStates.Values, isInitializing: false);
+            if (backendOptions.Count == 0)
+            {
+                _selectorState.SetBackendSelection([], -1);
+                _selectorState.SetModelSelection([], -1);
+                _selectorState.SetReasoningSelection([], -1);
+                _workspaceViewModel.AutoScroll = true;
+                _workspaceViewModel.CanSelectBackend = false;
+                _workspaceViewModel.CanSelectModel = false;
+                _workspaceViewModel.CanSelectReasoning = false;
+                _workspaceViewModel.CanToggleAutoScroll = false;
+                _syncChatSelectorItems();
+                return;
+            }
 
             var backendId = preferredBackendId ?? GetPreferredDraftBackendId(backendOptions);
             var backendIndex = Math.Max(0, backendOptions.FindIndex(option => string.Equals(option.BackendId.Value, backendId.Value, StringComparison.OrdinalIgnoreCase)));
@@ -135,7 +149,6 @@ internal sealed class ChatSelectorCoordinator
                 Math.Max(0, reasoningOptions.Count - 1)));
             _workspaceViewModel.AutoScroll = true;
 
-            _workspaceViewModel.BackendStatusMarkup = ChatBackendPresentation.BuildBackendStatusMarkup(_chatBackendStates.Values, backendOptions[backendIndex].BackendId, isInitializing: false);
             _workspaceViewModel.CanSelectBackend = true;
             _workspaceViewModel.CanSelectModel = backendState.Availability == ChatBackendAvailability.Ready;
             _workspaceViewModel.CanSelectReasoning = backendState.Availability == ChatBackendAvailability.Ready;
@@ -157,6 +170,21 @@ internal sealed class ChatSelectorCoordinator
         try
         {
             var backendOptions = ChatBackendPresentation.BuildBackendOptions(_backendDescriptors);
+            _workspaceViewModel.ProviderSummaryMarkup = ChatBackendPresentation.BuildProviderSummaryMarkup(_chatBackendStates.Values, isInitializing: false);
+            if (backendOptions.Count == 0)
+            {
+                _selectorState.SetBackendSelection([], -1);
+                _selectorState.SetModelSelection([], -1);
+                _selectorState.SetReasoningSelection([], -1);
+                _workspaceViewModel.AutoScroll = tab.AutoScroll;
+                _workspaceViewModel.CanSelectBackend = false;
+                _workspaceViewModel.CanSelectModel = false;
+                _workspaceViewModel.CanSelectReasoning = false;
+                _workspaceViewModel.CanToggleAutoScroll = true;
+                _syncChatSelectorItems();
+                return;
+            }
+
             _selectorState.SetBackendSelection(
                 backendOptions,
                 Math.Clamp(
@@ -187,7 +215,6 @@ internal sealed class ChatSelectorCoordinator
                 Math.Max(0, reasoningOptions.Count - 1)));
             _workspaceViewModel.AutoScroll = tab.AutoScroll;
 
-            _workspaceViewModel.BackendStatusMarkup = ChatBackendPresentation.BuildBackendStatusMarkup(_chatBackendStates.Values, tab.BackendId, isInitializing: false);
             _workspaceViewModel.CanSelectBackend = _canSelectThreadBackend(tab.Thread, tab);
             _workspaceViewModel.CanSelectModel = backendState.Availability == ChatBackendAvailability.Ready;
             _workspaceViewModel.CanSelectReasoning = backendState.Availability == ChatBackendAvailability.Ready;
@@ -208,6 +235,11 @@ internal sealed class ChatSelectorCoordinator
         }
 
         var options = ChatBackendPresentation.BuildBackendOptions(_backendDescriptors);
+        if (options.Count == 0)
+        {
+            return;
+        }
+
         if ((uint)newIndex >= (uint)options.Count)
         {
             return;
@@ -361,6 +393,11 @@ internal sealed class ChatSelectorCoordinator
             () =>
             {
                 var options = ChatBackendPresentation.BuildBackendOptions(_backendDescriptors);
+                if (options.Count == 0)
+                {
+                    return GetDefaultBackendId();
+                }
+
                 if (_selectorState.GetSelectedBackendIndex() is { } backendIndex &&
                     (uint)backendIndex < (uint)options.Count)
                 {

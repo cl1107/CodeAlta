@@ -193,8 +193,59 @@ public sealed class CodeAltaConfigStoreRawApiTests
 
         Assert.AreEqual("codex", providers["codex"].ProviderType);
         Assert.AreEqual("Codex", providers["codex"].DisplayName);
+        Assert.IsFalse(providers["codex"].Enabled);
         Assert.AreEqual("copilot", providers["copilot"].ProviderType);
         Assert.AreEqual("GitHub Copilot", providers["copilot"].DisplayName);
+        Assert.IsFalse(providers["copilot"].Enabled);
+    }
+
+    [TestMethod]
+    public void SaveGlobalProviderDefinitions_PersistsEnabledProviders()
+    {
+        using var temp = TempDirectory.Create();
+        var store = new CodeAltaConfigStore(new CatalogOptions { GlobalRoot = temp.Path });
+
+        store.SaveGlobalProviderDefinitions(
+        [
+            new CodeAltaProviderDocument
+            {
+                ProviderKey = "codex",
+                Enabled = true,
+                ProviderType = "codex",
+            },
+            new CodeAltaProviderDocument
+            {
+                ProviderKey = "openrouter",
+                Enabled = true,
+                ProviderType = "openai-chat",
+                ApiKeyEnv = "OPENROUTER_API_KEY",
+                ApiUrl = "https://openrouter.ai/api/v1",
+            },
+        ]);
+
+        var providers = store.LoadGlobalProviderDefinitions(includeDisabled: true)
+            .ToDictionary(static provider => provider.ProviderKey, StringComparer.OrdinalIgnoreCase);
+
+        Assert.IsTrue(providers["codex"].Enabled);
+        Assert.IsTrue(providers["openrouter"].Enabled);
+    }
+
+    [TestMethod]
+    public void SaveGlobalProviderDefinitions_InvalidEnabledProvider_Throws()
+    {
+        using var temp = TempDirectory.Create();
+        var store = new CodeAltaConfigStore(new CatalogOptions { GlobalRoot = temp.Path });
+
+        Assert.ThrowsExactly<InvalidOperationException>(
+            () => store.SaveGlobalProviderDefinitions(
+            [
+                new CodeAltaProviderDocument
+                {
+                    ProviderKey = "sample",
+                    Enabled = true,
+                    ProviderType = "openai-chat",
+                },
+            ]));
     }
 
     [TestMethod]

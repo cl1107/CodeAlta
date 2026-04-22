@@ -14,6 +14,7 @@ internal sealed class ShellInputCoordinator
     private readonly Func<Task> _showCommandPaletteAsync;
     private readonly Func<Task> _exitAppAsync;
     private readonly Func<string?, Task> _showOpenFolderAsync;
+    private readonly Func<Task> _openModelProvidersAsync;
     private readonly Func<Task> _openFileEditorAsync;
     private readonly Func<Task> _focusSidebarAsync;
     private readonly Func<Task> _focusPromptAsync;
@@ -36,6 +37,7 @@ internal sealed class ShellInputCoordinator
         Func<Task> showCommandPaletteAsync,
         Func<Task> exitAppAsync,
         Func<string?, Task> showOpenFolderAsync,
+        Func<Task> openModelProvidersAsync,
         Func<Task> openFileEditorAsync,
         Func<Task> focusSidebarAsync,
         Func<Task> focusPromptAsync,
@@ -57,6 +59,7 @@ internal sealed class ShellInputCoordinator
         ArgumentNullException.ThrowIfNull(showCommandPaletteAsync);
         ArgumentNullException.ThrowIfNull(exitAppAsync);
         ArgumentNullException.ThrowIfNull(showOpenFolderAsync);
+        ArgumentNullException.ThrowIfNull(openModelProvidersAsync);
         ArgumentNullException.ThrowIfNull(openFileEditorAsync);
         ArgumentNullException.ThrowIfNull(focusSidebarAsync);
         ArgumentNullException.ThrowIfNull(focusPromptAsync);
@@ -78,6 +81,7 @@ internal sealed class ShellInputCoordinator
         _showCommandPaletteAsync = showCommandPaletteAsync;
         _exitAppAsync = exitAppAsync;
         _showOpenFolderAsync = showOpenFolderAsync;
+        _openModelProvidersAsync = openModelProvidersAsync;
         _openFileEditorAsync = openFileEditorAsync;
         _focusSidebarAsync = focusSidebarAsync;
         _focusPromptAsync = focusPromptAsync;
@@ -185,6 +189,10 @@ internal sealed class ShellInputCoordinator
 
             case OpenFolderIntent openFolder:
                 await _showOpenFolderAsync(openFolder.InitialPath);
+                return;
+
+            case OpenModelProvidersIntent:
+                await _openModelProvidersAsync();
                 return;
 
             case OpenFileEditorIntent:

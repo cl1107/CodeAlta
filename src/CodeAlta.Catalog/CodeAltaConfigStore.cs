@@ -188,6 +188,50 @@ public sealed class CodeAltaConfigStore
     }
 
     /// <summary>
+    /// Saves the complete set of global provider definitions.
+    /// </summary>
+    /// <param name="definitions">The provider definitions to persist.</param>
+    public void SaveGlobalProviderDefinitions(IEnumerable<CodeAltaProviderDocument> definitions)
+    {
+        ArgumentNullException.ThrowIfNull(definitions);
+
+        var document = LoadGlobal();
+        NormalizeDocument(document);
+
+        var normalizedDefinitions = definitions
+            .Select(CloneProviderDefinition)
+            .Select(static definition =>
+            {
+                definition.ProviderKey = NormalizeProviderKey(definition.ProviderKey) ?? string.Empty;
+                return definition;
+            })
+            .Where(static definition => !string.IsNullOrWhiteSpace(definition.ProviderKey))
+            .ToDictionary(
+                static definition => definition.ProviderKey,
+                static definition => definition,
+                StringComparer.OrdinalIgnoreCase);
+
+        foreach (var definition in normalizedDefinitions.Values)
+        {
+            NormalizeProviderEntry(definition.ProviderKey, definition);
+        }
+
+        document.Providers = normalizedDefinitions.Count == 0
+            ? null
+            : normalizedDefinitions;
+
+        var defaultProvider = NormalizeProviderKey(document.Chat?.DefaultProvider);
+        if (!string.IsNullOrWhiteSpace(defaultProvider) &&
+            !LoadEnabledProviderKeys(normalizedDefinitions.Values).Contains(defaultProvider))
+        {
+            document.Chat ??= new CodeAltaChatSettingsDocument();
+            document.Chat.DefaultProvider = LoadEnabledProviderKeys(normalizedDefinitions.Values).FirstOrDefault();
+        }
+
+        SaveDocument(_options.ConfigPath, document);
+    }
+
+    /// <summary>
     /// Loads globally configured ACP backend definitions.
     /// </summary>
     /// <returns>The configured ACP agent definitions.</returns>
@@ -680,7 +724,7 @@ public sealed class CodeAltaConfigStore
     {
         ArgumentNullException.ThrowIfNull(definition);
 
-        definition.Enabled ??= CodeAltaProviderDocument.DefaultEnabled;
+        definition.Enabled ??= GetDefaultProviderEnabled(definition.ProviderKey);
         definition.ProviderType = NormalizeProviderType(definition.ProviderKey, definition.ProviderType)
             ?? throw new InvalidOperationException(
                 $"providers.{definition.ProviderKey} type must be one of: codex, copilot, openai-chat, openai-responses, anthropic, google-genai, vertex-ai.");
@@ -710,6 +754,13 @@ public sealed class CodeAltaConfigStore
             case "openai-responses":
                 RejectUnsupportedField(definition, "project", definition.Project);
                 RejectUnsupportedField(definition, "location", definition.Location);
+                if (definition.Enabled != false &&
+                    string.IsNullOrWhiteSpace(definition.ApiKey) &&
+                    string.IsNullOrWhiteSpace(definition.ApiKeyEnv))
+                {
+                    throw new InvalidOperationException($"providers.{definition.ProviderKey} requires api_key or api_key_env when enabled.");
+                }
+
                 break;
 
             case "anthropic":
@@ -718,6 +769,13 @@ public sealed class CodeAltaConfigStore
                 RejectUnsupportedField(definition, "project", definition.Project);
                 RejectUnsupportedField(definition, "location", definition.Location);
                 RejectUnsupportedField(definition, "extra_body", definition.ExtraBody);
+                if (definition.Enabled != false &&
+                    string.IsNullOrWhiteSpace(definition.ApiKey) &&
+                    string.IsNullOrWhiteSpace(definition.ApiKeyEnv))
+                {
+                    throw new InvalidOperationException($"providers.{definition.ProviderKey} requires api_key or api_key_env when enabled.");
+                }
+
                 break;
 
             case "google-genai":
@@ -726,6 +784,13 @@ public sealed class CodeAltaConfigStore
                 RejectUnsupportedField(definition, "project", definition.Project);
                 RejectUnsupportedField(definition, "location", definition.Location);
                 RejectUnsupportedField(definition, "extra_body", definition.ExtraBody);
+                if (definition.Enabled != false &&
+                    string.IsNullOrWhiteSpace(definition.ApiKey) &&
+                    string.IsNullOrWhiteSpace(definition.ApiKeyEnv))
+                {
+                    throw new InvalidOperationException($"providers.{definition.ProviderKey} requires api_key or api_key_env when enabled.");
+                }
+
                 break;
 
             case "vertex-ai":
@@ -745,6 +810,12 @@ public sealed class CodeAltaConfigStore
                 }
 
                 break;
+        }
+
+        if (!string.IsNullOrWhiteSpace(definition.ApiUrl) &&
+            !Uri.TryCreate(definition.ApiUrl, UriKind.Absolute, out _))
+        {
+            throw new InvalidOperationException($"providers.{definition.ProviderKey} api_url must be an absolute URI.");
         }
     }
 
@@ -794,6 +865,11 @@ public sealed class CodeAltaConfigStore
         => string.Equals(providerKey, CodexProviderKey, StringComparison.OrdinalIgnoreCase)
             || string.Equals(providerKey, CopilotProviderKey, StringComparison.OrdinalIgnoreCase);
 
+    private static bool GetDefaultProviderEnabled(string providerKey)
+        => IsReservedProviderKey(providerKey)
+            ? false
+            : CodeAltaProviderDocument.DefaultEnabled;
+
     private static void ApplyReservedProviderDefaults(CodeAltaProviderDocument definition)
     {
         if (string.Equals(definition.ProviderKey, CodexProviderKey, StringComparison.OrdinalIgnoreCase))
@@ -829,7 +905,7 @@ public sealed class CodeAltaConfigStore
         return new CodeAltaProviderDocument
         {
             ProviderKey = normalizedProviderKey,
-            Enabled = CodeAltaProviderDocument.DefaultEnabled,
+            Enabled = GetDefaultProviderEnabled(normalizedProviderKey),
             ProviderType = normalizedProviderKey,
             DisplayName = GetReservedProviderDisplayName(normalizedProviderKey),
             Compaction = NormalizeAndCompleteCompactionSettings(null, DefaultCompaction),
@@ -894,7 +970,7 @@ public sealed class CodeAltaConfigStore
     {
         ArgumentNullException.ThrowIfNull(definition);
 
-        if (definition.Enabled == CodeAltaProviderDocument.DefaultEnabled)
+        if (definition.Enabled == GetDefaultProviderEnabled(definition.ProviderKey))
         {
             definition.Enabled = null;
         }
@@ -937,6 +1013,22 @@ public sealed class CodeAltaConfigStore
                definition.Profile is not null ||
                definition.Compaction is not null ||
                definition.ModelOverrides is { Count: > 0 };
+    }
+
+    private static HashSet<string> LoadEnabledProviderKeys(IEnumerable<CodeAltaProviderDocument> definitions)
+    {
+        ArgumentNullException.ThrowIfNull(definitions);
+
+        return definitions
+            .Select(CloneProviderDefinition)
+            .Select(static definition =>
+            {
+                CompleteAndValidateProviderDefinition(definition);
+                return definition;
+            })
+            .Where(static definition => definition.Enabled != false)
+            .Select(static definition => definition.ProviderKey)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
     private static AcpBackendDefinition CloneAcpBackendDefinition(AcpBackendDefinition definition)

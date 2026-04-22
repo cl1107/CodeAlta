@@ -491,6 +491,23 @@ public sealed class ArchitectureGuardrailTests
     }
 
     [TestMethod]
+    public void ModelProvidersDialog_UsesListBoxAndDedicatedViewModel()
+    {
+        var dialogSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "ModelProvidersDialog.cs"));
+        var viewModelSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "ViewModels", "ModelProviderEditorItemViewModel.cs"));
+
+        Assert.IsTrue(dialogSource.Contains("new ListBox<ModelProviderEditorItemViewModel>()", StringComparison.Ordinal));
+        Assert.IsFalse(dialogSource.Contains("new Select<ModelProviderEditorItemViewModel>()", StringComparison.Ordinal));
+        Assert.IsTrue(dialogSource.Contains("ModelProviderEditorItemViewModel.IBindings", StringComparison.Ordinal));
+        Assert.IsFalse(dialogSource.Contains("CreateBinding(", StringComparison.Ordinal));
+        Assert.IsFalse(dialogSource.Contains("CreateTrackedCheckBox(", StringComparison.Ordinal));
+        Assert.IsFalse(dialogSource.Contains("private sealed class ModelProviderEditorItem", StringComparison.Ordinal));
+        Assert.IsTrue(viewModelSource.Contains("internal sealed partial class ModelProviderEditorItemViewModel", StringComparison.Ordinal));
+        Assert.IsTrue(viewModelSource.Contains("[Bindable]", StringComparison.Ordinal));
+        Assert.IsTrue(viewModelSource.Contains("public event Action<ModelProviderEditorItemViewModel, bool>? Changed;", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public void SidebarStateIndicators_KeepTreeIconsAndRefreshOnDraftOrRunChanges()
     {
         var compositionSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "App", "CodeAltaFrontendComposition.cs"));

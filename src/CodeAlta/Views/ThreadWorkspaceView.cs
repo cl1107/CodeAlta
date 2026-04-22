@@ -34,6 +34,7 @@ internal sealed class ThreadWorkspaceView
     private Visual? _activeTabContent;
 
     internal const TerminalKey ExpandPromptShortcutKey = TerminalKey.F6;
+    internal static readonly KeySequence ModelProvidersShortcutSequence = ShellCommandCatalog.ModelProvidersShortcutSequence;
     internal static readonly KeySequence SessionUsageShortcutSequence = ShellCommandCatalog.SessionUsageShortcutSequence;
     internal static readonly KeySequence ThreadInfoShortcutSequence = ShellCommandCatalog.ThreadInfoShortcutSequence;
 
@@ -77,8 +78,7 @@ internal sealed class ThreadWorkspaceView
             toggleThreadInfoPopup,
             openHelp,
             openCommandPalette,
-            NullProjectFileSearchService.Instance,
-            static () => null,
+            static () => { },
             acceptPrompt,
             sendPrompt,
             steerPrompt,
@@ -134,6 +134,142 @@ internal sealed class ThreadWorkspaceView
         Binding<string?> promptText,
         State<float> thinkingAnimationPhase01,
         Action onAutoScrollChanged)
+        : this(
+            shellViewModel,
+            workspaceViewModel,
+            promptComposerViewModel,
+            commandBindings,
+            buildSessionUsageIndicatorVisual,
+            openSessionUsagePopup,
+            toggleThreadInfoPopup,
+            openHelp,
+            openCommandPalette,
+            static () => { },
+            projectFileSearchService,
+            getPromptReferenceProjectRoot,
+            acceptPrompt,
+            sendPrompt,
+            steerPrompt,
+            clearQueuedPrompts,
+            convertQueuedPromptToSteer,
+            deletePendingSteer,
+            deleteQueuedPrompt,
+            updateQueuedPromptCount,
+            updateQueuedPromptText,
+            delegateThread,
+            abortThread,
+            compactThread,
+            closeTab,
+            onChatBackendSelectionChanged,
+            onChatModelSelectionChanged,
+            onChatReasoningSelectionChanged,
+            onSelectedTabChanged,
+            promptText,
+            thinkingAnimationPhase01,
+            onAutoScrollChanged)
+    {
+    }
+
+    public ThreadWorkspaceView(
+        CodeAltaShellViewModel shellViewModel,
+        ThreadWorkspaceViewModel workspaceViewModel,
+        PromptComposerViewModel promptComposerViewModel,
+        IReadOnlyList<ThreadWorkspaceCommandBinding> commandBindings,
+        Func<Visual> buildSessionUsageIndicatorVisual,
+        Action openSessionUsagePopup,
+        Action<Visual> toggleThreadInfoPopup,
+        Action openHelp,
+        Action openCommandPalette,
+        Action openModelProviders,
+        Action<string> acceptPrompt,
+        Action sendPrompt,
+        Action steerPrompt,
+        Action clearQueuedPrompts,
+        Action<string> convertQueuedPromptToSteer,
+        Action<string> deletePendingSteer,
+        Action<string> deleteQueuedPrompt,
+        Action<string, int> updateQueuedPromptCount,
+        Action<string, string> updateQueuedPromptText,
+        Action delegateThread,
+        Action abortThread,
+        Action compactThread,
+        Action closeTab,
+        Action<int> onChatBackendSelectionChanged,
+        Action<int> onChatModelSelectionChanged,
+        Action<int> onChatReasoningSelectionChanged,
+        Action<int> onSelectedTabChanged,
+        Binding<string?> promptText,
+        State<float> thinkingAnimationPhase01,
+        Action onAutoScrollChanged)
+        : this(
+            shellViewModel,
+            workspaceViewModel,
+            promptComposerViewModel,
+            commandBindings,
+            buildSessionUsageIndicatorVisual,
+            openSessionUsagePopup,
+            toggleThreadInfoPopup,
+            openHelp,
+            openCommandPalette,
+            openModelProviders,
+            NullProjectFileSearchService.Instance,
+            static () => null,
+            acceptPrompt,
+            sendPrompt,
+            steerPrompt,
+            clearQueuedPrompts,
+            convertQueuedPromptToSteer,
+            deletePendingSteer,
+            deleteQueuedPrompt,
+            updateQueuedPromptCount,
+            updateQueuedPromptText,
+            delegateThread,
+            abortThread,
+            compactThread,
+            closeTab,
+            onChatBackendSelectionChanged,
+            onChatModelSelectionChanged,
+            onChatReasoningSelectionChanged,
+            onSelectedTabChanged,
+            promptText,
+            thinkingAnimationPhase01,
+            onAutoScrollChanged)
+    {
+    }
+
+    public ThreadWorkspaceView(
+        CodeAltaShellViewModel shellViewModel,
+        ThreadWorkspaceViewModel workspaceViewModel,
+        PromptComposerViewModel promptComposerViewModel,
+        IReadOnlyList<ThreadWorkspaceCommandBinding> commandBindings,
+        Func<Visual> buildSessionUsageIndicatorVisual,
+        Action openSessionUsagePopup,
+        Action<Visual> toggleThreadInfoPopup,
+        Action openHelp,
+        Action openCommandPalette,
+        Action openModelProviders,
+        IProjectFileSearchService projectFileSearchService,
+        Func<string?> getPromptReferenceProjectRoot,
+        Action<string> acceptPrompt,
+        Action sendPrompt,
+        Action steerPrompt,
+        Action clearQueuedPrompts,
+        Action<string> convertQueuedPromptToSteer,
+        Action<string> deletePendingSteer,
+        Action<string> deleteQueuedPrompt,
+        Action<string, int> updateQueuedPromptCount,
+        Action<string, string> updateQueuedPromptText,
+        Action delegateThread,
+        Action abortThread,
+        Action compactThread,
+        Action closeTab,
+        Action<int> onChatBackendSelectionChanged,
+        Action<int> onChatModelSelectionChanged,
+        Action<int> onChatReasoningSelectionChanged,
+        Action<int> onSelectedTabChanged,
+        Binding<string?> promptText,
+        State<float> thinkingAnimationPhase01,
+        Action onAutoScrollChanged)
     {
         ArgumentNullException.ThrowIfNull(shellViewModel);
         ArgumentNullException.ThrowIfNull(workspaceViewModel);
@@ -144,6 +280,7 @@ internal sealed class ThreadWorkspaceView
         ArgumentNullException.ThrowIfNull(toggleThreadInfoPopup);
         ArgumentNullException.ThrowIfNull(openHelp);
         ArgumentNullException.ThrowIfNull(openCommandPalette);
+        ArgumentNullException.ThrowIfNull(openModelProviders);
         ArgumentNullException.ThrowIfNull(projectFileSearchService);
         ArgumentNullException.ThrowIfNull(getPromptReferenceProjectRoot);
         ArgumentNullException.ThrowIfNull(acceptPrompt);
@@ -238,6 +375,13 @@ internal sealed class ThreadWorkspaceView
                 "Compact the selected thread session when it is idle (F11).",
                 compactThread,
                 button => button.IsEnabled(promptComposerViewModel.Bind.CanCompact));
+        var providerSummaryButton = new Button(
+            new Markup(() => workspaceViewModel.ProviderSummaryMarkup)
+            {
+                Wrap = false,
+            })
+            .Click(openModelProviders)
+            .Tooltip(new TextBlock($"Configure model providers ({ModelProvidersShortcutSequence})."));
 
         var statusSpinner = new Spinner().Style(SpinnerStyles.Dots);
         statusSpinner.IsActive(() => shellViewModel.StatusBusy);
@@ -299,10 +443,7 @@ internal sealed class ThreadWorkspaceView
 
         var selectionRight = new HStack(
         [
-            new Markup(() => workspaceViewModel.BackendStatusMarkup)
-            {
-                Wrap = false,
-            },
+            providerSummaryButton,
             usageIndicator,
             threadInfoButton,
             ExpandPromptButton,
@@ -469,6 +610,7 @@ internal sealed class ThreadWorkspaceView
     private static bool IsSharedEditorCommand(string commandId)
         => commandId is
             "CodeAlta.Shell.Help" or
+            "CodeAlta.Providers.Manage" or
             "CodeAlta.Thread.CloseTab" or
             "CodeAlta.Thread.TabLeft" or
             "CodeAlta.Thread.TabRight";
