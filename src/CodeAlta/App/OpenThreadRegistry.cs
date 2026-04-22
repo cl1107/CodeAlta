@@ -14,6 +14,7 @@ internal sealed class OpenThreadRegistry
     private readonly Dictionary<string, OpenThreadState> _threadTabs = new(StringComparer.OrdinalIgnoreCase);
     private readonly Func<IUiDispatcher> _getUiDispatcher;
     private readonly Func<Rectangle?> _getTimelineBounds;
+    private readonly Action<Action> _dispatchToUiDeferred;
     private readonly Func<string, string?> _loadPromptDraft;
     private readonly Action<OpenThreadState> _applyThreadPreference;
     private readonly Action<string, string?, AgentReasoningEffort?, bool, bool> _rememberThreadPreference;
@@ -27,7 +28,8 @@ internal sealed class OpenThreadRegistry
         Action<OpenThreadState> applyThreadPreference,
         Action<string, string?, AgentReasoningEffort?, bool, bool> rememberThreadPreference,
         Func<ProjectDescriptor?> getSelectedProject,
-        Func<string?, ProjectDescriptor?> getProjectById)
+        Func<string?, ProjectDescriptor?> getProjectById,
+        Action<Action>? dispatchToUiDeferred = null)
     {
         ArgumentNullException.ThrowIfNull(getUiDispatcher);
         ArgumentNullException.ThrowIfNull(getTimelineBounds);
@@ -39,6 +41,7 @@ internal sealed class OpenThreadRegistry
 
         _getUiDispatcher = getUiDispatcher;
         _getTimelineBounds = getTimelineBounds;
+        _dispatchToUiDeferred = dispatchToUiDeferred ?? NoopDispatchToUiDeferred;
         _loadPromptDraft = loadPromptDraft;
         _applyThreadPreference = applyThreadPreference;
         _rememberThreadPreference = rememberThreadPreference;
@@ -64,7 +67,8 @@ internal sealed class OpenThreadRegistry
             _getUiDispatcher(),
             () => state!.AutoScroll,
             _getTimelineBounds,
-            ResolveThreadProjectRoot(thread));
+            ResolveThreadProjectRoot(thread),
+            _dispatchToUiDeferred);
         state = new OpenThreadState(thread, timeline);
         state.BackendId = new AgentBackendId(thread.BackendId);
         state.Session.PromptDraftText = _loadPromptDraft(thread.ThreadId) ?? string.Empty;
@@ -140,5 +144,10 @@ internal sealed class OpenThreadRegistry
                 _threadTabs.Remove(threadId);
             }
         }
+    }
+
+    private static void NoopDispatchToUiDeferred(Action action)
+    {
+        _ = action;
     }
 }

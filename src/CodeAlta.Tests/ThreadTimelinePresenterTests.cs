@@ -152,6 +152,17 @@ public sealed class ThreadTimelinePresenterTests
     }
 
     [TestMethod]
+    public void RenderOptimisticUserPrompt_ScrollsTimelineToTail()
+    {
+        var presenter = CreatePresenter();
+        presenter.Flow.FollowTail = false;
+
+        presenter.RenderOptimisticUserPrompt("First prompt", DateTimeOffset.UtcNow);
+
+        Assert.IsTrue(presenter.Flow.FollowTail);
+    }
+
+    [TestMethod]
     public void UpsertInteraction_ReusesExistingTimelineItem()
     {
         var presenter = CreatePresenter();

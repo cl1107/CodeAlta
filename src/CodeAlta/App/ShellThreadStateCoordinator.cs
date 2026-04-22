@@ -44,7 +44,8 @@ internal sealed class ShellThreadStateCoordinator
         Action refreshCatalogAndThreadWorkspace,
         Action resetPendingThreadTabSelection,
         Action<string> removeTabPage,
-        Action<string, bool, StatusTone> setStatus)
+        Action<string, bool, StatusTone> setStatus,
+        Action<Action>? dispatchToUiDeferred = null)
     {
         ArgumentNullException.ThrowIfNull(projectCatalog);
         ArgumentNullException.ThrowIfNull(threadCatalog);
@@ -71,7 +72,8 @@ internal sealed class ShellThreadStateCoordinator
             applyThreadPreference,
             rememberThreadPreference,
             GetSelectedProject,
-            GetProjectById);
+            GetProjectById,
+            dispatchToUiDeferred);
         _catalogStateCoordinator = new ShellCatalogStateCoordinator(projectCatalog, threadCatalog, _viewStateCoordinator, _openThreadRegistry);
         _isBackendReady = isBackendReady;
         _deletePromptDraft = deletePromptDraft;

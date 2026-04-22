@@ -63,6 +63,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
     private readonly ThreadTabStripCoordinator _threadTabStripCoordinator;
     private readonly ChatPreferenceContext _chatPreferenceContext;
     private readonly ShellAnimationRuntime _shellAnimationRuntime = new();
+    private readonly DeferredUiActionQueue _deferredUiActionQueue = new();
     private readonly ShellWorkspaceContext _shellWorkspaceContext;
     private readonly ThreadSelectionContext _threadSelectionContext;
     private readonly ThreadTabContext _threadTabContext;
@@ -404,6 +405,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
     {
         if (_disableTerminalLoopCallback)
         {
+            DrainDeferredUiActions();
             return TerminalLoopResult.Continue;
         }
 
@@ -412,10 +414,13 @@ internal sealed class CodeAltaApp : IAsyncDisposable
         _initialCatalogStateCoordinator.EnsureStarted(cancellationToken);
         if (!TryResolveInitialCatalogState(cancellationToken))
         {
+            DrainDeferredUiActions();
             return TerminalLoopResult.Continue;
         }
 
-        return _terminalLoopCoordinator.OnIteration(cancellationToken);
+        var result = _terminalLoopCoordinator.OnIteration(cancellationToken);
+        DrainDeferredUiActions();
+        return result;
     }
 
     private void ToggleTerminalLoopCallback()
@@ -578,7 +583,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
         => _workspaceCoordinator.SetShellInitialized(isInitialized);
 
     private void DispatchToUi(Action action) { ArgumentNullException.ThrowIfNull(action); var dispatcher = GetUiDispatcher(); UiDispatch.Post(dispatcher, action, allowInline: ShouldRunInlineOnCurrentThread(dispatcher.CheckAccess(), _terminalLoopCoordinator.HasStarted)); }
-    private void DispatchToUiDeferred(Action action) { ArgumentNullException.ThrowIfNull(action); var dispatcher = GetUiDispatcher(); UiDispatch.Post(dispatcher, action, allowInline: ShouldRunDeferredUiActionInlineOnCurrentThread(dispatcher.CheckAccess(), _terminalLoopCoordinator.HasStarted)); }
+    private void DispatchToUiDeferred(Action action) { ArgumentNullException.ThrowIfNull(action); _deferredUiActionQueue.Enqueue(action); }
 
     internal static bool CanAccessBindableState(bool dispatcherHasAccess, bool terminalLoopStarted)
         => !terminalLoopStarted || dispatcherHasAccess;
@@ -599,6 +604,9 @@ internal sealed class CodeAltaApp : IAsyncDisposable
 
     internal static bool ShouldRunDeferredUiActionInlineOnCurrentThread(bool dispatcherHasAccess, bool terminalLoopStarted)
         => !terminalLoopStarted && dispatcherHasAccess;
+
+    private void DrainDeferredUiActions()
+        => _deferredUiActionQueue.Drain();
 
     private IUiDispatcher GetUiDispatcher()
         => _uiDispatcher ??= new TerminalUiDispatcher(Dispatcher.Current);

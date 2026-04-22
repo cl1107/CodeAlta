@@ -5,6 +5,7 @@ using CodeAlta.Agent;
 using CodeAlta.App;
 using CodeAlta.Models;
 using CodeAlta.Presentation.Timeline;
+using CodeAlta.Views;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Controls;
 using XenoAtom.Terminal.UI.Geometry;
@@ -110,13 +111,53 @@ public sealed class ToolCallPresenterTests
         Assert.AreEqual(2, group.ToolCalls.Count);
     }
 
-    private static ToolCallPresenter CreatePresenter()
-        => new(
-            new DocumentFlow(),
+    [TestMethod]
+    public void TryHandleActivity_OnExistingToolCallScrollsTimelineBackToTail()
+    {
+        var flow = new DocumentFlow { FollowTail = false };
+        var presenter = CreatePresenter(flow);
+        var timestamp = DateTimeOffset.UtcNow;
+
+        presenter.TryHandleActivity(new AgentActivityEvent(
+            AgentBackendIds.Codex,
+            "session-1",
+            timestamp,
+            null,
+            AgentActivityKind.ToolCall,
+            AgentActivityPhase.Requested,
+            "tool-1",
+            null,
+            "shell_command",
+            null));
+
+        flow.FollowTail = false;
+
+        presenter.TryHandleActivity(new AgentActivityEvent(
+            AgentBackendIds.Codex,
+            "session-1",
+            timestamp.AddMilliseconds(5),
+            null,
+            AgentActivityKind.ToolCall,
+            AgentActivityPhase.Progressed,
+            "tool-1",
+            null,
+            "shell_command",
+            null));
+
+        Assert.IsTrue(flow.FollowTail);
+    }
+
+    private static ToolCallPresenter CreatePresenter(DocumentFlow? flow = null)
+    {
+        flow ??= new DocumentFlow();
+        return new(
+            flow,
             new InlineUiDispatcher(),
             static () => true,
+            () => flow.ScrollToTailIfEnabled(autoScroll: true),
             static _ => { },
             static () => (Rectangle?)null);
+    }
 
     private static ToolCallEntryState GetToolCallEntry(ToolCallPresenter presenter, string toolCallId)
     {

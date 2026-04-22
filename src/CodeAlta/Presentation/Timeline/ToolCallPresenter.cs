@@ -20,9 +20,8 @@ internal sealed class ToolCallPresenter
 {
     private const int ToolCallDialogLogCapacity = 20000;
 
-    private readonly DocumentFlow _flow;
     private readonly IUiDispatcher _uiDispatcher;
-    private readonly Func<bool> _isAutoScrollEnabled;
+    private readonly Action _requestTailScroll;
     private readonly Action<DocumentFlowItem> _appendTimelineItem;
     private readonly Func<Rectangle?> _getDialogBounds;
     private readonly Dictionary<string, ToolCallEntryState> _toolCalls = new(StringComparer.Ordinal);
@@ -33,6 +32,7 @@ internal sealed class ToolCallPresenter
         DocumentFlow flow,
         IUiDispatcher uiDispatcher,
         Func<bool> isAutoScrollEnabled,
+        Action requestTailScroll,
         Action<DocumentFlowItem> appendTimelineItem,
         Func<Rectangle?> getDialogBounds,
         string? localFileRootPath = null)
@@ -40,12 +40,12 @@ internal sealed class ToolCallPresenter
         ArgumentNullException.ThrowIfNull(flow);
         ArgumentNullException.ThrowIfNull(uiDispatcher);
         ArgumentNullException.ThrowIfNull(isAutoScrollEnabled);
+        ArgumentNullException.ThrowIfNull(requestTailScroll);
         ArgumentNullException.ThrowIfNull(appendTimelineItem);
         ArgumentNullException.ThrowIfNull(getDialogBounds);
 
-        _flow = flow;
         _uiDispatcher = uiDispatcher;
-        _isAutoScrollEnabled = isAutoScrollEnabled;
+        _requestTailScroll = requestTailScroll;
         _appendTimelineItem = appendTimelineItem;
         _getDialogBounds = getDialogBounds;
         _localFileRootPath = localFileRootPath;
@@ -106,7 +106,7 @@ internal sealed class ToolCallPresenter
         }
 
         UpdateEntryVisual(entry);
-        UpdateGroupVisual(entry.Group);
+        UpdateGroupVisual(entry.Group, scrollToTail: true);
         return true;
     }
 
@@ -135,7 +135,7 @@ internal sealed class ToolCallPresenter
         }
 
         UpdateEntryVisual(entry);
-        UpdateGroupVisual(entry.Group, refreshSummary: refreshGroupSummary);
+        UpdateGroupVisual(entry.Group, refreshSummary: refreshGroupSummary, scrollToTail: true);
         UpdateDialogVisual(entry);
         return true;
     }
@@ -155,7 +155,7 @@ internal sealed class ToolCallPresenter
         var refreshGroupSummary = isNewEntry || entry.Status == ToolCallDisplayStatus.Pending;
         ReplaceOutput(entry, completed.Content, completed.Timestamp);
         UpdateEntryVisual(entry);
-        UpdateGroupVisual(entry.Group, refreshSummary: refreshGroupSummary);
+        UpdateGroupVisual(entry.Group, refreshSummary: refreshGroupSummary, scrollToTail: true);
         UpdateDialogVisual(entry);
         return true;
     }
@@ -215,7 +215,7 @@ internal sealed class ToolCallPresenter
         UiDispatch.Post(_uiDispatcher, () =>
         {
             group.ItemsHost.Children.Add(entry.Button);
-            _flow.ScrollToTailIfEnabled(_isAutoScrollEnabled());
+            _requestTailScroll();
         });
         return entry;
     }
@@ -282,7 +282,7 @@ internal sealed class ToolCallPresenter
         });
     }
 
-    private void UpdateGroupVisual(ToolCallGroupState? group, bool refreshSummary = true)
+    private void UpdateGroupVisual(ToolCallGroupState? group, bool refreshSummary = true, bool scrollToTail = false)
     {
         if (group is null)
         {
@@ -297,6 +297,10 @@ internal sealed class ToolCallPresenter
             }
 
             ChatTimelineVisualFactory.ApplyTimestamp(group.TimestampText, group.LastUpdatedAt);
+            if (scrollToTail)
+            {
+                _requestTailScroll();
+            }
         });
     }
 
