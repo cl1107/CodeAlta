@@ -22,6 +22,7 @@ internal sealed class ShellWorkspaceCoordinator
     private readonly State<float> _welcomeAnimationPhase01;
     private readonly State<int> _viewRefreshState = new(0);
     private readonly State<int> _usageRefreshState = new(0);
+    private string? _displayedThreadId;
 
     public ShellWorkspaceCoordinator(
         CodeAltaShellViewModel shellViewModel,
@@ -249,6 +250,7 @@ internal sealed class ShellWorkspaceCoordinator
 
         if (_threadSelection.Selection.Target is not WorkspaceTarget.Thread)
         {
+            _displayedThreadId = null;
             _workspaceContext.RefreshQueuedPromptList();
             _workspaceContext.RefreshChatSelectorsForDraftScope();
             _workspaceContext.SyncPromptDraftText(session: null);
@@ -264,6 +266,7 @@ internal sealed class ShellWorkspaceCoordinator
         var selectedThread = _threadSelection.GetSelectedThread();
         if (selectedThread is null)
         {
+            _displayedThreadId = null;
             _workspaceContext.RefreshQueuedPromptList();
             _workspaceContext.RefreshChatSelectorsForDraftScope();
             _workspaceContext.SyncPromptDraftText(session: null);
@@ -282,6 +285,12 @@ internal sealed class ShellWorkspaceCoordinator
         _workspaceContext.SyncPromptDraftText(tab.Session);
         _workspaceContext.UpdatePromptAvailabilityUi();
         _workspaceContext.SetThreadPaneContent(tab.Timeline.Flow);
+        if (!string.Equals(_displayedThreadId, selectedThread.ThreadId, StringComparison.OrdinalIgnoreCase))
+        {
+            _displayedThreadId = selectedThread.ThreadId;
+            _workspaceContext.DispatchToUiDeferred(tab.Timeline.RevealTail);
+        }
+
         SetReadyStatusForCurrentSelection();
     }
 

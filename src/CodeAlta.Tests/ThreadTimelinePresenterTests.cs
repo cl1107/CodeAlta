@@ -196,6 +196,33 @@ public sealed class ThreadTimelinePresenterTests
     }
 
     [TestMethod]
+    public void RevealTail_EnablesFollowTailMode()
+    {
+        var presenter = CreatePresenter();
+        presenter.Flow.FollowTail = false;
+
+        presenter.RevealTail();
+
+        Assert.IsTrue(presenter.Flow.FollowTail);
+    }
+
+    [TestMethod]
+    public void RevealTail_PostsThroughDispatcherBeforeChangingFollowTail()
+    {
+        var dispatcher = new QueueingUiDispatcher();
+        var presenter = new ThreadTimelinePresenter(dispatcher, () => true, static () => null);
+        presenter.Flow.FollowTail = false;
+
+        presenter.RevealTail();
+
+        Assert.IsFalse(presenter.Flow.FollowTail);
+
+        dispatcher.DrainPostedActions();
+
+        Assert.IsTrue(presenter.Flow.FollowTail);
+    }
+
+    [TestMethod]
     public void Reset_ClearsTimelineItemsAndResetsAssistantTracking()
     {
         var presenter = CreatePresenter();
@@ -258,6 +285,41 @@ public sealed class ThreadTimelinePresenterTests
         {
             ArgumentNullException.ThrowIfNull(action);
             return Task.FromResult(action());
+        }
+    }
+
+    private sealed class QueueingUiDispatcher : IUiDispatcher
+    {
+        private readonly Queue<Action> _postedActions = new();
+
+        public bool CheckAccess()
+            => true;
+
+        public void Post(Action action)
+        {
+            ArgumentNullException.ThrowIfNull(action);
+            _postedActions.Enqueue(action);
+        }
+
+        public Task InvokeAsync(Action action)
+        {
+            ArgumentNullException.ThrowIfNull(action);
+            action();
+            return Task.CompletedTask;
+        }
+
+        public Task<T> InvokeAsync<T>(Func<T> action)
+        {
+            ArgumentNullException.ThrowIfNull(action);
+            return Task.FromResult(action());
+        }
+
+        public void DrainPostedActions()
+        {
+            while (_postedActions.Count > 0)
+            {
+                _postedActions.Dequeue()();
+            }
         }
     }
 }

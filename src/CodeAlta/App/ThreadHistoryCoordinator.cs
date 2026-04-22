@@ -333,6 +333,7 @@ internal sealed class ThreadHistoryCoordinator
 
             tab.Timeline.CompleteInitialBufferedHistory(truncatedHistoryItem);
             tab.Timeline.FlushBufferedHistoryItems();
+            tab.Timeline.RevealTail();
             tab.HistoryLoaded = true;
             _clearThreadStatus(tab);
         }

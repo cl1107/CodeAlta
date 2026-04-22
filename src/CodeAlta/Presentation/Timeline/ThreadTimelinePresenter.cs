@@ -418,14 +418,22 @@ internal sealed class ThreadTimelinePresenter
             return;
         }
 
-        UiDispatch.Post(
-            _uiDispatcher,
+        _uiDispatcher.Post(
             () =>
             {
                 Flow.Items.AddRange(items);
                 Flow.ScrollToTailIfEnabled(_isAutoScrollEnabled());
+                _uiDispatcher.Post(() => Flow.ScrollToTailIfEnabled(_isAutoScrollEnabled()));
             });
     }
+
+    public void RevealTail()
+        => _uiDispatcher.Post(
+            () =>
+            {
+                Flow.ScrollToTailIfFollowing();
+                _uiDispatcher.Post(() => Flow.ScrollToTailIfFollowing());
+            });
 
     public void Reset()
     {
