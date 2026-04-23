@@ -88,6 +88,11 @@ internal sealed class ProviderFrontendCoordinator
     {
         ArgumentNullException.ThrowIfNull(definition);
 
+        if (TryBuildActiveBackendTestResult(definition, _chatBackendStates, out var activeResult))
+        {
+            return activeResult;
+        }
+
         var homeRoot = _ownedServices?.CatalogOptions.GlobalRoot
             ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".alta");
         var modelCatalog = _ownedServices?.ModelsDevCatalogService;
@@ -101,6 +106,44 @@ internal sealed class ProviderFrontendCoordinator
         await backend.StartAsync(cancellationToken);
         var models = await backend.ListModelsAsync(cancellationToken);
         return new ProviderTestResult(true, $"Connected successfully · {models.Count} model(s) discovered.", models.Count);
+    }
+
+    internal static bool TryBuildActiveBackendTestResult(
+        CodeAltaProviderDocument definition,
+        IReadOnlyDictionary<string, ChatBackendState> chatBackendStates,
+        out ProviderTestResult result)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        ArgumentNullException.ThrowIfNull(chatBackendStates);
+
+        result = default;
+        if (!string.Equals(definition.ProviderType, "codex", StringComparison.Ordinal) &&
+            !string.Equals(definition.ProviderType, "copilot", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (!chatBackendStates.TryGetValue(definition.ProviderKey, out var state))
+        {
+            return false;
+        }
+
+        switch (state.Availability)
+        {
+            case ChatBackendAvailability.Ready:
+                result = new ProviderTestResult(
+                    true,
+                    $"Using active provider backend · {state.Models.Count} model(s) discovered.",
+                    state.Models.Count);
+                return true;
+            case ChatBackendAvailability.Connecting:
+            case ChatBackendAvailability.Failed:
+            case ChatBackendAvailability.Unsupported:
+                result = new ProviderTestResult(false, state.StatusMessage, 0);
+                return true;
+            default:
+                return false;
+        }
     }
 
     private bool TryCreateBackend(
