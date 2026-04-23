@@ -21,8 +21,9 @@ public sealed class SkillsManagementServiceTests
         File.WriteAllText(Path.Combine(skillRoot, "scripts", "run.ps1"), "Write-Host test");
         File.WriteAllText(Path.Combine(skillRoot, "references", "deep", "guide.md"), "# Guide");
         File.WriteAllText(Path.Combine(skillRoot, "assets", "icon.svg"), "<svg />");
+        var service = CreateService(temp.Path);
 
-        var files = SkillsManagementService.ListRelatedFiles(CreateDescriptor(skillRoot));
+        var files = service.ListRelatedFiles(CreateDescriptor(skillRoot));
 
         CollectionAssert.AreEqual(
             new[]
@@ -47,10 +48,34 @@ public sealed class SkillsManagementServiceTests
     public void ListRelatedFiles_ReturnsEmptyForMissingSkillRoot()
     {
         var descriptor = CreateDescriptor(Path.Combine(Path.GetTempPath(), $"missing-skill-{Guid.NewGuid():N}"));
+        var service = CreateService(Path.GetTempPath());
 
-        var files = SkillsManagementService.ListRelatedFiles(descriptor);
+        var files = service.ListRelatedFiles(descriptor);
 
         Assert.AreEqual(0, files.Count);
+    }
+
+    [TestMethod]
+    public void ListRelatedFiles_RespectsGitIgnore()
+    {
+        using var temp = TempDirectory.Create();
+        var projectRoot = Path.Combine(temp.Path, "repo");
+        var skillRoot = Path.Combine(projectRoot, ".alta", "skills", "sample-skill");
+        Directory.CreateDirectory(Path.Combine(projectRoot, ".git"));
+        Directory.CreateDirectory(Path.Combine(skillRoot, "assets"));
+        File.WriteAllText(
+            Path.Combine(projectRoot, ".gitignore"),
+            ".alta/skills/sample-skill/assets/ignored.svg" + Environment.NewLine);
+        File.WriteAllText(Path.Combine(skillRoot, "SKILL.md"), "---\nname: sample-skill\ndescription: sample\n---\n");
+        File.WriteAllText(Path.Combine(skillRoot, "assets", "visible.svg"), "<svg />");
+        File.WriteAllText(Path.Combine(skillRoot, "assets", "ignored.svg"), "<svg />");
+        var service = CreateService(projectRoot);
+
+        var files = service.ListRelatedFiles(CreateDescriptor(skillRoot));
+
+        CollectionAssert.AreEqual(
+            new[] { "assets/visible.svg" },
+            files.Select(static file => file.RelativePath).ToArray());
     }
 
     [TestMethod]
@@ -136,6 +161,12 @@ public sealed class SkillsManagementServiceTests
             IsValid = true,
             IsModelVisible = true,
         };
+
+    private static SkillsManagementService CreateService(string globalRoot)
+        => new(
+            new SkillCatalog(),
+            new CatalogOptions { GlobalRoot = globalRoot },
+            () => null);
 
     private sealed class TempDirectory(string path) : IDisposable
     {

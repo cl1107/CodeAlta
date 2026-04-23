@@ -194,6 +194,21 @@ public sealed class SkillCatalog
     }
 
     /// <summary>
+    /// Lists non-ignored resource files under a discovered skill root.
+    /// </summary>
+    /// <param name="descriptor">Skill descriptor whose root should be scanned.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Relative file paths under the skill root, excluding <c>SKILL.md</c>.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="descriptor"/> is <see langword="null"/>.</exception>
+    public IReadOnlyList<string> ListFiles(
+        SkillDescriptor descriptor,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(descriptor);
+        return EnumerateSkillFiles(descriptor.SkillRootPath, maxCount: 256, cancellationToken);
+    }
+
+    /// <summary>
     /// Reads a resource file under a discovered skill directory.
     /// </summary>
     /// <param name="roots">Roots used for discovery.</param>
@@ -235,7 +250,7 @@ public sealed class SkillCatalog
             return null;
         }
 
-        var files = EnumerateSkillFiles(document.Descriptor.SkillRootPath);
+        var files = EnumerateSkillFiles(document.Descriptor.SkillRootPath, maxCount: 64, cancellationToken);
         var baseDirectoryUri = new Uri(AppendDirectorySeparator(document.Descriptor.SkillRootPath)).AbsoluteUri;
         var payload = BuildActivationPayload(document, document.Descriptor, baseDirectoryUri, files);
         return new SkillActivation
@@ -716,16 +731,35 @@ public sealed class SkillCatalog
         return combinedPath;
     }
 
-    private static IReadOnlyList<string> EnumerateSkillFiles(string skillRootPath)
+    private IReadOnlyList<string> EnumerateSkillFiles(
+        string skillRootPath,
+        int maxCount,
+        CancellationToken cancellationToken)
     {
-        return Directory.Exists(skillRootPath)
-            ? Directory.EnumerateFiles(skillRootPath, "*", SearchOption.AllDirectories)
-                .Where(path => !string.Equals(Path.GetFileName(path), "SKILL.md", StringComparison.OrdinalIgnoreCase))
-                .Select(path => Path.GetRelativePath(skillRootPath, path).Replace('\\', '/'))
-                .OrderBy(static path => path, StringComparer.OrdinalIgnoreCase)
-                .Take(64)
-                .ToArray()
-            : [];
+        if (!Directory.Exists(skillRootPath))
+        {
+            return [];
+        }
+
+        var normalizedRoot = Path.GetFullPath(skillRootPath);
+        var walkOptions = CreateWalkOptions(normalizedRoot, cancellationToken);
+        var files = new List<string>();
+        foreach (var entry in _walker.Enumerate(normalizedRoot, walkOptions))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (entry.IsDirectory ||
+                string.Equals(entry.Name, "SKILL.md", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            files.Add(Path.GetRelativePath(normalizedRoot, entry.FullPath).Replace('\\', '/'));
+        }
+
+        return files
+            .OrderBy(static path => path, StringComparer.OrdinalIgnoreCase)
+            .Take(maxCount)
+            .ToArray();
     }
 
     private static string BuildActivationPayload(

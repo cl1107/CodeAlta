@@ -280,7 +280,7 @@ internal sealed class SkillsManagementDialog
             return;
         }
 
-        foreach (var file in SkillsManagementService.ListRelatedFiles(descriptor))
+        foreach (var file in _service.ListRelatedFiles(descriptor))
         {
             _relatedFileSelect.Items.Add(new SkillRelatedFileRow(file));
         }
@@ -470,7 +470,7 @@ internal sealed class SkillsManagementDialog
         builder.AppendLine($"Root: {descriptor.SkillRootPath}");
         builder.AppendLine($"Source id: {descriptor.SourceId}");
 
-        var relatedFiles = SkillsManagementService.ListRelatedFiles(descriptor);
+        var relatedFiles = _service.ListRelatedFiles(descriptor);
         builder.AppendLine($"Related files: {relatedFiles.Count}");
 
         if (descriptor.Diagnostics.Count > 0)

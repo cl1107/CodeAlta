@@ -85,7 +85,9 @@ internal sealed class SkillsManagementService
         return new SkillCreationResult(normalizedName, skillRootPath, skillFilePath, target.Kind);
     }
 
-    public static IReadOnlyList<SkillRelatedFile> ListRelatedFiles(SkillDescriptor descriptor)
+    public IReadOnlyList<SkillRelatedFile> ListRelatedFiles(
+        SkillDescriptor descriptor,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(descriptor);
 
@@ -97,35 +99,21 @@ internal sealed class SkillsManagementService
 
         var skillRootPath = Path.GetFullPath(descriptor.SkillRootPath);
         var relatedFiles = new List<SkillRelatedFile>();
-        foreach (var directoryName in RelatedFileDirectories)
+        foreach (var relativePath in _skillCatalog.ListFiles(descriptor, cancellationToken))
         {
-            var directoryPath = Path.GetFullPath(Path.Combine(skillRootPath, directoryName));
-            if (!IsUnderRoot(directoryPath, skillRootPath) ||
-                !Directory.Exists(directoryPath))
+            var category = GetRelatedFileCategory(relativePath);
+            if (category is null)
             {
                 continue;
             }
 
-            var files = Directory.EnumerateFiles(
-                directoryPath,
-                "*",
-                new EnumerationOptions
-                {
-                    RecurseSubdirectories = true,
-                    IgnoreInaccessible = true,
-                    AttributesToSkip = FileAttributes.ReparsePoint,
-                });
-            foreach (var filePath in files)
+            var fullPath = Path.GetFullPath(Path.Combine(skillRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar)));
+            if (!IsUnderRoot(fullPath, skillRootPath))
             {
-                var fullPath = Path.GetFullPath(filePath);
-                if (!IsUnderRoot(fullPath, skillRootPath))
-                {
-                    continue;
-                }
-
-                var relativePath = Path.GetRelativePath(skillRootPath, fullPath).Replace('\\', '/');
-                relatedFiles.Add(new SkillRelatedFile(directoryName, relativePath, fullPath));
+                continue;
             }
+
+            relatedFiles.Add(new SkillRelatedFile(category, relativePath, fullPath));
         }
 
         return relatedFiles
@@ -133,6 +121,19 @@ internal sealed class SkillsManagementService
             .ThenBy(static file => file.RelativePath, StringComparer.OrdinalIgnoreCase)
             .Take(128)
             .ToArray();
+    }
+
+    private static string? GetRelatedFileCategory(string relativePath)
+    {
+        foreach (var directoryName in RelatedFileDirectories)
+        {
+            if (relativePath.StartsWith(directoryName + "/", StringComparison.OrdinalIgnoreCase))
+            {
+                return directoryName;
+            }
+        }
+
+        return null;
     }
 
     private static bool IsUnderRoot(string candidatePath, string rootPath)

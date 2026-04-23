@@ -222,10 +222,18 @@ public sealed class SkillCatalogTests
     public async Task SkillCatalog_ActivateAsync_ReturnsCanonicalPayload()
     {
         using var temp = TempDirectory.Create();
+        Directory.CreateDirectory(Path.Combine(temp.Path, ".git"));
+        await File.WriteAllTextAsync(
+            Path.Combine(temp.Path, ".gitignore"),
+            ".alta/skills/sample-skill/assets/ignored.svg" + Environment.NewLine)
+            .ConfigureAwait(false);
         var skillRoot = Path.Combine(temp.Path, ".alta", "skills", "sample-skill");
         await WriteSkillAsync(skillRoot, "sample-skill", "Activates a skill.").ConfigureAwait(false);
         Directory.CreateDirectory(Path.Combine(skillRoot, "references"));
+        Directory.CreateDirectory(Path.Combine(skillRoot, "assets"));
         await File.WriteAllTextAsync(Path.Combine(skillRoot, "references", "guide.md"), "guide").ConfigureAwait(false);
+        await File.WriteAllTextAsync(Path.Combine(skillRoot, "assets", "visible.svg"), "<svg />").ConfigureAwait(false);
+        await File.WriteAllTextAsync(Path.Combine(skillRoot, "assets", "ignored.svg"), "<svg />").ConfigureAwait(false);
 
         var catalog = new SkillCatalog();
         var activation = await catalog.ActivateAsync(
@@ -253,7 +261,9 @@ public sealed class SkillCatalogTests
         Assert.IsNotNull(activation);
         StringAssert.Contains(activation.Payload, "<skill_content name=\"sample-skill\"");
         StringAssert.Contains(activation.Payload, "Base directory: file:///");
+        StringAssert.Contains(activation.Payload, "<file>assets/visible.svg</file>");
         StringAssert.Contains(activation.Payload, "<file>references/guide.md</file>");
+        Assert.IsFalse(activation.Payload.Contains("ignored.svg", StringComparison.OrdinalIgnoreCase));
     }
 
     private static async Task WriteSkillAsync(string skillRoot, string name, string description)

@@ -48,7 +48,7 @@ Use **Activate** on a valid, unshadowed skill to load it into the selected local
 
 Use **Open SKILL.md** to open the selected skill in the existing editor. Because `SKILL.md` is a Markdown file, it uses the editor's normal Markdown/TextMate highlighting path.
 
-The browser also lists related authoring files under the selected skill's `scripts/`, `references/`, and `assets/` folders. Select a related file and use **Open related** to edit it in the same editor flow. CodeAlta only opens these files for inspection/editing; activation still does not execute scripts automatically.
+The browser also lists related authoring files under the selected skill's `scripts/`, `references/`, and `assets/` folders. Select a related file and use **Open related** to edit it in the same editor flow. CodeAlta only opens these files for inspection/editing; activation still does not execute scripts automatically. Related-file and activation file lists use CodeAlta's `XenoAtom.Glob`-based walker, so project `.gitignore` rules are respected.
 
 Use **New skill** to scaffold a new Agent Skills-compatible skill. When a project is selected, CodeAlta creates it under the project CodeAlta-specific root (`<project>/.alta/skills/<name>/`); otherwise it falls back to the user CodeAlta root (`~/.alta/skills/<name>/`). The scaffold includes `SKILL.md` plus empty `scripts/`, `references/`, and `assets/` folders, then opens `SKILL.md` in the editor.
 
