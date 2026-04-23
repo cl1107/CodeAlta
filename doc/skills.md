@@ -46,7 +46,9 @@ Use `/skills` or `/skill`, the command palette entry, or `Ctrl+G Ctrl+K` to open
 
 Use **Activate** on a valid, unshadowed skill to load it into the selected local/raw backend thread through the host-owned runtime path. CodeAlta records the activation in the local session journal and injects the canonical skill payload as session context; it does not paste raw skill text into the prompt draft. Codex and Copilot threads are excluded because those providers manage their own native skills.
 
-Use **Open SKILL.md** to open the selected skill in the existing editor.
+Use **Open SKILL.md** to open the selected skill in the existing editor. Because `SKILL.md` is a Markdown file, it uses the editor's normal Markdown/TextMate highlighting path.
+
+The browser also lists related authoring files under the selected skill's `scripts/`, `references/`, and `assets/` folders. Select a related file and use **Open related** to edit it in the same editor flow. CodeAlta only opens these files for inspection/editing; activation still does not execute scripts automatically.
 
 ## Validation and collisions
 

@@ -5,6 +5,8 @@ namespace CodeAlta.App;
 
 internal sealed class SkillsManagementService
 {
+    private static readonly string[] RelatedFileDirectories = ["scripts", "references", "assets"];
+
     private readonly SkillCatalog _skillCatalog;
     private readonly CatalogOptions _catalogOptions;
     private readonly Func<ProjectDescriptor?> _getSelectedProject;
@@ -50,6 +52,71 @@ internal sealed class SkillsManagementService
 
         return await _skillCatalog.ListAsync(query, cancellationToken).ConfigureAwait(false);
     }
+
+    public static IReadOnlyList<SkillRelatedFile> ListRelatedFiles(SkillDescriptor descriptor)
+    {
+        ArgumentNullException.ThrowIfNull(descriptor);
+
+        if (string.IsNullOrWhiteSpace(descriptor.SkillRootPath) ||
+            !Directory.Exists(descriptor.SkillRootPath))
+        {
+            return [];
+        }
+
+        var skillRootPath = Path.GetFullPath(descriptor.SkillRootPath);
+        var relatedFiles = new List<SkillRelatedFile>();
+        foreach (var directoryName in RelatedFileDirectories)
+        {
+            var directoryPath = Path.GetFullPath(Path.Combine(skillRootPath, directoryName));
+            if (!IsUnderRoot(directoryPath, skillRootPath) ||
+                !Directory.Exists(directoryPath))
+            {
+                continue;
+            }
+
+            var files = Directory.EnumerateFiles(
+                directoryPath,
+                "*",
+                new EnumerationOptions
+                {
+                    RecurseSubdirectories = true,
+                    IgnoreInaccessible = true,
+                    AttributesToSkip = FileAttributes.ReparsePoint,
+                });
+            foreach (var filePath in files)
+            {
+                var fullPath = Path.GetFullPath(filePath);
+                if (!IsUnderRoot(fullPath, skillRootPath))
+                {
+                    continue;
+                }
+
+                var relativePath = Path.GetRelativePath(skillRootPath, fullPath).Replace('\\', '/');
+                relatedFiles.Add(new SkillRelatedFile(directoryName, relativePath, fullPath));
+            }
+        }
+
+        return relatedFiles
+            .OrderBy(static file => Array.IndexOf(RelatedFileDirectories, file.Category))
+            .ThenBy(static file => file.RelativePath, StringComparer.OrdinalIgnoreCase)
+            .Take(128)
+            .ToArray();
+    }
+
+    private static bool IsUnderRoot(string candidatePath, string rootPath)
+    {
+        var normalizedCandidate = AppendDirectorySeparator(Path.GetFullPath(candidatePath));
+        var normalizedRoot = AppendDirectorySeparator(Path.GetFullPath(rootPath));
+        var comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        return normalizedCandidate.StartsWith(normalizedRoot, comparison);
+    }
+
+    private static string AppendDirectorySeparator(string path)
+        => path.Length > 0 && (path[^1] == Path.DirectorySeparatorChar || path[^1] == Path.AltDirectorySeparatorChar)
+            ? path
+            : path + Path.DirectorySeparatorChar;
 }
 
 internal enum SkillsManagementScope
@@ -58,3 +125,5 @@ internal enum SkillsManagementScope
     CurrentProject,
     User,
 }
+
+internal sealed record SkillRelatedFile(string Category, string RelativePath, string FullPath);

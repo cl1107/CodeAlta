@@ -281,11 +281,11 @@ Path note:
 ### 8.1 Reuse the existing editor flow
 
 - [x] Allow opening `SKILL.md` directly in the existing CodeAlta code editor
-- [ ] Ensure markdown syntax highlighting works well for `SKILL.md`
-- [ ] Allow opening related files under:
-  - [ ] `scripts/`
-  - [ ] `references/`
-  - [ ] `assets/`
+- [x] Ensure markdown syntax highlighting works well for `SKILL.md`
+- [x] Allow opening related files under:
+  - [x] `scripts/`
+  - [x] `references/`
+  - [x] `assets/`
 - [x] Make it easy to navigate from the skills browser/detail pane into editor tabs
 
 ### 8.2 Add creation and validation workflow
@@ -355,7 +355,7 @@ Path note:
 
 ### 11.4 UI/tests if practical
 
-- [ ] Add tests for skills browser projections/view models if there are existing patterns for this
+- [x] Add tests for skills browser projections/view models if there are existing patterns for this
 - [x] Add tests for thread info reporting of loaded skills
 - [x] Add tests for command routing for `/skill` and the skills browser action
 
@@ -366,7 +366,7 @@ Path note:
 - [x] Document the difference between `.agents/skills/` and `.alta/skills/`
 - [x] Document current validation/provenance behavior; full repository trust prompts remain future work
 - [x] Document how loaded skills appear in thread info and survive local-runtime session resume
-- [ ] Document the editor-based skill authoring flow
+- [x] Document the editor-based skill authoring flow
 
 ## Suggested execution order
 

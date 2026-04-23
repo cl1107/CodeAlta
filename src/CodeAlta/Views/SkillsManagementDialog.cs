@@ -23,6 +23,7 @@ internal sealed class SkillsManagementDialog
     private readonly EnumSelect<SkillsManagementScope> _scopeSelect;
     private readonly TextBox _filterBox;
     private readonly Select<SkillRow> _skillSelect;
+    private readonly Select<SkillRelatedFileRow> _relatedFileSelect;
     private readonly Markup _summaryMarkup;
     private readonly TextBlock _detailText;
     private IReadOnlyList<SkillRow> _allRows = [];
@@ -70,6 +71,11 @@ internal sealed class SkillsManagementDialog
             .MinWidth(38);
         _skillSelect.SelectionChanged((_, _) => UpdateDetail());
 
+        _relatedFileSelect = new Select<SkillRelatedFileRow>()
+            .HorizontalAlignment(Align.Stretch)
+            .VerticalAlignment(Align.Stretch)
+            .MinHeight(4);
+
         _summaryMarkup = new Markup(() => _summaryText)
         {
             Wrap = true,
@@ -90,6 +96,8 @@ internal sealed class SkillsManagementDialog
             .Click(() => _ = ActivateSelectedSkillAsync());
         var openSkillButton = new Button("Open SKILL.md")
             .Click(() => _ = OpenSelectedSkillAsync());
+        var openRelatedButton = new Button("Open related")
+            .Click(() => _ = OpenSelectedRelatedFileAsync());
 
         var toolbar = new Grid
             {
@@ -107,7 +115,7 @@ internal sealed class SkillsManagementDialog
         toolbar.Cell(new TextBlock("Filter") { VerticalAlignment = Align.Center }, 0, 2);
         toolbar.Cell(_filterBox, 0, 3);
         toolbar.Cell(
-            new HStack(activateButton, openSkillButton, refreshButton)
+            new HStack(activateButton, openSkillButton, openRelatedButton, refreshButton)
             {
                 HorizontalAlignment = Align.End,
                 Spacing = 1,
@@ -115,10 +123,38 @@ internal sealed class SkillsManagementDialog
             0,
             4);
 
-        var introText = new Markup("[dim]Browse discovered filesystem skills, validation state, source precedence, and provenance. Activate loads a valid, unshadowed skill through the host-owned runtime; Open edits SKILL.md.[/]")
+        var introText = new Markup("[dim]Browse discovered filesystem skills, validation state, source precedence, and provenance. Activate loads a valid, unshadowed skill through the host-owned runtime; Open edits SKILL.md or related scripts/references/assets.[/]")
         {
             Wrap = true,
         };
+
+        var rightPane = new Grid
+            {
+                HorizontalAlignment = Align.Stretch,
+                VerticalAlignment = Align.Stretch,
+            }
+            .Rows(
+                new RowDefinition { Height = GridLength.Star(3) },
+                new RowDefinition { Height = GridLength.Auto },
+                new RowDefinition { Height = GridLength.Star(1) })
+            .Columns(new ColumnDefinition { Width = GridLength.Star(1) });
+        rightPane.Cell(
+            new Border(new ScrollViewer(_detailText).Stretch())
+                .Style(BorderStyle.Rounded)
+                .Padding(new Thickness(1, 0, 1, 0))
+                .HorizontalAlignment(Align.Stretch)
+                .VerticalAlignment(Align.Stretch),
+            0,
+            0);
+        rightPane.Cell(new Markup("[dim]Related files (scripts, references, assets)[/]") { Wrap = false }, 1, 0);
+        rightPane.Cell(
+            new Border(new ScrollViewer(_relatedFileSelect.Stretch()).Stretch())
+                .Style(BorderStyle.Rounded)
+                .Padding(new Thickness(1, 0, 1, 0))
+                .HorizontalAlignment(Align.Stretch)
+                .VerticalAlignment(Align.Stretch),
+            2,
+            0);
 
         var contentGrid = new Grid
             {
@@ -145,14 +181,7 @@ internal sealed class SkillsManagementDialog
                 .VerticalAlignment(Align.Stretch),
             3,
             0);
-        contentGrid.Cell(
-            new Border(new ScrollViewer(_detailText).Stretch())
-                .Style(BorderStyle.Rounded)
-                .Padding(new Thickness(1, 0, 1, 0))
-                .HorizontalAlignment(Align.Stretch)
-                .VerticalAlignment(Align.Stretch),
-            3,
-            1);
+        contentGrid.Cell(rightPane, 3, 1);
 
         _dialog = new Dialog()
             .Title("Skills")
@@ -238,8 +267,20 @@ internal sealed class SkillsManagementDialog
         UpdateDetail();
     }
 
-    private static void UpdateDetail()
+    private void UpdateDetail()
     {
+        _relatedFileSelect.Items.Clear();
+        if (GetSelectedDescriptor() is not { } descriptor)
+        {
+            return;
+        }
+
+        foreach (var file in SkillsManagementService.ListRelatedFiles(descriptor))
+        {
+            _relatedFileSelect.Items.Add(new SkillRelatedFileRow(file));
+        }
+
+        _relatedFileSelect.SelectedIndex = _relatedFileSelect.Items.Count > 0 ? 0 : -1;
     }
 
     private async Task OpenSelectedSkillAsync()
@@ -250,6 +291,18 @@ internal sealed class SkillsManagementDialog
         }
 
         await _openFileAsync(descriptor.SkillFilePath);
+    }
+
+    private async Task OpenSelectedRelatedFileAsync()
+    {
+        var index = _relatedFileSelect.SelectedIndex;
+        if ((uint)index >= (uint)_relatedFileSelect.Items.Count)
+        {
+            _summaryText = "[warning]Select a related file before opening.[/]";
+            return;
+        }
+
+        await _openFileAsync(_relatedFileSelect.Items[index].File.FullPath);
     }
 
     private async Task ActivateSelectedSkillAsync()
@@ -312,6 +365,9 @@ internal sealed class SkillsManagementDialog
         builder.AppendLine($"SKILL.md: {descriptor.SkillFilePath}");
         builder.AppendLine($"Root: {descriptor.SkillRootPath}");
         builder.AppendLine($"Source id: {descriptor.SourceId}");
+
+        var relatedFiles = SkillsManagementService.ListRelatedFiles(descriptor);
+        builder.AppendLine($"Related files: {relatedFiles.Count}");
 
         if (descriptor.Diagnostics.Count > 0)
         {
@@ -401,6 +457,18 @@ internal sealed class SkillsManagementDialog
                 ? "shadowed"
                 : Descriptor.IsValid ? "valid" : "invalid";
             return $"{Descriptor.Name} · {status} · {FormatSource(Descriptor.SourceKind)}";
+        }
+    }
+
+    private sealed record SkillRelatedFileRow(SkillRelatedFile File)
+    {
+        public override string ToString()
+        {
+            var prefix = File.Category + "/";
+            var displayPath = File.RelativePath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                ? File.RelativePath[prefix.Length..]
+                : File.RelativePath;
+            return $"{File.Category}/{displayPath}";
         }
     }
 }
