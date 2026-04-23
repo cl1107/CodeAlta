@@ -866,9 +866,7 @@ public sealed class CodeAltaConfigStore
             || string.Equals(providerKey, CopilotProviderKey, StringComparison.OrdinalIgnoreCase);
 
     private static bool GetDefaultProviderEnabled(string providerKey)
-        => IsReservedProviderKey(providerKey)
-            ? false
-            : CodeAltaProviderDocument.DefaultEnabled;
+        => CodeAltaProviderDocument.DefaultEnabled;
 
     private static void ApplyReservedProviderDefaults(CodeAltaProviderDocument definition)
     {
