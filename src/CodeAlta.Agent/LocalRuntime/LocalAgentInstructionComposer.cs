@@ -7,7 +7,9 @@ namespace CodeAlta.Agent.LocalRuntime;
 
 internal static class LocalAgentInstructionComposer
 {
-    public static LocalAgentInstructionBundle Compose(AgentSessionCreateOptions options)
+    public static LocalAgentInstructionBundle Compose(
+        AgentSessionCreateOptions options,
+        IReadOnlyList<LocalAgentLoadedSkillState>? loadedSkills = null)
     {
         ArgumentNullException.ThrowIfNull(options);
 
@@ -32,6 +34,12 @@ internal static class LocalAgentInstructionComposer
                 File: {path}
                 {content}
                 """);
+        }
+
+        var activeSkillsSection = BuildActiveSkillsSection(loadedSkills);
+        if (!string.IsNullOrWhiteSpace(activeSkillsSection))
+        {
+            developerSections.Add(activeSkillsSection);
         }
 
         var developerInstructions = developerSections.Count == 0
@@ -183,6 +191,50 @@ internal static class LocalAgentInstructionComposer
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(payload));
         return Convert.ToHexString(bytes);
     }
+
+    private static string? BuildActiveSkillsSection(IReadOnlyList<LocalAgentLoadedSkillState>? loadedSkills)
+    {
+        if (loadedSkills is not { Count: > 0 })
+        {
+            return null;
+        }
+
+        var orderedSkills = loadedSkills
+            .OrderBy(static skill => skill.ActivatedAt)
+            .ThenBy(static skill => skill.Name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var builder = new StringBuilder();
+        builder.AppendLine("The following skills are already active in this session. Treat them as loaded host-managed context.");
+        builder.AppendLine("Use the skill root when resolving relative paths mentioned by a loaded skill.");
+        builder.AppendLine();
+        builder.AppendLine("<active_skills>");
+
+        foreach (var skill in orderedSkills)
+        {
+            if (!skill.IsAvailable)
+            {
+                builder.Append("  <skill_missing name=\"")
+                    .Append(EscapeXml(skill.Name))
+                    .Append("\" path=\"")
+                    .Append(EscapeXml(skill.SkillFilePath))
+                    .Append("\">")
+                    .Append(EscapeXml(skill.MissingReason ?? "Skill content was restored from session history but the on-disk skill is no longer available."))
+                    .AppendLine("</skill_missing>");
+            }
+
+            builder.AppendLine(skill.Payload.Trim());
+        }
+
+        builder.AppendLine("</active_skills>");
+        return builder.ToString().Trim();
+    }
+
+    private static string EscapeXml(string value)
+        => value
+            .Replace("&", "&amp;", StringComparison.Ordinal)
+            .Replace("<", "&lt;", StringComparison.Ordinal)
+            .Replace(">", "&gt;", StringComparison.Ordinal)
+            .Replace("\"", "&quot;", StringComparison.Ordinal);
 }
 
 internal sealed record LocalAgentInstructionBundle(

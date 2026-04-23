@@ -4,6 +4,7 @@ using System.Threading.Channels;
 using CodeAlta.Agent;
 using CodeAlta.Catalog;
 using CodeAlta.Catalog.Roles;
+using CodeAlta.Catalog.Skills;
 using CodeAlta.Persistence;
 
 namespace CodeAlta.Orchestration.Runtime;
@@ -23,6 +24,7 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
     private readonly RoleProfileStore _roleProfileStore;
     private readonly AgentInstructionTemplateProvider _instructionTemplateProvider;
     private readonly CatalogOptions _catalogOptions;
+    private readonly SkillCatalog _skillCatalog;
     private readonly Channel<WorkThreadRuntimeEvent> _events = Channel.CreateUnbounded<WorkThreadRuntimeEvent>();
     private readonly Dictionary<string, ThreadSessionEntry> _entries = new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim _gate = new(initialCount: 1, maxCount: 1);
@@ -37,7 +39,8 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
         WorkThreadCatalog threadCatalog,
         RoleProfileStore roleProfileStore,
         AgentInstructionTemplateProvider instructionTemplateProvider,
-        CatalogOptions catalogOptions)
+        CatalogOptions catalogOptions,
+        SkillCatalog? skillCatalog = null)
     {
         ArgumentNullException.ThrowIfNull(agentHub);
         ArgumentNullException.ThrowIfNull(projectCatalog);
@@ -52,6 +55,7 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
         _roleProfileStore = roleProfileStore;
         _instructionTemplateProvider = instructionTemplateProvider;
         _catalogOptions = catalogOptions;
+        _skillCatalog = skillCatalog ?? new SkillCatalog();
     }
 
     /// <summary>
@@ -295,6 +299,9 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
         var coordinatorProfile = await _roleProfileStore.GetByIdAsync(agentRoots, "coordinator", cancellationToken).ConfigureAwait(false)
             ?? throw new InvalidOperationException("Coordinator profile was not available.");
         var instructions = _instructionTemplateProvider.BuildCoordinatorInstructions(thread, project, coordinatorProfile);
+        var skillQuery = BuildSkillCatalogQuery(project, options.ProjectRoots);
+        var skillActivationTool = SkillSessionToolFactory.CreateActivateTool(_skillCatalog, skillQuery);
+        var tools = SkillSessionToolFactory.MergeWithActivationTool(options.Tools, skillActivationTool);
 
         ThreadSessionEntry? previousEntry = null;
         AgentId agentId;
@@ -342,7 +349,7 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
             ProjectRoots = options.ProjectRoots,
             SystemMessage = instructions.SystemMessage,
             DeveloperInstructions = instructions.DeveloperInstructions,
-            Tools = options.Tools,
+            Tools = tools,
             OnPermissionRequest = options.OnPermissionRequest,
             OnUserInputRequest = options.OnUserInputRequest,
         };
@@ -722,6 +729,37 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
         }
 
         return roots;
+    }
+
+    private SkillCatalogQuery BuildSkillCatalogQuery(ProjectDescriptor? project, IReadOnlyList<string> projectRoots)
+    {
+        var resolvedProjectRoots = new List<string>();
+        if (!string.IsNullOrWhiteSpace(project?.ProjectPath))
+        {
+            resolvedProjectRoots.Add(Path.GetFullPath(project.ProjectPath));
+        }
+
+        foreach (var projectRoot in projectRoots.Where(static root => !string.IsNullOrWhiteSpace(root)))
+        {
+            var fullPath = Path.GetFullPath(projectRoot);
+            if (!resolvedProjectRoots.Contains(fullPath, StringComparer.OrdinalIgnoreCase))
+            {
+                resolvedProjectRoots.Add(fullPath);
+            }
+        }
+
+        return new SkillCatalogQuery
+        {
+            Discovery = new SkillDiscoveryContext
+            {
+                ProjectRoots = resolvedProjectRoots,
+                UserCodeAltaRoot = _catalogOptions.GlobalRoot,
+                UserProfileRoot = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            },
+            IncludeInvalid = true,
+            IncludeShadowed = true,
+            IncludeUntrusted = true,
+        };
     }
 
     private static AgentReasoningEffort? ParseReasoningEffort(string? value)

@@ -9,6 +9,7 @@ using CodeAlta.Agent.OpenAI;
 using CodeAlta.Acp;
 using CodeAlta.Catalog;
 using CodeAlta.Catalog.Roles;
+using CodeAlta.Catalog.Skills;
 using CodeAlta.CodexSdk;
 using CodeAlta.Orchestration.Runtime;
 using CodeAlta.Persistence;
@@ -113,7 +114,8 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
 
         var threadCatalog = new WorkThreadCatalog(catalogOptions);
         var roleProfileStore = new RoleProfileStore();
-        var instructionTemplateProvider = new AgentInstructionTemplateProvider();
+        var skillCatalog = new SkillCatalog();
+        var instructionTemplateProvider = new AgentInstructionTemplateProvider(skillCatalog, catalogOptions);
         var configStore = new CodeAltaConfigStore(catalogOptions);
         var installedBackendStore = new AcpInstalledBackendStore(catalogOptions);
         var acpAgentRegistryService = new AcpAgentRegistryService(catalogOptions, installedBackendStore);
@@ -176,7 +178,8 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
             threadCatalog,
             roleProfileStore,
             instructionTemplateProvider,
-            catalogOptions);
+            catalogOptions,
+            skillCatalog);
         var projectFileSearchService = new ProjectFileSearchService(
             new ProjectFileSnapshotCache(),
             new PersistentProjectFileUsageStore(new ProjectFileUsageRepository(db)));

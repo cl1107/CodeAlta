@@ -1,6 +1,7 @@
 using CodeAlta.Agent;
 using CodeAlta.Catalog;
 using CodeAlta.Catalog.Roles;
+using CodeAlta.Catalog.Skills;
 using CodeAlta.Orchestration;
 using CodeAlta.Orchestration.Context;
 using CodeAlta.Orchestration.Runtime;
@@ -118,6 +119,81 @@ public sealed class OrchestrationInfrastructureTests
         Assert.IsFalse(string.IsNullOrWhiteSpace(instructions.SystemMessage));
         StringAssert.Contains(instructions.SystemMessage, "You are CodeAlta");
         Assert.IsNull(instructions.DeveloperInstructions);
+    }
+
+    [TestMethod]
+    public async Task WorkThreadRuntimeService_CreateThread_AddsSkillActivationToolAndAdvertisements()
+    {
+        using var temp = TempDirectory.Create();
+        var catalogOptions = new CatalogOptions { GlobalRoot = temp.Path };
+        var projectCatalog = new ProjectCatalog(catalogOptions);
+        var threadCatalog = new WorkThreadCatalog(catalogOptions);
+        var roleStore = new RoleProfileStore();
+        var skillCatalog = new SkillCatalog();
+        var instructionProvider = new AgentInstructionTemplateProvider(skillCatalog, catalogOptions);
+
+        var project = new ProjectDescriptor
+        {
+            Id = ProjectId.NewVersion7().ToString(),
+            Slug = "repo-main",
+            DisplayName = "Main Repo",
+            ProjectPath = Path.Combine(temp.Path, "repo-main"),
+            DefaultBranch = "main",
+        };
+        Directory.CreateDirectory(project.ProjectPath);
+        Directory.CreateDirectory(Path.Combine(project.ProjectPath, ".alta", "skills", "code-review"));
+        await File.WriteAllTextAsync(
+            Path.Combine(project.ProjectPath, ".alta", "skills", "code-review", "SKILL.md"),
+            """
+            ---
+            name: code-review
+            description: Review code for regressions.
+            ---
+            # Code Review
+
+            Review code for regressions.
+            """).ConfigureAwait(false);
+        await projectCatalog.SaveAsync(project).ConfigureAwait(false);
+
+        var agentsRoot = Path.Combine(temp.Path, "agents");
+        Directory.CreateDirectory(agentsRoot);
+        await File.WriteAllTextAsync(
+            Path.Combine(agentsRoot, "coordinator.agent.md"),
+            """
+            ---
+            name: coordinator
+            description: Coordinates thread work.
+            model: gpt-5.4
+            ---
+            Emit a schedule when coordination is required.
+            """).ConfigureAwait(false);
+
+        var backendFactory = new AgentBackendFactory();
+        var fakeBackend = new FakeBackend();
+        backendFactory.Register("fake", () => fakeBackend);
+        var db = await CreateDbAsync(temp.Path).ConfigureAwait(false);
+        var repository = new AgentRepository(db);
+        await using var hub = new AgentHub(backendFactory, repository);
+        await using var runtime = new WorkThreadRuntimeService(
+            hub,
+            projectCatalog,
+            threadCatalog,
+            roleStore,
+            instructionProvider,
+            catalogOptions,
+            skillCatalog);
+
+        _ = await runtime.CreateProjectThreadAsync(
+            project,
+            CreateExecutionOptions(project.ProjectPath),
+            "Skills Thread").ConfigureAwait(false);
+
+        Assert.IsNotNull(fakeBackend.LastCreateOptions);
+        Assert.IsNotNull(fakeBackend.LastCreateOptions.Tools);
+        Assert.IsTrue(fakeBackend.LastCreateOptions.Tools.Any(static tool => tool.Spec.Name == "codealta.skills.activate"));
+        Assert.IsNotNull(fakeBackend.LastCreateOptions.DeveloperInstructions);
+        StringAssert.Contains(fakeBackend.LastCreateOptions.DeveloperInstructions, "<available_skills>");
+        StringAssert.Contains(fakeBackend.LastCreateOptions.DeveloperInstructions, "code-review");
     }
 
     [TestMethod]

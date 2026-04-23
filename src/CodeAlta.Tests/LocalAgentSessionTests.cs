@@ -55,6 +55,40 @@ public sealed class LocalAgentSessionTests
     }
 
     [TestMethod]
+    public void LocalAgentInstructionComposer_ComposesActiveSkillsSection()
+    {
+        var skillFilePath = @"C:\skills\code-review\SKILL.md";
+        var payload = CreateSkillPayload("code-review", skillFilePath, "Review code for regressions.");
+
+        var bundle = LocalAgentInstructionComposer.Compose(
+            new AgentSessionCreateOptions
+            {
+                Model = "gpt-5.4",
+                WorkingDirectory = @"C:\repo",
+                OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
+            },
+            [
+                new LocalAgentLoadedSkillState
+                {
+                    Name = "code-review",
+                    SkillFilePath = skillFilePath,
+                    SkillRootPath = Path.GetDirectoryName(skillFilePath)!,
+                    SourceKind = "ProjectAlta",
+                    SourceId = "project-alta:C:\\repo",
+                    ActivatedAt = DateTimeOffset.Parse("2026-04-06T10:10:00+00:00"),
+                    ActivationMode = "model",
+                    ActivationId = "call-skill",
+                    Payload = payload,
+                },
+            ]);
+
+        Assert.IsNotNull(bundle.DeveloperInstructions);
+        StringAssert.Contains(bundle.DeveloperInstructions, "<active_skills>");
+        StringAssert.Contains(bundle.DeveloperInstructions, "code-review");
+        StringAssert.Contains(bundle.DeveloperInstructions, "Review code for regressions.");
+    }
+
+    [TestMethod]
     public async Task LocalAgentSession_SendAsync_RunsToolLoopAndPersistsReplayableEvents()
     {
         using var temp = TestTempDirectory.Create();
@@ -184,6 +218,362 @@ public sealed class LocalAgentSessionTests
         var persistedState = await store.GetStateAsync(provider.ProtocolFamily, provider.ProviderKey, summary.SessionId).ConfigureAwait(false);
         Assert.IsNotNull(persistedState);
         Assert.AreEqual("resp_124", persistedState.ProviderSessionId);
+    }
+
+    [TestMethod]
+    public async Task LocalAgentSession_SendAsync_PersistsSkillActivationAndRestoresLoadedSkills()
+    {
+        using var temp = TestTempDirectory.Create();
+        var store = new FileSystemLocalAgentSessionStore(new LocalAgentRuntimePathLayout(Path.Combine(temp.Path, "machine", "agents")));
+        var provider = CreateProvider();
+        var summary = CreateSummary("session-skill-activation") with { WorkingDirectory = temp.Path };
+        var state = CreateState("session-skill-activation");
+        await store.UpsertSessionAsync(summary).ConfigureAwait(false);
+        await store.UpsertStateAsync(state).ConfigureAwait(false);
+
+        var skillRoot = Path.Combine(temp.Path, ".alta", "skills", "code-review");
+        Directory.CreateDirectory(skillRoot);
+        var skillFilePath = Path.Combine(skillRoot, "SKILL.md");
+        await File.WriteAllTextAsync(skillFilePath, "# Skill").ConfigureAwait(false);
+        var payload = CreateSkillPayload("code-review", skillFilePath, "Review code for regressions.");
+
+        using var schema = JsonDocument.Parse("""{"type":"object"}""");
+        await using var session = new LocalAgentSession(
+            AgentBackendIds.OpenAIResponses,
+            provider,
+            summary,
+            state,
+            [],
+            store,
+            new ScriptedTurnExecutor(
+                (_, _, _) =>
+                {
+                    using var arguments = JsonDocument.Parse("""{"skillName":"code-review"}""");
+                    return Task.FromResult(
+                        new LocalAgentTurnResponse
+                        {
+                            AssistantMessage = new LocalAgentConversationMessage(
+                                LocalAgentConversationRole.Assistant,
+                                [
+                                    new LocalAgentMessagePart.Text("Load the review skill."),
+                                    new LocalAgentMessagePart.ToolCall("call-skill", "codealta_skills_activate", arguments.RootElement.Clone()),
+                                ]),
+                            Usage = CreateUsageSnapshot(7, 4),
+                            ProviderSessionId = "resp_skill_1",
+                        });
+                },
+                (request, _, _) =>
+                {
+                    Assert.AreEqual(LocalAgentConversationRole.Tool, request.Conversation[^1].Role);
+                    var toolResult = Assert.IsInstanceOfType<LocalAgentMessagePart.ToolResult>(request.Conversation[^1].Parts.Single());
+                    StringAssert.Contains(
+                        Assert.IsInstanceOfType<AgentToolResultItem.Text>(toolResult.Result.Items.Single()).Value,
+                        "<skill_content");
+                    return Task.FromResult(
+                        new LocalAgentTurnResponse
+                        {
+                            AssistantMessage = new LocalAgentConversationMessage(
+                                LocalAgentConversationRole.Assistant,
+                                [new LocalAgentMessagePart.Text("Skill loaded.")]),
+                            Usage = CreateUsageSnapshot(11, 6),
+                            ProviderSessionId = "resp_skill_2",
+                        });
+                }),
+            new AgentSessionCreateOptions
+            {
+                ProviderKey = provider.ProviderKey,
+                Model = "gpt-5.4",
+                WorkingDirectory = temp.Path,
+                OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
+                Tools =
+                [
+                    new AgentToolDefinition(
+                        new AgentToolSpec("codealta.skills.activate", "Activate a skill", schema.RootElement.Clone()),
+                        (_, _) => Task.FromResult(new AgentToolResult(true, [new AgentToolResultItem.Text(payload)]))),
+                ],
+            });
+
+        _ = await session.SendAsync(new AgentSendOptions { Input = AgentInput.Text("Use the review skill.") }).ConfigureAwait(false);
+
+        var history = await session.GetHistoryAsync().ConfigureAwait(false);
+        Assert.IsTrue(history.OfType<AgentRawEvent>().Any(static evt => evt.BackendEventType == "local.skillActivation"));
+        Assert.IsTrue(history.OfType<AgentActivityEvent>().Where(static evt => evt.ActivityId == "call-skill").All(static evt => evt.Kind == AgentActivityKind.Skill));
+
+        var persistedState = await store.GetStateAsync(provider.ProtocolFamily, provider.ProviderKey, summary.SessionId).ConfigureAwait(false);
+        Assert.IsNotNull(persistedState);
+        Assert.AreEqual(1, persistedState.LoadedSkills.Count);
+        Assert.AreEqual("code-review", persistedState.LoadedSkills[0].Name);
+
+        var persistedHistory = await store.ReadEventsAsync(provider.ProtocolFamily, provider.ProviderKey, summary.SessionId).ConfigureAwait(false);
+        await using var resumedSession = new LocalAgentSession(
+            AgentBackendIds.OpenAIResponses,
+            provider,
+            summary,
+            persistedState,
+            persistedHistory,
+            store,
+            new ScriptedTurnExecutor(
+                (request, _, _) =>
+                {
+                    Assert.IsNotNull(request.DeveloperInstructions);
+                    StringAssert.Contains(request.DeveloperInstructions, "<active_skills>");
+                    StringAssert.Contains(request.DeveloperInstructions, "code-review");
+                    StringAssert.Contains(request.DeveloperInstructions, "Review code for regressions.");
+                    return Task.FromResult(
+                        new LocalAgentTurnResponse
+                        {
+                            AssistantMessage = new LocalAgentConversationMessage(
+                                LocalAgentConversationRole.Assistant,
+                                [new LocalAgentMessagePart.Text("Continuing with restored skill context.")]),
+                            Usage = CreateUsageSnapshot(15, 5),
+                            ProviderSessionId = "resp_skill_3",
+                        });
+                }),
+            new AgentSessionCreateOptions
+            {
+                ProviderKey = provider.ProviderKey,
+                Model = "gpt-5.4",
+                WorkingDirectory = temp.Path,
+                OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
+            });
+
+        _ = await resumedSession.SendAsync(new AgentSendOptions { Input = AgentInput.Text("Continue.") }).ConfigureAwait(false);
+    }
+
+    [TestMethod]
+    public async Task LocalAgentSession_ResumeSession_SurfacesMissingLoadedSkills()
+    {
+        using var temp = TestTempDirectory.Create();
+        var store = new FileSystemLocalAgentSessionStore(new LocalAgentRuntimePathLayout(Path.Combine(temp.Path, "machine", "agents")));
+        var provider = CreateProvider();
+        var summary = CreateSummary("session-missing-skill") with { WorkingDirectory = temp.Path };
+        var state = CreateState("session-missing-skill");
+        await store.UpsertSessionAsync(summary).ConfigureAwait(false);
+        await store.UpsertStateAsync(state).ConfigureAwait(false);
+
+        var skillRoot = Path.Combine(temp.Path, ".alta", "skills", "code-review");
+        Directory.CreateDirectory(skillRoot);
+        var skillFilePath = Path.Combine(skillRoot, "SKILL.md");
+        await File.WriteAllTextAsync(skillFilePath, "# Skill").ConfigureAwait(false);
+        var payload = CreateSkillPayload("code-review", skillFilePath, "Review code for regressions.");
+
+        using var schema = JsonDocument.Parse("""{"type":"object"}""");
+        await using (var initialSession = new LocalAgentSession(
+            AgentBackendIds.OpenAIResponses,
+            provider,
+            summary,
+            state,
+            [],
+            store,
+            new ScriptedTurnExecutor(
+                (_, _, _) =>
+                {
+                    using var arguments = JsonDocument.Parse("""{"skillName":"code-review"}""");
+                    return Task.FromResult(
+                        new LocalAgentTurnResponse
+                        {
+                            AssistantMessage = new LocalAgentConversationMessage(
+                                LocalAgentConversationRole.Assistant,
+                                [
+                                    new LocalAgentMessagePart.ToolCall("call-skill", "codealta_skills_activate", arguments.RootElement.Clone()),
+                                ]),
+                            Usage = CreateUsageSnapshot(4, 2),
+                        });
+                },
+                (_, _, _) => Task.FromResult(
+                    new LocalAgentTurnResponse
+                    {
+                        AssistantMessage = new LocalAgentConversationMessage(
+                            LocalAgentConversationRole.Assistant,
+                            [new LocalAgentMessagePart.Text("Loaded.")]),
+                        Usage = CreateUsageSnapshot(6, 2),
+                    })),
+            new AgentSessionCreateOptions
+            {
+                ProviderKey = provider.ProviderKey,
+                Model = "gpt-5.4",
+                WorkingDirectory = temp.Path,
+                OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
+                Tools =
+                [
+                    new AgentToolDefinition(
+                        new AgentToolSpec("codealta.skills.activate", "Activate a skill", schema.RootElement.Clone()),
+                        (_, _) => Task.FromResult(new AgentToolResult(true, [new AgentToolResultItem.Text(payload)]))),
+                ],
+            }))
+        {
+            _ = await initialSession.SendAsync(new AgentSendOptions { Input = AgentInput.Text("Load skill.") }).ConfigureAwait(false);
+        }
+
+        File.Delete(skillFilePath);
+
+        var persistedState = await store.GetStateAsync(provider.ProtocolFamily, provider.ProviderKey, summary.SessionId).ConfigureAwait(false);
+        var persistedHistory = await store.ReadEventsAsync(provider.ProtocolFamily, provider.ProviderKey, summary.SessionId).ConfigureAwait(false);
+        await using var resumedSession = new LocalAgentSession(
+            AgentBackendIds.OpenAIResponses,
+            provider,
+            summary,
+            persistedState!,
+            persistedHistory,
+            store,
+            new ScriptedTurnExecutor(
+                (request, _, _) =>
+                {
+                    Assert.IsNotNull(request.DeveloperInstructions);
+                    StringAssert.Contains(request.DeveloperInstructions, "<skill_missing");
+                    StringAssert.Contains(request.DeveloperInstructions, "no longer available on disk");
+                    return Task.FromResult(
+                        new LocalAgentTurnResponse
+                        {
+                            AssistantMessage = new LocalAgentConversationMessage(
+                                LocalAgentConversationRole.Assistant,
+                                [new LocalAgentMessagePart.Text("Missing skill surfaced.")]),
+                            Usage = CreateUsageSnapshot(8, 3),
+                        });
+                }),
+            new AgentSessionCreateOptions
+            {
+                ProviderKey = provider.ProviderKey,
+                Model = "gpt-5.4",
+                WorkingDirectory = temp.Path,
+                OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
+            });
+
+        _ = await resumedSession.SendAsync(new AgentSendOptions { Input = AgentInput.Text("Continue.") }).ConfigureAwait(false);
+    }
+
+    [TestMethod]
+    public async Task LocalAgentSession_CompactAsync_PreservesLoadedSkillsForReplay()
+    {
+        using var temp = TestTempDirectory.Create();
+        var store = new FileSystemLocalAgentSessionStore(new LocalAgentRuntimePathLayout(Path.Combine(temp.Path, "machine", "agents")));
+        var provider = CreateProvider();
+        var summary = CreateSummary("session-compacted-skill") with { WorkingDirectory = temp.Path };
+        var state = CreateState("session-compacted-skill");
+        await store.UpsertSessionAsync(summary).ConfigureAwait(false);
+        await store.UpsertStateAsync(state).ConfigureAwait(false);
+
+        var skillRoot = Path.Combine(temp.Path, ".alta", "skills", "code-review");
+        Directory.CreateDirectory(skillRoot);
+        var skillFilePath = Path.Combine(skillRoot, "SKILL.md");
+        await File.WriteAllTextAsync(skillFilePath, "# Skill").ConfigureAwait(false);
+        var payload = CreateSkillPayload("code-review", skillFilePath, "Review code for regressions.");
+
+        using var schema = JsonDocument.Parse("""{"type":"object"}""");
+        await using (var session = new LocalAgentSession(
+            AgentBackendIds.OpenAIResponses,
+            provider,
+            summary,
+            state,
+            [],
+            store,
+            new ScriptedTurnExecutor(
+                [new AgentModelInfo("gpt-5.4", "GPT-5.4")],
+                (request, _, _) =>
+                {
+                    var summaryText = Assert.IsInstanceOfType<LocalAgentMessagePart.Text>(request.Conversation[0].Parts.Single()).Value;
+                    Assert.IsTrue(
+                        summaryText.Contains("<conversation>", StringComparison.Ordinal) ||
+                        summaryText.Contains("<codealta-oversized-anchor-request", StringComparison.Ordinal),
+                        $"Unexpected compaction prompt: {summaryText}");
+                    var responseText = request.SystemMessage?.Contains("oversized-anchor reducer", StringComparison.Ordinal) == true
+                        ? """
+                          ## Task
+                          - Keep the activated skill available after compaction.
+                          ## Explicit Requirements
+                          - Preserve the skill identity.
+                          - Keep base-directory guidance.
+                          ## Files and Identifiers
+                          - .alta/skills/code-review/SKILL.md
+                          ## Exact Literals and Errors
+                          - "code-review"
+                          """
+                        : "## Objective\nCompacted skill state";
+                    return Task.FromResult(
+                        new LocalAgentTurnResponse
+                        {
+                            AssistantMessage = new LocalAgentConversationMessage(
+                                LocalAgentConversationRole.Assistant,
+                                [new LocalAgentMessagePart.Text(responseText)]),
+                        });
+                },
+                (_, _, _) =>
+                {
+                    using var arguments = JsonDocument.Parse("""{"skillName":"code-review"}""");
+                    return Task.FromResult(
+                        new LocalAgentTurnResponse
+                        {
+                            AssistantMessage = new LocalAgentConversationMessage(
+                                LocalAgentConversationRole.Assistant,
+                                [
+                                    new LocalAgentMessagePart.Text("Activate the skill."),
+                                    new LocalAgentMessagePart.ToolCall("call-skill", "codealta_skills_activate", arguments.RootElement.Clone()),
+                                ]),
+                            Usage = CreateUsageSnapshot(9, 4),
+                        });
+                },
+                (_, _, _) => Task.FromResult(
+                    new LocalAgentTurnResponse
+                    {
+                        AssistantMessage = new LocalAgentConversationMessage(
+                            LocalAgentConversationRole.Assistant,
+                            [new LocalAgentMessagePart.Text("Skill is active.")]),
+                        Usage = CreateUsageSnapshot(13, 5),
+                    })),
+            new AgentSessionCreateOptions
+            {
+                ProviderKey = provider.ProviderKey,
+                Model = "gpt-5.4",
+                WorkingDirectory = temp.Path,
+                OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
+                Tools =
+                [
+                    new AgentToolDefinition(
+                        new AgentToolSpec("codealta.skills.activate", "Activate a skill", schema.RootElement.Clone()),
+                        (_, _) => Task.FromResult(new AgentToolResult(true, [new AgentToolResultItem.Text(payload)]))),
+                ],
+            }))
+        {
+            _ = await session.SendAsync(new AgentSendOptions { Input = AgentInput.Text("Load skill.") }).ConfigureAwait(false);
+            await session.CompactAsync().ConfigureAwait(false);
+        }
+
+        var persistedState = await store.GetStateAsync(provider.ProtocolFamily, provider.ProviderKey, summary.SessionId).ConfigureAwait(false);
+        Assert.IsNotNull(persistedState);
+        Assert.AreEqual(1, persistedState.LoadedSkills.Count);
+
+        var persistedHistory = await store.ReadEventsAsync(provider.ProtocolFamily, provider.ProviderKey, summary.SessionId).ConfigureAwait(false);
+        await using var resumedSession = new LocalAgentSession(
+            AgentBackendIds.OpenAIResponses,
+            provider,
+            summary,
+            persistedState,
+            persistedHistory,
+            store,
+            new ScriptedTurnExecutor(
+                (request, _, _) =>
+                {
+                    Assert.IsNotNull(request.DeveloperInstructions);
+                    StringAssert.Contains(request.DeveloperInstructions, "<active_skills>");
+                    StringAssert.Contains(request.DeveloperInstructions, "code-review");
+                    return Task.FromResult(
+                        new LocalAgentTurnResponse
+                        {
+                            AssistantMessage = new LocalAgentConversationMessage(
+                                LocalAgentConversationRole.Assistant,
+                                [new LocalAgentMessagePart.Text("Compacted session restored skill state.")]),
+                            Usage = CreateUsageSnapshot(10, 3),
+                        });
+                }),
+            new AgentSessionCreateOptions
+            {
+                ProviderKey = provider.ProviderKey,
+                Model = "gpt-5.4",
+                WorkingDirectory = temp.Path,
+                OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
+            });
+
+        _ = await resumedSession.SendAsync(new AgentSendOptions { Input = AgentInput.Text("Continue after compaction.") }).ConfigureAwait(false);
     }
 
     [TestMethod]
@@ -2596,6 +2986,26 @@ public sealed class LocalAgentSessionTests
             Scope: AgentUsageScope.CurrentWindow,
             Source: AgentUsageSource.LocalProviderUsage,
             UpdatedAt: DateTimeOffset.Parse("2026-04-06T10:00:00+00:00"));
+    }
+
+    private static string CreateSkillPayload(string skillName, string skillFilePath, string body)
+    {
+        var skillRootPath = Path.GetDirectoryName(skillFilePath)!;
+        var baseDirectoryUri = new Uri(skillRootPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar).AbsoluteUri;
+        return
+            $"""
+            <skill_content name="{skillName}" source="project" source_kind="ProjectAlta" source_id="project-alta:{skillRootPath}" path="{skillFilePath}" root="{skillRootPath}" base_directory="{baseDirectoryUri}">
+            # Skill: {skillName}
+
+            {body}
+
+            Base directory: {baseDirectoryUri}
+            Relative paths in this skill resolve against this directory.
+
+            <skill_files>
+            </skill_files>
+            </skill_content>
+            """;
     }
 
     private sealed class ScriptedTurnExecutor : ILocalAgentTurnExecutor

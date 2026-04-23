@@ -1,5 +1,7 @@
 using CodeAlta.Catalog;
 using CodeAlta.Catalog.Roles;
+using CodeAlta.Catalog.Skills;
+using System.Text;
 
 namespace CodeAlta.Orchestration.Runtime;
 
@@ -10,6 +12,21 @@ public sealed class AgentInstructionTemplateProvider
 {
     private const string SystemPromptResourceName = "CodeAlta.Orchestration.Runtime.Prompts.system_prompt.md";
     private static readonly Lazy<string> DefaultSystemPrompt = new(LoadDefaultSystemPrompt);
+    private readonly SkillCatalog? _skillCatalog;
+    private readonly CatalogOptions? _catalogOptions;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AgentInstructionTemplateProvider"/> class.
+    /// </summary>
+    /// <param name="skillCatalog">Optional skill catalog used to advertise available skills.</param>
+    /// <param name="catalogOptions">Optional catalog options used to resolve user/global skill roots.</param>
+    public AgentInstructionTemplateProvider(
+        SkillCatalog? skillCatalog = null,
+        CatalogOptions? catalogOptions = null)
+    {
+        _skillCatalog = skillCatalog;
+        _catalogOptions = catalogOptions;
+    }
 
     /// <summary>
     /// Builds the instruction bundle for a coordinator session.
@@ -31,7 +48,8 @@ public sealed class AgentInstructionTemplateProvider
 
         return new AgentInstructionBundle
         {
-            SystemMessage = DefaultSystemPrompt.Value
+            SystemMessage = DefaultSystemPrompt.Value,
+            DeveloperInstructions = BuildSkillsDeveloperInstructions(thread, project),
         };
     }
 
@@ -55,9 +73,98 @@ public sealed class AgentInstructionTemplateProvider
 
         return new AgentInstructionBundle
         {
-            SystemMessage = DefaultSystemPrompt.Value
+            SystemMessage = DefaultSystemPrompt.Value,
+            DeveloperInstructions = BuildSkillsDeveloperInstructions(thread, project),
         };
     }
+
+    private string? BuildSkillsDeveloperInstructions(WorkThreadDescriptor thread, ProjectDescriptor? project)
+    {
+        ArgumentNullException.ThrowIfNull(thread);
+
+        if (_skillCatalog is null || _catalogOptions is null)
+        {
+            return null;
+        }
+
+        var descriptors = _skillCatalog.ListAsync(
+                new SkillCatalogQuery
+                {
+                    Discovery = CreateDiscoveryContext(thread, project),
+                    IncludeInvalid = false,
+                    IncludeShadowed = false,
+                    IncludeUntrusted = false,
+                    ModelVisibleOnly = true,
+                })
+            .ConfigureAwait(false)
+            .GetAwaiter()
+            .GetResult();
+        if (descriptors.Count == 0)
+        {
+            return null;
+        }
+
+        var builder = new StringBuilder();
+        builder.AppendLine("Filesystem skills are available for this session.");
+        builder.AppendLine("Activate a skill only when it clearly matches the current task.");
+        builder.AppendLine("When a skill is activated, relative paths inside that skill resolve against the skill root.");
+        builder.AppendLine();
+        builder.AppendLine("<available_skills>");
+        foreach (var descriptor in descriptors
+                     .OrderBy(static skill => skill.Precedence)
+                     .ThenBy(static skill => skill.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            builder.Append("  <skill name=\"")
+                .Append(EscapeXml(descriptor.Name))
+                .Append("\" location=\"")
+                .Append(EscapeXml(ToLocationLabel(descriptor.SourceKind)))
+                .Append("\" path=\"")
+                .Append(EscapeXml(descriptor.SkillFilePath))
+                .Append("\">")
+                .Append(EscapeXml(descriptor.Description))
+                .AppendLine("</skill>");
+        }
+
+        builder.Append("</available_skills>");
+        return builder.ToString();
+    }
+
+    private SkillDiscoveryContext CreateDiscoveryContext(WorkThreadDescriptor thread, ProjectDescriptor? project)
+    {
+        var projectRoots = new List<string>();
+        if (!string.IsNullOrWhiteSpace(project?.ProjectPath))
+        {
+            projectRoots.Add(project.ProjectPath);
+        }
+
+        return new SkillDiscoveryContext
+        {
+            ProjectRoots = projectRoots,
+            UserCodeAltaRoot = _catalogOptions?.GlobalRoot,
+            UserProfileRoot = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        };
+    }
+
+    private static string ToLocationLabel(SkillSourceKind sourceKind)
+    {
+        return sourceKind switch
+        {
+            SkillSourceKind.ProjectAlta => "project .alta/skills",
+            SkillSourceKind.ProjectCommon => "project .agents/skills",
+            SkillSourceKind.UserAlta => "user ~/.alta/skills",
+            SkillSourceKind.UserCommon => "user ~/.agents/skills",
+            SkillSourceKind.Plugin => "plugin",
+            SkillSourceKind.Builtin => "builtin",
+            _ => "temporary",
+        };
+    }
+
+    private static string EscapeXml(string value)
+        => value
+            .Replace("&", "&amp;", StringComparison.Ordinal)
+            .Replace("<", "&lt;", StringComparison.Ordinal)
+            .Replace(">", "&gt;", StringComparison.Ordinal)
+            .Replace("\"", "&quot;", StringComparison.Ordinal);
 
     private static string LoadDefaultSystemPrompt()
     {

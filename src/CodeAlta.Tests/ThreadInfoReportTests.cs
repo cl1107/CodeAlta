@@ -1,4 +1,6 @@
+using System.Text.Json;
 using CodeAlta.Agent;
+using CodeAlta.Agent.LocalRuntime;
 using CodeAlta.Catalog;
 using CodeAlta.Presentation.Threads;
 
@@ -32,6 +34,29 @@ public sealed class ThreadInfoReportTests
                 new AgentContentCompletedEvent(AgentBackendIds.Codex, "thread-1", thread.StartedAt.Value.AddMinutes(1), null, AgentContentKind.Assistant, "assistant-1", null, "I am checking."),
                 new AgentContentCompletedEvent(AgentBackendIds.Codex, "thread-1", thread.StartedAt.Value.AddMinutes(2), null, AgentContentKind.User, "user-2", null, "Continue"),
                 new AgentContentCompletedEvent(AgentBackendIds.Codex, "thread-1", thread.StartedAt.Value.AddMinutes(3), null, AgentContentKind.Assistant, "assistant-2", null, "Done."),
+                new AgentRawEvent(
+                    AgentBackendIds.Codex,
+                    "thread-1",
+                    thread.StartedAt.Value.AddMinutes(4),
+                    "local.skillActivation",
+                    JsonSerializer.SerializeToElement(
+                        new LocalAgentLoadedSkillState
+                        {
+                            Name = "code-review",
+                            SkillFilePath = @"C:\code\CodeAlta\.alta\skills\code-review\SKILL.md",
+                            SkillRootPath = @"C:\code\CodeAlta\.alta\skills\code-review",
+                            SourceKind = "ProjectAlta",
+                            SourceId = "project-alta:C:\\code\\CodeAlta",
+                            ActivatedAt = thread.StartedAt.Value.AddMinutes(4),
+                            ActivationMode = "model",
+                            ActivationId = "call-skill",
+                            Payload = "<skill_content name=\"code-review\"></skill_content>",
+                            RestoredFromHistory = true,
+                        },
+                        new JsonSerializerOptions
+                        {
+                            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                        })),
             ];
             var metadata = new AgentSessionMetadata(
                 SessionId: "thread-1",
@@ -61,6 +86,8 @@ public sealed class ThreadInfoReportTests
             Assert.AreEqual(ThreadInfoStorageKind.File, report.StorageLocation.Kind);
             Assert.AreEqual(10L, report.StorageLocation.SizeBytes);
             Assert.AreEqual(TimeSpan.FromMinutes(18), report.Elapsed);
+            Assert.AreEqual(1, report.LoadedSkills.Count);
+            Assert.AreEqual("code-review", report.LoadedSkills[0].Name);
             CollectionAssert.AreEqual(
                 new[] { "Model provider", "Source", "Status", "Persistence", "Thread name" },
                 report.BackendFacts.Select(static fact => fact.Label).ToArray());
@@ -92,6 +119,22 @@ public sealed class ThreadInfoReportTests
             [
                 new ThreadInfoFact("Model provider", "openai"),
                 new ThreadInfoFact("Status", "Open"),
+            ],
+            LoadedSkills:
+            [
+                new LocalAgentLoadedSkillState
+                {
+                    Name = "code-review",
+                    SkillFilePath = @"C:\skills\code-review\SKILL.md",
+                    SkillRootPath = @"C:\skills\code-review",
+                    SourceKind = "ProjectAlta",
+                    SourceId = "project-alta:C:\\repo",
+                    ActivatedAt = DateTimeOffset.Parse("2026-03-20T10:05:00+00:00"),
+                    ActivationMode = "model",
+                    ActivationId = "call-skill",
+                    Payload = "<skill_content name=\"code-review\"></skill_content>",
+                    RestoredFromHistory = true,
+                },
             ]);
 
         var markdown = ThreadInfoFormatter.BuildMarkdown(report);
@@ -100,9 +143,11 @@ public sealed class ThreadInfoReportTests
         StringAssert.Contains(markdown, "## Overview");
         StringAssert.Contains(markdown, "## Timing");
         StringAssert.Contains(markdown, "## Conversation");
+        StringAssert.Contains(markdown, "## Loaded skills");
         StringAssert.Contains(markdown, "## Storage");
         StringAssert.Contains(markdown, "## Provider-specific details");
         StringAssert.Contains(markdown, "Total messages: 4");
         StringAssert.Contains(markdown, "File size: 2.0 KiB");
+        StringAssert.Contains(markdown, "code-review");
     }
 }

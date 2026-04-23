@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
+using System.Net;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading.Channels;
 using CodeAlta.Agent.LocalRuntime.Compaction;
 using CodeAlta.Agent.ModelCatalog;
@@ -16,8 +18,15 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
     private const string UserMessageEventType = "local.userMessage";
     private const string AssistantMessageEventType = "local.assistantMessage";
     private const string ToolMessageEventType = "local.toolMessage";
+    private const string SkillActivationEventType = "local.skillActivation";
     private const string CompactionSnapshotEventType = "local.compactionSnapshot";
     private const string CompactionCheckpointEventType = "local.compactionCheckpoint";
+    private static readonly Regex SkillContentTagRegex = new(
+        "<skill_content\\b(?<attributes>[^>]*)>",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private static readonly Regex XmlAttributeRegex = new(
+        "(?<name>[A-Za-z_:][-A-Za-z0-9_:.]*)=\"(?<value>[^\"]*)\"",
+        RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
     private readonly string _protocolFamily;
     private readonly string _providerKey;
@@ -76,9 +85,9 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
         _compactionSummarizer = new LocalAgentCompactionSummarizer(new LocalAgentTurnExecutorCompactionSummaryExecutor(turnExecutor));
         _options = options;
         _summary = summary;
-        _state = state;
+        _state = RebuildLoadedSkillsState(state, history);
         _history = [.. history];
-        _conversation = ReplayConversation(history, state);
+        _conversation = ReplayConversation(history, _state);
         _eventChannel = Channel.CreateUnbounded<AgentEvent>(new UnboundedChannelOptions
         {
             SingleReader = false,
@@ -152,7 +161,7 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
         {
             await AppendUserMessageAsync(options.Input, runId, linkedCts.Token).ConfigureAwait(false);
 
-            var instructionBundle = LocalAgentInstructionComposer.Compose(_options);
+            var instructionBundle = LocalAgentInstructionComposer.Compose(_options, _state.LoadedSkills);
             _state = _state with
             {
                 InstructionHash = instructionBundle.InstructionHash,
@@ -248,12 +257,16 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
                         throw new InvalidOperationException($"Tool '{toolCall.Name}' was not registered for session '{SessionId}'.");
                     }
 
+                    var activityKind = IsSkillActivationTool(toolCall.Name)
+                        ? AgentActivityKind.Skill
+                        : AgentActivityKind.ToolCall;
+
                     var started = new AgentActivityEvent(
                         BackendId,
                         SessionId,
                         DateTimeOffset.UtcNow,
                         runId,
-                        AgentActivityKind.ToolCall,
+                        activityKind,
                         AgentActivityPhase.Started,
                         toolCall.CallId,
                         null,
@@ -323,7 +336,7 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
                         SessionId,
                         DateTimeOffset.UtcNow,
                         runId,
-                        AgentActivityKind.ToolCall,
+                        activityKind,
                         result.Success ? AgentActivityPhase.Completed : AgentActivityPhase.Failed,
                         toolCall.CallId,
                         null,
@@ -337,6 +350,27 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
                         ToolMessageEventType,
                         SerializeLocalMessage(toolMessage),
                         runId);
+                    AgentRawEvent? rawSkillActivationEvent = null;
+                    if (result.Success && IsSkillActivationTool(toolCall.Name))
+                    {
+                        var activatedSkill = TryCreateLoadedSkillState(toolCall, result);
+                        if (activatedSkill is not null)
+                        {
+                            _state = _state with
+                            {
+                                LoadedSkills = MergeLoadedSkill(_state.LoadedSkills, activatedSkill),
+                                UpdatedAt = DateTimeOffset.UtcNow,
+                            };
+                            rawSkillActivationEvent = new AgentRawEvent(
+                                BackendId,
+                                SessionId,
+                                DateTimeOffset.UtcNow,
+                                SkillActivationEventType,
+                                JsonSerializer.SerializeToElement(activatedSkill, AgentJsonSerializerContext.Default.LocalAgentLoadedSkillState),
+                                runId);
+                        }
+                    }
+
                     var toolOutputText = new AgentContentCompletedEvent(
                         BackendId,
                         SessionId,
@@ -347,7 +381,14 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
                         toolCall.CallId,
                         RenderToolResult(result),
                         CreateToolResultDetails(toolCall, result, _summary.WorkingDirectory));
-                    await AppendEventsAsync([rawToolEvent, completed, toolOutputText], linkedCts.Token).ConfigureAwait(false);
+                    var events = rawSkillActivationEvent is null
+                        ? new AgentEvent[] { rawToolEvent, completed, toolOutputText }
+                        : [rawToolEvent, rawSkillActivationEvent, completed, toolOutputText];
+                    await AppendEventsAsync(events, linkedCts.Token).ConfigureAwait(false);
+                    if (rawSkillActivationEvent is not null)
+                    {
+                        await _store.UpsertStateAsync(_state, linkedCts.Token).ConfigureAwait(false);
+                    }
                 }
             }
         }
@@ -408,7 +449,7 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
         await _stateGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var instructionBundle = LocalAgentInstructionComposer.Compose(_options);
+            var instructionBundle = LocalAgentInstructionComposer.Compose(_options, _state.LoadedSkills);
             var modelInfo = await ResolveModelInfoAsync(cancellationToken).ConfigureAwait(false);
             var outcome = await CompactCoreAsync(
                     trigger: LocalAgentCompactionTrigger.Manual,
@@ -760,7 +801,7 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
                         SessionId,
                         DateTimeOffset.UtcNow,
                         runId,
-                        AgentActivityKind.ToolCall,
+                        IsSkillActivationTool(toolCall.Name) ? AgentActivityKind.Skill : AgentActivityKind.ToolCall,
                         AgentActivityPhase.Requested,
                         toolCall.CallId,
                         null,
@@ -1611,6 +1652,173 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
         }
 
         return new ToolFileActivity(readFiles, modifiedFiles);
+    }
+
+    private static bool IsSkillActivationTool(string toolName)
+        => string.Equals(toolName, "codealta.skills.activate", StringComparison.Ordinal) ||
+           string.Equals(toolName, "codealta_skills_activate", StringComparison.Ordinal);
+
+    private static LocalAgentLoadedSkillState? TryCreateLoadedSkillState(
+        LocalAgentMessagePart.ToolCall toolCall,
+        AgentToolResult result)
+    {
+        var payload = result.Items.OfType<AgentToolResultItem.Text>()
+            .Select(static item => item.Value)
+            .FirstOrDefault(static value => !string.IsNullOrWhiteSpace(value));
+        if (string.IsNullOrWhiteSpace(payload))
+        {
+            return null;
+        }
+
+        var attributes = TryParseSkillPayloadAttributes(payload);
+        var skillName = GetArgumentString(toolCall.Arguments, "skillName")
+            ?? GetAttribute(attributes, "name")
+            ?? GetAttribute(attributes, "skill_name");
+        if (string.IsNullOrWhiteSpace(skillName))
+        {
+            return null;
+        }
+
+        var skillFilePath = GetAttribute(attributes, "path") ?? string.Empty;
+        var skillRootPath = GetAttribute(attributes, "root")
+            ?? (string.IsNullOrWhiteSpace(skillFilePath) ? string.Empty : Path.GetDirectoryName(skillFilePath) ?? string.Empty);
+        var sourceKind = GetAttribute(attributes, "source_kind") ?? GetAttribute(attributes, "source");
+        var sourceId = GetAttribute(attributes, "source_id");
+        var baseDirectoryUri = GetAttribute(attributes, "base_directory");
+        var activation = new LocalAgentLoadedSkillState
+        {
+            Name = skillName,
+            SkillFilePath = skillFilePath,
+            SkillRootPath = skillRootPath,
+            SourceKind = sourceKind,
+            SourceId = sourceId,
+            ActivatedAt = DateTimeOffset.UtcNow,
+            ActivationMode = "model",
+            ActivationId = toolCall.CallId,
+            Payload = payload,
+            BaseDirectoryUri = baseDirectoryUri,
+            RestoredFromHistory = false,
+        };
+        return EnsureSkillAvailability(activation);
+    }
+
+    private static LocalAgentSessionState RebuildLoadedSkillsState(
+        LocalAgentSessionState state,
+        IReadOnlyList<AgentEvent> history)
+    {
+        var loadedSkills = new Dictionary<string, LocalAgentLoadedSkillState>(StringComparer.OrdinalIgnoreCase);
+        foreach (var skill in state.LoadedSkills ?? [])
+        {
+            if (!string.IsNullOrWhiteSpace(skill.Name))
+            {
+                loadedSkills[skill.Name] = EnsureSkillAvailability(skill);
+            }
+        }
+
+        foreach (var rawEvent in history.OfType<AgentRawEvent>())
+        {
+            if (!string.Equals(rawEvent.BackendEventType, SkillActivationEventType, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            LocalAgentLoadedSkillState? loadedSkill;
+            try
+            {
+                loadedSkill = rawEvent.Raw.Deserialize(
+                    AgentJsonSerializerContext.Default.LocalAgentLoadedSkillState);
+            }
+            catch (JsonException)
+            {
+                continue;
+            }
+
+            if (loadedSkill is null || string.IsNullOrWhiteSpace(loadedSkill.Name))
+            {
+                continue;
+            }
+
+            loadedSkills[loadedSkill.Name] = EnsureSkillAvailability(
+                loadedSkill with
+                {
+                    RestoredFromHistory = true,
+                });
+        }
+
+        return state with
+        {
+            LoadedSkills = loadedSkills.Values
+                .OrderBy(static skill => skill.ActivatedAt)
+                .ThenBy(static skill => skill.Name, StringComparer.OrdinalIgnoreCase)
+                .ToArray(),
+        };
+    }
+
+    private static IReadOnlyList<LocalAgentLoadedSkillState> MergeLoadedSkill(
+        IReadOnlyList<LocalAgentLoadedSkillState> existing,
+        LocalAgentLoadedSkillState loadedSkill)
+    {
+        var merged = existing
+            .Where(skill => !string.Equals(skill.Name, loadedSkill.Name, StringComparison.OrdinalIgnoreCase))
+            .Append(EnsureSkillAvailability(loadedSkill))
+            .OrderBy(static skill => skill.ActivatedAt)
+            .ThenBy(static skill => skill.Name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        return merged;
+    }
+
+    private static Dictionary<string, string> TryParseSkillPayloadAttributes(string payload)
+    {
+        var match = SkillContentTagRegex.Match(payload);
+        if (!match.Success)
+        {
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var attributes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (Match attributeMatch in XmlAttributeRegex.Matches(match.Groups["attributes"].Value))
+        {
+            attributes[attributeMatch.Groups["name"].Value] = WebUtility.HtmlDecode(attributeMatch.Groups["value"].Value);
+        }
+
+        return attributes;
+    }
+
+    private static string? GetAttribute(IReadOnlyDictionary<string, string> attributes, string name)
+        => attributes.TryGetValue(name, out var value) && !string.IsNullOrWhiteSpace(value)
+            ? value
+            : null;
+
+    private static string? GetArgumentString(JsonElement arguments, string propertyName)
+        => arguments.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : null;
+
+    private static LocalAgentLoadedSkillState EnsureSkillAvailability(LocalAgentLoadedSkillState skill)
+    {
+        if (string.IsNullOrWhiteSpace(skill.SkillFilePath))
+        {
+            return skill with
+            {
+                IsAvailable = false,
+                MissingReason = "The activated skill could not be resolved to a SKILL.md path.",
+            };
+        }
+
+        if (File.Exists(skill.SkillFilePath))
+        {
+            return skill with
+            {
+                IsAvailable = true,
+                MissingReason = null,
+            };
+        }
+
+        return skill with
+        {
+            IsAvailable = false,
+            MissingReason = $"The activated skill file '{skill.SkillFilePath}' is no longer available on disk.",
+        };
     }
 
     private static List<LocalAgentConversationMessage> ReplayConversation(

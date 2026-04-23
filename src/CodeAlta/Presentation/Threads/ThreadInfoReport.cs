@@ -1,4 +1,5 @@
 using CodeAlta.Agent;
+using CodeAlta.Agent.LocalRuntime;
 
 namespace CodeAlta.Presentation.Threads;
 
@@ -16,7 +17,8 @@ internal sealed record ThreadInfoReport(
     int? UserMessageCount,
     int? AssistantMessageCount,
     ThreadInfoStorageLocation? StorageLocation,
-    IReadOnlyList<ThreadInfoFact> BackendFacts);
+    IReadOnlyList<ThreadInfoFact> BackendFacts,
+    IReadOnlyList<LocalAgentLoadedSkillState> LoadedSkills);
 
 internal sealed record ThreadInfoStorageLocation(
     string Path,

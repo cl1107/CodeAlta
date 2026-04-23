@@ -1,4 +1,5 @@
 using CodeAlta.Agent;
+using CodeAlta.Agent.LocalRuntime;
 using CodeAlta.Catalog;
 
 namespace CodeAlta.Presentation.Threads;
@@ -36,7 +37,8 @@ internal static class ThreadInfoReportBuilder
             UserMessageCount: CountMessages(history, AgentContentKind.User),
             AssistantMessageCount: CountMessages(history, AgentContentKind.Assistant),
             StorageLocation: ProbeStorageLocation(metadata?.WorkspacePath),
-            BackendFacts: BuildBackendFacts(metadata?.Details));
+            BackendFacts: BuildBackendFacts(metadata?.Details),
+            LoadedSkills: BuildLoadedSkills(history));
     }
 
     private static int? CountMessages(IReadOnlyList<AgentEvent>? history, AgentContentKind kind)
@@ -100,6 +102,36 @@ internal static class ThreadInfoReportBuilder
         }
 
         return facts;
+    }
+
+    private static IReadOnlyList<LocalAgentLoadedSkillState> BuildLoadedSkills(IReadOnlyList<AgentEvent>? history)
+    {
+        if (history is null)
+        {
+            return [];
+        }
+
+        var loadedSkills = new Dictionary<string, LocalAgentLoadedSkillState>(StringComparer.OrdinalIgnoreCase);
+        foreach (var rawEvent in history.OfType<AgentRawEvent>())
+        {
+            if (!string.Equals(rawEvent.BackendEventType, "local.skillActivation", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var skill = rawEvent.Raw.ToLocalAgentLoadedSkillState();
+            if (skill is null || string.IsNullOrWhiteSpace(skill.Name))
+            {
+                continue;
+            }
+
+            loadedSkills[skill.Name] = skill;
+        }
+
+        return loadedSkills.Values
+            .OrderBy(static skill => skill.ActivatedAt)
+            .ThenBy(static skill => skill.Name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private static void AddFact(List<ThreadInfoFact> facts, string label, string? value)

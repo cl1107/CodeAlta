@@ -147,4 +147,9 @@ public sealed record LocalAgentSessionState
     /// Gets or initializes the update timestamp.
     /// </summary>
     public required DateTimeOffset UpdatedAt { get; init; }
+
+    /// <summary>
+    /// Gets or initializes the currently loaded skills for the session.
+    /// </summary>
+    public IReadOnlyList<LocalAgentLoadedSkillState> LoadedSkills { get; init; } = [];
 }

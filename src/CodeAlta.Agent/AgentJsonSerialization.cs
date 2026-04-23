@@ -236,6 +236,7 @@ internal sealed class AgentObjectDictionaryJsonConverter : JsonConverter<IReadOn
 [JsonSerializable(typeof(LocalAgentMessagePart.ToolResult), TypeInfoPropertyName = "LocalAgentMessagePartToolResult")]
 [JsonSerializable(typeof(LocalAgentMessagePart.Uri), TypeInfoPropertyName = "LocalAgentMessagePartUri")]
 [JsonSerializable(typeof(LocalAgentMessagePart.Data), TypeInfoPropertyName = "LocalAgentMessagePartData")]
+[JsonSerializable(typeof(LocalAgentLoadedSkillState))]
 [JsonSerializable(typeof(LocalAgentSessionSummary))]
 [JsonSerializable(typeof(LocalAgentSessionState))]
 [JsonSerializable(typeof(AgentSessionUsage))]
@@ -330,6 +331,7 @@ internal partial class AgentJsonSerializerContext : JsonSerializerContext;
 [JsonSerializable(typeof(LocalAgentMessagePart.ToolResult), TypeInfoPropertyName = "IndentedLocalAgentMessagePartToolResult")]
 [JsonSerializable(typeof(LocalAgentMessagePart.Uri), TypeInfoPropertyName = "IndentedLocalAgentMessagePartUri")]
 [JsonSerializable(typeof(LocalAgentMessagePart.Data), TypeInfoPropertyName = "IndentedLocalAgentMessagePartData")]
+[JsonSerializable(typeof(LocalAgentLoadedSkillState))]
 [JsonSerializable(typeof(LocalAgentSessionSummary))]
 [JsonSerializable(typeof(LocalAgentSessionState))]
 [JsonSerializable(typeof(AgentSessionUsage))]
@@ -510,6 +512,14 @@ public static class AgentJsonExtensions
     /// <returns>The JSON representation.</returns>
     public static string ToJson(this AgentUserInputResponse value, bool indented = false)
         => Serialize(value, AgentJsonSerializerContext.Default.AgentUserInputResponse, AgentIndentedJsonSerializerContext.Default.AgentUserInputResponse, indented);
+
+    /// <summary>
+    /// Deserializes a loaded-skill state payload from a JSON element.
+    /// </summary>
+    /// <param name="value">The serialized JSON payload.</param>
+    /// <returns>The loaded-skill state when the payload is valid; otherwise <see langword="null"/>.</returns>
+    public static LocalAgentLoadedSkillState? ToLocalAgentLoadedSkillState(this JsonElement value)
+        => value.Deserialize(AgentJsonSerializerContext.Default.LocalAgentLoadedSkillState);
 
     /// <summary>
     /// Serializes the value to indented JSON.

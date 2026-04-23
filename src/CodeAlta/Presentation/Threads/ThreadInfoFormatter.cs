@@ -37,6 +37,7 @@ internal static class ThreadInfoFormatter
         AppendOverview(builder, report);
         AppendTiming(builder, report);
         AppendConversation(builder, report);
+        AppendLoadedSkills(builder, report.LoadedSkills);
         AppendStorage(builder, report.StorageLocation);
         AppendBackendFacts(builder, report.BackendFacts);
 
@@ -147,6 +148,36 @@ internal static class ThreadInfoFormatter
         if (storageLocation.SizeBytes is { } sizeBytes)
         {
             builder.Append("- File size: ").AppendLine(FormatFileSize(sizeBytes));
+        }
+    }
+
+    private static void AppendLoadedSkills(StringBuilder builder, IReadOnlyList<CodeAlta.Agent.LocalRuntime.LocalAgentLoadedSkillState> loadedSkills)
+    {
+        if (loadedSkills.Count == 0)
+        {
+            return;
+        }
+
+        StartSection(builder, "Loaded skills");
+        foreach (var skill in loadedSkills)
+        {
+            builder.Append("- `")
+                .Append(skill.Name)
+                .Append("`");
+            if (!string.IsNullOrWhiteSpace(skill.SourceKind))
+            {
+                builder.Append(" · ").Append(skill.SourceKind);
+            }
+
+            builder.Append(" · activated ")
+                .AppendLine(FormatTimestamp(skill.ActivatedAt));
+            builder.Append("  - Path: `").Append(skill.SkillFilePath).AppendLine("`");
+            builder.Append("  - Mode: ").AppendLine(skill.ActivationMode);
+            builder.Append("  - Status: ").AppendLine(skill.IsAvailable ? "Available" : $"Missing ({skill.MissingReason})");
+            if (skill.RestoredFromHistory)
+            {
+                builder.AppendLine("  - Restore source: Session history");
+            }
         }
     }
 
