@@ -4,32 +4,46 @@ using CodeAlta.Catalog.Skills;
 using XenoAtom.Ansi;
 using XenoAtom.Terminal;
 using XenoAtom.Terminal.UI;
+using XenoAtom.Terminal.UI.Collections;
 using XenoAtom.Terminal.UI.Commands;
 using XenoAtom.Terminal.UI.Controls;
 using XenoAtom.Terminal.UI.Geometry;
 using XenoAtom.Terminal.UI.Input;
 using XenoAtom.Terminal.UI.Styling;
+using XenoAtom.Terminal.UI.Templating;
 using XenoAtom.Terminal.UI.Text;
 
 namespace CodeAlta.Views;
 
 internal sealed class SkillsManagementDialog
 {
+    private static readonly ScopeOption[] ScopeOptions =
+    [
+        new(SkillsManagementScope.Combined, "Combined"),
+        new(SkillsManagementScope.CurrentProject, "Current Project"),
+        new(SkillsManagementScope.User, "User"),
+    ];
+
     private readonly SkillsManagementService _service;
     private readonly Func<string, Task> _openFileAsync;
     private readonly Func<string, Task> _activateSkillAsync;
     private readonly Func<Rectangle?> _getBounds;
     private readonly Func<Visual?> _getFocusTarget;
     private readonly Dialog _dialog;
-    private readonly EnumSelect<SkillsManagementScope> _scopeSelect;
+    private readonly Select<ScopeOption> _scopeSelect;
     private readonly TextBox _filterBox;
-    private readonly Select<SkillRow> _skillSelect;
-    private readonly Select<SkillRelatedFileRow> _relatedFileSelect;
+    private readonly ListBox<SkillRow> _skillList;
+    private readonly BindableList<SkillRow> _skillItems;
+    private readonly State<int> _selectedSkillIndex = new(-1);
+    private readonly ListBox<SkillRelatedFileRow> _relatedFileList;
+    private readonly BindableList<SkillRelatedFileRow> _relatedFileItems;
+    private readonly State<int> _selectedRelatedFileIndex = new(-1);
     private readonly Markup _summaryMarkup;
     private readonly TextBlock _detailText;
     private IReadOnlyList<SkillRow> _allRows = [];
     private IReadOnlyList<SkillRow> _rows = [];
-    private string _summaryText = "Loading skills...";
+    private string _summaryText = "[dim]Open, activate, and author filesystem skills.[/]";
+    private string? _relatedFilesSelectionKey;
 
     public SkillsManagementDialog(
         SkillsManagementService service,
@@ -57,26 +71,35 @@ internal sealed class SkillsManagementDialog
         };
         closeButton.Click(Close);
 
-        _scopeSelect = new EnumSelect<SkillsManagementScope>()
-            .Value(SkillsManagementScope.Combined)
+        _scopeSelect = new Select<ScopeOption>()
             .MinWidth(18);
-        _scopeSelect.SelectionChanged((_, _) => _ = ReloadAsync());
+        foreach (var option in ScopeOptions)
+        {
+            _scopeSelect.Items.Add(option);
+        }
+
+        _scopeSelect.SelectedIndex = 0;
+        _scopeSelect.SelectionChanged((_, _) => StartReload());
 
         _filterBox = new TextBox()
             .Placeholder("Filter by name, description, source, or path")
             .HorizontalAlignment(Align.Stretch);
         _filterBox.TextDocument.Changed += OnFilterTextChanged;
 
-        _skillSelect = new Select<SkillRow>()
-            .HorizontalAlignment(Align.Stretch)
-            .VerticalAlignment(Align.Stretch)
-            .MinWidth(38);
-        _skillSelect.SelectionChanged((_, _) => UpdateDetail());
+        _skillList = new ListBox<SkillRow>()
+            .MinWidth(38)
+            .Stretch();
+        _skillItems = _skillList.Items;
+        _skillList.SelectedIndex(_selectedSkillIndex.Bind.Value);
+        _skillList.ItemTemplate = new DataTemplate<SkillRow>(
+            static (DataTemplateValue<SkillRow> value, in DataTemplateContext _) => new TextBlock(value.GetValue().ToString()),
+            null);
 
-        _relatedFileSelect = new Select<SkillRelatedFileRow>()
-            .HorizontalAlignment(Align.Stretch)
-            .VerticalAlignment(Align.Stretch)
-            .MinHeight(4);
+        _relatedFileList = new ListBox<SkillRelatedFileRow>()
+            .MinHeight(4)
+            .Stretch();
+        _relatedFileItems = _relatedFileList.Items;
+        _relatedFileList.SelectedIndex(_selectedRelatedFileIndex.Bind.Value);
 
         _summaryMarkup = new Markup(() => _summaryText)
         {
@@ -92,7 +115,7 @@ internal sealed class SkillsManagementDialog
 
         var refreshButton = new Button("Refresh")
             .Tone(ControlTone.Primary)
-            .Click(() => _ = ReloadAsync());
+            .Click(StartReload);
         var newSkillButton = new Button("New skill")
             .Tone(ControlTone.Primary)
             .Click(ShowNewSkillDialog);
@@ -133,33 +156,48 @@ internal sealed class SkillsManagementDialog
             Wrap = true,
         };
 
-        var rightPane = new Grid
-            {
-                HorizontalAlignment = Align.Stretch,
-                VerticalAlignment = Align.Stretch,
-            }
-            .Rows(
-                new RowDefinition { Height = GridLength.Star(3) },
-                new RowDefinition { Height = GridLength.Auto },
-                new RowDefinition { Height = GridLength.Star(1) })
-            .Columns(new ColumnDefinition { Width = GridLength.Star(1) });
-        rightPane.Cell(
-            new Border(new ScrollViewer(_detailText).Stretch())
+        var detailPane = new Border(new ScrollViewer(_detailText).Stretch())
                 .Style(BorderStyle.Rounded)
                 .Padding(new Thickness(1, 0, 1, 0))
                 .HorizontalAlignment(Align.Stretch)
-                .VerticalAlignment(Align.Stretch),
-            0,
-            0);
-        rightPane.Cell(new Markup("[dim]Related files (scripts, references, assets)[/]") { Wrap = false }, 1, 0);
-        rightPane.Cell(
-            new Border(new ScrollViewer(_relatedFileSelect.Stretch()).Stretch())
+                .VerticalAlignment(Align.Stretch);
+        var relatedPane = new VStack(
+            new Markup("[dim]Related files (scripts, references, assets)[/]") { Wrap = false },
+            new Border(new ScrollViewer(_relatedFileList).Stretch())
                 .Style(BorderStyle.Rounded)
                 .Padding(new Thickness(1, 0, 1, 0))
                 .HorizontalAlignment(Align.Stretch)
-                .VerticalAlignment(Align.Stretch),
-            2,
-            0);
+                .VerticalAlignment(Align.Stretch))
+        {
+            HorizontalAlignment = Align.Stretch,
+            VerticalAlignment = Align.Stretch,
+            Spacing = 0,
+        };
+        var rightPane = new VSplitter(detailPane, relatedPane)
+        {
+            Ratio = 0.72,
+            MinFirst = 8,
+            MinSecond = 5,
+        };
+
+        var leftPane = new VStack(
+            new TextBlock("Skills"),
+            new Border(new ScrollViewer(_skillList).Stretch())
+                .Style(BorderStyle.Rounded)
+                .Padding(new Thickness(1, 0, 1, 0))
+                .HorizontalAlignment(Align.Stretch)
+                .VerticalAlignment(Align.Stretch))
+        {
+            HorizontalAlignment = Align.Stretch,
+            VerticalAlignment = Align.Stretch,
+            Spacing = 0,
+        };
+        var splitter = new HSplitter(leftPane, rightPane)
+        {
+            Ratio = 0.34,
+            MinFirst = 30,
+            MinSecond = 54,
+        };
 
         var contentGrid = new Grid
             {
@@ -172,21 +210,12 @@ internal sealed class SkillsManagementDialog
                 new RowDefinition { Height = GridLength.Auto },
                 new RowDefinition { Height = GridLength.Star(1) })
             .Columns(
-                new ColumnDefinition { Width = GridLength.Star(2) },
-                new ColumnDefinition { Width = GridLength.Star(3) });
+                new ColumnDefinition { Width = GridLength.Star(1) });
 
-        contentGrid.Cell(toolbar, 0, 0, columnSpan: 2);
-        contentGrid.Cell(introText, 1, 0, columnSpan: 2);
-        contentGrid.Cell(_summaryMarkup, 2, 0, columnSpan: 2);
-        contentGrid.Cell(
-            new Border(new ScrollViewer(_skillSelect.Stretch()).Stretch())
-                .Style(BorderStyle.Rounded)
-                .Padding(new Thickness(1, 0, 1, 0))
-                .HorizontalAlignment(Align.Stretch)
-                .VerticalAlignment(Align.Stretch),
-            3,
-            0);
-        contentGrid.Cell(rightPane, 3, 1);
+        contentGrid.Cell(toolbar, 0, 0);
+        contentGrid.Cell(introText, 1, 0);
+        contentGrid.Cell(_summaryMarkup, 2, 0);
+        contentGrid.Cell(splitter, 3, 0);
 
         _dialog = new Dialog()
             .Title("Skills")
@@ -210,30 +239,43 @@ internal sealed class SkillsManagementDialog
     public void Show()
     {
         _dialog.Show();
-        _ = ReloadAsync();
+        StartReload();
     }
+
+    private void StartReload()
+        => _ = ReloadAsync();
 
     private async Task ReloadAsync()
     {
         _summaryText = "[primary]Loading skills...[/]";
+        var scope = GetSelectedScope();
         try
         {
-            var descriptors = await _service.LoadAsync(_scopeSelect.Value);
-            _allRows = descriptors
-                .OrderBy(static descriptor => descriptor.Precedence)
-                .ThenBy(static descriptor => descriptor.Name, StringComparer.OrdinalIgnoreCase)
-                .Select(static descriptor => new SkillRow(descriptor))
-                .ToArray();
+            var descriptors = await Task.Run(() => _service.LoadAsync(scope)).ConfigureAwait(false);
+            await _dialog.Dispatcher.InvokeAsync(
+                () =>
+                {
+                    _allRows = descriptors
+                        .OrderBy(static descriptor => descriptor.Precedence)
+                        .ThenBy(static descriptor => descriptor.Name, StringComparer.OrdinalIgnoreCase)
+                        .Select(static descriptor => new SkillRow(descriptor))
+                        .ToArray();
 
-            ApplyFilter(selectFirst: true);
+                    ApplyFilter(selectFirst: true);
+                }).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            _allRows = [];
-            _rows = [];
-            _skillSelect.Items.Clear();
-            _summaryText = $"[error]Failed to load skills: {AnsiMarkup.Escape(ex.Message)}[/]";
-            UpdateDetail();
+            await _dialog.Dispatcher.InvokeAsync(
+                () =>
+                {
+                    _allRows = [];
+                    _rows = [];
+                    _skillItems.Clear();
+                    _selectedSkillIndex.Value = -1;
+                    _summaryText = $"[error]Failed to load skills: {AnsiMarkup.Escape(ex.Message)}[/]";
+                    EnsureRelatedFilesForSelection();
+                }).ConfigureAwait(false);
         }
     }
 
@@ -253,39 +295,53 @@ internal sealed class SkillsManagementDialog
                 .Where(row => row.Matches(filterText))
                 .ToArray();
 
-        _skillSelect.Items.Clear();
+        var selectedName = GetSelectedDescriptor()?.Name;
+        _skillItems.Clear();
         foreach (var row in _rows)
         {
-            _skillSelect.Items.Add(row);
+            _skillItems.Add(row);
         }
 
         if (selectFirst)
         {
-            _skillSelect.SelectedIndex = _rows.Count > 0 ? 0 : -1;
+            _selectedSkillIndex.Value = _rows.Count > 0 ? 0 : -1;
         }
-        else if (_skillSelect.SelectedIndex >= _rows.Count)
+        else if (!string.IsNullOrWhiteSpace(selectedName))
         {
-            _skillSelect.SelectedIndex = _rows.Count > 0 ? _rows.Count - 1 : -1;
+            _selectedSkillIndex.Value = FindSkillIndex(selectedName);
+        }
+        else if (_selectedSkillIndex.Value >= _rows.Count)
+        {
+            _selectedSkillIndex.Value = _rows.Count > 0 ? _rows.Count - 1 : -1;
         }
 
         _summaryText = BuildSummaryMarkup(_allRows.Select(static row => row.Descriptor).ToArray(), _rows.Count, filterText);
-        UpdateDetail();
+        EnsureRelatedFilesForSelection();
     }
 
-    private void UpdateDetail()
+    private void EnsureRelatedFilesForSelection()
     {
-        _relatedFileSelect.Items.Clear();
-        if (GetSelectedDescriptor() is not { } descriptor)
+        var descriptor = GetSelectedDescriptor();
+        var selectionKey = descriptor?.SkillFilePath;
+        if (string.Equals(_relatedFilesSelectionKey, selectionKey, StringComparison.OrdinalIgnoreCase))
         {
+            return;
+        }
+
+        _relatedFilesSelectionKey = selectionKey;
+        _relatedFileItems.Clear();
+        if (descriptor is null)
+        {
+            _selectedRelatedFileIndex.Value = -1;
             return;
         }
 
         foreach (var file in _service.ListRelatedFiles(descriptor))
         {
-            _relatedFileSelect.Items.Add(new SkillRelatedFileRow(file));
+            _relatedFileItems.Add(new SkillRelatedFileRow(file));
         }
 
-        _relatedFileSelect.SelectedIndex = _relatedFileSelect.Items.Count > 0 ? 0 : -1;
+        _selectedRelatedFileIndex.Value = _relatedFileItems.Count > 0 ? 0 : -1;
     }
 
     private async Task OpenSelectedSkillAsync()
@@ -300,14 +356,15 @@ internal sealed class SkillsManagementDialog
 
     private async Task OpenSelectedRelatedFileAsync()
     {
-        var index = _relatedFileSelect.SelectedIndex;
-        if ((uint)index >= (uint)_relatedFileSelect.Items.Count)
+        EnsureRelatedFilesForSelection();
+        var index = _selectedRelatedFileIndex.Value;
+        if ((uint)index >= (uint)_relatedFileItems.Count)
         {
             _summaryText = "[warning]Select a related file before opening.[/]";
             return;
         }
 
-        await _openFileAsync(_relatedFileSelect.Items[index].File.FullPath);
+        await _openFileAsync(_relatedFileItems[index].File.FullPath);
     }
 
     private void ShowNewSkillDialog()
@@ -389,7 +446,7 @@ internal sealed class SkillsManagementDialog
         validationText.Text = string.Empty;
         try
         {
-            var result = await _service.CreateSkillAsync(_scopeSelect.Value, nameBox.Text, descriptionBox.Text);
+            var result = await _service.CreateSkillAsync(GetSelectedScope(), nameBox.Text, descriptionBox.Text);
             createDialog?.Close();
             await ReloadAsync();
             _summaryText = $"[success]Created skill '{AnsiMarkup.Escape(result.Name)}' at {AnsiMarkup.Escape(result.SkillRootPath)}.[/]";
@@ -403,7 +460,7 @@ internal sealed class SkillsManagementDialog
 
     private string BuildNewSkillTargetHint()
     {
-        var target = _scopeSelect.Value == SkillsManagementScope.User
+        var target = GetSelectedScope() == SkillsManagementScope.User
             ? "user CodeAlta skills (`~/.alta/skills/`)"
             : "project CodeAlta skills (`<project>/.alta/skills/`) when a project is selected, otherwise user CodeAlta skills";
         return $"[dim]Creates a scaffolded Agent Skills-compatible `SKILL.md` plus `scripts/`, `references/`, and `assets/` folders under {target}.[/]";
@@ -436,14 +493,36 @@ internal sealed class SkillsManagementDialog
 
     private SkillDescriptor? GetSelectedDescriptor()
     {
-        var index = _skillSelect.SelectedIndex;
+        var index = _selectedSkillIndex.Value;
         return (uint)index < (uint)_rows.Count
             ? _rows[index].Descriptor
             : null;
     }
 
+    private SkillsManagementScope GetSelectedScope()
+    {
+        var index = _scopeSelect.SelectedIndex;
+        return (uint)index < (uint)ScopeOptions.Length
+            ? ScopeOptions[index].Scope
+            : SkillsManagementScope.Combined;
+    }
+
+    private int FindSkillIndex(string skillName)
+    {
+        for (var i = 0; i < _rows.Count; i++)
+        {
+            if (string.Equals(_rows[i].Descriptor.Name, skillName, StringComparison.OrdinalIgnoreCase))
+            {
+                return i;
+            }
+        }
+
+        return _rows.Count > 0 ? 0 : -1;
+    }
+
     private string BuildDetailText()
     {
+        EnsureRelatedFilesForSelection();
         var descriptor = GetSelectedDescriptor();
         if (descriptor is null)
         {
@@ -574,5 +653,10 @@ internal sealed class SkillsManagementDialog
                 : File.RelativePath;
             return $"{File.Category}/{displayPath}";
         }
+    }
+
+    private readonly record struct ScopeOption(SkillsManagementScope Scope, string DisplayName)
+    {
+        public override string ToString() => DisplayName;
     }
 }
