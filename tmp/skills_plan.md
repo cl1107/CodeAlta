@@ -251,7 +251,7 @@ Path note:
 ### 7.1 Add skills browser surface
 
 - [x] Implement a dedicated skills-management UI surface in `CodeAlta`
-- [ ] Add scope selection:
+- [x] Add scope selection:
   - [x] current project
   - [x] user/global
   - [x] combined
@@ -376,4 +376,4 @@ Path note:
 - [x] Complete Phase 4 before shipping automatic restore/compaction behavior
 - [x] Complete Phases 5 and 6 for current provider policy before claiming full backend-neutral support
 - [ ] Complete Phases 7 and 8 before calling the feature user-ready
-- [ ] Complete remaining Phase 11 UI command/browser tests before calling the feature user-ready
+- [x] Complete remaining Phase 11 UI command/browser tests before calling the feature user-ready
