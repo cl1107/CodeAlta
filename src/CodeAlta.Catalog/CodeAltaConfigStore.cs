@@ -114,6 +114,7 @@ public sealed class CodeAltaConfigStore
             {
                 existing.Model = null;
                 existing.ReasoningEffort = null;
+                PruneProviderPreferenceFields(normalizedProviderKey, existing);
                 if (CanDropProviderEntry(normalizedProviderKey, existing))
                 {
                     document.Providers!.Remove(normalizedProviderKey);
@@ -125,6 +126,7 @@ public sealed class CodeAltaConfigStore
             var definition = GetOrCreateProviderPreferenceEntry(document, normalizedProviderKey);
             definition.Model = normalizedModel;
             definition.ReasoningEffort = normalizedReasoning;
+            PruneProviderPreferenceFields(normalizedProviderKey, definition);
         }
 
         SaveDocument(_options.ConfigPath, document);
@@ -843,6 +845,22 @@ public sealed class CodeAltaConfigStore
         return IsReservedProviderKey(providerKey) && !CanPersistProviderEntry(definition);
     }
 
+    private static void PruneProviderPreferenceFields(string providerKey, CodeAltaProviderDocument definition)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(providerKey);
+        ArgumentNullException.ThrowIfNull(definition);
+
+        if (!IsReservedProviderKey(providerKey))
+        {
+            return;
+        }
+
+        definition.Enabled = null;
+        definition.DisplayName = null;
+        definition.ProviderType = null;
+        definition.Compaction = null;
+    }
+
     private static CodeAltaProviderDocument GetOrCreateProviderPreferenceEntry(CodeAltaConfigDocument document, string providerKey)
     {
         document.Providers ??= new Dictionary<string, CodeAltaProviderDocument>(StringComparer.OrdinalIgnoreCase);
@@ -866,7 +884,9 @@ public sealed class CodeAltaConfigStore
             || string.Equals(providerKey, CopilotProviderKey, StringComparison.OrdinalIgnoreCase);
 
     private static bool GetDefaultProviderEnabled(string providerKey)
-        => CodeAltaProviderDocument.DefaultEnabled;
+        => IsReservedProviderKey(providerKey)
+            ? false
+            : CodeAltaProviderDocument.DefaultEnabled;
 
     private static void ApplyReservedProviderDefaults(CodeAltaProviderDocument definition)
     {
