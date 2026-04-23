@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using CodeAlta.App;
 using CodeAlta.Catalog.Skills;
@@ -7,6 +8,8 @@ using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Collections;
 using XenoAtom.Terminal.UI.Commands;
 using XenoAtom.Terminal.UI.Controls;
+using XenoAtom.Terminal.UI.Extensions.CodeEditor.TextMateSharp;
+using XenoAtom.Terminal.UI.Extensions.Markdown;
 using XenoAtom.Terminal.UI.Geometry;
 using XenoAtom.Terminal.UI.Input;
 using XenoAtom.Terminal.UI.Styling;
@@ -39,7 +42,7 @@ internal sealed class SkillsManagementDialog
     private readonly BindableList<SkillRelatedFileRow> _relatedFileItems;
     private readonly State<int> _selectedRelatedFileIndex = new(-1);
     private readonly Markup _summaryMarkup;
-    private readonly TextBlock _detailText;
+    private readonly MarkdownControl _detailMarkdown;
     private IReadOnlyList<SkillRow> _allRows = [];
     private IReadOnlyList<SkillRow> _rows = [];
     private string _summaryText = "[dim]Open, activate, and author filesystem skills.[/]";
@@ -106,11 +109,16 @@ internal sealed class SkillsManagementDialog
             Wrap = true,
         };
 
-        _detailText = new TextBlock(BuildDetailText)
+        _detailMarkdown = new MarkdownControl(BuildDetailMarkdown)
         {
-            Wrap = true,
             HorizontalAlignment = Align.Stretch,
             VerticalAlignment = Align.Stretch,
+            Options = MarkdownRenderOptions.Default with
+            {
+                CodeBlockRenderer = new TextMateMarkdownCodeBlockRenderer(),
+                WrapCodeBlocks = true,
+                MaxCodeBlockHeight = 16,
+            },
         };
 
         var refreshButton = new Button("Refresh")
@@ -156,7 +164,7 @@ internal sealed class SkillsManagementDialog
             Wrap = true,
         };
 
-        var detailPane = new Border(new ScrollViewer(_detailText).Stretch())
+        var detailPane = new Border(_detailMarkdown.Stretch())
                 .Style(BorderStyle.Rounded)
                 .Padding(new Thickness(1, 0, 1, 0))
                 .HorizontalAlignment(Align.Stretch)
@@ -520,52 +528,68 @@ internal sealed class SkillsManagementDialog
         return _rows.Count > 0 ? 0 : -1;
     }
 
-    private string BuildDetailText()
+    private string BuildDetailMarkdown()
     {
         EnsureRelatedFilesForSelection();
         var descriptor = GetSelectedDescriptor();
         if (descriptor is null)
         {
-            return "No skills were discovered for the selected scope.";
+            return "_No skills were discovered for the selected scope._";
         }
 
         var builder = new StringBuilder();
-        builder.AppendLine($"{descriptor.Name}");
-        builder.AppendLine(new string('-', descriptor.Name.Length));
-        builder.AppendLine(descriptor.Description);
+        builder.Append("# ")
+            .AppendLine(EscapeMarkdownText(descriptor.Name));
         builder.AppendLine();
-        builder.AppendLine($"Status: {FormatStatus(descriptor)}");
-        builder.AppendLine($"Source: {FormatSource(descriptor.SourceKind)}");
-        builder.AppendLine($"Scope: {descriptor.Scope}");
-        builder.AppendLine($"Trusted for model advertisement: {(descriptor.IsTrusted ? "yes" : "no")}");
-        builder.AppendLine($"Model visible: {(descriptor.IsModelVisible ? "yes" : "no")}");
+        builder.AppendLine(EscapeMarkdownText(descriptor.Description));
+        builder.AppendLine();
+
+        builder.AppendLine("## Summary");
+        builder.AppendLine();
+        builder.AppendLine("| Field | Value |");
+        builder.AppendLine("| --- | --- |");
+        AppendTableRow(builder, "Status", FormatStatus(descriptor));
+        AppendTableRow(builder, "Source", FormatSource(descriptor.SourceKind));
+        AppendTableRow(builder, "Scope", descriptor.Scope.ToString());
+        AppendTableRow(builder, "Trusted for model advertisement", descriptor.IsTrusted ? "yes" : "no");
+        AppendTableRow(builder, "Model visible", descriptor.IsModelVisible ? "yes" : "no");
+        AppendTableRow(builder, "Related files", _relatedFileItems.Count.ToString(CultureInfo.InvariantCulture));
         if (descriptor.IsShadowed)
         {
-            builder.AppendLine($"Shadowed by: {descriptor.ShadowedBySkillFilePath}");
+            AppendMarkdownTableRow(builder, "Shadowed by", Code(descriptor.ShadowedBySkillFilePath));
         }
 
         builder.AppendLine();
-        builder.AppendLine($"SKILL.md: {descriptor.SkillFilePath}");
-        builder.AppendLine($"Root: {descriptor.SkillRootPath}");
-        builder.AppendLine($"Source id: {descriptor.SourceId}");
-
-        var relatedFiles = _service.ListRelatedFiles(descriptor);
-        builder.AppendLine($"Related files: {relatedFiles.Count}");
+        builder.AppendLine("## Paths");
+        builder.AppendLine();
+        builder.AppendLine("| Path | Value |");
+        builder.AppendLine("| --- | --- |");
+        AppendMarkdownTableRow(builder, "SKILL.md", Code(descriptor.SkillFilePath));
+        AppendMarkdownTableRow(builder, "Root", Code(descriptor.SkillRootPath));
+        AppendMarkdownTableRow(builder, "Source id", Code(descriptor.SourceId));
 
         if (descriptor.Diagnostics.Count > 0)
         {
             builder.AppendLine();
-            builder.AppendLine("Diagnostics:");
+            builder.AppendLine("## Diagnostics");
+            builder.AppendLine();
+            builder.AppendLine("| Severity | Code | Message |");
+            builder.AppendLine("| --- | --- | --- |");
             foreach (var diagnostic in descriptor.Diagnostics)
             {
-                builder
-                    .Append("  - ")
-                    .Append(diagnostic.Severity)
-                    .Append(" ")
-                    .Append(diagnostic.Code)
-                    .Append(": ")
-                    .AppendLine(diagnostic.Message);
+                builder.Append("| ")
+                    .Append(EscapeMarkdownTableCell(diagnostic.Severity.ToString()))
+                    .Append(" | ")
+                    .Append(Code(diagnostic.Code))
+                    .Append(" | ")
+                    .Append(EscapeMarkdownTableCell(diagnostic.Message))
+                    .AppendLine(" |");
             }
+        }
+        else
+        {
+            builder.AppendLine();
+            builder.AppendLine("> No validation diagnostics for this skill.");
         }
 
         return builder.ToString();
@@ -585,6 +609,44 @@ internal sealed class SkillsManagementDialog
             : $"   [muted]{shownCount} shown for '{AnsiMarkup.Escape(filterText)}'[/]";
         return $"[primary]{descriptors.Count} discovered[/]   [success]{valid} valid[/]   [warning]{invalid} invalid[/]   [muted]{shadowed} shadowed[/]   [accent]{visible} model-visible[/]{filterSuffix}";
     }
+
+    private static void AppendTableRow(StringBuilder builder, string field, string value)
+    {
+        builder.Append("| ")
+            .Append(EscapeMarkdownTableCell(field))
+            .Append(" | ")
+            .Append(EscapeMarkdownTableCell(value))
+            .AppendLine(" |");
+    }
+
+    private static void AppendMarkdownTableRow(StringBuilder builder, string field, string markdownValue)
+    {
+        builder.Append("| ")
+            .Append(EscapeMarkdownTableCell(field))
+            .Append(" | ")
+            .Append(markdownValue)
+            .AppendLine(" |");
+    }
+
+    private static string Code(string? value)
+        => string.IsNullOrWhiteSpace(value)
+            ? "_none_"
+            : $"`{value.Replace("`", "\\`", StringComparison.Ordinal).Replace("|", "\\|", StringComparison.Ordinal)}`";
+
+    private static string EscapeMarkdownText(string value)
+        => value
+            .Replace("\\", "\\\\", StringComparison.Ordinal)
+            .Replace("[", "\\[", StringComparison.Ordinal)
+            .Replace("]", "\\]", StringComparison.Ordinal)
+            .Replace("*", "\\*", StringComparison.Ordinal)
+            .Replace("_", "\\_", StringComparison.Ordinal);
+
+    private static string EscapeMarkdownTableCell(string value)
+        => EscapeMarkdownText(value)
+            .Replace("|", "\\|", StringComparison.Ordinal)
+            .Replace("\r\n", "<br/>", StringComparison.Ordinal)
+            .Replace("\n", "<br/>", StringComparison.Ordinal)
+            .Replace("\r", "<br/>", StringComparison.Ordinal);
 
     private static string FormatStatus(SkillDescriptor descriptor)
     {
