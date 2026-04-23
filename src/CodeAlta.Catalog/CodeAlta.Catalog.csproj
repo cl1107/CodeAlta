@@ -8,6 +8,7 @@
   <ItemGroup>
     <PackageReference Include="SharpYaml" />
     <PackageReference Include="Tomlyn" />
+    <PackageReference Include="XenoAtom.Glob" />
   </ItemGroup>
 
   <ItemGroup>

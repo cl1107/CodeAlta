@@ -578,6 +578,13 @@ public sealed class CatalogInfrastructureTests
         await File.WriteAllTextAsync(
             Path.Combine(skillPath, "SKILL.md"),
             """
+            ---
+            name: sample-skill
+            description: Lists and reads skills from disk.
+            license: Apache-2.0
+            metadata:
+              author: CodeAlta
+            ---
             # Sample Skill
 
             Lists and reads skills from disk.
@@ -594,6 +601,10 @@ public sealed class CatalogInfrastructureTests
 
         var doc = await catalog.GetAsync([skillsRoot], "sample-skill").ConfigureAwait(false);
         Assert.IsNotNull(doc);
+        Assert.AreEqual("sample-skill", doc.Descriptor.Name);
+        Assert.AreEqual("Apache-2.0", doc.Frontmatter.License);
+        Assert.AreEqual("CodeAlta", doc.Frontmatter.Metadata["author"]);
+        StringAssert.Contains(doc.Body, "Lists and reads skills from disk.");
         StringAssert.Contains(doc.Content, "Sample Skill");
     }
 
@@ -607,7 +618,13 @@ public sealed class CatalogInfrastructureTests
 
         await File.WriteAllTextAsync(
             Path.Combine(skillPath, "SKILL.md"),
-            "# Sample Skill").ConfigureAwait(false);
+            """
+            ---
+            name: sample-skill
+            description: Reads skill resources.
+            ---
+            # Sample Skill
+            """).ConfigureAwait(false);
 
         var resources = Path.Combine(skillPath, "resources");
         Directory.CreateDirectory(resources);
