@@ -79,6 +79,8 @@ internal static class RawApiBackendRegistrar
                 return TryCreateOpenAIChatProvider(definition, stateRootPath, modelCatalog, out descriptor, out createBackend);
             case "openai-responses":
                 return TryCreateOpenAIResponsesProvider(definition, stateRootPath, modelCatalog, out descriptor, out createBackend);
+            case "openai-codex-subscription":
+                return TryCreateCodexSubscriptionProvider(definition, stateRootPath, modelCatalog, out descriptor, out createBackend);
             case "anthropic":
                 return TryCreateAnthropicProvider(definition, stateRootPath, modelCatalog, out descriptor, out createBackend);
             case "google-genai":
@@ -213,6 +215,63 @@ internal static class RawApiBackendRegistrar
         createBackend = () => new OpenAIResponsesAgentBackend(options);
         LogInfo(
             $"Registered provider backend={backendId.Value} type={definition.ProviderType} displayName={displayName} apiUrl={FormatUri(baseUri)}");
+        return true;
+    }
+
+    private static bool TryCreateCodexSubscriptionProvider(
+        CodeAltaProviderDocument definition,
+        string stateRootPath,
+        ModelsDevCatalogService? modelCatalog,
+        out AgentBackendDescriptor descriptor,
+        out Func<IAgentBackend> createBackend)
+    {
+        if (definition.Experimental != true)
+        {
+            throw new InvalidOperationException(
+                $"Provider '{definition.ProviderKey}' requires experimental = true for type 'openai-codex-subscription'.");
+        }
+
+        var backendId = new AgentBackendId(definition.ProviderKey);
+        var displayName = ResolveProviderDisplayName(definition);
+        var baseUri = ParseUri(definition.ApiUrl) ?? new Uri("https://chatgpt.com/backend-api/codex");
+        var configuredModel = NormalizeText(definition.Model);
+        var providerOptions = new OpenAIProviderOptions
+        {
+            ProviderKey = definition.ProviderKey,
+            DisplayName = displayName,
+            BaseUri = baseUri,
+            IsDefault = true,
+            Profile = CreateCodexSubscriptionProfile(definition.Profile),
+            Compaction = CreateCompactionSettings(definition.Compaction),
+            ModelCatalog = modelCatalog,
+            SingleModelId = configuredModel,
+            CodexSubscription = new OpenAICodexSubscriptionOptions
+            {
+                AuthSource = NormalizeText(definition.AuthSource) ?? "codealta_oauth",
+                AccountId = NormalizeText(definition.AccountId),
+                MaxConcurrentRequests = definition.MaxConcurrentRequests ?? 1,
+                TextVerbosity = NormalizeText(definition.TextVerbosity) ?? "medium",
+                IncludeEncryptedReasoning = definition.IncludeEncryptedReasoning ?? true,
+                ModelDiscovery = NormalizeText(definition.ModelDiscovery) ?? "codex_endpoint_with_static_fallback",
+                SendResponsesBetaHeader = definition.SendResponsesBetaHeader ?? true,
+                SendInstallationId = definition.SendInstallationId ?? false,
+                InstallationIdSource = NormalizeText(definition.InstallationIdSource) ?? "codealta_state",
+                Experimental = definition.Experimental == true,
+            },
+        };
+
+        var options = new OpenAIResponsesAgentBackendOptions
+        {
+            BackendIdOverride = backendId,
+            DisplayNameOverride = displayName,
+            StateRootPath = stateRootPath,
+            Providers = { providerOptions },
+        };
+
+        descriptor = new AgentBackendDescriptor(backendId, displayName);
+        createBackend = () => new OpenAIResponsesAgentBackend(options);
+        LogInfo(
+            $"Registered provider backend={backendId.Value} type={definition.ProviderType} displayName={displayName} apiUrl={FormatUri(baseUri)} authSource={providerOptions.CodexSubscription.AuthSource}");
         return true;
     }
 
@@ -394,7 +453,23 @@ internal static class RawApiBackendRegistrar
         CodeAltaProviderProfileDocument? document)
     {
         var profile = CreateOpenAIBaseProfile(LocalAgentTransportKind.OpenAIResponses, providerKey, apiUrl, responses: true);
-        return document is null ? profile : ApplyProfileOverrides(profile, document);
+        if (document is not null)
+        {
+            var overridden = ApplyProfileOverrides(profile, document);
+            profile = new LocalAgentProviderProfile
+            {
+                SupportsDeveloperRole = overridden.SupportsDeveloperRole,
+                SupportsStore = false,
+                SupportsReasoningEffort = overridden.SupportsReasoningEffort,
+                StreamsUsage = overridden.StreamsUsage,
+                SupportsThoughtSignatures = overridden.SupportsThoughtSignatures,
+                MaxTokensFieldName = overridden.MaxTokensFieldName,
+                ReasoningFieldNames = overridden.ReasoningFieldNames,
+                ReasoningInputFieldName = overridden.ReasoningInputFieldName,
+            };
+        }
+
+        return profile;
     }
 
     private static LocalAgentProviderProfile CreateOpenAIChatProfile(
@@ -433,6 +508,21 @@ internal static class RawApiBackendRegistrar
             };
 
         return RawApiProviderDefaultsCatalog.ApplyProfileDefaults(transportKind, providerKey, apiUrl, profile);
+    }
+
+    private static LocalAgentProviderProfile CreateCodexSubscriptionProfile(CodeAltaProviderProfileDocument? document)
+    {
+        var profile = new LocalAgentProviderProfile
+        {
+            SupportsDeveloperRole = true,
+            SupportsStore = false,
+            SupportsReasoningEffort = true,
+            StreamsUsage = true,
+            MaxTokensFieldName = "max_output_tokens",
+            ReasoningFieldNames = ["reasoning"],
+        };
+
+        return document is null ? profile : ApplyProfileOverrides(profile, document);
     }
 
     private static LocalAgentProviderProfile? CreateAnthropicProfile(CodeAltaProviderProfileDocument? document)

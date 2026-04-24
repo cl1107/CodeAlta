@@ -156,6 +156,72 @@ public sealed class RawApiBackendRegistrarTests
     }
 
     [TestMethod]
+    public async Task RegisterConfiguredBackends_RegistersCodexSubscriptionProvider()
+    {
+        using var temp = TempDirectory.Create();
+        File.WriteAllText(
+            Path.Combine(temp.Path, "config.toml"),
+            """
+            [providers.codex_subscription]
+            type = "openai-codex-subscription"
+            model = "gpt-5.3-codex"
+            experimental = true
+            """);
+
+        var store = new CodeAltaConfigStore(new CatalogOptions { GlobalRoot = temp.Path });
+        var factory = new AgentBackendFactory();
+
+        var descriptors = RawApiBackendRegistrar.RegisterConfiguredBackends(
+            factory,
+            store,
+            Path.Combine(temp.Path, "machine", "agents"));
+
+        Assert.AreEqual(1, descriptors.Count);
+        Assert.AreEqual("codex_subscription", descriptors[0].BackendId.Value);
+        Assert.AreEqual("Codex (ChatGPT subscription)", descriptors[0].DisplayName);
+        Assert.IsTrue(factory.IsRegistered("codex_subscription"));
+
+        await using var backend = factory.Create("codex_subscription");
+        Assert.IsInstanceOfType<OpenAIResponsesAgentBackend>(backend);
+
+        var models = await backend.ListModelsAsync().ConfigureAwait(false);
+        Assert.AreEqual(1, models.Count);
+        Assert.AreEqual("gpt-5.3-codex", models[0].Id);
+        Assert.AreEqual("codex_subscription", models[0].Provider);
+    }
+
+    [TestMethod]
+    public void RegisterConfiguredBackends_CodexSubscriptionRejectsMissingExperimentalOptIn()
+    {
+        using var temp = TempDirectory.Create();
+        var definition = new CodeAltaProviderDocument
+        {
+            ProviderKey = "codex_subscription",
+            Enabled = true,
+            ProviderType = "openai-codex-subscription",
+            DisplayName = "Codex Sub",
+            Model = "gpt-5.3-codex",
+            ApiUrl = "https://chatgpt.com/backend-api/codex",
+            AuthSource = "codealta_oauth",
+            MaxConcurrentRequests = 1,
+            TextVerbosity = "medium",
+            IncludeEncryptedReasoning = true,
+            ModelDiscovery = "static",
+            SendResponsesBetaHeader = true,
+            SendInstallationId = false,
+            InstallationIdSource = "codealta_state",
+            Experimental = false,
+        };
+
+        var factory = new AgentBackendFactory();
+        Assert.ThrowsExactly<InvalidOperationException>(
+            () => RawApiBackendRegistrar.RegisterOrReplaceConfiguredBackends(
+                factory,
+                [definition],
+                Path.Combine(temp.Path, "machine", "agents")));
+    }
+
+    [TestMethod]
     public async Task RegisterConfiguredBackends_StartAsync_DoesNotPersistProviderDescriptors()
     {
         using var temp = TempDirectory.Create();

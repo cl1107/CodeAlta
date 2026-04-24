@@ -119,9 +119,70 @@ public sealed class OpenAIProviderOptions
     /// </summary>
     public ModelsDevCatalogService? ModelCatalog { get; set; }
 
+    /// <summary>
+    /// Gets or sets Codex ChatGPT subscription-specific options when this provider uses ChatGPT OAuth.
+    /// </summary>
+    public OpenAICodexSubscriptionOptions? CodexSubscription { get; set; }
+
     internal Func<string?, ResponsesClient>? ResponsesClientFactory { get; set; }
 
     internal Func<string?, ChatClient>? ChatClientFactory { get; set; }
 
     internal Func<CancellationToken, Task<IReadOnlyList<AgentModelInfo>>>? ModelListAsync { get; set; }
+}
+
+/// <summary>
+/// Describes Codex ChatGPT subscription-specific provider settings.
+/// </summary>
+public sealed class OpenAICodexSubscriptionOptions
+{
+    /// <summary>
+    /// Gets or sets the ChatGPT/Codex OAuth credential source.
+    /// </summary>
+    public string AuthSource { get; set; } = "codealta_oauth";
+
+    /// <summary>
+    /// Gets or sets an explicit ChatGPT account or workspace identifier.
+    /// </summary>
+    public string? AccountId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the maximum concurrent requests per ChatGPT account.
+    /// </summary>
+    public int MaxConcurrentRequests { get; set; } = 1;
+
+    /// <summary>
+    /// Gets or sets the configured text verbosity.
+    /// </summary>
+    public string TextVerbosity { get; set; } = "medium";
+
+    /// <summary>
+    /// Gets or sets whether encrypted reasoning continuity should be requested.
+    /// </summary>
+    public bool IncludeEncryptedReasoning { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets the model discovery mode.
+    /// </summary>
+    public string ModelDiscovery { get; set; } = "codex_endpoint_with_static_fallback";
+
+    /// <summary>
+    /// Gets or sets whether to send the Responses experimental beta header.
+    /// </summary>
+    public bool SendResponsesBetaHeader { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets whether to include a stable installation id in request metadata.
+    /// </summary>
+    public bool SendInstallationId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the installation id source used when installation metadata is enabled.
+    /// </summary>
+    public string InstallationIdSource { get; set; } = "codealta_state";
+
+    /// <summary>
+    /// Gets or sets whether the provider was explicitly opted into as experimental.
+    /// </summary>
+    public bool Experimental { get; set; }
 }
