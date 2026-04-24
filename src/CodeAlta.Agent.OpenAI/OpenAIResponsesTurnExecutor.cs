@@ -6,11 +6,13 @@ using CodeAlta.Agent.LocalRuntime;
 using CodeAlta.Agent.LocalRuntime.Tools;
 using CodeAlta.Agent.OpenAI.CodexSubscription;
 using OpenAI.Responses;
+using XenoAtom.Logging;
 
 namespace CodeAlta.Agent.OpenAI;
 
 internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider) : ILocalAgentTurnExecutor
 {
+    private static readonly Logger Logger = LogManager.GetLogger("CodeAlta.Agent.OpenAI");
     private static readonly ResponseReasoningEffortLevel XHighReasoningEffortLevel = new("xhigh");
     private static readonly TimeSpan CodexBaseRetryDelay = TimeSpan.FromMilliseconds(250);
     private static readonly Random SharedRandom = Random.Shared;
@@ -48,6 +50,7 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
                             request.RunId,
                             request.Provider));
                     var options = await CreateRequestPayloadAsync(request, cancellationToken).ConfigureAwait(false);
+                    LogCodexDiagnostic("request", request, attempt);
                     ResponseResult? completedResponse = null;
                     ResponseResult? latestResponse = null;
                     var streamedOutputItems = new SortedDictionary<int, ResponseItem>();
@@ -140,6 +143,7 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
                     }
 
                     var (assistantMessage, assistantPartContentIds) = MapAssistantMessage(completedResponse);
+                    LogCodexDiagnostic("response", request, attempt, completedResponse.Id);
                     return new LocalAgentTurnResponse
                     {
                         AssistantMessage = assistantMessage,
@@ -157,6 +161,12 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
                     refreshedCredentialAfterUnauthorized))
                 {
                     refreshedCredentialAfterUnauthorized = true;
+                    LogCodexDiagnostic(
+                        "credential-refresh",
+                        request,
+                        attempt,
+                        httpStatus: System.Net.HttpStatusCode.Unauthorized,
+                        errorType: ex.GetType().Name);
                     try
                     {
                         await OpenAIProviderSdkFactory.ForceRefreshCodexSubscriptionCredentialAsync(
@@ -179,6 +189,12 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
                     streamStarted,
                     out var delay))
                 {
+                    LogCodexDiagnostic(
+                        "retry",
+                        request,
+                        attempt,
+                        httpStatus: GetHttpStatusCode(ex),
+                        errorType: ex.GetType().Name);
                     await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
                 }
             }
@@ -193,9 +209,43 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
         }
         catch (Exception ex)
         {
+            LogCodexDiagnostic(
+                "error",
+                request,
+                attempt: 1,
+                httpStatus: GetHttpStatusCode(ex),
+                errorType: ex.GetType().Name);
             throw CreateTurnExecutionException(TranslateCodexSubscriptionException(provider, ex));
         }
     }
+
+    private void LogCodexDiagnostic(
+        string eventName,
+        LocalAgentTurnRequest request,
+        int attempt,
+        string? responseId = null,
+        System.Net.HttpStatusCode? httpStatus = null,
+        string? errorType = null)
+    {
+        if (provider.CodexSubscription is null ||
+            !LogManager.IsInitialized ||
+            !Logger.IsEnabled(LogLevel.Debug))
+        {
+            return;
+        }
+
+        Logger.Debug(OpenAICodexSubscriptionDiagnostics.CreateRequestShape(
+            provider,
+            request,
+            Math.Max(attempt - 1, 0),
+            eventName,
+            responseId,
+            httpStatus,
+            errorType));
+    }
+
+    private static System.Net.HttpStatusCode? GetHttpStatusCode(Exception exception)
+        => exception is HttpRequestException { StatusCode: { } statusCode } ? statusCode : null;
 
     private ValueTask<IAsyncDisposable?> CreateCodexConcurrencyLeaseAsync(
         LocalAgentTurnRequest request,

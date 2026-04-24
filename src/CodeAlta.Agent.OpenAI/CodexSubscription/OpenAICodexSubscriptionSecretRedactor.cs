@@ -1,8 +1,18 @@
+using System.Text.RegularExpressions;
+
 namespace CodeAlta.Agent.OpenAI.CodexSubscription;
 
 internal static class OpenAICodexSubscriptionSecretRedactor
 {
     public const string Redacted = "[REDACTED]";
+
+    private static readonly Regex JwtPattern = new(
+        @"(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}(?![A-Za-z0-9_-])",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    private static readonly Regex LabeledSecretPattern = new(
+        @"(?i)\b(?<name>code|authorization_code|code_verifier|pkce_verifier|pkce verifier)(?<sep>\s*[:=]\s*)(?<value>[^\s&]+)",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     public static string Redact(string? text, OpenAICodexSubscriptionCredential? credential = null)
     {
@@ -20,6 +30,10 @@ internal static class OpenAICodexSubscriptionSecretRedactor
         }
 
         redacted = RedactBearerToken(redacted);
+        redacted = LabeledSecretPattern.Replace(
+            redacted,
+            static match => match.Groups["name"].Value + match.Groups["sep"].Value + Redacted);
+        redacted = JwtPattern.Replace(redacted, Redacted);
         return redacted;
     }
 

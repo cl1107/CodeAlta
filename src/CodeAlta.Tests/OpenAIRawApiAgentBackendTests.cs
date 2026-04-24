@@ -1161,6 +1161,50 @@ public sealed class OpenAIRawApiAgentBackendTests
     }
 
     [TestMethod]
+    public void CodexSubscriptionDiagnostics_EmitOnlySanitizedRequestShape()
+    {
+        var provider = new OpenAIProviderOptions
+        {
+            ProviderKey = "codex_subscription",
+            BaseUri = new Uri("https://chatgpt.com/backend-api/codex?access_token=secret"),
+            CodexSubscription = new OpenAICodexSubscriptionOptions
+            {
+                Experimental = true,
+            },
+        };
+        var request = CreateCodexTurnRequest() with
+        {
+            Conversation =
+            [
+                new LocalAgentConversationMessage(
+                    LocalAgentConversationRole.User,
+                    [new LocalAgentMessagePart.Text("do not log this prompt")]),
+            ],
+        };
+
+        var message = OpenAICodexSubscriptionDiagnostics.CreateRequestShape(
+            provider,
+            request,
+            retryCount: 2,
+            eventName: "retry",
+            responseId: "response-1",
+            httpStatus: HttpStatusCode.TooManyRequests,
+            errorType: "HttpRequestException");
+
+        StringAssert.Contains(message, "provider=codex_subscription");
+        StringAssert.Contains(message, "endpoint=chatgpt.com/backend-api/codex");
+        StringAssert.Contains(message, "session=session-1");
+        StringAssert.Contains(message, "run=run-1");
+        StringAssert.Contains(message, "retry=2");
+        StringAssert.Contains(message, "response=response-1");
+        StringAssert.Contains(message, "http=429");
+        StringAssert.Contains(message, "errorType=HttpRequestException");
+        Assert.IsFalse(message.Contains("access_token", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(message.Contains("secret", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(message.Contains("do not log this prompt", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public async Task OpenAIResponsesAgentBackend_CodexTokensAreNotStoredInSessionHistory()
     {
         using var temp = TestTempDirectory.Create();

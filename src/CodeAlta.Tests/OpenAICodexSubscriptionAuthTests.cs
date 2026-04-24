@@ -70,6 +70,21 @@ public sealed class OpenAICodexSubscriptionAuthTests
     }
 
     [TestMethod]
+    public void SecretRedactor_RedactsOAuthCodesPkceVerifiersAndJwtPayloads()
+    {
+        const string jwt = "eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6InVzZXJAZXhhbXBsZS5jb20iLCJhY2NvdW50IjoiYWNjdF8xMjMifQ.signature123";
+
+        var redacted = OpenAICodexSubscriptionSecretRedactor.Redact(
+            "callback?code=oauth-code-secret&state=ok code_verifier=pkce-secret PKCE verifier:pkce-secret-2 " + jwt);
+
+        Assert.IsFalse(redacted.Contains("oauth-code-secret", StringComparison.Ordinal));
+        Assert.IsFalse(redacted.Contains("pkce-secret", StringComparison.Ordinal));
+        Assert.IsFalse(redacted.Contains("user@example.com", StringComparison.Ordinal));
+        Assert.IsFalse(redacted.Contains(jwt, StringComparison.Ordinal));
+        StringAssert.Contains(redacted, OpenAICodexSubscriptionSecretRedactor.Redacted);
+    }
+
+    [TestMethod]
     public void CodexAuthFileReader_ResolvesCodexHomeFromEnvironment()
     {
         var home = CodexAuthFileReader.ResolveCodexHome(
