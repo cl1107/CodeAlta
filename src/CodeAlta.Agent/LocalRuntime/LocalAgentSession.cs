@@ -827,7 +827,12 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
                         partContentId ?? $"reasoning:{Guid.CreateVersion7()}",
                         null,
                         reasoning.Value ?? string.Empty,
-                        CreateReasoningDetails(reasoning)));
+                        CreateReasoningDetails(
+                            reasoning,
+                            redactProtectedData: string.Equals(
+                                _summary.ProtocolFamily,
+                                "openai-codex-subscription",
+                                StringComparison.OrdinalIgnoreCase))));
                     break;
                 case LocalAgentMessagePart.ToolCall toolCall:
                     events.Add(new AgentActivityEvent(
@@ -1521,7 +1526,9 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
     private static JsonElement SerializeLocalMessage(LocalAgentConversationMessage message)
         => JsonSerializer.SerializeToElement(message, AgentJsonSerializerContext.Default.LocalAgentConversationMessage);
 
-    private static JsonElement? CreateReasoningDetails(LocalAgentMessagePart.Reasoning reasoning)
+    private static JsonElement? CreateReasoningDetails(
+        LocalAgentMessagePart.Reasoning reasoning,
+        bool redactProtectedData = false)
     {
         if (string.IsNullOrWhiteSpace(reasoning.ProtectedData))
         {
@@ -1532,7 +1539,15 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
         using (var writer = new Utf8JsonWriter(stream))
         {
             writer.WriteStartObject();
-            writer.WriteString("protectedData", reasoning.ProtectedData);
+            if (redactProtectedData)
+            {
+                writer.WriteBoolean("protectedDataRedacted", true);
+            }
+            else
+            {
+                writer.WriteString("protectedData", reasoning.ProtectedData);
+            }
+
             writer.WriteEndObject();
         }
 

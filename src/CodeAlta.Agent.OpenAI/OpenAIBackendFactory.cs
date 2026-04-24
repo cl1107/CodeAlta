@@ -12,7 +12,10 @@ internal static class OpenAIBackendFactory
             "openai-responses",
             LocalAgentTransportKind.OpenAIResponses,
             options,
-            static provider => new OpenAIResponsesTurnExecutor(provider));
+            static provider => new OpenAIResponsesTurnExecutor(provider),
+            static provider => provider.CodexSubscription is null
+                ? "openai-responses"
+                : "openai-codex-subscription");
 
     public static IAgentBackend CreateChatBackend(OpenAIChatAgentBackendOptions options)
         => CreateBackend(
@@ -29,7 +32,8 @@ internal static class OpenAIBackendFactory
         string protocolFamily,
         LocalAgentTransportKind transportKind,
         OpenAIAgentBackendOptions options,
-        Func<OpenAIProviderOptions, ILocalAgentTurnExecutor> executorFactory)
+        Func<OpenAIProviderOptions, ILocalAgentTurnExecutor> executorFactory,
+        Func<OpenAIProviderOptions, string>? protocolFamilySelector = null)
     {
         if (options.Providers.Count == 0)
         {
@@ -53,7 +57,7 @@ internal static class OpenAIBackendFactory
                     {
                         Provider = new LocalAgentProviderDescriptor
                         {
-                            ProtocolFamily = protocolFamily,
+                            ProtocolFamily = protocolFamilySelector?.Invoke(provider) ?? protocolFamily,
                             ProviderKey = provider.ProviderKey.Trim(),
                             DisplayName = string.IsNullOrWhiteSpace(provider.DisplayName) ? provider.ProviderKey.Trim() : provider.DisplayName.Trim(),
                             BackendId = backendId,

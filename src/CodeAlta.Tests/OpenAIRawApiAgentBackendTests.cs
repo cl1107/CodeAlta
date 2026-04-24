@@ -1063,6 +1063,11 @@ public sealed class OpenAIRawApiAgentBackendTests
         Assert.IsTrue(history.OfType<AgentContentCompletedEvent>().Any(static e => e.Kind == AgentContentKind.ToolOutput && e.Content == "README contents"));
         Assert.IsTrue(history.OfType<AgentContentCompletedEvent>().Any(static e => e.Kind == AgentContentKind.ToolOutput && e.Content == "Project contents"));
         Assert.IsTrue(history.OfType<AgentContentCompletedEvent>().Any(static e => e.Kind == AgentContentKind.Assistant && e.Content == "Done."));
+        var reasoningEvent = history.OfType<AgentContentCompletedEvent>().Single(static e => e.Kind == AgentContentKind.Reasoning);
+        Assert.AreEqual("Used local tools.", reasoningEvent.Content);
+        Assert.IsNotNull(reasoningEvent.Details);
+        Assert.IsTrue(reasoningEvent.Details!.Value.GetProperty("protectedDataRedacted").GetBoolean());
+        Assert.IsFalse(reasoningEvent.Details.Value.GetRawText().Contains("encrypted-reasoning", StringComparison.Ordinal));
     }
 
     [TestMethod]
