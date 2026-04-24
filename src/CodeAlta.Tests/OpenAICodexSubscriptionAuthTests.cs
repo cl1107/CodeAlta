@@ -386,6 +386,102 @@ public sealed class OpenAICodexSubscriptionAuthTests
     }
 
     [TestMethod]
+    public async Task OAuthClient_PollDeviceTokenHonorsPollingCadenceAndSlowDown()
+    {
+        using var handler = new QueueHttpMessageHandler(
+            CreateDeviceErrorResponse("authorization_pending"),
+            CreateDeviceErrorResponse("slow_down"),
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(
+                    """
+                    {
+                      "access_token": "access-secret",
+                      "refresh_token": "refresh-secret",
+                      "expires_in": 3600
+                    }
+                    """,
+                    Encoding.UTF8,
+                    "application/json"),
+            });
+        using var httpClient = new HttpClient(handler);
+        var timeProvider = new AutoAdvanceTimeProvider(DateTimeOffset.Parse("2026-04-24T12:00:00Z"));
+        var client = new OpenAICodexSubscriptionOAuthClient(httpClient);
+        var deviceCode = new OpenAICodexSubscriptionDeviceCode(
+            "device",
+            "ABCD-EFGH",
+            OpenAICodexSubscriptionOAuthDefaults.DeviceVerificationUri,
+            TimeSpan.FromMinutes(10),
+            TimeSpan.FromSeconds(3));
+
+        var credential = await client.PollDeviceTokenAsync(deviceCode, timeProvider).ConfigureAwait(false);
+
+        Assert.AreEqual("access-secret", credential.AccessToken);
+        Assert.AreEqual(3, handler.RequestCount);
+        CollectionAssert.AreEqual(
+            new[] { TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(8) },
+            timeProvider.Delays);
+    }
+
+    [TestMethod]
+    public async Task OAuthClient_PollDeviceTokenStopsOnExpiry()
+    {
+        using var handler = new QueueHttpMessageHandler(CreateDeviceErrorResponse("authorization_pending"));
+        using var httpClient = new HttpClient(handler);
+        var timeProvider = new AutoAdvanceTimeProvider(DateTimeOffset.Parse("2026-04-24T12:00:00Z"));
+        var client = new OpenAICodexSubscriptionOAuthClient(httpClient);
+        var deviceCode = new OpenAICodexSubscriptionDeviceCode(
+            "device",
+            "ABCD-EFGH",
+            OpenAICodexSubscriptionOAuthDefaults.DeviceVerificationUri,
+            TimeSpan.FromSeconds(1),
+            TimeSpan.FromSeconds(2));
+
+        await Assert.ThrowsExactlyAsync<TimeoutException>(
+            () => client.PollDeviceTokenAsync(deviceCode, timeProvider)).ConfigureAwait(false);
+
+        Assert.AreEqual(1, handler.RequestCount);
+        CollectionAssert.AreEqual(new[] { TimeSpan.FromSeconds(2) }, timeProvider.Delays);
+    }
+
+    [TestMethod]
+    public async Task OAuthClient_PollDeviceTokenStopsOnCancellation()
+    {
+        using var handler = new QueueHttpMessageHandler(CreateDeviceErrorResponse("authorization_pending"));
+        using var httpClient = new HttpClient(handler);
+        var client = new OpenAICodexSubscriptionOAuthClient(httpClient);
+        var deviceCode = new OpenAICodexSubscriptionDeviceCode(
+            "device",
+            "ABCD-EFGH",
+            OpenAICodexSubscriptionOAuthDefaults.DeviceVerificationUri,
+            TimeSpan.FromMinutes(10),
+            TimeSpan.FromSeconds(5));
+        using var cancellation = new CancellationTokenSource();
+        await cancellation.CancelAsync().ConfigureAwait(false);
+
+        await Assert.ThrowsExactlyAsync<TaskCanceledException>(
+            () => client.PollDeviceTokenAsync(deviceCode, cancellationToken: cancellation.Token)).ConfigureAwait(false);
+    }
+
+    [TestMethod]
+    public async Task OAuthClient_PollDeviceTokenThrowsForTerminalErrors()
+    {
+        using var httpClient = new HttpClient(new QueueHttpMessageHandler(CreateDeviceErrorResponse("access_denied")));
+        var client = new OpenAICodexSubscriptionOAuthClient(httpClient);
+        var deviceCode = new OpenAICodexSubscriptionDeviceCode(
+            "device",
+            "ABCD-EFGH",
+            OpenAICodexSubscriptionOAuthDefaults.DeviceVerificationUri,
+            TimeSpan.FromMinutes(10),
+            TimeSpan.Zero);
+
+        var exception = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => client.PollDeviceTokenAsync(deviceCode)).ConfigureAwait(false);
+
+        StringAssert.Contains(exception.Message, "access_denied");
+    }
+
+    [TestMethod]
     public void AuthManager_ExtractsAccountIdFromJwtClaimMetadata()
     {
         var jwt = CreateUnsignedJwt(
@@ -562,6 +658,15 @@ public sealed class OpenAICodexSubscriptionAuthTests
                 static parts => Uri.UnescapeDataString(parts[1].Replace('+', ' ')),
                 StringComparer.Ordinal);
 
+    private static HttpResponseMessage CreateDeviceErrorResponse(string error)
+        => new(HttpStatusCode.BadRequest)
+        {
+            Content = new StringContent(
+                $$"""{"error":"{{error}}"}""",
+                Encoding.UTF8,
+                "application/json"),
+        };
+
     private sealed class TempDirectory(string path) : IDisposable
     {
         public string Path { get; } = path;
@@ -600,6 +705,38 @@ public sealed class OpenAICodexSubscriptionAuthTests
             }
 
             return Task.FromResult(_responses.Dequeue());
+        }
+    }
+
+    private sealed class AutoAdvanceTimeProvider(DateTimeOffset now) : TimeProvider
+    {
+        private DateTimeOffset _now = now;
+
+        public List<TimeSpan> Delays { get; } = [];
+
+        public override DateTimeOffset GetUtcNow() => _now;
+
+        public override ITimer CreateTimer(
+            TimerCallback callback,
+            object? state,
+            TimeSpan dueTime,
+            TimeSpan period)
+        {
+            Delays.Add(dueTime);
+            _now += dueTime;
+            ThreadPool.QueueUserWorkItem(_ => callback(state));
+            return new CompletedTimer();
+        }
+    }
+
+    private sealed class CompletedTimer : ITimer
+    {
+        public bool Change(TimeSpan dueTime, TimeSpan period) => true;
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+        public void Dispose()
+        {
         }
     }
 }
