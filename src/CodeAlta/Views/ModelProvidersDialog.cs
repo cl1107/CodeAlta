@@ -50,6 +50,7 @@ internal sealed class ModelProvidersDialog
     private readonly Visual _detailHost;
     private IReadOnlyList<ProviderDraftSnapshot> _loadedSnapshot = [];
     private int _activeOperationCount;
+    private bool _hasLoadedDefinitions;
     private string _statusText = "[dim]Configure model providers and save to refresh the runtime.[/]";
 
     public ModelProvidersDialog(
@@ -88,7 +89,7 @@ internal sealed class ModelProvidersDialog
             (DataTemplateValue<ModelProviderEditorItemViewModel> value, in DataTemplateContext _) => BuildProviderListItem(value),
             null);
 
-        _statusMarkup = new Markup(() => _statusText)
+        _statusMarkup = new Markup(BuildStatusMarkup)
         {
             Wrap = true,
         };
@@ -196,7 +197,10 @@ internal sealed class ModelProvidersDialog
         }
 
         _dialog.Show();
-        StartReload(confirmWhenDirty: false);
+        if (!_hasLoadedDefinitions)
+        {
+            StartReload(confirmWhenDirty: false);
+        }
     }
 
     private void StartReload(bool confirmWhenDirty)
@@ -713,6 +717,29 @@ internal sealed class ModelProvidersDialog
         return item;
     }
 
+    private string BuildStatusMarkup()
+    {
+        if (_activeOperationCount > 0)
+        {
+            return _statusText;
+        }
+
+        if (!HasUnsavedChanges())
+        {
+            return _statusText;
+        }
+
+        const string unsavedStatus = "[warning]Unsaved model provider changes. Save to refresh the runtime, or Reload to discard them.[/]";
+        return IsPersistentStatusText(_statusText)
+            ? unsavedStatus
+            : $"{_statusText}{Environment.NewLine}{unsavedStatus}";
+    }
+
+    private static bool IsPersistentStatusText(string statusText)
+        => statusText.Contains("loaded", StringComparison.OrdinalIgnoreCase) ||
+           statusText.Contains("saved", StringComparison.OrdinalIgnoreCase) ||
+           statusText.Contains("configure model providers", StringComparison.OrdinalIgnoreCase);
+
     private void QueueBackgroundOperation<TResult>(
         Func<TResult> work,
         Action<TResult> onCompleted,
@@ -868,7 +895,8 @@ internal sealed class ModelProvidersDialog
 
         _providers.Clear();
         _providers.AddRange(definitions.Select(CreateEditorItem));
-        _loadedSnapshot = definitions.Select(CreateSnapshot).ToArray();
+        _loadedSnapshot = _providers.Select(CreateSnapshot).ToArray();
+        _hasLoadedDefinitions = true;
         _statusText = _providers.Count == 0 ? emptyStatusText : loadedStatusText;
 
         var selectedIndex = selectedProviderKey is null

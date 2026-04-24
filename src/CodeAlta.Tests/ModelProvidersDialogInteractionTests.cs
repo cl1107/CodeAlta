@@ -16,6 +16,161 @@ namespace CodeAlta.Tests;
 public sealed class ModelProvidersDialogInteractionTests
 {
     [TestMethod]
+    public void ModelProvidersDialog_LoadedProviderDefaultsDoNotStartDirty()
+    {
+        var definitions = new[]
+        {
+            new CodeAltaProviderDocument
+            {
+                ProviderKey = "provider-1",
+                Enabled = null,
+                ProviderType = "openai-chat",
+                ApiKey = "key-1",
+            },
+        };
+        var dialog = new ModelProvidersDialog(
+            () => definitions,
+            _ => Task.CompletedTask,
+            definition => Task.FromResult(new ProviderTestResult(true, $"Connected successfully · {definition.ProviderKey}", 1)),
+            () => new Rectangle(0, 0, 120, 40),
+            () => null);
+
+        InvokeLoadDefinitionsIntoDialog(
+            dialog,
+            definitions,
+            "[warning]No providers are configured yet.[/]",
+            "[dim]Provider configuration loaded from disk.[/]");
+
+        Assert.IsFalse(HasUnsavedChanges(dialog), "Loaded defaults should be compared against the normalized editor state.");
+        Assert.IsFalse(BuildStatusMarkup(dialog).Contains("Unsaved model provider changes", StringComparison.Ordinal));
+
+        var provider = GetProviders(dialog)[0];
+        provider.UseDefaultDisplayName = false;
+        provider.DisplayName = "Updated provider";
+
+        Assert.IsTrue(HasUnsavedChanges(dialog));
+        Assert.IsTrue(BuildStatusMarkup(dialog).Contains("Unsaved model provider changes", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void ModelProvidersDialog_SaveClearsDirtyStateWhenReloadReturnsPrunedDefaults()
+    {
+        using var session = Terminal.Open(new InMemoryTerminalBackend(new TerminalSize(120, 40)), new TerminalOptions { ImplicitStartInput = true }, force: true);
+        var root = new TextBlock("Root");
+        var app = new TerminalApp(
+            root,
+            session.Instance,
+            new TerminalAppOptions
+            {
+                HostKind = TerminalHostKind.Fullscreen,
+            });
+
+        IReadOnlyList<CodeAltaProviderDocument> definitionsFromDisk =
+        [
+            new CodeAltaProviderDocument
+            {
+                ProviderKey = "provider-1",
+                Enabled = null,
+                ProviderType = "openai-chat",
+                ApiKey = "key-1",
+            },
+        ];
+
+        var dialog = new ModelProvidersDialog(
+            () => definitionsFromDisk,
+            definitions =>
+            {
+                definitionsFromDisk = definitions.Select(static definition => new CodeAltaProviderDocument
+                {
+                    ProviderKey = definition.ProviderKey,
+                    Enabled = definition.Enabled == CodeAltaProviderDocument.DefaultEnabled ? null : definition.Enabled,
+                    DisplayName = definition.DisplayName,
+                    ProviderType = definition.ProviderType,
+                    ApiKey = definition.ApiKey,
+                }).ToArray();
+                return Task.CompletedTask;
+            },
+            definition => Task.FromResult(new ProviderTestResult(true, $"Connected successfully · {definition.ProviderKey}", 1)),
+            () => new Rectangle(0, 0, 120, 40),
+            () => root);
+
+        InvokeTerminalApp(app, "BeginRun");
+        try
+        {
+            dialog.Show();
+            WaitUntil(() => GetProviderCount(dialog) == 1, app);
+            Assert.IsFalse(HasUnsavedChanges(dialog));
+
+            var provider = GetProviders(dialog)[0];
+            provider.UseDefaultDisplayName = false;
+            provider.DisplayName = "Updated provider";
+            Assert.IsTrue(HasUnsavedChanges(dialog));
+
+            InvokeStartSave(dialog);
+            WaitUntil(() => !HasUnsavedChanges(dialog), app);
+
+            Assert.IsTrue(BuildStatusMarkup(dialog).Contains("saved", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            InvokeTerminalApp(app, "EndRun");
+        }
+    }
+
+    [TestMethod]
+    public void ModelProvidersDialog_ReopenUsesAlreadyLoadedDefinitions()
+    {
+        using var session = Terminal.Open(new InMemoryTerminalBackend(new TerminalSize(120, 40)), new TerminalOptions { ImplicitStartInput = true }, force: true);
+        var root = new TextBlock("Root");
+        var app = new TerminalApp(
+            root,
+            session.Instance,
+            new TerminalAppOptions
+            {
+                HostKind = TerminalHostKind.Fullscreen,
+            });
+        var loadCount = 0;
+        var definitions = new[]
+        {
+            new CodeAltaProviderDocument
+            {
+                ProviderKey = "provider-1",
+                Enabled = true,
+                ProviderType = "openai-chat",
+                ApiKey = "key-1",
+            },
+        };
+        var dialog = new ModelProvidersDialog(
+            () =>
+            {
+                loadCount++;
+                return definitions;
+            },
+            _ => Task.CompletedTask,
+            definition => Task.FromResult(new ProviderTestResult(true, $"Connected successfully · {definition.ProviderKey}", 1)),
+            () => new Rectangle(0, 0, 120, 40),
+            () => root);
+
+        InvokeTerminalApp(app, "BeginRun");
+        try
+        {
+            dialog.Show();
+            WaitUntil(() => GetProviderCount(dialog) == 1, app);
+            InvokeClose(dialog);
+            Assert.IsFalse(IsDialogOpen(dialog));
+
+            dialog.Show();
+            TickTerminalApp(app);
+
+            Assert.AreEqual(1, loadCount, "Reopening the already-loaded dialog should not flash a redundant loading state.");
+        }
+        finally
+        {
+            InvokeTerminalApp(app, "EndRun");
+        }
+    }
+
+    [TestMethod]
     public void ModelProvidersDialog_EscapeStillClosesAfterTwoSuccessfulTests()
     {
         using var session = Terminal.Open(new InMemoryTerminalBackend(new TerminalSize(120, 40)), new TerminalOptions { ImplicitStartInput = true }, force: true);
@@ -116,6 +271,35 @@ public sealed class ModelProvidersDialogInteractionTests
         => typeof(ModelProvidersDialog)
             .GetMethod("StartTest", BindingFlags.Instance | BindingFlags.NonPublic)!
             .Invoke(dialog, [item]);
+
+    private static void InvokeStartSave(ModelProvidersDialog dialog)
+        => typeof(ModelProvidersDialog)
+            .GetMethod("StartSave", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(dialog, null);
+
+    private static void InvokeClose(ModelProvidersDialog dialog)
+        => typeof(ModelProvidersDialog)
+            .GetMethod("Close", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(dialog, null);
+
+    private static void InvokeLoadDefinitionsIntoDialog(
+        ModelProvidersDialog dialog,
+        IReadOnlyList<CodeAltaProviderDocument> definitions,
+        string emptyStatusText,
+        string loadedStatusText)
+        => typeof(ModelProvidersDialog)
+            .GetMethod("LoadDefinitionsIntoDialog", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(dialog, [definitions, emptyStatusText, loadedStatusText]);
+
+    private static bool HasUnsavedChanges(ModelProvidersDialog dialog)
+        => (bool)typeof(ModelProvidersDialog)
+            .GetMethod("HasUnsavedChanges", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(dialog, null)!;
+
+    private static string BuildStatusMarkup(ModelProvidersDialog dialog)
+        => (string)typeof(ModelProvidersDialog)
+            .GetMethod("BuildStatusMarkup", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(dialog, null)!;
 
     private static void InvokeSetSelectedProviderIndex(ModelProvidersDialog dialog, int index)
         => typeof(ModelProvidersDialog)
