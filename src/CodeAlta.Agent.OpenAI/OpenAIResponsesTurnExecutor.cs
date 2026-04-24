@@ -12,6 +12,8 @@ namespace CodeAlta.Agent.OpenAI;
 internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider) : ILocalAgentTurnExecutor
 {
     private static readonly ResponseReasoningEffortLevel XHighReasoningEffortLevel = new("xhigh");
+    private static readonly TimeSpan CodexBaseRetryDelay = TimeSpan.FromMilliseconds(250);
+    private static readonly Random SharedRandom = Random.Shared;
 
     public Task<IReadOnlyList<AgentModelInfo>> ListModelsAsync(
         LocalAgentProviderDescriptor providerDescriptor,
@@ -28,117 +30,136 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
 
         try
         {
-            await using var concurrencyLease = await CreateCodexConcurrencyLeaseAsync(
-                request,
-                cancellationToken).ConfigureAwait(false);
-            var client = OpenAIProviderSdkFactory.CreateResponsesClient(
-                provider,
-                new OpenAIResponsesClientFactoryContext(
-                    request.ModelId,
-                    request.SessionId,
-                    request.RunId,
-                    request.Provider));
-            var options = await CreateRequestPayloadAsync(request, cancellationToken).ConfigureAwait(false);
-            ResponseResult? completedResponse = null;
-            ResponseResult? latestResponse = null;
-            var streamedOutputItems = new SortedDictionary<int, ResponseItem>();
-
-            await foreach (var update in client.CreateResponseStreamingAsync(options, cancellationToken).ConfigureAwait(false))
+            var retryBudget = provider.CodexSubscription is null ? 1 : 3;
+            for (var attempt = 1; ; attempt++)
             {
-                switch (update)
+                var streamStarted = false;
+                try
                 {
-                    case StreamingResponseCreatedUpdate created:
-                        latestResponse = created.Response;
-                        break;
-                    case StreamingResponseInProgressUpdate inProgress:
-                        latestResponse = inProgress.Response;
-                        break;
-                    case StreamingResponseOutputTextDeltaUpdate outputTextDelta when !string.IsNullOrEmpty(outputTextDelta.Delta):
-                        await onUpdate(
-                            new LocalAgentTurnDelta
-                            {
-                                Kind = AgentContentKind.Assistant,
-                                ContentId = outputTextDelta.ItemId,
-                                Text = outputTextDelta.Delta,
-                            },
-                            cancellationToken).ConfigureAwait(false);
-                        break;
-                    case StreamingResponseRefusalDeltaUpdate refusalDelta when !string.IsNullOrEmpty(refusalDelta.Delta):
-                        await onUpdate(
-                            new LocalAgentTurnDelta
-                            {
-                                Kind = AgentContentKind.Assistant,
-                                ContentId = refusalDelta.ItemId,
-                                Text = refusalDelta.Delta,
-                            },
-                            cancellationToken).ConfigureAwait(false);
-                        break;
-                    case StreamingResponseReasoningSummaryTextDeltaUpdate reasoningSummaryDelta when !string.IsNullOrEmpty(reasoningSummaryDelta.Delta):
-                        await onUpdate(
-                            new LocalAgentTurnDelta
-                            {
-                                Kind = AgentContentKind.Reasoning,
-                                ContentId = reasoningSummaryDelta.ItemId,
-                                Text = reasoningSummaryDelta.Delta,
-                            },
-                            cancellationToken).ConfigureAwait(false);
-                        break;
-                    case StreamingResponseReasoningTextDeltaUpdate reasoningTextDelta when !string.IsNullOrEmpty(reasoningTextDelta.Delta):
-                        await onUpdate(
-                            new LocalAgentTurnDelta
-                            {
-                                Kind = AgentContentKind.Reasoning,
-                                ContentId = reasoningTextDelta.ItemId,
-                                Text = reasoningTextDelta.Delta,
-                            },
-                            cancellationToken).ConfigureAwait(false);
-                        break;
-                    case StreamingResponseOutputItemDoneUpdate outputItemDone when outputItemDone.Item is not null:
-                        streamedOutputItems[outputItemDone.OutputIndex] = outputItemDone.Item;
-                        break;
-                    case StreamingResponseIncompleteUpdate incomplete:
-                        latestResponse = incomplete.Response;
-                        completedResponse = incomplete.Response;
-                        break;
-                    case StreamingResponseFailedUpdate failed:
-                        throw CreateTurnExecutionException(CreateResponseFailureException(failed.Response, "failed"));
-                    case StreamingResponseErrorUpdate error:
-                        throw CreateTurnExecutionException(CreateStreamErrorException(error));
-                    case StreamingResponseCompletedUpdate completed:
-                        latestResponse = completed.Response;
-                        completedResponse = completed.Response;
-                        break;
+                    await using var concurrencyLease = await CreateCodexConcurrencyLeaseAsync(
+                        request,
+                        cancellationToken).ConfigureAwait(false);
+                    var client = OpenAIProviderSdkFactory.CreateResponsesClient(
+                        provider,
+                        new OpenAIResponsesClientFactoryContext(
+                            request.ModelId,
+                            request.SessionId,
+                            request.RunId,
+                            request.Provider));
+                    var options = await CreateRequestPayloadAsync(request, cancellationToken).ConfigureAwait(false);
+                    ResponseResult? completedResponse = null;
+                    ResponseResult? latestResponse = null;
+                    var streamedOutputItems = new SortedDictionary<int, ResponseItem>();
+
+                    await foreach (var update in client.CreateResponseStreamingAsync(options, cancellationToken).ConfigureAwait(false))
+                    {
+                        streamStarted = true;
+                        switch (update)
+                        {
+                            case StreamingResponseCreatedUpdate created:
+                                latestResponse = created.Response;
+                                break;
+                            case StreamingResponseInProgressUpdate inProgress:
+                                latestResponse = inProgress.Response;
+                                break;
+                            case StreamingResponseOutputTextDeltaUpdate outputTextDelta when !string.IsNullOrEmpty(outputTextDelta.Delta):
+                                await onUpdate(
+                                    new LocalAgentTurnDelta
+                                    {
+                                        Kind = AgentContentKind.Assistant,
+                                        ContentId = outputTextDelta.ItemId,
+                                        Text = outputTextDelta.Delta,
+                                    },
+                                    cancellationToken).ConfigureAwait(false);
+                                break;
+                            case StreamingResponseRefusalDeltaUpdate refusalDelta when !string.IsNullOrEmpty(refusalDelta.Delta):
+                                await onUpdate(
+                                    new LocalAgentTurnDelta
+                                    {
+                                        Kind = AgentContentKind.Assistant,
+                                        ContentId = refusalDelta.ItemId,
+                                        Text = refusalDelta.Delta,
+                                    },
+                                    cancellationToken).ConfigureAwait(false);
+                                break;
+                            case StreamingResponseReasoningSummaryTextDeltaUpdate reasoningSummaryDelta when !string.IsNullOrEmpty(reasoningSummaryDelta.Delta):
+                                await onUpdate(
+                                    new LocalAgentTurnDelta
+                                    {
+                                        Kind = AgentContentKind.Reasoning,
+                                        ContentId = reasoningSummaryDelta.ItemId,
+                                        Text = reasoningSummaryDelta.Delta,
+                                    },
+                                    cancellationToken).ConfigureAwait(false);
+                                break;
+                            case StreamingResponseReasoningTextDeltaUpdate reasoningTextDelta when !string.IsNullOrEmpty(reasoningTextDelta.Delta):
+                                await onUpdate(
+                                    new LocalAgentTurnDelta
+                                    {
+                                        Kind = AgentContentKind.Reasoning,
+                                        ContentId = reasoningTextDelta.ItemId,
+                                        Text = reasoningTextDelta.Delta,
+                                    },
+                                    cancellationToken).ConfigureAwait(false);
+                                break;
+                            case StreamingResponseOutputItemDoneUpdate outputItemDone when outputItemDone.Item is not null:
+                                streamedOutputItems[outputItemDone.OutputIndex] = outputItemDone.Item;
+                                break;
+                            case StreamingResponseIncompleteUpdate incomplete:
+                                latestResponse = incomplete.Response;
+                                completedResponse = incomplete.Response;
+                                break;
+                            case StreamingResponseFailedUpdate failed:
+                                throw CreateTurnExecutionException(CreateResponseFailureException(failed.Response, "failed"));
+                            case StreamingResponseErrorUpdate error:
+                                throw CreateTurnExecutionException(CreateStreamErrorException(error));
+                            case StreamingResponseCompletedUpdate completed:
+                                latestResponse = completed.Response;
+                                completedResponse = completed.Response;
+                                break;
+                        }
+                    }
+
+                    completedResponse ??= TryCreateResponseWithoutTerminalPayload(request, latestResponse, streamedOutputItems);
+
+                    if (completedResponse is null)
+                    {
+                        throw new InvalidOperationException("The OpenAI Responses stream completed without a terminal response payload or reconstructable output.");
+                    }
+
+                    if (completedResponse.Status is ResponseStatus.Failed)
+                    {
+                        throw CreateTurnExecutionException(CreateResponseFailureException(completedResponse, "failed"));
+                    }
+
+                    if (completedResponse.Status is ResponseStatus.Incomplete &&
+                        completedResponse.OutputItems.Count == 0)
+                    {
+                        throw CreateTurnExecutionException(CreateResponseFailureException(completedResponse, "incomplete"));
+                    }
+
+                    var (assistantMessage, assistantPartContentIds) = MapAssistantMessage(completedResponse);
+                    return new LocalAgentTurnResponse
+                    {
+                        AssistantMessage = assistantMessage,
+                        AssistantPartContentIds = assistantPartContentIds,
+                        Usage = CreateUsage(request, completedResponse),
+                        ProviderSessionId = string.IsNullOrWhiteSpace(completedResponse.Id) ? null : completedResponse.Id,
+                        ProviderState = CreateProviderState(completedResponse),
+                        Summary = ExtractSummary(assistantMessage),
+                    };
+                }
+                catch (Exception ex) when (ShouldRetryCodexSubscriptionRequest(
+                    provider,
+                    ex,
+                    attempt,
+                    retryBudget,
+                    streamStarted,
+                    out var delay))
+                {
+                    await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
                 }
             }
-
-            completedResponse ??= TryCreateResponseWithoutTerminalPayload(request, latestResponse, streamedOutputItems);
-
-            if (completedResponse is null)
-            {
-                throw new InvalidOperationException("The OpenAI Responses stream completed without a terminal response payload or reconstructable output.");
-            }
-
-            if (completedResponse.Status is ResponseStatus.Failed)
-            {
-                throw CreateTurnExecutionException(CreateResponseFailureException(completedResponse, "failed"));
-            }
-
-            if (completedResponse.Status is ResponseStatus.Incomplete &&
-                completedResponse.OutputItems.Count == 0)
-            {
-                throw CreateTurnExecutionException(CreateResponseFailureException(completedResponse, "incomplete"));
-            }
-
-            var (assistantMessage, assistantPartContentIds) = MapAssistantMessage(completedResponse);
-            return new LocalAgentTurnResponse
-            {
-                AssistantMessage = assistantMessage,
-                AssistantPartContentIds = assistantPartContentIds,
-                Usage = CreateUsage(request, completedResponse),
-                ProviderSessionId = string.IsNullOrWhiteSpace(completedResponse.Id) ? null : completedResponse.Id,
-                ProviderState = CreateProviderState(completedResponse),
-                Summary = ExtractSummary(assistantMessage),
-            };
         }
         catch (OperationCanceledException)
         {
@@ -698,6 +719,103 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
         }
 
         return exception;
+    }
+
+    private static bool ShouldRetryCodexSubscriptionRequest(
+        OpenAIProviderOptions provider,
+        Exception exception,
+        int attempt,
+        int retryBudget,
+        bool streamStarted,
+        out TimeSpan delay)
+    {
+        delay = TimeSpan.Zero;
+        if (provider.CodexSubscription is null ||
+            streamStarted ||
+            attempt >= retryBudget ||
+            exception is OperationCanceledException or LocalAgentTurnExecutionException)
+        {
+            return false;
+        }
+
+        if (exception is not HttpRequestException httpException)
+        {
+            return false;
+        }
+
+        var statusCode = httpException.StatusCode;
+        if (statusCode is null ||
+            statusCode is System.Net.HttpStatusCode.TooManyRequests ||
+            statusCode >= System.Net.HttpStatusCode.InternalServerError)
+        {
+            delay = GetRetryAfterDelay(httpException) ?? GetExponentialBackoffDelay(attempt);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static TimeSpan? GetRetryAfterDelay(HttpRequestException exception)
+    {
+        foreach (var key in new[] { "Retry-After", "retry-after", "RetryAfter" })
+        {
+            if (!exception.Data.Contains(key))
+            {
+                continue;
+            }
+
+            var value = exception.Data[key];
+            switch (value)
+            {
+                case TimeSpan timeSpan when timeSpan >= TimeSpan.Zero:
+                    return timeSpan;
+                case int seconds when seconds >= 0:
+                    return TimeSpan.FromSeconds(seconds);
+                case long seconds when seconds >= 0:
+                    return TimeSpan.FromSeconds(seconds);
+                case DateTimeOffset retryAt:
+                    return retryAt <= DateTimeOffset.UtcNow
+                        ? TimeSpan.Zero
+                        : retryAt - DateTimeOffset.UtcNow;
+                case string text when TryParseRetryAfter(text, out var delay):
+                    return delay;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool TryParseRetryAfter(string text, out TimeSpan delay)
+    {
+        if (int.TryParse(text, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var seconds) &&
+            seconds >= 0)
+        {
+            delay = TimeSpan.FromSeconds(seconds);
+            return true;
+        }
+
+        if (DateTimeOffset.TryParse(
+                text,
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.AssumeUniversal,
+                out var retryAt))
+        {
+            delay = retryAt <= DateTimeOffset.UtcNow
+                ? TimeSpan.Zero
+                : retryAt - DateTimeOffset.UtcNow;
+            return true;
+        }
+
+        delay = TimeSpan.Zero;
+        return false;
+    }
+
+    private static TimeSpan GetExponentialBackoffDelay(int attempt)
+    {
+        var exponent = Math.Max(attempt - 1, 0);
+        var baseDelay = CodexBaseRetryDelay.TotalMilliseconds * Math.Pow(2, exponent);
+        var jitter = SharedRandom.Next(0, 125);
+        return TimeSpan.FromMilliseconds(Math.Min(baseDelay + jitter, 2_000));
     }
 
     private static bool IsContextOverflowMessage(string? message)

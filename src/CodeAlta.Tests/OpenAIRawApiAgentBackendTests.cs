@@ -1008,6 +1008,92 @@ public sealed class OpenAIRawApiAgentBackendTests
         StringAssert.Contains(exception.Failure.Message, "re-authentication");
     }
 
+    [TestMethod]
+    public async Task OpenAIResponsesTurnExecutor_RetriesCodexTransientErrorsWithinBudget()
+    {
+        var transient = new HttpRequestException("Service unavailable.", null, HttpStatusCode.ServiceUnavailable);
+        transient.Data["Retry-After"] = TimeSpan.Zero;
+        var responsesClient = new FlakyOpenAIResponseClient(
+            [transient],
+            [
+                CreateAssistantResponseUpdate(
+                    responseId: "response-retried",
+                    modelId: "gpt-5.3-codex",
+                    text: "Retried answer.",
+                    reasoningText: "Thinking.",
+                    encryptedReasoning: null),
+            ]);
+        var executor = new OpenAIResponsesTurnExecutor(new OpenAIProviderOptions
+        {
+            ProviderKey = "codex_subscription",
+            ResponsesClientFactory = _ => responsesClient,
+            CodexSubscription = new OpenAICodexSubscriptionOptions
+            {
+                Experimental = true,
+            },
+        });
+
+        var response = await executor.ExecuteTurnAsync(
+            CreateCodexTurnRequest(),
+            static (_, _) => ValueTask.CompletedTask).ConfigureAwait(false);
+
+        Assert.AreEqual(2, responsesClient.RequestCount);
+        var text = response.AssistantMessage.Parts.OfType<LocalAgentMessagePart.Text>().Single().Value;
+        Assert.AreEqual("Retried answer.", text);
+    }
+
+    [TestMethod]
+    public async Task OpenAIResponsesTurnExecutor_DoesNotRetryCodexBadRequest()
+    {
+        var responsesClient = new FlakyOpenAIResponseClient(
+            [new HttpRequestException("Bad request.", null, HttpStatusCode.BadRequest)],
+            []);
+        var executor = new OpenAIResponsesTurnExecutor(new OpenAIProviderOptions
+        {
+            ProviderKey = "codex_subscription",
+            ResponsesClientFactory = _ => responsesClient,
+            CodexSubscription = new OpenAICodexSubscriptionOptions
+            {
+                Experimental = true,
+            },
+        });
+
+        _ = await Assert.ThrowsExactlyAsync<LocalAgentTurnExecutionException>(
+                () => executor.ExecuteTurnAsync(
+                    CreateCodexTurnRequest(),
+                    static (_, _) => ValueTask.CompletedTask))
+            .ConfigureAwait(false);
+
+        Assert.AreEqual(1, responsesClient.RequestCount);
+    }
+
+    [TestMethod]
+    public async Task OpenAIResponsesTurnExecutor_DoesNotRetryCodexFailureAfterStreamStarts()
+    {
+        var responsesClient = new PartiallyFailingOpenAIResponseClient(
+            CreateCreatedResponseUpdate(
+                responseId: "response-started",
+                modelId: "gpt-5.3-codex"),
+            new HttpRequestException("Stream failed.", null, HttpStatusCode.ServiceUnavailable));
+        var executor = new OpenAIResponsesTurnExecutor(new OpenAIProviderOptions
+        {
+            ProviderKey = "codex_subscription",
+            ResponsesClientFactory = _ => responsesClient,
+            CodexSubscription = new OpenAICodexSubscriptionOptions
+            {
+                Experimental = true,
+            },
+        });
+
+        _ = await Assert.ThrowsExactlyAsync<LocalAgentTurnExecutionException>(
+                () => executor.ExecuteTurnAsync(
+                    CreateCodexTurnRequest(),
+                    static (_, _) => ValueTask.CompletedTask))
+            .ConfigureAwait(false);
+
+        Assert.AreEqual(1, responsesClient.RequestCount);
+    }
+
     private static StreamingResponseUpdate CreateAssistantResponseUpdate(
         string responseId,
         string modelId,
@@ -1220,6 +1306,18 @@ public sealed class OpenAIRawApiAgentBackendTests
             },
         };
 
+    private static LocalAgentTurnRequest CreateCodexTurnRequest()
+        => CreateTurnRequest() with
+        {
+            Provider = CreateTurnRequest().Provider with
+            {
+                ProtocolFamily = "openai-codex-subscription",
+                ProviderKey = "codex_subscription",
+                DisplayName = "Codex (ChatGPT subscription)",
+            },
+            ModelId = "gpt-5.3-codex",
+        };
+
     private sealed class RecordingOpenAIResponseClient(IReadOnlyList<IReadOnlyList<StreamingResponseUpdate>> responseBatches)
         : ResponsesClient(new ApiKeyCredential("test-key"), new OpenAIClientOptions())
     {
@@ -1320,6 +1418,43 @@ public sealed class OpenAIRawApiAgentBackendTests
             => throw exception;
     }
 
+    private sealed class FlakyOpenAIResponseClient(
+        IReadOnlyList<Exception> failures,
+        IReadOnlyList<StreamingResponseUpdate> successUpdates)
+        : ResponsesClient(new ApiKeyCredential("test-key"), new OpenAIClientOptions())
+    {
+        public int RequestCount { get; private set; }
+
+        public override AsyncCollectionResult<StreamingResponseUpdate> CreateResponseStreamingAsync(
+            CreateResponseOptions options,
+            CancellationToken cancellationToken = default)
+        {
+            RequestCount++;
+            if (RequestCount <= failures.Count)
+            {
+                throw failures[RequestCount - 1];
+            }
+
+            return new TestAsyncCollectionResult<StreamingResponseUpdate>(successUpdates);
+        }
+    }
+
+    private sealed class PartiallyFailingOpenAIResponseClient(
+        StreamingResponseUpdate firstUpdate,
+        Exception failure)
+        : ResponsesClient(new ApiKeyCredential("test-key"), new OpenAIClientOptions())
+    {
+        public int RequestCount { get; private set; }
+
+        public override AsyncCollectionResult<StreamingResponseUpdate> CreateResponseStreamingAsync(
+            CreateResponseOptions options,
+            CancellationToken cancellationToken = default)
+        {
+            RequestCount++;
+            return new FailingAsyncCollectionResult<StreamingResponseUpdate>(firstUpdate, failure);
+        }
+    }
+
     private sealed class RecordingOpenAIChatClient : ChatClient
     {
         private readonly IReadOnlyList<IReadOnlyList<StreamingChatCompletionUpdate>> _responseBatches;
@@ -1418,6 +1553,24 @@ public sealed class OpenAIRawApiAgentBackendTests
                 yield return value;
                 await Task.Yield();
             }
+        }
+
+        public override ContinuationToken GetContinuationToken(ClientResult page) => default!;
+    }
+
+    private sealed class FailingAsyncCollectionResult<T>(T firstValue, Exception failure) : AsyncCollectionResult<T>
+    {
+        public override async IAsyncEnumerable<ClientResult> GetRawPagesAsync()
+        {
+            yield return ClientResult.FromResponse(new TestPipelineResponse());
+            await Task.CompletedTask.ConfigureAwait(false);
+        }
+
+        protected override async IAsyncEnumerable<T> GetValuesFromPageAsync(ClientResult page)
+        {
+            yield return firstValue;
+            await Task.Yield();
+            throw failure;
         }
 
         public override ContinuationToken GetContinuationToken(ClientResult page) => default!;
