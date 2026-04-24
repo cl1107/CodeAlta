@@ -946,6 +946,125 @@ public sealed class OpenAIRawApiAgentBackendTests
     }
 
     [TestMethod]
+    public async Task OpenAIResponsesAgentBackend_CodexUsesLocalToolBridgeSequentially()
+    {
+        using var temp = TestTempDirectory.Create();
+        var responsesClient = new RecordingOpenAIResponseClient(
+        [
+            [
+                CreateCreatedResponseUpdate(
+                    responseId: "response-tools",
+                    modelId: "gpt-5.3-codex"),
+                CreateOutputItemDoneUpdate(
+                    outputIndex: 0,
+                    item: ResponseItem.CreateFunctionCallItem(
+                        "call-one",
+                        "inspect_one",
+                        BinaryData.FromString("""{"path":"README.md"}"""))),
+                CreateOutputItemDoneUpdate(
+                    outputIndex: 1,
+                    item: ResponseItem.CreateFunctionCallItem(
+                        "call-two",
+                        "inspect_two",
+                        BinaryData.FromString("""{"path":"src/CodeAlta.csproj"}"""))),
+            ],
+            [
+                CreateAssistantResponseUpdate(
+                    responseId: "response-final",
+                    modelId: "gpt-5.3-codex",
+                    text: "Done.",
+                    reasoningText: "Used local tools.",
+                    encryptedReasoning: "encrypted-reasoning"),
+            ],
+        ]);
+        var sequence = new List<string>();
+
+        await using var backend = new OpenAIResponsesAgentBackend(new OpenAIResponsesAgentBackendOptions
+        {
+            StateRootPath = temp.Path,
+            Providers =
+            {
+                new OpenAIProviderOptions
+                {
+                    ProviderKey = "codex_subscription",
+                    IsDefault = true,
+                    ResponsesClientFactory = _ => responsesClient,
+                    CodexSubscription = new OpenAICodexSubscriptionOptions
+                    {
+                        Experimental = true,
+                    },
+                    ModelListAsync = static _ => Task.FromResult<IReadOnlyList<AgentModelInfo>>(
+                    [
+                        new AgentModelInfo(
+                            "gpt-5.3-codex",
+                            DisplayName: "GPT Codex",
+                            Capabilities: new Dictionary<string, object?>(StringComparer.Ordinal)
+                            {
+                                ["inputTokenLimit"] = 200000L,
+                            }),
+                    ]),
+                },
+            },
+        });
+
+        await using var session = await backend.CreateSessionAsync(new AgentSessionCreateOptions
+        {
+            Model = "gpt-5.3-codex",
+            WorkingDirectory = temp.Path,
+            Tools =
+            [
+                new AgentToolDefinition(
+                    new AgentToolSpec(
+                        "inspect_one",
+                        "Read a file.",
+                        JsonDocument.Parse("""{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}""").RootElement.Clone()),
+                    (_, _) =>
+                    {
+                        sequence.Add("inspect_one");
+                        return Task.FromResult(new AgentToolResult(true, [new AgentToolResultItem.Text("README contents")]));
+                    }),
+                new AgentToolDefinition(
+                    new AgentToolSpec(
+                        "inspect_two",
+                        "Inspect a file.",
+                        JsonDocument.Parse("""{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}""").RootElement.Clone()),
+                    (_, _) =>
+                    {
+                        sequence.Add("inspect_two");
+                        return Task.FromResult(new AgentToolResult(true, [new AgentToolResultItem.Text("Project contents")]));
+                    }),
+            ],
+            OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
+        }).ConfigureAwait(false);
+
+        _ = await session.SendAsync(new AgentSendOptions
+        {
+            Input = new AgentInput([new AgentInputItem.Text("Use tools")]),
+        }).ConfigureAwait(false);
+
+        Assert.AreEqual("inspect_one,inspect_two", string.Join(",", sequence));
+        Assert.AreEqual(2, responsesClient.Requests.Count);
+        using var firstRequest = JsonDocument.Parse(responsesClient.Requests[0].SerializedOptions);
+        var toolNames = firstRequest.RootElement.GetProperty("tools")
+            .EnumerateArray()
+            .Select(static tool => tool.GetProperty("name").GetString())
+            .ToArray();
+        CollectionAssert.Contains(toolNames, "inspect_one");
+        CollectionAssert.Contains(toolNames, "inspect_two");
+        Assert.IsTrue(firstRequest.RootElement.GetProperty("parallel_tool_calls").GetBoolean());
+
+        var secondInputs = responsesClient.Requests[1].InputItems.OfType<FunctionCallOutputResponseItem>().ToArray();
+        Assert.AreEqual(2, secondInputs.Length);
+        Assert.IsTrue(secondInputs.Any(static item => item.CallId == "call-one" && item.FunctionOutput == "README contents"));
+        Assert.IsTrue(secondInputs.Any(static item => item.CallId == "call-two" && item.FunctionOutput == "Project contents"));
+
+        var history = await session.GetHistoryAsync().ConfigureAwait(false);
+        Assert.IsTrue(history.OfType<AgentContentCompletedEvent>().Any(static e => e.Kind == AgentContentKind.ToolOutput && e.Content == "README contents"));
+        Assert.IsTrue(history.OfType<AgentContentCompletedEvent>().Any(static e => e.Kind == AgentContentKind.ToolOutput && e.Content == "Project contents"));
+        Assert.IsTrue(history.OfType<AgentContentCompletedEvent>().Any(static e => e.Kind == AgentContentKind.Assistant && e.Content == "Done."));
+    }
+
+    [TestMethod]
     public async Task OpenAIResponsesTurnExecutor_TranslatesCodexRateLimitErrors()
     {
         var executor = new OpenAIResponsesTurnExecutor(new OpenAIProviderOptions
