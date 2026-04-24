@@ -820,6 +820,7 @@ public sealed class OpenAIRawApiAgentBackendTests
     [TestMethod]
     public async Task OpenAIResponsesTurnExecutor_AppliesCodexSubscriptionRequestDeltas()
     {
+        using var temp = TestTempDirectory.Create();
         var responsesClient = new RecordingOpenAIResponseClient(
         [
             [
@@ -835,10 +836,12 @@ public sealed class OpenAIRawApiAgentBackendTests
         {
             ProviderKey = "codex_subscription",
             ResponsesClientFactory = _ => responsesClient,
+            StateRootPath = temp.Path,
             CodexSubscription = new OpenAICodexSubscriptionOptions
             {
                 Experimental = true,
                 IncludeEncryptedReasoning = true,
+                SendInstallationId = true,
                 TextVerbosity = "low",
             },
         });
@@ -884,8 +887,61 @@ public sealed class OpenAIRawApiAgentBackendTests
         Assert.IsTrue(document.RootElement.GetProperty("stream").GetBoolean());
         Assert.AreEqual("session-1", document.RootElement.GetProperty("prompt_cache_key").GetString());
         Assert.AreEqual("low", document.RootElement.GetProperty("text").GetProperty("verbosity").GetString());
+        var installationId = document.RootElement
+            .GetProperty("client_metadata")
+            .GetProperty("x-codex-installation-id")
+            .GetString();
+        Assert.IsTrue(Guid.TryParse(installationId, out _));
         Assert.IsTrue(document.RootElement.GetProperty("include").EnumerateArray().Any(
             static item => item.GetString() == "reasoning.encrypted_content"));
+    }
+
+    [TestMethod]
+    public async Task OpenAIResponsesTurnExecutor_OmitsCodexInstallationMetadataByDefault()
+    {
+        var responsesClient = new RecordingOpenAIResponseClient(
+        [
+            [
+                CreateAssistantResponseUpdate(
+                    responseId: "response-codex-default",
+                    modelId: "gpt-5.3-codex",
+                    text: "Answer.",
+                    reasoningText: "Thinking.",
+                    encryptedReasoning: "encrypted-reasoning"),
+            ],
+        ]);
+        var executor = new OpenAIResponsesTurnExecutor(new OpenAIProviderOptions
+        {
+            ProviderKey = "codex_subscription",
+            ResponsesClientFactory = _ => responsesClient,
+            CodexSubscription = new OpenAICodexSubscriptionOptions
+            {
+                Experimental = true,
+                IncludeEncryptedReasoning = true,
+            },
+        });
+        var request = CreateTurnRequest() with
+        {
+            Provider = CreateTurnRequest().Provider with
+            {
+                ProtocolFamily = "openai-codex-subscription",
+                ProviderKey = "codex_subscription",
+                DisplayName = "Codex (ChatGPT subscription)",
+                Profile = new LocalAgentProviderProfile
+                {
+                    SupportsStore = false,
+                    SupportsReasoningEffort = true,
+                },
+            },
+            ModelId = "gpt-5.3-codex",
+        };
+
+        _ = await executor.ExecuteTurnAsync(
+            request,
+            static (_, _) => ValueTask.CompletedTask).ConfigureAwait(false);
+
+        using var document = JsonDocument.Parse(responsesClient.Requests[0].SerializedOptions);
+        Assert.IsFalse(document.RootElement.TryGetProperty("client_metadata", out _));
     }
 
     private static StreamingResponseUpdate CreateAssistantResponseUpdate(
@@ -1178,6 +1234,12 @@ public sealed class OpenAIRawApiAgentBackendTests
                     textVerbosity is not null)
                 {
                     clone.Patch.Set("$.text.verbosity"u8, textVerbosity);
+                }
+
+                if (options.Patch.TryGetValue("$.client_metadata.x-codex-installation-id"u8, out string? installationId) &&
+                    installationId is not null)
+                {
+                    clone.Patch.Set("$.client_metadata.x-codex-installation-id"u8, installationId);
                 }
             }
 

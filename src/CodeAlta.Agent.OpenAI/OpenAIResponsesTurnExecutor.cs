@@ -4,6 +4,7 @@
 using System.Text.Json;
 using CodeAlta.Agent.LocalRuntime;
 using CodeAlta.Agent.LocalRuntime.Tools;
+using CodeAlta.Agent.OpenAI.CodexSubscription;
 using OpenAI.Responses;
 
 namespace CodeAlta.Agent.OpenAI;
@@ -34,7 +35,7 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
                     request.SessionId,
                     request.RunId,
                     request.Provider));
-            var options = CreateRequestPayload(request);
+            var options = await CreateRequestPayloadAsync(request, cancellationToken).ConfigureAwait(false);
             ResponseResult? completedResponse = null;
             ResponseResult? latestResponse = null;
             var streamedOutputItems = new SortedDictionary<int, ResponseItem>();
@@ -184,7 +185,9 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
         return response;
     }
 
-    private CreateResponseOptions CreateRequestPayload(LocalAgentTurnRequest request)
+    private async ValueTask<CreateResponseOptions> CreateRequestPayloadAsync(
+        LocalAgentTurnRequest request,
+        CancellationToken cancellationToken)
     {
         var toolDefinitions = request.Tools.Select(CreateFunctionTool).Cast<ResponseTool>().ToArray();
         var options = new CreateResponseOptions
@@ -237,16 +240,21 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
 
         if (provider.CodexSubscription is not null)
         {
-            ApplyCodexSubscriptionRequestCustomization(request, options, provider.CodexSubscription);
+            await ApplyCodexSubscriptionRequestCustomizationAsync(
+                request,
+                options,
+                provider.CodexSubscription,
+                cancellationToken).ConfigureAwait(false);
         }
 
         return options;
     }
 
-    private static void ApplyCodexSubscriptionRequestCustomization(
+    private async ValueTask ApplyCodexSubscriptionRequestCustomizationAsync(
         LocalAgentTurnRequest request,
         CreateResponseOptions options,
-        OpenAICodexSubscriptionOptions codexOptions)
+        OpenAICodexSubscriptionOptions codexOptions,
+        CancellationToken cancellationToken)
     {
         options.StoredOutputEnabled = false;
         options.StreamingEnabled = true;
@@ -266,6 +274,21 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
 
         options.Patch.Set("$.prompt_cache_key"u8, request.SessionId);
         options.Patch.Set("$.text.verbosity"u8, codexOptions.TextVerbosity);
+
+        var stateRootPath = string.IsNullOrWhiteSpace(provider.StateRootPath)
+            ? Path.Combine(AppContext.BaseDirectory, ".codealta-state")
+            : provider.StateRootPath;
+        var installationIdProvider = new CodexSubscriptionInstallationIdProvider(
+            stateRootPath,
+            CodexAuthFileReader.ResolveCodexHome());
+        var installationId = await installationIdProvider.ResolveAsync(
+            codexOptions.SendInstallationId,
+            codexOptions.InstallationIdSource,
+            cancellationToken).ConfigureAwait(false);
+        if (!string.IsNullOrWhiteSpace(installationId))
+        {
+            options.Patch.Set("$.client_metadata.x-codex-installation-id"u8, installationId);
+        }
     }
 
     private static string? ComposeInstructions(LocalAgentTurnRequest request)
