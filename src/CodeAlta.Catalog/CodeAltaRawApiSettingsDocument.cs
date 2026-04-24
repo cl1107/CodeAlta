@@ -49,6 +49,12 @@ public sealed class CodeAltaProviderProfileDocument
     /// </summary>
     [JsonPropertyName("reasoning_field_names")]
     public List<string>? ReasoningFieldNames { get; set; }
+
+    /// <summary>
+    /// Gets or sets the provider-specific assistant-message field used to replay reasoning content.
+    /// </summary>
+    [JsonPropertyName("reasoning_input_field_name")]
+    public string? ReasoningInputFieldName { get; set; }
 }
 
 /// <summary>

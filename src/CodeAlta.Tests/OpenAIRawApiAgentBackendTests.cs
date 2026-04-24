@@ -313,6 +313,154 @@ public sealed class OpenAIRawApiAgentBackendTests
     }
 
     [TestMethod]
+    public async Task OpenAIChatAgentBackend_ReplaysConfiguredReasoningInputFieldForToolCalls()
+    {
+        using var temp = TestTempDirectory.Create();
+        var chatClient = RecordingOpenAIChatClient.ForBatches(
+        [
+            [
+                DeserializeStreamingChatCompletionUpdate(
+                    """
+                    {
+                      "id": "chatcmpl-deepseek-1",
+                      "object": "chat.completion.chunk",
+                      "created": 1744060800,
+                      "model": "deepseek-v4-pro",
+                      "choices": [
+                        {
+                          "index": 0,
+                          "delta": {
+                            "reasoning_content": "I need to inspect the requested file before answering.",
+                            "tool_calls": [
+                              {
+                                "index": 0,
+                                "id": "call-inspect",
+                                "type": "function",
+                                "function": {
+                                  "name": "inspect_file",
+                                  "arguments": "{\"path\":\"README.md\"}"
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                    """),
+            ],
+            [
+                DeserializeStreamingChatCompletionUpdate(
+                    """
+                    {
+                      "id": "chatcmpl-deepseek-2",
+                      "object": "chat.completion.chunk",
+                      "created": 1744060801,
+                      "model": "deepseek-v4-pro",
+                      "choices": [
+                        {
+                          "index": 0,
+                          "delta": {
+                            "tool_calls": [
+                              {
+                                "index": 0,
+                                "id": "call-read",
+                                "type": "function",
+                                "function": {
+                                  "name": "inspect_file",
+                                  "arguments": "{\"path\":\"src/CodeAlta.csproj\"}"
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                    """),
+            ],
+            [
+                DeserializeStreamingChatCompletionUpdate(
+                    """
+                    {
+                      "id": "chatcmpl-deepseek-3",
+                      "object": "chat.completion.chunk",
+                      "created": 1744060802,
+                      "model": "deepseek-v4-pro",
+                      "choices": [
+                        {
+                          "index": 0,
+                          "delta": {
+                            "content": "Done."
+                          }
+                        }
+                      ]
+                    }
+                    """),
+            ],
+        ]);
+
+        await using var backend = new OpenAIChatAgentBackend(new OpenAIChatAgentBackendOptions
+        {
+            StateRootPath = temp.Path,
+            Providers =
+            {
+                new OpenAIProviderOptions
+                {
+                    ProviderKey = "deepseek",
+                    IsDefault = true,
+                    Profile = new LocalAgentProviderProfile
+                    {
+                        SupportsDeveloperRole = true,
+                        SupportsReasoningEffort = true,
+                        SupportsStore = false,
+                        StreamsUsage = true,
+                        ReasoningFieldNames = ["reasoning_content"],
+                        ReasoningInputFieldName = "reasoning_content",
+                    },
+                    ChatClientFactory = _ => chatClient,
+                },
+            },
+        });
+
+        await using var session = await backend.CreateSessionAsync(new AgentSessionCreateOptions
+        {
+            Model = "deepseek-v4-pro",
+            WorkingDirectory = temp.Path,
+            Tools =
+            [
+                new AgentToolDefinition(
+                    new AgentToolSpec(
+                        "inspect_file",
+                        "Inspect a file.",
+                        JsonDocument.Parse("""{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}""").RootElement.Clone()),
+                    static (_, _) => Task.FromResult(new AgentToolResult(true, [new AgentToolResultItem.Text("README contents")]))),
+            ],
+            OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
+        }).ConfigureAwait(false);
+
+        _ = await session.SendAsync(new AgentSendOptions
+        {
+            Input = new AgentInput([new AgentInputItem.Text("Inspect README")]),
+        }).ConfigureAwait(false);
+
+        Assert.AreEqual(3, chatClient.Requests.Count);
+        var replayedAssistant = chatClient.Requests[1].Messages.OfType<AssistantChatMessage>().Single();
+        Assert.IsTrue(replayedAssistant.Patch.TryGetValue("$.reasoning_content"u8, out string? replayedReasoning));
+        Assert.AreEqual("I need to inspect the requested file before answering.", replayedReasoning);
+        Assert.AreEqual(1, replayedAssistant.ToolCalls.Count);
+        Assert.IsFalse(
+            replayedAssistant.Content.Any(static part =>
+                part.Text.Contains("<assistant_reasoning>", StringComparison.Ordinal)));
+
+        var replayedAssistants = chatClient.Requests[2].Messages.OfType<AssistantChatMessage>().ToArray();
+        Assert.AreEqual(2, replayedAssistants.Length);
+        Assert.IsTrue(replayedAssistants[0].Patch.TryGetValue("$.reasoning_content"u8, out string? priorReasoning));
+        Assert.AreEqual("I need to inspect the requested file before answering.", priorReasoning);
+        Assert.IsTrue(replayedAssistants[1].Patch.TryGetValue("$.reasoning_content"u8, out string? emptyReasoning));
+        Assert.AreEqual(string.Empty, emptyReasoning);
+        Assert.AreEqual(1, replayedAssistants[1].ToolCalls.Count);
+    }
+
+    [TestMethod]
     public async Task OpenAIChatAgentBackend_AppliesExtraBodyAndParsesCumulativeReasoningDetails()
     {
         using var temp = TestTempDirectory.Create();
@@ -840,10 +988,26 @@ public sealed class OpenAIRawApiAgentBackendTests
         }
     }
 
-    private sealed class RecordingOpenAIChatClient(IReadOnlyList<StreamingChatCompletionUpdate> updates)
-        : ChatClient("test-model", new ApiKeyCredential("test-key"), new OpenAIClientOptions())
+    private sealed class RecordingOpenAIChatClient : ChatClient
     {
+        private readonly IReadOnlyList<IReadOnlyList<StreamingChatCompletionUpdate>> _responseBatches;
+
+        public RecordingOpenAIChatClient(IReadOnlyList<StreamingChatCompletionUpdate> updates)
+            : this([updates])
+        {
+        }
+
+        private RecordingOpenAIChatClient(IReadOnlyList<IReadOnlyList<StreamingChatCompletionUpdate>> responseBatches)
+            : base("test-model", new ApiKeyCredential("test-key"), new OpenAIClientOptions())
+        {
+            _responseBatches = responseBatches;
+        }
+
         public List<ChatRequestRecord> Requests { get; } = [];
+
+        public static RecordingOpenAIChatClient ForBatches(
+            IReadOnlyList<IReadOnlyList<StreamingChatCompletionUpdate>> responseBatches)
+            => new(responseBatches);
 
         public override AsyncCollectionResult<StreamingChatCompletionUpdate> CompleteChatStreamingAsync(
             IEnumerable<ChatMessage> messages,
@@ -851,6 +1015,10 @@ public sealed class OpenAIRawApiAgentBackendTests
             CancellationToken cancellationToken = default)
         {
             Requests.Add(new ChatRequestRecord(messages.ToArray(), CloneOptions(options)));
+            var requestIndex = Requests.Count - 1;
+            var updates = requestIndex < _responseBatches.Count
+                ? _responseBatches[requestIndex]
+                : [];
             return new TestAsyncCollectionResult<StreamingChatCompletionUpdate>(updates);
         }
 

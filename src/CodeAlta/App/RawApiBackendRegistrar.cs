@@ -488,6 +488,7 @@ internal static class RawApiBackendRegistrar
             ReasoningFieldNames = document.ReasoningFieldNames is null
                 ? profile.ReasoningFieldNames
                 : [.. document.ReasoningFieldNames],
+            ReasoningInputFieldName = document.ReasoningInputFieldName ?? profile.ReasoningInputFieldName,
         };
     }
 

@@ -34,6 +34,7 @@ public sealed class CodeAltaConfigStoreRawApiTests
             supports_store = false
             max_tokens_field_name = " max_tokens "
             reasoning_field_names = [" reasoning_content ", "", "reasoning"]
+            reasoning_input_field_name = " reasoning_content "
 
             [providers.OpenRouter.compaction]
             reserved_output_tokens = 2048
@@ -80,6 +81,7 @@ public sealed class CodeAltaConfigStoreRawApiTests
         CollectionAssert.AreEqual(
             new[] { "reasoning_content", "reasoning" },
             openRouter.Profile.ReasoningFieldNames);
+        Assert.AreEqual("reasoning_content", openRouter.Profile.ReasoningInputFieldName);
         Assert.IsNotNull(openRouter.Compaction);
         Assert.AreEqual(2048, openRouter.Compaction!.ReservedOutputTokens);
         Assert.AreEqual(768, openRouter.Compaction.SummaryOutputTokens);

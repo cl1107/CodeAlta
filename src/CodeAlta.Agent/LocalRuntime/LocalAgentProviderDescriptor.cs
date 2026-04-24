@@ -126,6 +126,11 @@ public sealed record LocalAgentProviderProfile
     public IReadOnlyList<string> ReasoningFieldNames { get; init; } = [];
 
     /// <summary>
+    /// Gets or initializes the assistant-message field name used to replay reasoning content back to the provider.
+    /// </summary>
+    public string? ReasoningInputFieldName { get; init; }
+
+    /// <summary>
     /// Gets or initializes whether tool results require a synthetic assistant turn before the next user turn.
     /// </summary>
     public bool RequiresAssistantAfterToolResult { get; init; }

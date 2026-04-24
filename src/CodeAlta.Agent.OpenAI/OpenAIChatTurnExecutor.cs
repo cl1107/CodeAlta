@@ -198,7 +198,7 @@ internal sealed class OpenAIChatTurnExecutor(OpenAIProviderOptions provider) : I
 
         foreach (var message in request.Conversation)
         {
-            messages.Add(MapMessage(message));
+            messages.Add(MapMessage(message, request.Provider.Profile));
         }
 
         return messages;
@@ -244,13 +244,15 @@ internal sealed class OpenAIChatTurnExecutor(OpenAIProviderOptions provider) : I
         return options;
     }
 
-    private static ChatMessage MapMessage(LocalAgentConversationMessage message)
+    private static ChatMessage MapMessage(
+        LocalAgentConversationMessage message,
+        LocalAgentProviderProfile? profile)
     {
         return message.Role switch
         {
             LocalAgentConversationRole.System => ChatMessage.CreateSystemMessage(CreateContentParts(message.Parts)),
             LocalAgentConversationRole.User => ChatMessage.CreateUserMessage(CreateContentParts(message.Parts)),
-            LocalAgentConversationRole.Assistant => CreateAssistantMessage(message.Parts),
+            LocalAgentConversationRole.Assistant => CreateAssistantMessage(message.Parts, profile),
             LocalAgentConversationRole.Tool => CreateToolMessage(message.Parts),
             _ => ChatMessage.CreateUserMessage(string.Empty),
         };
@@ -290,10 +292,14 @@ internal sealed class OpenAIChatTurnExecutor(OpenAIProviderOptions provider) : I
             : [.. contentParts];
     }
 
-    private static AssistantChatMessage CreateAssistantMessage(IReadOnlyList<LocalAgentMessagePart> parts)
+    private static AssistantChatMessage CreateAssistantMessage(
+        IReadOnlyList<LocalAgentMessagePart> parts,
+        LocalAgentProviderProfile? profile)
     {
         var contentParts = new List<ChatMessageContentPart>();
         var toolCalls = new List<ChatToolCall>();
+        var reasoningInputFieldName = NormalizeReasoningInputFieldName(profile?.ReasoningInputFieldName);
+        StringBuilder? reasoningInput = null;
 
         foreach (var part in parts)
         {
@@ -307,6 +313,16 @@ internal sealed class OpenAIChatTurnExecutor(OpenAIProviderOptions provider) : I
                     break;
                 case LocalAgentMessagePart.Data data:
                     contentParts.Add(ChatMessageContentPart.CreateTextPart(data.Name ?? data.MediaType ?? "attachment"));
+                    break;
+                case LocalAgentMessagePart.Reasoning reasoning when !string.IsNullOrWhiteSpace(reasoning.Value) &&
+                    reasoningInputFieldName is not null:
+                    reasoningInput ??= new StringBuilder();
+                    if (reasoningInput.Length > 0)
+                    {
+                        reasoningInput.AppendLine();
+                    }
+
+                    reasoningInput.Append(reasoning.Value);
                     break;
                 case LocalAgentMessagePart.Reasoning reasoning when !string.IsNullOrWhiteSpace(reasoning.Value):
                     contentParts.Add(ChatMessageContentPart.CreateTextPart($"<assistant_reasoning>{reasoning.Value}</assistant_reasoning>"));
@@ -329,7 +345,27 @@ internal sealed class OpenAIChatTurnExecutor(OpenAIProviderOptions provider) : I
             assistantMessage.ToolCalls.Add(toolCall);
         }
 
+        if (reasoningInputFieldName is not null && (reasoningInput is not null || toolCalls.Count > 0))
+        {
+            assistantMessage.Patch.Set(
+                Encoding.UTF8.GetBytes($"$.{reasoningInputFieldName}"),
+                reasoningInput?.ToString() ?? string.Empty);
+        }
+
         return assistantMessage;
+    }
+
+    private static string? NormalizeReasoningInputFieldName(string? reasoningInputFieldName)
+    {
+        if (string.IsNullOrWhiteSpace(reasoningInputFieldName))
+        {
+            return null;
+        }
+
+        var normalized = reasoningInputFieldName.Trim();
+        return normalized.StartsWith("$.", StringComparison.Ordinal)
+            ? normalized[2..]
+            : normalized;
     }
 
     private static ToolChatMessage CreateToolMessage(IReadOnlyList<LocalAgentMessagePart> parts)

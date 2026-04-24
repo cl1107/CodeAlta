@@ -26,6 +26,16 @@ internal static class RawApiProviderDefaultsCatalog
                 {
                     ["reasoning_split"] = true,
                 })),
+        new(
+            "DeepSeek OpenAI Chat",
+            static context =>
+                context.TransportKind == LocalAgentTransportKind.OpenAIChatCompletions &&
+                (string.Equals(context.ProviderKey, "deepseek", StringComparison.OrdinalIgnoreCase) ||
+                 HasHost(context.BaseUri, "deepseek.com")),
+            static profile => profile with
+            {
+                ReasoningInputFieldName = "reasoning_content",
+            }),
     ];
 
     public static LocalAgentProviderProfile ApplyProfileDefaults(
