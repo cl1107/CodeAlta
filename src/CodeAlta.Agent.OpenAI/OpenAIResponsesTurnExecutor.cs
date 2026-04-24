@@ -150,7 +150,7 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
         }
         catch (Exception ex)
         {
-            throw CreateTurnExecutionException(ex);
+            throw CreateTurnExecutionException(TranslateCodexSubscriptionException(provider, ex));
         }
     }
 
@@ -675,6 +675,30 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
                 ex.Message,
                 IsContextOverflowMessage(ex.Message)),
             ex);
+
+    private static Exception TranslateCodexSubscriptionException(OpenAIProviderOptions provider, Exception exception)
+    {
+        if (provider.CodexSubscription is null)
+        {
+            return exception;
+        }
+
+        if (exception is HttpRequestException { StatusCode: { } statusCode })
+        {
+            var message = statusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized => "ChatGPT/Codex authentication failed; re-authentication is required.",
+                System.Net.HttpStatusCode.Forbidden => "ChatGPT/Codex account, workspace, plan, or policy does not allow this request.",
+                System.Net.HttpStatusCode.TooManyRequests => "ChatGPT/Codex rate limit or quota was reached. Retry later or after the service-provided Retry-After time.",
+                >= System.Net.HttpStatusCode.InternalServerError => "ChatGPT/Codex backend is temporarily unavailable.",
+                System.Net.HttpStatusCode.BadRequest => "ChatGPT/Codex rejected the request shape.",
+                _ => $"ChatGPT/Codex request failed with HTTP {(int)statusCode}.",
+            };
+            return new InvalidOperationException(message, exception);
+        }
+
+        return exception;
+    }
 
     private static bool IsContextOverflowMessage(string? message)
         => !string.IsNullOrWhiteSpace(message) &&

@@ -3,6 +3,7 @@
 using System.ClientModel;
 #pragma warning disable SCME0001
 using System.ClientModel.Primitives;
+using System.Net;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
@@ -944,6 +945,69 @@ public sealed class OpenAIRawApiAgentBackendTests
         Assert.IsFalse(document.RootElement.TryGetProperty("client_metadata", out _));
     }
 
+    [TestMethod]
+    public async Task OpenAIResponsesTurnExecutor_TranslatesCodexRateLimitErrors()
+    {
+        var executor = new OpenAIResponsesTurnExecutor(new OpenAIProviderOptions
+        {
+            ProviderKey = "codex_subscription",
+            ResponsesClientFactory = _ => new ThrowingOpenAIResponseClient(
+                new HttpRequestException("Too many requests.", null, HttpStatusCode.TooManyRequests)),
+            CodexSubscription = new OpenAICodexSubscriptionOptions
+            {
+                Experimental = true,
+            },
+        });
+        var request = CreateTurnRequest() with
+        {
+            Provider = CreateTurnRequest().Provider with
+            {
+                ProtocolFamily = "openai-codex-subscription",
+                ProviderKey = "codex_subscription",
+                DisplayName = "Codex (ChatGPT subscription)",
+            },
+            ModelId = "gpt-5.3-codex",
+        };
+
+        var exception = await Assert.ThrowsExactlyAsync<LocalAgentTurnExecutionException>(
+                () => executor.ExecuteTurnAsync(request, static (_, _) => ValueTask.CompletedTask))
+            .ConfigureAwait(false);
+
+        StringAssert.Contains(exception.Failure.Message, "rate limit");
+        StringAssert.Contains(exception.Failure.Message, "Retry");
+    }
+
+    [TestMethod]
+    public async Task OpenAIResponsesTurnExecutor_TranslatesCodexAuthErrors()
+    {
+        var executor = new OpenAIResponsesTurnExecutor(new OpenAIProviderOptions
+        {
+            ProviderKey = "codex_subscription",
+            ResponsesClientFactory = _ => new ThrowingOpenAIResponseClient(
+                new HttpRequestException("Unauthorized.", null, HttpStatusCode.Unauthorized)),
+            CodexSubscription = new OpenAICodexSubscriptionOptions
+            {
+                Experimental = true,
+            },
+        });
+        var request = CreateTurnRequest() with
+        {
+            Provider = CreateTurnRequest().Provider with
+            {
+                ProtocolFamily = "openai-codex-subscription",
+                ProviderKey = "codex_subscription",
+                DisplayName = "Codex (ChatGPT subscription)",
+            },
+            ModelId = "gpt-5.3-codex",
+        };
+
+        var exception = await Assert.ThrowsExactlyAsync<LocalAgentTurnExecutionException>(
+                () => executor.ExecuteTurnAsync(request, static (_, _) => ValueTask.CompletedTask))
+            .ConfigureAwait(false);
+
+        StringAssert.Contains(exception.Failure.Message, "re-authentication");
+    }
+
     private static StreamingResponseUpdate CreateAssistantResponseUpdate(
         string responseId,
         string modelId,
@@ -1245,6 +1309,15 @@ public sealed class OpenAIRawApiAgentBackendTests
 
             return clone;
         }
+    }
+
+    private sealed class ThrowingOpenAIResponseClient(Exception exception)
+        : ResponsesClient(new ApiKeyCredential("test-key"), new OpenAIClientOptions())
+    {
+        public override AsyncCollectionResult<StreamingResponseUpdate> CreateResponseStreamingAsync(
+            CreateResponseOptions options,
+            CancellationToken cancellationToken = default)
+            => throw exception;
     }
 
     private sealed class RecordingOpenAIChatClient : ChatClient
