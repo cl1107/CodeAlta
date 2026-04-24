@@ -10,6 +10,7 @@ using System.Text.Json;
 using CodeAlta.Agent;
 using CodeAlta.Agent.LocalRuntime;
 using CodeAlta.Agent.OpenAI;
+using CodeAlta.Agent.OpenAI.CodexSubscription;
 using OpenAI;
 using OpenAI.Chat;
 using OpenAI.Responses;
@@ -1062,6 +1063,78 @@ public sealed class OpenAIRawApiAgentBackendTests
         Assert.IsTrue(history.OfType<AgentContentCompletedEvent>().Any(static e => e.Kind == AgentContentKind.ToolOutput && e.Content == "README contents"));
         Assert.IsTrue(history.OfType<AgentContentCompletedEvent>().Any(static e => e.Kind == AgentContentKind.ToolOutput && e.Content == "Project contents"));
         Assert.IsTrue(history.OfType<AgentContentCompletedEvent>().Any(static e => e.Kind == AgentContentKind.Assistant && e.Content == "Done."));
+    }
+
+    [TestMethod]
+    public async Task OpenAIResponsesAgentBackend_CodexTokensAreNotStoredInSessionHistory()
+    {
+        using var temp = TestTempDirectory.Create();
+        var store = new FileOpenAICodexSubscriptionCredentialStore(temp.Path);
+        await store.SaveAsync(
+                "codex_subscription",
+                new OpenAICodexSubscriptionCredential
+                {
+                    AccessToken = "access-token-should-not-appear",
+                    RefreshToken = "refresh-token-should-not-appear",
+                    IdToken = "id-token-should-not-appear",
+                    ExpiresAt = DateTimeOffset.UtcNow.AddHours(1),
+                    AccountId = "acct_123",
+                })
+            .ConfigureAwait(false);
+        var responsesClient = new RecordingOpenAIResponseClient(
+        [
+            [
+                CreateAssistantResponseUpdate(
+                    responseId: "response-token-history",
+                    modelId: "gpt-5.3-codex",
+                    text: "Answer.",
+                    reasoningText: "Thinking.",
+                    encryptedReasoning: null),
+            ],
+        ]);
+
+        await using var backend = new OpenAIResponsesAgentBackend(new OpenAIResponsesAgentBackendOptions
+        {
+            StateRootPath = temp.Path,
+            Providers =
+            {
+                new OpenAIProviderOptions
+                {
+                    ProviderKey = "codex_subscription",
+                    IsDefault = true,
+                    ResponsesClientFactory = _ => responsesClient,
+                    CodexSubscription = new OpenAICodexSubscriptionOptions
+                    {
+                        Experimental = true,
+                    },
+                    ModelListAsync = static _ => Task.FromResult<IReadOnlyList<AgentModelInfo>>(
+                    [
+                        new AgentModelInfo("gpt-5.3-codex", DisplayName: "GPT Codex"),
+                    ]),
+                },
+            },
+        });
+
+        await using var session = await backend.CreateSessionAsync(new AgentSessionCreateOptions
+        {
+            Model = "gpt-5.3-codex",
+            WorkingDirectory = temp.Path,
+            OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
+        }).ConfigureAwait(false);
+
+        _ = await session.SendAsync(new AgentSendOptions
+        {
+            Input = new AgentInput([new AgentInputItem.Text("Hello")]),
+        }).ConfigureAwait(false);
+
+        var sessionsRoot = Path.Combine(temp.Path, "sessions");
+        var sessionHistory = string.Join(
+            Environment.NewLine,
+            Directory.EnumerateFiles(sessionsRoot, "*.jsonl", SearchOption.AllDirectories)
+                .Select(File.ReadAllText));
+        Assert.IsFalse(sessionHistory.Contains("access-token-should-not-appear", StringComparison.Ordinal));
+        Assert.IsFalse(sessionHistory.Contains("refresh-token-should-not-appear", StringComparison.Ordinal));
+        Assert.IsFalse(sessionHistory.Contains("id-token-should-not-appear", StringComparison.Ordinal));
     }
 
     [TestMethod]
