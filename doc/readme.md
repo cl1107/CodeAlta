@@ -173,11 +173,12 @@ Additional local providers can target raw provider SDKs such as:
 
 - `OpenAI Responses`
 - `OpenAI Chat`
+- `Codex (ChatGPT subscription)` experimental Responses access
 - `Anthropic`
 - `Google GenAI`
 - `Vertex AI`
 
-These providers are configured from `~/.alta/config.toml` under `providers.<provider-key>`. Each entry represents one provider registration and uses a single canonical `type` field such as `openai-chat`, `openai-responses`, `anthropic`, `google-genai`, or `vertex-ai`. OpenAI-compatible and Anthropic-compatible endpoints may set `api_url`; Vertex uses `project` and `location` instead. Each provider can optionally map to a models.dev provider id and override individual model limits so context usage stays consistent even when the upstream SDK does not expose context-window metadata.
+These providers are configured from `~/.alta/config.toml` under `providers.<provider-key>`. Each entry represents one provider registration and uses a single canonical `type` field such as `openai-chat`, `openai-responses`, `openai-codex-subscription`, `anthropic`, `google-genai`, or `vertex-ai`. OpenAI-compatible and Anthropic-compatible endpoints may set `api_url`; Vertex uses `project` and `location` instead. Each provider can optionally map to a models.dev provider id and override individual model limits so context usage stays consistent even when the upstream SDK does not expose context-window metadata.
 
 The preferred workflow is now the in-app model providers dialog (`Ctrl+G Ctrl+M`), which edits the same file. The dialog:
 
@@ -231,6 +232,13 @@ api_url = "https://api.openai.com/v1"
 model = "gpt-5.4"
 reasoning_effort = "high"
 
+[providers.codex_subscription]
+display_name = "Codex (ChatGPT subscription)"
+type = "openai-codex-subscription"
+model = "gpt-5.3-codex"
+reasoning_effort = "high"
+experimental = true
+
 [providers.minimax]
 display_name = "MiniMax 2.7"
 type = "anthropic"
@@ -259,6 +267,17 @@ reasoning_effort = "high"
 ```
 
 Model discovery still comes from the upstream provider API when supported. `model_overrides` enriches or corrects discovered model metadata, while `single_model_id` can pin a provider to one fixed model for single-model endpoints. When an OpenAI-compatible endpoint does not implement `/models`, CodeAlta can also fall back to the local `models.dev` catalog if the provider key or `models_dev_provider_id` maps to a known catalog provider such as `minimax`.
+
+The `openai-codex-subscription` provider is experimental and intentionally distinct from public OpenAI platform access:
+
+- it requires `experimental = true` and rejects `api_key`, `api_key_env`, and arbitrary `extra_body`;
+- it uses ChatGPT/Codex OAuth credentials stored in CodeAlta-owned state and never treats ChatGPT tokens as OpenAI platform API keys;
+- requests target `https://chatgpt.com/backend-api/codex` by default and use SSE Responses transport only; WebSocket transport is not enabled in this version;
+- model discovery uses authenticated `GET /backend-api/codex/models?client_version=<codealta-version>` and falls back to the bundled static Codex allow-list only in the configured fallback mode;
+- requests may count against the user's ChatGPT/Codex subscription limits, and CodeAlta does not rotate accounts, bypass limits, or automatically fall back to a different provider;
+- `send_installation_id` defaults to `false`; when explicitly enabled, CodeAlta sends a stable CodeAlta-owned UUID in `client_metadata.x-codex-installation-id`.
+
+Supported Codex subscription auth sources are `codealta_oauth`, `codex_auth_import`, and `codex_auth_file_readonly`. `codex_auth_import` is a one-time read-only copy from Codex's `auth.json` into CodeAlta state; `codex_auth_file_readonly` is intended for development/test scenarios and never writes Codex-owned files.
 
 CodeAlta also applies known provider defaults through a small defaults catalog before config overrides are applied. For example, MiniMax Chat registrations automatically disable the `developer` message role and merge developer instructions into the system prompt instead. DeepSeek Chat registrations replay assistant reasoning through `reasoning_content` so thinking-mode tool calls can continue across tool-result turns. An explicit `profile` section in `config.toml` can still override those defaults, including `reasoning_input_field_name` for OpenAI-compatible providers that require a different assistant reasoning replay field.
 
