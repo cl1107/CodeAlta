@@ -126,6 +126,8 @@ public sealed class OpenAIProviderOptions
 
     internal Func<string?, ResponsesClient>? ResponsesClientFactory { get; set; }
 
+    internal Func<OpenAIResponsesClientFactoryContext, ResponsesClient>? ResponsesClientContextFactory { get; set; }
+
     internal Func<string?, ChatClient>? ChatClientFactory { get; set; }
 
     internal Func<CancellationToken, Task<IReadOnlyList<AgentModelInfo>>>? ModelListAsync { get; set; }
@@ -186,3 +188,9 @@ public sealed class OpenAICodexSubscriptionOptions
     /// </summary>
     public bool Experimental { get; set; }
 }
+
+internal sealed record OpenAIResponsesClientFactoryContext(
+    string? ModelId,
+    string SessionId,
+    AgentRunId RunId,
+    LocalAgentProviderDescriptor Provider);

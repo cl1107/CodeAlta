@@ -27,7 +27,13 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
 
         try
         {
-            var client = OpenAIProviderSdkFactory.CreateResponsesClient(provider, request.ModelId);
+            var client = OpenAIProviderSdkFactory.CreateResponsesClient(
+                provider,
+                new OpenAIResponsesClientFactoryContext(
+                    request.ModelId,
+                    request.SessionId,
+                    request.RunId,
+                    request.Provider));
             var options = CreateRequestPayload(request);
             ResponseResult? completedResponse = null;
             ResponseResult? latestResponse = null;

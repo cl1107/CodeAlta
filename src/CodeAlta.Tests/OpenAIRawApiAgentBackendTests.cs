@@ -716,6 +716,74 @@ public sealed class OpenAIRawApiAgentBackendTests
         Assert.IsTrue(customFlag);
     }
 
+    [TestMethod]
+    public async Task OpenAIResponsesTurnExecutor_PassesRequestContextToResponsesClientFactory()
+    {
+        var responsesClient = new RecordingOpenAIResponseClient(
+        [
+            [
+                CreateAssistantResponseUpdate(
+                    responseId: "response-context",
+                    modelId: "gpt-test",
+                    text: "Answer.",
+                    reasoningText: "Thinking.",
+                    encryptedReasoning: null),
+            ],
+        ]);
+        OpenAIResponsesClientFactoryContext? capturedContext = null;
+        var executor = new OpenAIResponsesTurnExecutor(new OpenAIProviderOptions
+        {
+            ProviderKey = "openai",
+            ResponsesClientContextFactory = context =>
+            {
+                capturedContext = context;
+                return responsesClient;
+            },
+        });
+
+        _ = await executor.ExecuteTurnAsync(
+            CreateTurnRequest(),
+            static (_, _) => ValueTask.CompletedTask).ConfigureAwait(false);
+
+        Assert.IsNotNull(capturedContext);
+        Assert.AreEqual("gpt-test", capturedContext!.ModelId);
+        Assert.AreEqual("session-1", capturedContext.SessionId);
+        Assert.AreEqual(new AgentRunId("run-1"), capturedContext.RunId);
+        Assert.AreEqual("openai", capturedContext.Provider.ProviderKey);
+    }
+
+    [TestMethod]
+    public async Task OpenAIResponsesTurnExecutor_PreservesLegacyResponsesClientFactory()
+    {
+        var responsesClient = new RecordingOpenAIResponseClient(
+        [
+            [
+                CreateAssistantResponseUpdate(
+                    responseId: "response-legacy",
+                    modelId: "gpt-test",
+                    text: "Answer.",
+                    reasoningText: "Thinking.",
+                    encryptedReasoning: null),
+            ],
+        ]);
+        string? capturedModel = null;
+        var executor = new OpenAIResponsesTurnExecutor(new OpenAIProviderOptions
+        {
+            ProviderKey = "openai",
+            ResponsesClientFactory = model =>
+            {
+                capturedModel = model;
+                return responsesClient;
+            },
+        });
+
+        _ = await executor.ExecuteTurnAsync(
+            CreateTurnRequest(),
+            static (_, _) => ValueTask.CompletedTask).ConfigureAwait(false);
+
+        Assert.AreEqual("gpt-test", capturedModel);
+    }
+
     private static StreamingResponseUpdate CreateAssistantResponseUpdate(
         string responseId,
         string modelId,

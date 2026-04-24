@@ -23,6 +23,21 @@ internal static class OpenAIProviderSdkFactory
             ? provider.ResponsesClientFactory(model)
             : new ResponsesClient(CreateCredential(provider), CreateClientOptions(provider));
 
+    public static ResponsesClient CreateResponsesClient(
+        OpenAIProviderOptions provider,
+        OpenAIResponsesClientFactoryContext context)
+    {
+        ArgumentNullException.ThrowIfNull(provider);
+        ArgumentNullException.ThrowIfNull(context);
+
+        if (provider.ResponsesClientContextFactory is not null)
+        {
+            return provider.ResponsesClientContextFactory(context);
+        }
+
+        return CreateResponsesClient(provider, context.ModelId);
+    }
+
     public static ChatClient CreateChatClient(OpenAIProviderOptions provider, string? model)
         => provider.ChatClientFactory is not null
             ? provider.ChatClientFactory(model)
