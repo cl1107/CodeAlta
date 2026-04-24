@@ -1071,6 +1071,96 @@ public sealed class OpenAIRawApiAgentBackendTests
     }
 
     [TestMethod]
+    public async Task OpenAIResponsesAgentBackend_CodexSessionResumeReplaysLocalHistory()
+    {
+        using var temp = TestTempDirectory.Create();
+        var responsesClient = new RecordingOpenAIResponseClient(
+        [
+            [
+                CreateAssistantResponseUpdate(
+                    responseId: "response-before-resume",
+                    modelId: "gpt-5.3-codex",
+                    text: "First answer.",
+                    reasoningText: "Reasoned before resume.",
+                    encryptedReasoning: "encrypted-before-resume"),
+            ],
+            [
+                CreateAssistantResponseUpdate(
+                    responseId: "response-after-resume",
+                    modelId: "gpt-5.3-codex",
+                    text: "Second answer.",
+                    reasoningText: "Reasoned after resume.",
+                    encryptedReasoning: "encrypted-after-resume"),
+            ],
+        ]);
+
+        await using var backend = new OpenAIResponsesAgentBackend(new OpenAIResponsesAgentBackendOptions
+        {
+            StateRootPath = temp.Path,
+            Providers =
+            {
+                new OpenAIProviderOptions
+                {
+                    ProviderKey = "codex_subscription",
+                    IsDefault = true,
+                    ResponsesClientFactory = _ => responsesClient,
+                    CodexSubscription = new OpenAICodexSubscriptionOptions
+                    {
+                        Experimental = true,
+                    },
+                    ModelListAsync = static _ => Task.FromResult<IReadOnlyList<AgentModelInfo>>(
+                    [
+                        new AgentModelInfo(
+                            "gpt-5.3-codex",
+                            DisplayName: "GPT Codex",
+                            Capabilities: new Dictionary<string, object?>(StringComparer.Ordinal)
+                            {
+                                ["inputTokenLimit"] = 200000L,
+                            }),
+                    ]),
+                },
+            },
+        });
+
+        string sessionId;
+        await using (var session = await backend.CreateSessionAsync(new AgentSessionCreateOptions
+        {
+            Model = "gpt-5.3-codex",
+            WorkingDirectory = temp.Path,
+            OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
+        }).ConfigureAwait(false))
+        {
+            sessionId = session.SessionId;
+            _ = await session.SendAsync(new AgentSendOptions
+            {
+                Input = new AgentInput([new AgentInputItem.Text("First prompt")]),
+            }).ConfigureAwait(false);
+        }
+
+        await using (var resumed = await backend.ResumeSessionAsync(
+            sessionId,
+            new AgentSessionResumeOptions
+            {
+                Model = "gpt-5.3-codex",
+                WorkingDirectory = temp.Path,
+                OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
+            }).ConfigureAwait(false))
+        {
+            _ = await resumed.SendAsync(new AgentSendOptions
+            {
+                Input = new AgentInput([new AgentInputItem.Text("Second prompt")]),
+            }).ConfigureAwait(false);
+        }
+
+        Assert.AreEqual(2, responsesClient.Requests.Count);
+        Assert.IsNull(responsesClient.Requests[0].Options.PreviousResponseId);
+        Assert.IsNull(responsesClient.Requests[1].Options.PreviousResponseId);
+        StringAssert.Contains(responsesClient.Requests[1].SerializedOptions, "First prompt");
+        StringAssert.Contains(responsesClient.Requests[1].SerializedOptions, "First answer.");
+        StringAssert.Contains(responsesClient.Requests[1].SerializedOptions, "Second prompt");
+    }
+
+    [TestMethod]
     public async Task OpenAIResponsesAgentBackend_CodexTokensAreNotStoredInSessionHistory()
     {
         using var temp = TestTempDirectory.Create();
