@@ -575,6 +575,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
     }
     private void EnsureSelectionDefaults() => _threadStateCoordinator.EnsureSelectionDefaults();
     internal void SetStatus(string message, bool showSpinner = false, StatusTone tone = StatusTone.Info) => _workspaceCoordinator.SetStatus(message, showSpinner, tone);
+    internal void SetProviderSessionLoadStatus(string? message) => _workspaceCoordinator.SetProviderSessionLoadStatus(message);
     private void SetThreadStatus(
         OpenThreadState tab,
         string message,

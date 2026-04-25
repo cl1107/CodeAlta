@@ -87,6 +87,16 @@ internal sealed class ShellWorkspaceCoordinator
     public void SetStatus(string message, bool showSpinner = false, StatusTone tone = StatusTone.Info)
         => SetStatus(message, showSpinner, tone, iconMarkup: null);
 
+    public void SetProviderSessionLoadStatus(string? message)
+    {
+        _workspaceContext.DispatchToUi(
+            () =>
+            {
+                _workspaceContext.VerifyBindableAccess();
+                _shellViewModel.ProviderSessionLoadStatusText = message?.Trim() ?? string.Empty;
+            });
+    }
+
     public void SetStatus(string message, bool showSpinner, StatusTone tone, string? iconMarkup)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(message);

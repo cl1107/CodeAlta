@@ -86,13 +86,14 @@ public sealed class CodeAltaShellControllerTests
             new[]
             {
                 "Shell.InitializeChatBackends",
+                "Shell.RefreshCatalogAndThreadWorkspace",
+                "Shell.SetReadyStatus",
+                "Shell.SetInitialized:True",
+                "Shell.TrySchedulePendingStartupThreadRestore",
                 "Importer.Import",
                 "ProjectCatalog.Load",
                 "ThreadSource.List",
                 "Shell.ApplyRecoveredCatalogState:1:1",
-                "Shell.RefreshCatalogAndThreadWorkspace",
-                "Shell.SetReadyStatus",
-                "Shell.SetInitialized:True",
                 "Shell.TrySchedulePendingStartupThreadRestore",
             },
             log);
@@ -123,6 +124,34 @@ public sealed class CodeAltaShellControllerTests
                 "Shell.HandleRuntimeEvent:thread-1",
             },
             log);
+    }
+
+    [TestMethod]
+    public void FormatProviderSessionLoadStatus_ShowsProgressAndProviderNames()
+    {
+        var status = CodeAltaShellController.FormatProviderSessionLoadStatus(
+            new ProviderSessionLoadProgress(
+                AgentBackendIds.Codex,
+                "Codex",
+                1,
+                2,
+                ["Copilot"]));
+
+        Assert.AreEqual("Loading Copilot sessions [■■■■□□□□] 1/2", status);
+    }
+
+    [TestMethod]
+    public void FormatProviderSessionLoadStatus_HidesWhenComplete()
+    {
+        var status = CodeAltaShellController.FormatProviderSessionLoadStatus(
+            new ProviderSessionLoadProgress(
+                AgentBackendIds.Codex,
+                "Codex",
+                2,
+                2,
+                []));
+
+        Assert.IsNull(status);
     }
 
     [TestMethod]
@@ -534,6 +563,10 @@ public sealed class CodeAltaShellControllerTests
 
         public void SetStatus(string message, bool showSpinner = false, StatusTone tone = StatusTone.Info)
             => log.Add($"Shell.Status:{message}:{showSpinner}:{tone}");
+
+        public void SetProviderSessionLoadStatus(string? message)
+        {
+        }
 
         public void ApplyRecoveredCatalogState(IReadOnlyList<ProjectDescriptor> projects, IReadOnlyList<WorkThreadDescriptor> threads)
             => log.Add($"Shell.ApplyRecoveredCatalogState:{projects.Count}:{threads.Count}");

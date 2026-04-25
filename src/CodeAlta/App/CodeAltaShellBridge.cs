@@ -21,6 +21,9 @@ internal sealed class CodeAltaShellBridge : ICodeAltaShell
     public void SetStatus(string message, bool showSpinner = false, StatusTone tone = StatusTone.Info)
         => _app.SetStatus(message, showSpinner, tone);
 
+    public void SetProviderSessionLoadStatus(string? message)
+        => _app.SetProviderSessionLoadStatus(message);
+
     public void ApplyRecoveredCatalogState(
         IReadOnlyList<ProjectDescriptor> projects,
         IReadOnlyList<WorkThreadDescriptor> threads)

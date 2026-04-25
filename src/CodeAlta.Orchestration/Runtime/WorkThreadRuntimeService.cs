@@ -74,22 +74,13 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
         var results = new List<WorkThreadDescriptor>(internalThreads.Count);
         results.AddRange(internalThreads);
 
-        foreach (var backendId in _agentHub.ListRegisteredBackends())
+        var sessionResults = await Task.WhenAll(
+                _agentHub.ListRegisteredBackends().Select(LoadBackendSessionsAsync))
+            .ConfigureAwait(false);
+
+        foreach (var (backendId, sessions) in sessionResults)
         {
-            IReadOnlyList<AgentSessionMetadata> sessions;
-            try
-            {
-                sessions = await _agentHub.ListSessionsAsync(backendId, cancellationToken: cancellationToken).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (KeyNotFoundException)
-            {
-                continue;
-            }
-            catch
+            if (sessions is null)
             {
                 continue;
             }
@@ -109,6 +100,27 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
             .Select(static group => group.First())
             .OrderByDescending(static thread => thread.LastActiveAt)
             .ToArray();
+
+        async Task<(AgentBackendId BackendId, IReadOnlyList<AgentSessionMetadata>? Sessions)> LoadBackendSessionsAsync(AgentBackendId backendId)
+        {
+            try
+            {
+                var sessions = await _agentHub.ListSessionsAsync(backendId, cancellationToken: cancellationToken).ConfigureAwait(false);
+                return (backendId, sessions);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (KeyNotFoundException)
+            {
+                return (backendId, null);
+            }
+            catch
+            {
+                return (backendId, null);
+            }
+        }
     }
 
     /// <summary>

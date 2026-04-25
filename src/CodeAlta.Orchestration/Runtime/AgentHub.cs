@@ -14,6 +14,7 @@ public sealed class AgentHub : IAsyncDisposable
     private readonly Dictionary<AgentId, AgentIdentity> _agents = new();
     private readonly Dictionary<AgentId, SessionEntry> _sessions = new();
     private readonly Dictionary<string, IAgentBackend> _backends = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Task<IAgentBackend>> _backendInitializationTasks = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, IReadOnlyList<AgentSessionMetadata>> _sessionMetadataCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly Channel<OrchestrationEvent> _events = Channel.CreateUnbounded<OrchestrationEvent>();
     private readonly SemaphoreSlim _gate = new(initialCount: 1, maxCount: 1);
@@ -705,6 +706,7 @@ public sealed class AgentHub : IAsyncDisposable
         CancellationToken cancellationToken)
     {
         var key = backendId.Value;
+        Task<IAgentBackend> initializationTask;
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -713,14 +715,76 @@ public sealed class AgentHub : IAsyncDisposable
                 return existing;
             }
 
-            var created = _backendFactory.Create(backendId);
-            await created.StartAsync(cancellationToken).ConfigureAwait(false);
-            _backends[key] = created;
-            return created;
+            if (!_backendInitializationTasks.TryGetValue(key, out initializationTask!))
+            {
+                initializationTask = CreateAndStartBackendAsync(backendId, key, cancellationToken);
+                _backendInitializationTasks[key] = initializationTask;
+            }
         }
         finally
         {
             _gate.Release();
+        }
+
+        return await initializationTask.ConfigureAwait(false);
+    }
+
+    private async Task<IAgentBackend> CreateAndStartBackendAsync(
+        AgentBackendId backendId,
+        string key,
+        CancellationToken cancellationToken)
+    {
+        IAgentBackend? created = null;
+        try
+        {
+            created = _backendFactory.Create(backendId);
+            await created.StartAsync(cancellationToken).ConfigureAwait(false);
+
+            IAgentBackend? existing = null;
+            await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                _backendInitializationTasks.Remove(key);
+                if (_backends.TryGetValue(key, out existing))
+                {
+                    return existing;
+                }
+
+                _backends[key] = created;
+                return created;
+            }
+            finally
+            {
+                _gate.Release();
+            }
+        }
+        catch
+        {
+            await _gate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+            try
+            {
+                _backendInitializationTasks.Remove(key);
+            }
+            finally
+            {
+                _gate.Release();
+            }
+
+            if (created is not null)
+            {
+                try
+                {
+                    await created.StopAsync().ConfigureAwait(false);
+                }
+                catch
+                {
+                    // Ignore shutdown exceptions from backend runtimes that did not finish starting.
+                }
+
+                await created.DisposeAsync().ConfigureAwait(false);
+            }
+
+            throw;
         }
     }
 

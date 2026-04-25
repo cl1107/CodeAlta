@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using CodeAlta.Agent;
 using CodeAlta.Catalog;
 using CodeAlta.Orchestration.Runtime;
@@ -5,7 +6,7 @@ using XenoAtom.Logging;
 
 namespace CodeAlta.App;
 
-internal sealed class KnownProjectImporter : IKnownProjectImporter
+internal sealed class KnownProjectImporter : IKnownProjectImporterWithProgress
 {
     private static readonly Logger Logger = LogManager.GetLogger("CodeAlta.App");
     private readonly AgentHub _agentHub;
@@ -26,22 +27,67 @@ internal sealed class KnownProjectImporter : IKnownProjectImporter
         _projectCatalog = projectCatalog;
     }
 
-    public async Task ImportAsync(CancellationToken cancellationToken)
+    public Task ImportAsync(CancellationToken cancellationToken)
+        => ImportAsync(static _ => { }, cancellationToken);
+
+    public async Task ImportAsync(Action<ProviderSessionLoadProgress> reportProgress, CancellationToken cancellationToken)
     {
-        var workingDirectories = new List<string?>();
-        foreach (var backendId in _backendDescriptors.Select(static descriptor => descriptor.BackendId))
+        ArgumentNullException.ThrowIfNull(reportProgress);
+
+        var descriptors = _backendDescriptors.ToArray();
+        var workingDirectories = new ConcurrentBag<string?>();
+        var progressGate = new object();
+        var loadingProviderNames = descriptors.Select(static descriptor => descriptor.DisplayName).ToList();
+        var completedProviderCount = 0;
+        ReportProgress(null);
+
+        var importTasks = descriptors.Select(ImportBackendProjectsAsync).ToArray();
+        await Task.WhenAll(importTasks).ConfigureAwait(false);
+
+        await _projectCatalog.ImportWorkingDirectoriesAsync(workingDirectories, cancellationToken).ConfigureAwait(false);
+        return;
+
+        async Task ImportBackendProjectsAsync(AgentBackendDescriptor descriptor)
         {
             try
             {
-                var sessions = await _agentHub.ListSessionsAsync(backendId, cancellationToken: cancellationToken).ConfigureAwait(false);
-                workingDirectories.AddRange(sessions.Select(static session => session.Context?.Cwd ?? session.WorkspacePath));
+                var sessions = await _agentHub.ListSessionsAsync(descriptor.BackendId, cancellationToken: cancellationToken).ConfigureAwait(false);
+                foreach (var session in sessions)
+                {
+                    workingDirectories.Add(session.Context?.Cwd ?? session.WorkspacePath);
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
             }
             catch (Exception ex)
             {
-                Logger.Error(ex, $"Failed to import project history from backend '{backendId.Value}'.");
+                Logger.Error(ex, $"Failed to import project history from backend '{descriptor.BackendId.Value}'.");
+            }
+            finally
+            {
+                ReportProgress(descriptor);
             }
         }
 
-        await _projectCatalog.ImportWorkingDirectoriesAsync(workingDirectories, cancellationToken).ConfigureAwait(false);
+        void ReportProgress(AgentBackendDescriptor? descriptor)
+        {
+            lock (progressGate)
+            {
+                if (descriptor is not null)
+                {
+                    completedProviderCount++;
+                    loadingProviderNames.RemoveAll(name => string.Equals(name, descriptor.DisplayName, StringComparison.Ordinal));
+                }
+
+                reportProgress(new ProviderSessionLoadProgress(
+                    descriptor?.BackendId ?? default,
+                    descriptor?.DisplayName ?? string.Empty,
+                    completedProviderCount,
+                    descriptors.Length,
+                    loadingProviderNames.ToArray()));
+            }
+        }
     }
 }

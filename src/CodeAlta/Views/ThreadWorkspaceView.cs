@@ -401,20 +401,29 @@ internal sealed class ThreadWorkspaceView
             MaxWidth = 2,
         };
 
-        var statusLine = new HStack(
-        [
-            statusPrefix,
-            new TextBlock
-                {
-                    Wrap = true,
-                    IsSelectable = false,
-                }.Text(() => shellViewModel.StatusText)
-                .Style(() => StatusVisualFormatter.BuildStatusTextStyle(shellViewModel.StatusText, shellViewModel.StatusBusy, shellViewModel.StatusTone, thinkingAnimationPhase01.Value)),
-        ])
-        {
-            Spacing = 1,
-            HorizontalAlignment = Align.Stretch,
-        };
+        var statusLineLeft = new HStack(
+            [
+                statusPrefix,
+                new TextBlock
+                    {
+                        Wrap = true,
+                        IsSelectable = false,
+                    }.Text(() => shellViewModel.StatusText)
+                    .Style(() => StatusVisualFormatter.BuildStatusTextStyle(shellViewModel.StatusText, shellViewModel.StatusBusy, shellViewModel.StatusTone, thinkingAnimationPhase01.Value)),
+            ])
+            {
+                Spacing = 1,
+                HorizontalAlignment = Align.Stretch,
+            };
+        var providerSessionLoadStatus = new TextBlock
+            {
+                Wrap = false,
+                IsSelectable = false,
+            }.Text(() => shellViewModel.ProviderSessionLoadStatusText)
+            .Style(TextBlockStyle.Default with { Foreground = UiPalette.WelcomeGuidanceColor });
+        var statusLine = new StatusBar()
+            .LeftText(statusLineLeft)
+            .RightText(providerSessionLoadStatus);
 
         var queuedPromptList = new ComputedVisual(
             () =>

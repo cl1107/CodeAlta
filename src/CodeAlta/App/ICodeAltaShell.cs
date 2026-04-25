@@ -10,6 +10,8 @@ internal interface ICodeAltaShell
 
     void SetStatus(string message, bool showSpinner = false, StatusTone tone = StatusTone.Info);
 
+    void SetProviderSessionLoadStatus(string? message);
+
     void ApplyRecoveredCatalogState(
         IReadOnlyList<ProjectDescriptor> projects,
         IReadOnlyList<WorkThreadDescriptor> threads);

@@ -346,10 +346,13 @@ internal sealed class CodeAltaShellController : IAsyncDisposable
 
     private async Task RunInitializationAsync(CancellationToken cancellationToken)
     {
+        var initializedForInteraction = false;
         try
         {
             // These startup calls are background I/O and must not assume UI-thread affinity.
             await _shell.InitializeChatBackendsAsync(cancellationToken).ConfigureAwait(false);
+            await MarkInitializedForInteractionAsync(cancellationToken).ConfigureAwait(false);
+            initializedForInteraction = true;
             await RefreshCatalogFromBackendsAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -359,30 +362,51 @@ internal sealed class CodeAltaShellController : IAsyncDisposable
         {
             if (!_disposeCts.IsCancellationRequested)
             {
-                await UiDispatcher.InvokeAsync(
-                        () =>
-                        {
-                            _shell.RefreshCatalogAndThreadWorkspace();
-                            _shell.SetReadyStatusForCurrentSelection();
-                            _shell.SetInitialized(true);
-                            _shell.TrySchedulePendingStartupThreadRestore(CancellationToken.None);
-                        })
-                    .ConfigureAwait(false);
+                if (!initializedForInteraction)
+                {
+                    await MarkInitializedForInteractionAsync(CancellationToken.None).ConfigureAwait(false);
+                }
             }
         }
+    }
+
+    private Task MarkInitializedForInteractionAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return UiDispatcher.InvokeAsync(
+            () =>
+            {
+                _shell.RefreshCatalogAndThreadWorkspace();
+                _shell.SetReadyStatusForCurrentSelection();
+                _shell.SetInitialized(true);
+                _shell.TrySchedulePendingStartupThreadRestore(CancellationToken.None);
+            });
     }
 
     private async Task RefreshCatalogFromBackendsAsync(CancellationToken cancellationToken)
     {
         try
         {
-            await _knownProjectImporter.ImportAsync(cancellationToken).ConfigureAwait(false);
+            if (_knownProjectImporter is IKnownProjectImporterWithProgress progressImporter)
+            {
+                await progressImporter.ImportAsync(ReportProviderSessionLoadProgress, cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                await _knownProjectImporter.ImportAsync(cancellationToken).ConfigureAwait(false);
+            }
+
             var projects = await _projectCatalog.LoadAsync(cancellationToken).ConfigureAwait(false);
             var threads = await _recoverableThreadSource.ListRecoverableThreadsAsync(cancellationToken).ConfigureAwait(false);
 
             // Catalog application mutates frontend state, so it always re-enters through the UI dispatcher.
             await UiDispatcher.InvokeAsync(
-                    () => _shell.ApplyRecoveredCatalogState(projects, threads))
+                    () =>
+                    {
+                        _shell.ApplyRecoveredCatalogState(projects, threads);
+                        _shell.SetProviderSessionLoadStatus(null);
+                        _shell.TrySchedulePendingStartupThreadRestore(CancellationToken.None);
+                    })
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -390,11 +414,47 @@ internal sealed class CodeAltaShellController : IAsyncDisposable
         }
         catch (Exception ex)
         {
+            await UiDispatcher.InvokeAsync(() => _shell.SetProviderSessionLoadStatus(null)).ConfigureAwait(false);
             if (LogManager.IsInitialized && CodeAltaApp.UiLogger.IsEnabled(LogLevel.Error))
             {
                 CodeAltaApp.UiLogger.Error(ex, "Failed to refresh backend startup state.");
             }
         }
+    }
+
+    private void ReportProviderSessionLoadProgress(ProviderSessionLoadProgress progress)
+    {
+        var status = FormatProviderSessionLoadStatus(progress);
+        _ = UiDispatcher.InvokeAsync(() => _shell.SetProviderSessionLoadStatus(status));
+    }
+
+    internal static string? FormatProviderSessionLoadStatus(ProviderSessionLoadProgress progress)
+    {
+        if (progress.TotalProviderCount <= 0 ||
+            progress.CompletedProviderCount >= progress.TotalProviderCount)
+        {
+            return null;
+        }
+
+        var completed = Math.Clamp(progress.CompletedProviderCount, 0, progress.TotalProviderCount);
+        var loadingNames = progress.LoadingProviderDisplayNames
+            .Where(static name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(2)
+            .ToArray();
+        var loadingText = loadingNames.Length == 0
+            ? "provider sessions"
+            : string.Join(", ", loadingNames) + (progress.LoadingProviderDisplayNames.Count > loadingNames.Length ? ", …" : string.Empty) + " sessions";
+
+        return $"Loading {loadingText} {BuildProgressBar(completed, progress.TotalProviderCount)} {completed}/{progress.TotalProviderCount}";
+    }
+
+    private static string BuildProgressBar(int completed, int total)
+    {
+        const int width = 8;
+        var filled = total <= 0 ? 0 : (int)Math.Round((double)completed / total * width, MidpointRounding.AwayFromZero);
+        filled = Math.Clamp(filled, 0, width);
+        return "[" + new string('■', filled) + new string('□', width - filled) + "]";
     }
 
     internal static bool TryMergeRuntimeEvents(
