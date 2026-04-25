@@ -60,13 +60,13 @@ public sealed class CopilotAgentMapperTests
         Assert.IsNotNull(config.Tools);
         Assert.AreEqual(1, config.Tools.Count);
         Assert.IsNotNull(config.McpServers);
-        var mcpConfig = (McpLocalServerConfig)config.McpServers["local-docs"];
+        var mcpConfig = (McpStdioServerConfig)config.McpServers["local-docs"];
         Assert.AreEqual("dotnet", mcpConfig.Command);
-        CollectionAssert.AreEqual(new[] { "run", "--server" }, mcpConfig.Args);
+        CollectionAssert.AreEqual(new[] { "run", "--server" }, mcpConfig.Args.ToArray());
         Assert.AreEqual(@"C:\repo\mcp", mcpConfig.Cwd);
         Assert.AreEqual("Development", mcpConfig.Env!["DOTNET_ENVIRONMENT"]);
         Assert.AreEqual(30000, mcpConfig.Timeout);
-        CollectionAssert.AreEqual(new[] { "*" }, mcpConfig.Tools);
+        CollectionAssert.AreEqual(new[] { "*" }, mcpConfig.Tools.ToArray());
     }
 
     [TestMethod]
@@ -94,11 +94,11 @@ public sealed class CopilotAgentMapperTests
         var config = CopilotAgentMapper.ToResumeSessionConfig(options);
 
         Assert.IsNotNull(config.McpServers);
-        var mcpConfig = (McpRemoteServerConfig)config.McpServers["remote-docs"];
+        var mcpConfig = (McpHttpServerConfig)config.McpServers["remote-docs"];
         Assert.AreEqual("https://example.com/mcp", mcpConfig.Url);
-        Assert.AreEqual("sse", mcpConfig.Type);
+        Assert.AreEqual("http", mcpConfig.Type);
         Assert.AreEqual("42", mcpConfig.Headers!["X-Test"]);
-        CollectionAssert.AreEqual(new[] { "lookup", "search" }, mcpConfig.Tools);
+        CollectionAssert.AreEqual(new[] { "lookup", "search" }, mcpConfig.Tools.ToArray());
         Assert.AreEqual(5000, mcpConfig.Timeout);
     }
 
@@ -303,11 +303,11 @@ public sealed class CopilotAgentMapperTests
         Assert.IsNotNull(mapped.Attachments);
         Assert.AreEqual(3, mapped.Attachments.Count);
 
-        Assert.IsInstanceOfType<UserMessageDataAttachmentsItemFile>(mapped.Attachments[0]);
-        Assert.IsInstanceOfType<UserMessageDataAttachmentsItemDirectory>(mapped.Attachments[1]);
-        Assert.IsInstanceOfType<UserMessageDataAttachmentsItemSelection>(mapped.Attachments[2]);
+        Assert.IsInstanceOfType<UserMessageAttachmentFile>(mapped.Attachments[0]);
+        Assert.IsInstanceOfType<UserMessageAttachmentDirectory>(mapped.Attachments[1]);
+        Assert.IsInstanceOfType<UserMessageAttachmentSelection>(mapped.Attachments[2]);
 
-        var fileAttachment = (UserMessageDataAttachmentsItemFile)mapped.Attachments[0];
+        var fileAttachment = (UserMessageAttachmentFile)mapped.Attachments[0];
         Assert.AreEqual("Program.cs", fileAttachment.Path);
         Assert.IsNotNull(fileAttachment.LineRange);
         Assert.AreEqual(2d, fileAttachment.LineRange.Start);
@@ -394,7 +394,7 @@ public sealed class CopilotAgentMapperTests
             Data = new SessionWorkspaceFileChangedData
             {
                 Path = "src/NewFile.cs",
-                Operation = SessionWorkspaceFileChangedDataOperation.Create,
+                Operation = WorkspaceFileChangedOperation.Create,
             }
         };
 
@@ -464,7 +464,7 @@ public sealed class CopilotAgentMapperTests
                 Phase = null,
                 ToolRequests =
                 [
-                    new AssistantMessageDataToolRequestsItem
+                    new AssistantMessageToolRequest
                     {
                         ToolCallId = "tool-1",
                         Name = "view",
@@ -608,7 +608,6 @@ public sealed class CopilotAgentMapperTests
     public void ToAgentEvent_MapsUsageEventToSessionUpdate()
     {
         var timestamp = DateTimeOffset.Parse("2026-02-25T12:00:00+00:00");
-        using var quotaSnapshot = JsonDocument.Parse("""{"entitlementRequests":1500,"usedRequests":477,"usageAllowedWithExhaustion":true,"isUnlimitedEntitlement":false}""");
         var usageEvent = new AssistantUsageEvent
         {
             Timestamp = timestamp,
@@ -621,23 +620,32 @@ public sealed class CopilotAgentMapperTests
                 CacheWriteTokens = 25,
                 Duration = 420,
                 Cost = 1.25,
-                QuotaSnapshots = new Dictionary<string, object>
+                QuotaSnapshots = new Dictionary<string, AssistantUsageQuotaSnapshot>
                 {
-                    ["sample"] = quotaSnapshot.RootElement.Clone()
+                    ["sample"] = new()
+                    {
+                        EntitlementRequests = 1500,
+                        UsedRequests = 477,
+                        RemainingPercentage = 0,
+                        Overage = 0,
+                        OverageAllowedWithExhaustedQuota = true,
+                        UsageAllowedWithExhaustedQuota = true,
+                        IsUnlimitedEntitlement = false
+                    }
                 },
-                CopilotUsage = new AssistantUsageDataCopilotUsage
+                CopilotUsage = new AssistantUsageCopilotUsage
                 {
                     TotalNanoAiu = 99,
                     TokenDetails =
                     [
-                        new AssistantUsageDataCopilotUsageTokenDetailsItem
+                        new AssistantUsageCopilotUsageTokenDetail
                         {
                             BatchSize = 1,
                             CostPerBatch = 0,
                             TokenType = "input",
                             TokenCount = 1200
                         },
-                        new AssistantUsageDataCopilotUsageTokenDetailsItem
+                        new AssistantUsageCopilotUsageTokenDetail
                         {
                             BatchSize = 1,
                             CostPerBatch = 0,
@@ -710,7 +718,7 @@ public sealed class CopilotAgentMapperTests
             timestamp,
             new AccountGetQuotaResult
             {
-                QuotaSnapshots = new Dictionary<string, AccountGetQuotaResultQuotaSnapshotsValue>
+                QuotaSnapshots = new Dictionary<string, AccountQuotaSnapshot>
                 {
                     ["premium_interactions"] = new()
                     {
@@ -775,11 +783,11 @@ public sealed class CopilotAgentMapperTests
                 PreCompactionMessagesLength = 40,
                 MessagesRemoved = 10,
                 TokensRemoved = 45000,
-                CompactionTokensUsed = new SessionCompactionCompleteDataCompactionTokensUsed
+                CompactionTokensUsed = new CompactionCompleteCompactionTokensUsed
                 {
-                    Input = 1200,
-                    Output = 300,
-                    CachedInput = 800
+                    InputTokens = 1200,
+                    OutputTokens = 300,
+                    CacheReadTokens = 800
                 }
             }
         };
@@ -877,7 +885,7 @@ public sealed class CopilotAgentMapperTests
             Timestamp = timestamp,
             Data = new SessionPlanChangedData
             {
-                Operation = SessionPlanChangedDataOperation.Update
+                Operation = PlanChangedOperation.Update
             }
         };
 
@@ -980,7 +988,7 @@ public sealed class CopilotAgentMapperTests
                 Success = true,
                 Model = "gpt-5.4",
                 InteractionId = "interaction-1",
-                Result = new ToolExecutionCompleteDataResult
+                Result = new ToolExecutionCompleteResult
                 {
                     Content = "3 row(s) returned.",
                     DetailedContent = "SQL: SELECT id, status FROM todos;"
@@ -1029,7 +1037,7 @@ public sealed class CopilotAgentMapperTests
             {
                 ToolCallId = "tool-3",
                 Success = true,
-                Result = new ToolExecutionCompleteDataResult
+                Result = new ToolExecutionCompleteResult
                 {
                     Content = "fatal: not a git repository\n<exited with exit code 128>",
                     DetailedContent = "fatal: not a git repository\n<exited with exit code 128>"

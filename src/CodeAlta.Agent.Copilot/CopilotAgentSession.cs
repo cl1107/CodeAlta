@@ -293,7 +293,7 @@ public sealed class CopilotAgentSession : ICopilotAgentSession, IAgentCompaction
             }
 
             _lastQuotaRefreshAt = DateTimeOffset.UtcNow;
-            var quota = await _backend.Client.Rpc.Account.GetQuotaAsync(cancellationToken).ConfigureAwait(false);
+            var quota = await _backend.Client.Rpc.Account.GetQuotaAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
             if (CopilotAgentMapper.CreateCopilotQuotaUsage(DateTimeOffset.UtcNow, quota) is not { } usage)
             {
                 return;

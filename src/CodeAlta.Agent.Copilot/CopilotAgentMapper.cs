@@ -127,7 +127,7 @@ internal static class CopilotAgentMapper
     {
         ArgumentNullException.ThrowIfNull(input);
 
-        var attachments = new List<UserMessageDataAttachmentsItem>();
+        var attachments = new List<UserMessageAttachment>();
         var promptBuilder = new StringBuilder();
 
         foreach (var item in input.Items)
@@ -139,13 +139,13 @@ internal static class CopilotAgentMapper
                     break;
 
                 case AgentInputItem.File file:
-                    attachments.Add(new UserMessageDataAttachmentsItemFile
+                    attachments.Add(new UserMessageAttachmentFile
                     {
                         Path = file.Path,
                         DisplayName = file.DisplayName ?? file.Path,
                         LineRange = file.LineRange is null
                             ? null
-                            : new UserMessageDataAttachmentsItemFileLineRange
+                            : new UserMessageAttachmentFileLineRange
                             {
                                 Start = file.LineRange.StartLine,
                                 End = file.LineRange.EndLine
@@ -154,13 +154,13 @@ internal static class CopilotAgentMapper
                     break;
 
                 case AgentInputItem.Directory directory:
-                    attachments.Add(new UserMessageDataAttachmentsItemDirectory
+                    attachments.Add(new UserMessageAttachmentDirectory
                     {
                         Path = directory.Path,
                         DisplayName = directory.DisplayName ?? directory.Path,
                         // LineRange = directory.LineRange is null
                         //     ? null
-                        //     : new UserMessageDataAttachmentsItemDirectoryLineRange
+                        //     : new UserMessageAttachmentDirectoryLineRange
                         //     {
                         //         Start = directory.LineRange.StartLine,
                         //         End = directory.LineRange.EndLine
@@ -169,19 +169,19 @@ internal static class CopilotAgentMapper
                     break;
 
                 case AgentInputItem.Selection selection:
-                    attachments.Add(new UserMessageDataAttachmentsItemSelection
+                    attachments.Add(new UserMessageAttachmentSelection
                     {
                         FilePath = selection.FilePath,
                         DisplayName = selection.DisplayName,
                         Text = selection.SelectedText,
-                        Selection = new UserMessageDataAttachmentsItemSelectionSelection
+                        Selection = new UserMessageAttachmentSelectionDetails
                         {
-                            Start = new UserMessageDataAttachmentsItemSelectionSelectionStart
+                            Start = new UserMessageAttachmentSelectionDetailsStart
                             {
                                 Line = selection.Range.Start.Line,
                                 Character = selection.Range.Start.Character
                             },
-                            End = new UserMessageDataAttachmentsItemSelectionSelectionEnd
+                            End = new UserMessageAttachmentSelectionDetailsEnd
                             {
                                 Line = selection.Range.End.Line,
                                 Character = selection.Range.End.Character
@@ -779,7 +779,7 @@ internal static class CopilotAgentMapper
         }
     }
 
-    private static PermissionRequestResult ToPermissionResult(AgentPermissionDecision decision)
+    private static GitHub.Copilot.SDK.PermissionRequestResult ToPermissionResult(AgentPermissionDecision decision)
     {
         ArgumentNullException.ThrowIfNull(decision);
 
@@ -787,12 +787,12 @@ internal static class CopilotAgentMapper
         {
             AgentPermissionDecisionKind.AllowOnce => PermissionRequestResultKind.Approved,
             AgentPermissionDecisionKind.AllowForSession => PermissionRequestResultKind.Approved,
-            AgentPermissionDecisionKind.Deny => PermissionRequestResultKind.DeniedInteractivelyByUser,
-            AgentPermissionDecisionKind.Cancel => PermissionRequestResultKind.DeniedInteractivelyByUser,
-            _ => PermissionRequestResultKind.DeniedInteractivelyByUser
+            AgentPermissionDecisionKind.Deny => PermissionRequestResultKind.Rejected,
+            AgentPermissionDecisionKind.Cancel => PermissionRequestResultKind.Rejected,
+            _ => PermissionRequestResultKind.Rejected
         };
 
-        return new PermissionRequestResult
+        return new GitHub.Copilot.SDK.PermissionRequestResult
         {
             Kind = kind
         };
@@ -940,8 +940,8 @@ internal static class CopilotAgentMapper
             writer.WriteString("path", data.Path);
             writer.WriteString("operation", data.Operation switch
             {
-                SessionWorkspaceFileChangedDataOperation.Create => "create",
-                SessionWorkspaceFileChangedDataOperation.Update => "update",
+                WorkspaceFileChangedOperation.Create => "create",
+                WorkspaceFileChangedOperation.Update => "update",
                 _ => "update",
             });
         });
@@ -1035,9 +1035,9 @@ internal static class CopilotAgentMapper
             LastOperation: data.CompactionTokensUsed is null
                 ? null
                 : new AgentOperationUsageSnapshot(
-                    InputTokens: ToInt64(data.CompactionTokensUsed.Input),
-                    OutputTokens: ToInt64(data.CompactionTokensUsed.Output),
-                    CachedInputTokens: ToInt64(data.CompactionTokensUsed.CachedInput),
+                    InputTokens: ToInt64(data.CompactionTokensUsed.InputTokens ?? 0),
+                    OutputTokens: ToInt64(data.CompactionTokensUsed.OutputTokens ?? 0),
+                    CachedInputTokens: ToInt64(data.CompactionTokensUsed.CacheReadTokens ?? 0),
                     Label: "Compaction call"),
             Scope: AgentUsageScope.Compaction,
             Source: AgentUsageSource.CopilotCompactionComplete,
@@ -1053,9 +1053,9 @@ internal static class CopilotAgentMapper
                     TokensUsed: data.CompactionTokensUsed is null
                         ? null
                         : new CopilotCompactionTokenUsage(
-                            ToInt64(data.CompactionTokensUsed.Input),
-                            ToInt64(data.CompactionTokensUsed.Output),
-                            ToInt64(data.CompactionTokensUsed.CachedInput)),
+                            ToInt64(data.CompactionTokensUsed.InputTokens ?? 0),
+                            ToInt64(data.CompactionTokensUsed.OutputTokens ?? 0),
+                            ToInt64(data.CompactionTokensUsed.CacheReadTokens ?? 0)),
                     SummaryContent: data.SummaryContent)));
     }
 
@@ -1141,7 +1141,7 @@ internal static class CopilotAgentMapper
             UpdatedAt: timestamp);
     }
 
-    private static CopilotQuotaSnapshot[]? CreateQuotaSnapshots(Dictionary<string, object>? snapshots)
+    private static CopilotQuotaSnapshot[]? CreateQuotaSnapshots(IDictionary<string, AssistantUsageQuotaSnapshot>? snapshots)
     {
         if (snapshots is not { Count: > 0 })
         {
@@ -1154,7 +1154,7 @@ internal static class CopilotAgentMapper
             .ToArray();
     }
 
-    private static CopilotQuotaSnapshot[]? CreateQuotaSnapshots(Dictionary<string, AccountGetQuotaResultQuotaSnapshotsValue>? snapshots)
+    private static CopilotQuotaSnapshot[]? CreateQuotaSnapshots(IDictionary<string, AccountQuotaSnapshot>? snapshots)
     {
         if (snapshots is not { Count: > 0 })
         {
@@ -1165,6 +1165,36 @@ internal static class CopilotAgentMapper
             .OrderBy(static entry => entry.Key, StringComparer.Ordinal)
             .Select(static entry => new CopilotQuotaSnapshot(entry.Key, ToCopilotQuotaDetails(entry.Value)))
             .ToArray();
+    }
+
+    private static CopilotQuotaDetails ToCopilotQuotaDetails(AssistantUsageQuotaSnapshot value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+
+        bool? isUnlimitedEntitlement = value.IsUnlimitedEntitlement || value.EntitlementRequests < 0 ? true : null;
+        return new CopilotRequestQuotaDetails(
+            EntitlementRequests: value.EntitlementRequests >= 0 ? ToInt64(value.EntitlementRequests) : null,
+            UsedRequests: ToInt64(value.UsedRequests),
+            RemainingPercentage: value.RemainingPercentage,
+            Overage: ToInt64(value.Overage),
+            UsageAllowedWithExhaustion: value.OverageAllowedWithExhaustedQuota,
+            IsUnlimitedEntitlement: isUnlimitedEntitlement,
+            ResetDate: value.ResetDate);
+    }
+
+    private static CopilotQuotaDetails ToCopilotQuotaDetails(AccountQuotaSnapshot value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+
+        bool? isUnlimitedEntitlement = value.IsUnlimitedEntitlement || value.EntitlementRequests < 0 ? true : null;
+        return new CopilotRequestQuotaDetails(
+            EntitlementRequests: value.EntitlementRequests >= 0 ? value.EntitlementRequests : null,
+            UsedRequests: value.UsedRequests,
+            RemainingPercentage: value.RemainingPercentage,
+            Overage: ToInt64(value.Overage),
+            UsageAllowedWithExhaustion: value.OverageAllowedWithExhaustedQuota,
+            IsUnlimitedEntitlement: isUnlimitedEntitlement,
+            ResetDate: TryParseQuotaResetDate(value.ResetDate));
     }
 
     private static CopilotQuotaDetails ToCopilotQuotaDetails(object? value)
@@ -1173,21 +1203,6 @@ internal static class CopilotAgentMapper
         return TryCreateRequestQuotaDetails(payload, out var details)
             ? details
             : new CopilotOpaqueQuotaDetails(SummarizeQuotaPayload(payload));
-    }
-
-    private static CopilotQuotaDetails ToCopilotQuotaDetails(AccountGetQuotaResultQuotaSnapshotsValue value)
-    {
-        ArgumentNullException.ThrowIfNull(value);
-
-        bool? isUnlimitedEntitlement = value.EntitlementRequests < 0 ? true : null;
-        return new CopilotRequestQuotaDetails(
-            EntitlementRequests: value.EntitlementRequests >= 0 ? ToInt64(value.EntitlementRequests) : null,
-            UsedRequests: ToInt64(value.UsedRequests),
-            RemainingPercentage: value.RemainingPercentage,
-            Overage: ToInt64(value.Overage),
-            UsageAllowedWithExhaustion: value.OverageAllowedWithExhaustedQuota,
-            IsUnlimitedEntitlement: isUnlimitedEntitlement,
-            ResetDate: TryParseQuotaResetDate(value.ResetDate));
     }
 
     private static bool TryCreateRequestQuotaDetails(JsonElement payload, out CopilotRequestQuotaDetails details)
@@ -1642,13 +1657,13 @@ internal static class CopilotAgentMapper
         return document.RootElement.Clone();
     }
 
-    private static AgentPlanChangeKind ToPlanChangeKind(SessionPlanChangedDataOperation operation)
+    private static AgentPlanChangeKind ToPlanChangeKind(PlanChangedOperation operation)
     {
         return operation switch
         {
-            SessionPlanChangedDataOperation.Create => AgentPlanChangeKind.Created,
-            SessionPlanChangedDataOperation.Update => AgentPlanChangeKind.Updated,
-            SessionPlanChangedDataOperation.Delete => AgentPlanChangeKind.Deleted,
+            PlanChangedOperation.Create => AgentPlanChangeKind.Created,
+            PlanChangedOperation.Update => AgentPlanChangeKind.Updated,
+            PlanChangedOperation.Delete => AgentPlanChangeKind.Deleted,
             _ => throw new ArgumentOutOfRangeException(nameof(operation), operation, "Unsupported plan operation."),
         };
     }
@@ -1855,7 +1870,7 @@ internal static class CopilotAgentMapper
         });
     }
 
-    private static void WriteToolExecutionResult(Utf8JsonWriter writer, ToolExecutionCompleteDataResult? result)
+    private static void WriteToolExecutionResult(Utf8JsonWriter writer, ToolExecutionCompleteResult? result)
     {
         ArgumentNullException.ThrowIfNull(writer);
 
@@ -1879,7 +1894,7 @@ internal static class CopilotAgentMapper
         writer.WriteEndObject();
     }
 
-    private static void WriteToolExecutionError(Utf8JsonWriter writer, ToolExecutionCompleteDataError? error)
+    private static void WriteToolExecutionError(Utf8JsonWriter writer, ToolExecutionCompleteError? error)
     {
         ArgumentNullException.ThrowIfNull(writer);
 
@@ -1908,14 +1923,14 @@ internal static class CopilotAgentMapper
             .ToArray();
     }
 
-    private static Dictionary<string, object>? ToCopilotMcpServers(IReadOnlyDictionary<string, AgentMcpServerConfig>? servers)
+    private static Dictionary<string, McpServerConfig>? ToCopilotMcpServers(IReadOnlyDictionary<string, AgentMcpServerConfig>? servers)
     {
         if (servers is not { Count: > 0 })
         {
             return null;
         }
 
-        var mapped = new Dictionary<string, object>(servers.Count, StringComparer.Ordinal);
+        var mapped = new Dictionary<string, McpServerConfig>(servers.Count, StringComparer.Ordinal);
         foreach (var pair in servers)
         {
             mapped[pair.Key] = pair.Value switch
@@ -1929,12 +1944,12 @@ internal static class CopilotAgentMapper
         return mapped;
     }
 
-    private static McpLocalServerConfig ToCopilotLocalMcpServerConfig(AgentLocalMcpServerConfig config)
+    private static McpStdioServerConfig ToCopilotLocalMcpServerConfig(AgentLocalMcpServerConfig config)
     {
         ArgumentNullException.ThrowIfNull(config);
         ArgumentException.ThrowIfNullOrWhiteSpace(config.Command);
 
-        return new McpLocalServerConfig
+        return new McpStdioServerConfig
         {
             Command = config.Command,
             Args = config.Arguments?.ToList() ?? [],
@@ -1944,11 +1959,10 @@ internal static class CopilotAgentMapper
                 : new Dictionary<string, string>(config.EnvironmentVariables, StringComparer.Ordinal),
             Timeout = ToCopilotTimeoutMilliseconds(config.ToolTimeout),
             Tools = ToCopilotToolFilter(config.EnabledTools),
-            Type = "local"
         };
     }
 
-    private static McpRemoteServerConfig ToCopilotRemoteMcpServerConfig(AgentRemoteMcpServerConfig config)
+    private static McpHttpServerConfig ToCopilotRemoteMcpServerConfig(AgentRemoteMcpServerConfig config)
     {
         ArgumentNullException.ThrowIfNull(config);
         ArgumentException.ThrowIfNullOrWhiteSpace(config.Url);
@@ -1959,10 +1973,9 @@ internal static class CopilotAgentMapper
                 "Copilot MCP server configuration does not support environment-derived HTTP credentials through this adapter.");
         }
 
-        return new McpRemoteServerConfig
+        return new McpHttpServerConfig
         {
             Url = config.Url,
-            Type = config.Transport == AgentMcpRemoteTransport.Sse ? "sse" : "http",
             Headers = config.Headers is null
                 ? null
                 : new Dictionary<string, string>(config.Headers, StringComparer.Ordinal),
@@ -2140,7 +2153,7 @@ internal static class CopilotAgentMapper
         };
     }
 
-    private static IReadOnlyList<AgentReasoningEffort>? ToAgentReasoningEfforts(IReadOnlyList<string>? efforts)
+    private static IReadOnlyList<AgentReasoningEffort>? ToAgentReasoningEfforts(IList<string>? efforts)
     {
         if (efforts is not { Count: > 0 })
             return null;
@@ -2389,7 +2402,7 @@ internal static class CopilotAgentMapper
             : data.Result?.Content;
     }
 
-    private static bool HasCopilotTerminalResult(ToolExecutionCompleteDataResult? result)
+    private static bool HasCopilotTerminalResult(ToolExecutionCompleteResult? result)
     {
         if (result is null)
         {
@@ -2397,7 +2410,7 @@ internal static class CopilotAgentMapper
         }
 
         if (result.Contents is { Length: > 0 } contents &&
-            contents.Any(static item => item is ToolExecutionCompleteDataResultContentsItemTerminal))
+            contents.Any(static item => item is ToolExecutionCompleteContentTerminal))
         {
             return true;
         }
@@ -2406,7 +2419,7 @@ internal static class CopilotAgentMapper
                ContainsCopilotTerminalExitMarker(result.DetailedContent);
     }
 
-    private static bool TryResolveCopilotTerminalExitCode(ToolExecutionCompleteDataResult? result, out int exitCode)
+    private static bool TryResolveCopilotTerminalExitCode(ToolExecutionCompleteResult? result, out int exitCode)
     {
         exitCode = 0;
         if (result is null)
@@ -2418,7 +2431,7 @@ internal static class CopilotAgentMapper
         {
             foreach (var content in contents)
             {
-                if (content is ToolExecutionCompleteDataResultContentsItemTerminal { ExitCode: { } terminalExitCode })
+                if (content is ToolExecutionCompleteContentTerminal { ExitCode: { } terminalExitCode })
                 {
                     exitCode = (int)terminalExitCode;
                     return true;
@@ -2500,9 +2513,9 @@ internal static class CopilotAgentMapper
     }
 
     private static bool TryResolveResultString(
-        ToolExecutionCompleteDataResult? result,
+        ToolExecutionCompleteResult? result,
         out string? value,
-        Func<ToolExecutionCompleteDataResult, string?> selector)
+        Func<ToolExecutionCompleteResult, string?> selector)
     {
         value = result is null ? null : selector(result);
         return !string.IsNullOrWhiteSpace(value);
