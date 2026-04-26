@@ -193,6 +193,7 @@ internal sealed class CodeAltaFrontendComposition
             callbacks.SyncThreadTabControl,
             callbacks.DispatchToUi,
             callbacks.DispatchToUiDeferred,
+            callbacks.FocusPromptTarget,
             callbacks.VerifyBindableAccess);
         var workspaceCoordinator = new ShellWorkspaceCoordinator(
             shellViewModel,

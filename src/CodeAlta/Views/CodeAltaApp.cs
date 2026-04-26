@@ -207,6 +207,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
                 SyncThreadTabControl = SyncThreadTabControl,
                 DispatchToUi = DispatchToUi,
                 DispatchToUiDeferred = DispatchToUiDeferred,
+                FocusPromptTarget = FocusPromptTarget,
                 VerifyBindableAccess = VerifyBindableAccess,
                 GetAutoApproveEnabled = GetAutoApproveEnabled,
                 RefreshShellChrome = RefreshShellChrome,
@@ -729,6 +730,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
 
     internal void OpenThread(string threadId) { ActivateThreadSurface(); _threadStateCoordinator.OpenThread(threadId); }
     internal void FocusPromptEditor() { ActivateThreadSurface(); ThreadPaneLayout?.App?.Focus(ThreadInput); }
+    private void FocusPromptTarget() => ThreadPaneLayout?.App?.Focus(ThreadInput);
 
     private Task ScrollSelectedThreadMessageAsync(Action<OpenThreadState> scroll)
     {

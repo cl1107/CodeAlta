@@ -44,6 +44,7 @@ internal sealed class CodeAltaFrontendCallbacks
     public required Action SyncThreadTabControl { get; init; }
     public required Action<Action> DispatchToUi { get; init; }
     public required Action<Action> DispatchToUiDeferred { get; init; }
+    public required Action FocusPromptTarget { get; init; }
     public required Action VerifyBindableAccess { get; init; }
     public required Func<bool> GetAutoApproveEnabled { get; init; }
     public required Action RefreshShellChrome { get; init; }

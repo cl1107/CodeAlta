@@ -339,6 +339,7 @@ internal sealed class ShellWorkspaceCoordinator
         {
             _displayedThreadId = selectedThread.ThreadId;
             _workspaceContext.DispatchToUiDeferred(tab.Timeline.RevealTail);
+            _workspaceContext.DispatchToUiDeferred(_workspaceContext.FocusPromptTarget);
         }
 
         SetReadyStatusForCurrentSelection();

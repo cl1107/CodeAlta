@@ -22,6 +22,7 @@ internal sealed class ShellWorkspaceContext
     private readonly Action _syncThreadTabControl;
     private readonly Action<Action> _dispatchToUi;
     private readonly Action<Action> _dispatchToUiDeferred;
+    private readonly Action _focusPromptTarget;
     private readonly Action _verifyBindableAccess;
 
     public ShellWorkspaceContext(
@@ -40,6 +41,7 @@ internal sealed class ShellWorkspaceContext
         Action syncThreadTabControl,
         Action<Action> dispatchToUi,
         Action<Action> dispatchToUiDeferred,
+        Action focusPromptTarget,
         Action verifyBindableAccess)
     {
         ArgumentNullException.ThrowIfNull(getPreferredBackendId);
@@ -57,6 +59,7 @@ internal sealed class ShellWorkspaceContext
         ArgumentNullException.ThrowIfNull(syncThreadTabControl);
         ArgumentNullException.ThrowIfNull(dispatchToUi);
         ArgumentNullException.ThrowIfNull(dispatchToUiDeferred);
+        ArgumentNullException.ThrowIfNull(focusPromptTarget);
         ArgumentNullException.ThrowIfNull(verifyBindableAccess);
 
         _getPreferredBackendId = getPreferredBackendId;
@@ -74,6 +77,7 @@ internal sealed class ShellWorkspaceContext
         _syncThreadTabControl = syncThreadTabControl;
         _dispatchToUi = dispatchToUi;
         _dispatchToUiDeferred = dispatchToUiDeferred;
+        _focusPromptTarget = focusPromptTarget;
         _verifyBindableAccess = verifyBindableAccess;
     }
 
@@ -133,6 +137,9 @@ internal sealed class ShellWorkspaceContext
         ArgumentNullException.ThrowIfNull(action);
         _dispatchToUiDeferred(action);
     }
+
+    public void FocusPromptTarget()
+        => _focusPromptTarget();
 
     public void VerifyBindableAccess()
         => _verifyBindableAccess();
