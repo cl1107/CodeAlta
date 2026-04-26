@@ -81,6 +81,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
     private ThreadInfoPresenter? _threadInfoPresenter;
     private IUiDispatcher? _uiDispatcher;
     private bool _disableTerminalLoopCallback;
+    private bool _commandBarMultiLine;
     private bool _startupProviderDialogHandled;
     private WorkThreadViewState _viewState
     {
@@ -329,6 +330,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             EnsureThreadTab,
             FocusSidebar,
             FocusPromptEditor,
+            ToggleCommandBarMultiLine,
             () => EnsureSessionUsagePresenter().TogglePopupFromIndicator(),
             () => { if (ThreadInput is not null) EnsureThreadInfoPresenter().TogglePopup(ThreadInput); },
             () => _threadWorkspaceView?.OpenExpandedPromptDialog(),
@@ -452,6 +454,21 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             tone: _disableTerminalLoopCallback ? StatusTone.Warning : StatusTone.Info);
     }
 
+    private void ToggleCommandBarMultiLine()
+    {
+        _commandBarMultiLine = !_commandBarMultiLine;
+        if (ThreadCommandBar is not null)
+        {
+            ThreadCommandBar.MultiLine = _commandBarMultiLine;
+        }
+
+        SetStatus(
+            _commandBarMultiLine
+                ? "Command bar multiline enabled."
+                : "Command bar single-line enabled.",
+            tone: StatusTone.Info);
+    }
+
     private bool TryResolveInitialCatalogState(CancellationToken cancellationToken)
     {
         if (!_initialCatalogStateCoordinator.TryResolve(cancellationToken))
@@ -535,6 +552,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             _promptDraftUiCoordinator.PromptTextBinding,
             _shellAnimationRuntime.ThinkingPhase01,
             OnChatAutoScrollChanged);
+        ThreadCommandBar!.MultiLine = _commandBarMultiLine;
         _fileEditorWorkspaceCoordinator.RefreshActiveContent();
 
         RefreshCatalogAndThreadWorkspace();

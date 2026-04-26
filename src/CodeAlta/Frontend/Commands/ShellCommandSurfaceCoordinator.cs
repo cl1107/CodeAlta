@@ -43,6 +43,7 @@ internal sealed class ShellCommandSurfaceCoordinator
     private readonly Func<WorkThreadDescriptor, OpenThreadState> _ensureThreadTab;
     private readonly Action _focusSidebar;
     private readonly Action _focusPrompt;
+    private readonly Action _toggleCommandBarMultiLine;
     private readonly Action<string, bool, StatusTone> _setStatus;
     private readonly Action _openSessionUsage;
     private readonly Action _openThreadInfo;
@@ -72,6 +73,7 @@ internal sealed class ShellCommandSurfaceCoordinator
         Func<WorkThreadDescriptor, OpenThreadState> ensureThreadTab,
         Action focusSidebar,
         Action focusPrompt,
+        Action toggleCommandBarMultiLine,
         Action openSessionUsage,
         Action openThreadInfo,
         Action openExpandedPromptEditor,
@@ -95,6 +97,7 @@ internal sealed class ShellCommandSurfaceCoordinator
         ArgumentNullException.ThrowIfNull(ensureThreadTab);
         ArgumentNullException.ThrowIfNull(focusSidebar);
         ArgumentNullException.ThrowIfNull(focusPrompt);
+        ArgumentNullException.ThrowIfNull(toggleCommandBarMultiLine);
         ArgumentNullException.ThrowIfNull(openSessionUsage);
         ArgumentNullException.ThrowIfNull(openThreadInfo);
         ArgumentNullException.ThrowIfNull(openExpandedPromptEditor);
@@ -115,6 +118,7 @@ internal sealed class ShellCommandSurfaceCoordinator
         _ensureThreadTab = ensureThreadTab;
         _focusSidebar = focusSidebar;
         _focusPrompt = focusPrompt;
+        _toggleCommandBarMultiLine = toggleCommandBarMultiLine;
         _setStatus = setStatus;
         _openSessionUsage = openSessionUsage;
         _openThreadInfo = openThreadInfo;
@@ -208,6 +212,9 @@ internal sealed class ShellCommandSurfaceCoordinator
         _getHelpFocusTarget()?.App?.Stop();
         return Task.CompletedTask;
     }
+
+    public void ToggleCommandBarMultiLine()
+        => _toggleCommandBarMultiLine();
 
     public Task ShowOpenFolderDialogAsync(string? initialPath = null)
     {

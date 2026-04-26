@@ -25,6 +25,10 @@ internal static class ShellCommandCatalog
         new KeyGesture(TerminalChar.CtrlG, TerminalModifiers.Ctrl),
         new KeyGesture(TerminalChar.CtrlU, TerminalModifiers.Ctrl));
 
+    public static readonly KeySequence ToggleCommandBarMultiLineShortcutSequence = new(
+        new KeyGesture(TerminalChar.CtrlG, TerminalModifiers.Ctrl),
+        new KeyGesture(TerminalChar.CtrlB, TerminalModifiers.Ctrl));
+
     public static readonly KeySequence ThreadInfoShortcutSequence = new(
         new KeyGesture(TerminalChar.CtrlG, TerminalModifiers.Ctrl),
         new KeyGesture(TerminalChar.CtrlT, TerminalModifiers.Ctrl));
@@ -128,6 +132,17 @@ internal static class ShellCommandCatalog
             Sequence: ModelProvidersShortcutSequence,
             CommandName: "model_providers",
             Aliases: ["providers", "models"],
+            ShowInCommandBar: true),
+        new(
+            "CodeAlta.Shell.ToggleCommandBarMultiLine",
+            "Command Bar Lines",
+            "Toggle the command bar between a stable single-line layout and a multi-line layout.",
+            ShellCommandHelpCategory.General,
+            ShellCommandScope.AnyShell,
+            ShellCommandAvailability.Always,
+            Sequence: ToggleCommandBarMultiLineShortcutSequence,
+            CommandName: "command_bar_lines",
+            Aliases: ["command_bar", "bar"],
             ShowInCommandBar: true),
         new(
             "CodeAlta.Thread.SessionUsage",

@@ -199,6 +199,53 @@ public sealed class ThreadWorkspaceViewTests
     }
 
     [TestMethod]
+    public void CommandBar_DefaultsToSingleLine()
+    {
+        var view = new ThreadWorkspaceView(
+            new CodeAltaShellViewModel(),
+            new ThreadWorkspaceViewModel(),
+            new PromptComposerViewModel(),
+            [],
+            static () => new TextBlock(string.Empty),
+            static () => { },
+            static _ => { },
+            static () => { },
+            static () => { },
+            static _ => { },
+            static () => { },
+            static () => { },
+            static () => { },
+            static _ => { },
+            static _ => { },
+            static _ => { },
+            static (_, _) => { },
+            static (_, _) => { },
+            static () => { },
+            static () => { },
+            static () => { },
+            static () => { },
+            static _ => { },
+            static _ => { },
+            static _ => { },
+            static _ => { },
+            new State<string?>(string.Empty),
+            new State<float>(0),
+            static () => { });
+
+        Assert.IsFalse(view.ThreadCommandBar.MultiLine);
+    }
+
+    [TestMethod]
+    public void CommandBarToggleCommand_UsesCtrlGCtrlBShortcut()
+    {
+        var metadata = ShellCommandCatalog.Get("CodeAlta.Shell.ToggleCommandBarMultiLine");
+
+        Assert.AreEqual(ShellCommandCatalog.ToggleCommandBarMultiLineShortcutSequence, metadata.Sequence);
+        Assert.IsTrue(metadata.ShowInCommandBar);
+        Assert.IsTrue(metadata.ShowInCommandPalette);
+    }
+
+    [TestMethod]
     public void ExpandedPromptEditor_UsesProjectFileReferences()
     {
         using var tempDirectory = TempDirectory.Create();

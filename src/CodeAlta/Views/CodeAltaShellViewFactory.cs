@@ -81,6 +81,9 @@ internal static class CodeAltaShellViewFactory
         shellView.Root.AddCommand(ShellCommandViewFactory.Create(
             ShellCommandCatalog.Get("CodeAlta.Shell.FocusPrompt"),
             focusPromptEditor));
+        shellView.Root.AddCommand(ShellCommandViewFactory.Create(
+            ShellCommandCatalog.Get("CodeAlta.Shell.ToggleCommandBarMultiLine"),
+            shellCommandSurfaceCoordinator.ToggleCommandBarMultiLine));
         return shellView;
     }
 }
