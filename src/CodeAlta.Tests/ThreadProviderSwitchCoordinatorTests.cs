@@ -175,6 +175,138 @@ public sealed class ThreadProviderSwitchCoordinatorTests
         Assert.IsNull(await store.GetSessionAsync("openai-chat", "openai", "session-1").ConfigureAwait(false));
     }
 
+    [TestMethod]
+    public async Task SwitchThreadProviderAsync_UsesCodexSubscriptionProtocolFamily()
+    {
+        using var temp = TempDirectory.Create();
+        File.WriteAllText(
+            Path.Combine(temp.Path, "config.toml"),
+            """
+            [providers.codex_subscription]
+            type = "openai-codex-subscription"
+            model = "gpt-5.5"
+            experimental = true
+
+            [providers.anthropic]
+            type = "anthropic"
+            api_key_env = "ANTHROPIC_API_KEY"
+            """);
+
+        var options = new CatalogOptions { GlobalRoot = temp.Path };
+        var configStore = new CodeAltaConfigStore(options);
+        var threadCatalog = new WorkThreadCatalog(options);
+        var backendStates = new Dictionary<string, ChatBackendState>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["codex_subscription"] = new ChatBackendState(new AgentBackendId("codex_subscription"), "Codex ChatGPT subscription")
+            {
+                Availability = ChatBackendAvailability.Ready,
+            },
+            ["anthropic"] = new ChatBackendState(new AgentBackendId("anthropic"), "Anthropic")
+            {
+                Availability = ChatBackendAvailability.Ready,
+            },
+        };
+
+        var store = new FileSystemLocalAgentSessionStore(
+            new LocalAgentRuntimePathLayout(options.GlobalRoot));
+        var createdAt = DateTimeOffset.Parse("2026-04-26T10:00:00+00:00");
+        await store.UpsertSessionAsync(new LocalAgentSessionSummary
+        {
+            SessionId = "session-1",
+            BackendId = new AgentBackendId("codex_subscription"),
+            ProtocolFamily = "openai-codex-subscription",
+            ProviderKey = "codex_subscription",
+            ModelId = "gpt-5.5",
+            WorkingDirectory = @"C:\repo",
+            Title = "Review startup",
+            CreatedAt = createdAt,
+            UpdatedAt = createdAt,
+        }).ConfigureAwait(false);
+        await store.AppendEventsAsync(
+            "openai-codex-subscription",
+            "codex_subscription",
+            "session-1",
+            [
+                new AgentContentCompletedEvent(
+                    new AgentBackendId("codex_subscription"),
+                    "session-1",
+                    createdAt,
+                    null,
+                    AgentContentKind.User,
+                    "user-1",
+                    null,
+                    "Review startup"),
+            ]).ConfigureAwait(false);
+
+        var coordinator = new ThreadProviderSwitchCoordinator(
+            options,
+            threadCatalog,
+            configStore,
+            backendStates,
+            tab =>
+            {
+                tab.ModelId = "claude-sonnet-4";
+                return Task.CompletedTask;
+            },
+            threadId =>
+            {
+                Assert.AreEqual("codex_subscription:session-1", threadId);
+                return Task.FromResult(true);
+            },
+            (oldThreadId, updatedThread) =>
+            {
+                Assert.AreEqual("codex_subscription:session-1", oldThreadId);
+                Assert.AreEqual("anthropic:session-1", updatedThread.ThreadId);
+            },
+            static () => Task.CompletedTask);
+
+        var thread = new WorkThreadDescriptor
+        {
+            ThreadId = "codex_subscription:session-1",
+            Kind = WorkThreadKind.ProjectThread,
+            BackendId = "codex_subscription",
+            ProviderKey = "codex_subscription",
+            BackendSessionId = "session-1",
+            ProjectRef = "project-1",
+            WorkingDirectory = @"C:\repo",
+            Title = "Review startup",
+            Status = WorkThreadStatus.Active,
+            CreatedAt = createdAt,
+            UpdatedAt = createdAt,
+            LastActiveAt = createdAt,
+            StartedAt = createdAt,
+        };
+        var tabState = new OpenThreadState(thread, new Presentation.Timeline.ThreadTimelinePresenter(
+            new InlineUiDispatcher(),
+            static () => true,
+            static () => null,
+            localFileRootPath: null))
+        {
+            BackendId = new AgentBackendId("codex_subscription"),
+            ModelId = "gpt-5.5",
+        };
+
+        var switched = await coordinator.SwitchThreadProviderAsync(
+            thread,
+            tabState,
+            new AgentBackendId("anthropic")).ConfigureAwait(false);
+
+        Assert.IsTrue(switched);
+        Assert.AreEqual("anthropic", thread.BackendId);
+        Assert.AreEqual("anthropic", thread.ProviderKey);
+        Assert.AreEqual("anthropic:session-1", thread.ThreadId);
+        Assert.AreEqual("anthropic", tabState.BackendId.Value);
+        Assert.AreEqual("claude-sonnet-4", tabState.ModelId);
+
+        var clonedSummary = await store.GetSessionAsync("anthropic-messages", "anthropic", "session-1").ConfigureAwait(false);
+        Assert.IsNotNull(clonedSummary);
+        Assert.AreEqual("anthropic", clonedSummary.BackendId.Value);
+        Assert.AreEqual("anthropic-messages", clonedSummary.ProtocolFamily);
+        Assert.AreEqual("anthropic", clonedSummary.ProviderKey);
+        Assert.AreEqual("claude-sonnet-4", clonedSummary.ModelId);
+        Assert.IsNull(await store.GetSessionAsync("openai-codex-subscription", "codex_subscription", "session-1").ConfigureAwait(false));
+    }
+
     private sealed class InlineUiDispatcher : IUiDispatcher
     {
         public bool CheckAccess() => true;

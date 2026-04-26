@@ -231,7 +231,7 @@ internal sealed class ThreadProviderSwitchCoordinator
         {
             "openai-chat" => "openai-chat",
             "openai-responses" => "openai-responses",
-            "openai-codex-subscription" => "openai-responses",
+            "openai-codex-subscription" => "openai-codex-subscription",
             "anthropic" => "anthropic-messages",
             "google-genai" => "google-genai",
             "vertex-ai" => "google-genai",
