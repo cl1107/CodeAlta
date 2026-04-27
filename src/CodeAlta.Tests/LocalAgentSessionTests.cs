@@ -1100,6 +1100,17 @@ public sealed class LocalAgentSessionTests
         Assert.IsNotNull(checkpoint);
         Assert.IsTrue(checkpoint!.KeptMessages.Count >= 1);
         Assert.IsTrue(checkpoint.SummarizedMessageCount >= 1);
+        Assert.AreEqual(checkpoint.KeptMessages.Count, checkpoint.KeptMessageCount);
+        Assert.IsTrue(checkpoint.SummaryCallCount >= 1);
+        Assert.IsTrue(checkpoint.SummaryPromptInputTokens > 0);
+
+        var completedUpdate = persistedHistory
+            .OfType<AgentSessionUpdateEvent>()
+            .Single(static evt => evt.Kind == AgentSessionUpdateKind.CompactionCompleted);
+        Assert.IsNotNull(completedUpdate.Details);
+        Assert.AreEqual("codealta.localCompaction.v1", completedUpdate.Details.Value.GetProperty("schema").GetString());
+        Assert.AreEqual(checkpoint.Summary, completedUpdate.Details.Value.GetProperty("summaryMarkdown").GetString());
+        Assert.AreEqual(checkpoint.SummaryCallCount, completedUpdate.Details.Value.GetProperty("summaryCallCount").GetInt32());
 
         var persistedState = await store.GetStateAsync(provider.ProtocolFamily, provider.ProviderKey, summary.SessionId).ConfigureAwait(false);
         Assert.IsNotNull(persistedState);
@@ -1564,6 +1575,12 @@ public sealed class LocalAgentSessionTests
         StringAssert.Contains(result.UserMessage, "repeated successful grep activity");
         Assert.IsFalse(result.UserMessage.Contains("match 1:", StringComparison.Ordinal));
         Assert.IsFalse(result.UserMessage.Contains("match 2:", StringComparison.Ordinal));
+        Assert.AreEqual(3, result.Statistics.TotalToolCallCount);
+        Assert.AreEqual(1, result.Statistics.SerializedToolCallCount);
+        Assert.AreEqual(2, result.Statistics.CollapsedToolCallCount);
+        Assert.AreEqual(3, result.Statistics.TotalToolResultCount);
+        Assert.AreEqual(1, result.Statistics.SerializedToolResultCount);
+        Assert.AreEqual(0, result.Statistics.SerializedToolResultExcerptCount);
     }
 
     [TestMethod]

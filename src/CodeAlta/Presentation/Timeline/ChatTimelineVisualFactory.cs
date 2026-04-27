@@ -81,6 +81,27 @@ internal static class ChatTimelineVisualFactory
             static state => CreateChatMarkdownItemCore(state.markdown, state.tone, state.headerOverride, state.headerSecondary, state.maxCodeBlockHeight, state.localFileRootPath),
             (markdown, tone, headerOverride, headerSecondary, maxCodeBlockHeight, localFileRootPath));
 
+    public static ChatMarkdownEntry CreateCollapsibleMarkdownItem(
+        string markdown,
+        string collapsibleHeader,
+        string collapsibleMarkdown,
+        ChatTimelineTone tone,
+        string? headerOverride = null,
+        string? headerSecondary = null,
+        int maxCodeBlockHeight = 14,
+        string? localFileRootPath = null)
+        => UiDispatch.InvokeCurrent(
+            static state => CreateChatMarkdownItemCore(
+                state.markdown,
+                state.tone,
+                state.headerOverride,
+                state.headerSecondary,
+                state.maxCodeBlockHeight,
+                state.localFileRootPath,
+                state.collapsibleHeader,
+                state.collapsibleMarkdown),
+            (markdown, tone, headerOverride, headerSecondary, maxCodeBlockHeight, localFileRootPath, collapsibleHeader, collapsibleMarkdown));
+
     public static MarkdownRenderOptions CreateThreadMarkdownOptions(int maxCodeBlockHeight, string? localFileRootPath = null)
         => MarkdownRenderOptions.Default with
         {
@@ -204,7 +225,9 @@ internal static class ChatTimelineVisualFactory
         string? headerOverride,
         string? headerSecondary,
         int maxCodeBlockHeight,
-        string? localFileRootPath)
+        string? localFileRootPath,
+        string? collapsibleHeader = null,
+        string? collapsibleMarkdown = null)
     {
         var headerText = CreateChatCardHeader(tone, headerOverride, headerSecondary);
         markdown = markdown.Trim();
@@ -220,7 +243,25 @@ internal static class ChatTimelineVisualFactory
 
         var timestampText = new Markup(string.Empty);
 
-        var group = new Group(headerText, markdownControl)
+        Visual groupContent = markdownControl;
+        if (!string.IsNullOrWhiteSpace(collapsibleHeader) && !string.IsNullOrWhiteSpace(collapsibleMarkdown))
+        {
+            var detailsMarkdown = new MarkdownControl(collapsibleMarkdown.Trim())
+            {
+                HorizontalAlignment = Align.Stretch,
+                VerticalAlignment = Align.Start,
+                Options = CreateThreadMarkdownOptions(maxCodeBlockHeight, localFileRootPath),
+            };
+            groupContent = new VStack(
+                    markdownControl,
+                    new Collapsible()
+                        .Header(collapsibleHeader)
+                        .Content(detailsMarkdown)
+                        .IsExpanded(false))
+                .Spacing(1);
+        }
+
+        var group = new Group(headerText, groupContent)
             .TopRightText(copyButton)
             .BottomRightText(timestampText)
             .Style(CreateChatGroupStyle(tone))

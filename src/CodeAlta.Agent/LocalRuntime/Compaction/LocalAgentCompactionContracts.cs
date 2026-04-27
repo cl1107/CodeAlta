@@ -40,6 +40,11 @@ internal sealed record LocalAgentCompactionResult(
     long? TokensAfter,
     int MessagesSummarized,
     int ChunkCount,
+    int SummaryCallCount,
+    int SummaryMaxOutputTokens,
+    long SummaryPromptInputTokens,
+    int SummaryPromptIncludedMessages,
+    int SummaryPromptTotalMessages,
     double? CompressionRatio,
     LocalAgentCompactionSerializerStatistics SerializerStatistics,
     IReadOnlyList<string> ReadFiles,
@@ -68,7 +73,17 @@ internal sealed record LocalAgentCompactionSerializerStatistics(
     int DroppedMessageCount,
     int SerializedToolResultCharacters,
     int SerializedReasoningCharacters,
-    bool ReducedOversizedAnchor);
+    bool ReducedOversizedAnchor,
+    int TotalToolCallCount = 0,
+    int SerializedToolCallCount = 0,
+    int CollapsedToolCallCount = 0,
+    int TotalToolResultCount = 0,
+    int SerializedToolResultCount = 0,
+    int SerializedToolResultExcerptCount = 0,
+    int TotalReasoningCount = 0,
+    int SerializedReasoningCount = 0,
+    int TotalAttachmentCount = 0,
+    int SerializedAttachmentCount = 0);
 
 internal sealed record LocalAgentCompactionSerializationResult(
     string UserMessage,

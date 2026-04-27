@@ -38,6 +38,11 @@ public sealed record LocalAgentCompactionCheckpoint
     public string? AnchorContentId { get; init; }
 
     /// <summary>
+    /// Gets or initializes whether compaction split an in-progress turn.
+    /// </summary>
+    public bool IsSplitTurn { get; init; }
+
+    /// <summary>
     /// Gets or initializes the token count before compaction.
     /// </summary>
     public long TokensBefore { get; init; }
@@ -56,6 +61,36 @@ public sealed record LocalAgentCompactionCheckpoint
     /// Gets or initializes the summarized message count.
     /// </summary>
     public int SummarizedMessageCount { get; init; }
+
+    /// <summary>
+    /// Gets or initializes the number of original messages retained verbatim after compaction.
+    /// </summary>
+    public int KeptMessageCount { get; init; }
+
+    /// <summary>
+    /// Gets or initializes the estimated total input tokens sent to summarizer calls.
+    /// </summary>
+    public long SummaryPromptInputTokens { get; init; }
+
+    /// <summary>
+    /// Gets or initializes the number of messages serialized into summarizer requests.
+    /// </summary>
+    public int SummaryPromptIncludedMessageCount { get; init; }
+
+    /// <summary>
+    /// Gets or initializes the number of messages considered for summarizer requests before serialization drops.
+    /// </summary>
+    public int SummaryPromptTotalMessageCount { get; init; }
+
+    /// <summary>
+    /// Gets or initializes the number of local AI summarizer calls used to produce this checkpoint.
+    /// </summary>
+    public int SummaryCallCount { get; init; }
+
+    /// <summary>
+    /// Gets or initializes the maximum output tokens requested from the summarizer.
+    /// </summary>
+    public int SummaryMaxOutputTokens { get; init; }
 
     /// <summary>
     /// Gets or initializes the verbatim kept suffix captured at compaction time.
@@ -81,6 +116,76 @@ public sealed record LocalAgentCompactionCheckpoint
     /// Gets or initializes how many reasoning excerpts were omitted during serialization.
     /// </summary>
     public int OmittedReasoningCount { get; init; }
+
+    /// <summary>
+    /// Gets or initializes how many inline attachments were omitted during serialization.
+    /// </summary>
+    public int OmittedAttachmentCount { get; init; }
+
+    /// <summary>
+    /// Gets or initializes how many messages had no serializable content for summarization.
+    /// </summary>
+    public int DroppedMessageCount { get; init; }
+
+    /// <summary>
+    /// Gets or initializes how many tool-result characters were serialized for summarization.
+    /// </summary>
+    public int SerializedToolResultCharacters { get; init; }
+
+    /// <summary>
+    /// Gets or initializes how many reasoning characters were serialized for summarization.
+    /// </summary>
+    public int SerializedReasoningCharacters { get; init; }
+
+    /// <summary>
+    /// Gets or initializes the number of tool calls represented in summarizer input.
+    /// </summary>
+    public int TotalToolCallCount { get; init; }
+
+    /// <summary>
+    /// Gets or initializes the number of tool-call lines serialized for summarization.
+    /// </summary>
+    public int SerializedToolCallCount { get; init; }
+
+    /// <summary>
+    /// Gets or initializes the number of repeated tool calls collapsed into compact summaries.
+    /// </summary>
+    public int CollapsedToolCallCount { get; init; }
+
+    /// <summary>
+    /// Gets or initializes the number of tool results represented in summarizer input.
+    /// </summary>
+    public int TotalToolResultCount { get; init; }
+
+    /// <summary>
+    /// Gets or initializes the number of tool-result summary lines serialized for summarization.
+    /// </summary>
+    public int SerializedToolResultCount { get; init; }
+
+    /// <summary>
+    /// Gets or initializes the number of tool results that included output excerpts.
+    /// </summary>
+    public int SerializedToolResultExcerptCount { get; init; }
+
+    /// <summary>
+    /// Gets or initializes the number of reasoning parts represented in summarizer input.
+    /// </summary>
+    public int TotalReasoningCount { get; init; }
+
+    /// <summary>
+    /// Gets or initializes the number of reasoning excerpts serialized for summarization.
+    /// </summary>
+    public int SerializedReasoningCount { get; init; }
+
+    /// <summary>
+    /// Gets or initializes the number of attachments represented in summarizer input.
+    /// </summary>
+    public int TotalAttachmentCount { get; init; }
+
+    /// <summary>
+    /// Gets or initializes the number of attachment references serialized for summarization.
+    /// </summary>
+    public int SerializedAttachmentCount { get; init; }
 
     /// <summary>
     /// Gets or initializes how many recursive chunks were used to create the checkpoint.

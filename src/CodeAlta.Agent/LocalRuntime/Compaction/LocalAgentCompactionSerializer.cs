@@ -294,7 +294,7 @@ internal static class LocalAgentCompactionSerializer
 
                 break;
             case LocalAgentCompactionToolInteractionUnit { IsCollapsed: true } collapsedUnit:
-                foreach (var line in SerializeCollapsedToolInteraction(collapsedUnit))
+                foreach (var line in SerializeCollapsedToolInteraction(collapsedUnit, state))
                 {
                     yield return line;
                 }
@@ -330,22 +330,29 @@ internal static class LocalAgentCompactionSerializer
                     yield return $"[{GetRoleLabel(message.Role)}] {text.Value.Trim()}";
                     break;
                 case LocalAgentMessagePart.Reasoning:
+                    state.TotalReasoningCount++;
                     if (state.TryGetReasoningExcerpt(message, partIndex, out var reasoningExcerpt))
                     {
+                        state.SerializedReasoningCount++;
                         emitted = true;
                         yield return $"[Assistant reasoning summary] {reasoningExcerpt}";
                     }
 
                     break;
                 case LocalAgentMessagePart.ToolCall toolCall:
+                    state.TotalToolCallCount++;
+                    state.SerializedToolCallCount++;
                     emitted = true;
                     yield return $"[Assistant tool calls] {toolCall.Name} {SummarizeArguments(toolCall.Arguments)}";
                     break;
                 case LocalAgentMessagePart.ToolResult toolResult:
+                    state.TotalToolResultCount++;
+                    state.SerializedToolResultCount++;
                     emitted = true;
                     var descriptor = BuildToolDescriptor(toolResult);
                     if (state.TryGetToolResultExcerpt(message, partIndex, out var toolExcerpt))
                     {
+                        state.SerializedToolResultExcerptCount++;
                         yield return $"[Tool result summary] {descriptor}; excerpt: {toolExcerpt}";
                     }
                     else
@@ -355,10 +362,13 @@ internal static class LocalAgentCompactionSerializer
 
                     break;
                 case LocalAgentMessagePart.Uri uri:
+                    state.TotalAttachmentCount++;
+                    state.SerializedAttachmentCount++;
                     emitted = true;
                     yield return $"[Attachment] {uri.Name ?? uri.MediaType ?? "uri"}: {uri.Value}";
                     break;
                 case LocalAgentMessagePart.Data data:
+                    state.TotalAttachmentCount++;
                     emitted = true;
                     yield return $"[Attachment] inline {data.Name ?? data.MediaType}; base64 omitted ({data.Base64Data.Length} chars)";
                     break;
@@ -371,11 +381,16 @@ internal static class LocalAgentCompactionSerializer
         }
     }
 
-    private static IEnumerable<string> SerializeCollapsedToolInteraction(LocalAgentCompactionToolInteractionUnit unit)
+    private static IEnumerable<string> SerializeCollapsedToolInteraction(LocalAgentCompactionToolInteractionUnit unit, SerializationState state)
     {
         var toolCall = unit.ToolCalls.Single();
         var toolResult = unit.ToolResults.Single();
         var descriptor = BuildToolDescriptor(toolResult);
+        state.TotalToolCallCount += unit.RepeatCount;
+        state.SerializedToolCallCount++;
+        state.CollapsedToolCallCount += Math.Max(unit.RepeatCount - 1, 0);
+        state.TotalToolResultCount += unit.RepeatCount;
+        state.SerializedToolResultCount++;
         yield return $"[Assistant tool calls] {toolCall.Name} {SummarizeArguments(toolCall.Arguments)} repeated {unit.RepeatCount} times";
         yield return $"[Tool result summary] repeated successful {toolCall.Name} activity ({unit.RepeatCount}x); latest {descriptor}; bulk output omitted";
     }
@@ -623,6 +638,26 @@ internal static class LocalAgentCompactionSerializer
 
         public bool ReducedOversizedAnchor { get; } = reducedOversizedAnchor;
 
+        public int TotalToolCallCount { get; set; }
+
+        public int SerializedToolCallCount { get; set; }
+
+        public int CollapsedToolCallCount { get; set; }
+
+        public int TotalToolResultCount { get; set; }
+
+        public int SerializedToolResultCount { get; set; }
+
+        public int SerializedToolResultExcerptCount { get; set; }
+
+        public int TotalReasoningCount { get; set; }
+
+        public int SerializedReasoningCount { get; set; }
+
+        public int TotalAttachmentCount { get; set; }
+
+        public int SerializedAttachmentCount { get; set; }
+
         public void SetToolResultExcerpt(LocalAgentConversationMessage message, int partIndex, string value)
         {
             if (!ToolResultExcerpts.TryGetValue(message, out var parts))
@@ -675,7 +710,17 @@ internal static class LocalAgentCompactionSerializer
                 DroppedMessageCount,
                 SerializedToolResultCharacters,
                 SerializedReasoningCharacters,
-                ReducedOversizedAnchor);
+                ReducedOversizedAnchor,
+                TotalToolCallCount,
+                SerializedToolCallCount,
+                CollapsedToolCallCount,
+                TotalToolResultCount,
+                SerializedToolResultCount,
+                SerializedToolResultExcerptCount,
+                TotalReasoningCount,
+                SerializedReasoningCount,
+                TotalAttachmentCount,
+                SerializedAttachmentCount);
     }
 
     private readonly record struct RankedUnit(LocalAgentCompactionUnit Unit, int Priority, int Recency)

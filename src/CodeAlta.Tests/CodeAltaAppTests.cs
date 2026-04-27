@@ -1233,6 +1233,65 @@ public sealed class CodeAltaAppTests
     }
 
     [TestMethod]
+    public void FormatChatSessionUpdateMarkdown_LocalCompactionDetails_IncludesStatisticsAndSummary()
+    {
+        using var document = JsonDocument.Parse(
+            """
+            {
+              "schema": "codealta.localCompaction.v1",
+              "summaryMarkdown": "## Objective\nContinue the task.",
+              "tokensBefore": 12000,
+              "tokensAfter": 4500,
+              "tokensRemoved": 7500,
+              "compressionRatio": 0.375,
+              "summarizedMessageCount": 8,
+              "keptMessageCount": 3,
+              "messagesAfter": 4,
+              "summaryPromptInputTokens": 2400,
+              "summaryPromptIncludedMessageCount": 10,
+              "summaryPromptTotalMessageCount": 11,
+              "summaryCallCount": 2,
+              "summaryMaxOutputTokens": 1024,
+              "chunkCount": 2,
+              "totalToolCallCount": 5,
+              "serializedToolCallCount": 4,
+              "collapsedToolCallCount": 1,
+              "totalToolResultCount": 5,
+              "serializedToolResultCount": 4,
+              "serializedToolResultExcerptCount": 3,
+              "omittedToolResultCount": 2,
+              "serializedToolResultCharacters": 900,
+              "totalReasoningCount": 2,
+              "serializedReasoningCount": 1,
+              "omittedReasoningCount": 1,
+              "serializedReasoningCharacters": 300,
+              "omittedAttachmentCount": 1,
+              "droppedMessageCount": 1,
+              "readFiles": ["src/A.cs", "src/B.cs"],
+              "modifiedFiles": ["src/C.cs"]
+            }
+            """);
+        var update = new AgentSessionUpdateEvent(
+            AgentBackendIds.OpenAIResponses,
+            "session-1",
+            DateTimeOffset.UtcNow,
+            null,
+            AgentSessionUpdateKind.CompactionCompleted,
+            "Manual local compaction summarized 8 messages.",
+            Details: document.RootElement.Clone());
+
+        var markdown = ChatMarkdownFormatter.FormatChatSessionUpdateMarkdown(update);
+
+        StringAssert.Contains(markdown, "**Efficiency**");
+        StringAssert.Contains(markdown, "Context: 12,000 → 4,500 tokens");
+        StringAssert.Contains(markdown, "Summarizer: 2 calls, 2 chunks");
+        StringAssert.Contains(markdown, "Tool outputs: 3/5 with excerpts");
+        StringAssert.Contains(markdown, "1 modified files and 2 read files tracked");
+        Assert.IsTrue(ChatMarkdownFormatter.TryGetCompactionSummaryMarkdown(update, out var summaryMarkdown));
+        Assert.AreEqual("## Objective\nContinue the task.", summaryMarkdown);
+    }
+
+    [TestMethod]
     public void ShouldDisplayPermissionRequest_HidesAutoApprovedPermissions()
     {
         Assert.IsFalse(ChatMarkdownFormatter.ShouldDisplayPermissionRequest(autoApproveEnabled: true));

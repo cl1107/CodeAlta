@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Text;
@@ -1178,13 +1179,34 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
                 Summary = summaryResult.Summary,
                 FirstKeptEventOffset = TryResolveFirstKeptEventOffset(retainedConversation),
                 AnchorContentId = preparation.AnchorContentId,
+                IsSplitTurn = summaryResult.IsSplitTurn,
                 TokensBefore = summaryResult.TokensBefore,
                 SummarizedMessageCount = summaryResult.MessagesSummarized,
+                KeptMessageCount = retainedConversation.Count,
+                SummaryPromptInputTokens = summaryResult.SummaryPromptInputTokens,
+                SummaryPromptIncludedMessageCount = summaryResult.SummaryPromptIncludedMessages,
+                SummaryPromptTotalMessageCount = summaryResult.SummaryPromptTotalMessages,
+                SummaryCallCount = summaryResult.SummaryCallCount,
+                SummaryMaxOutputTokens = summaryResult.SummaryMaxOutputTokens,
                 CompressionRatio = summaryResult.CompressionRatio,
                 ReadFiles = summaryResult.ReadFiles,
                 ModifiedFiles = summaryResult.ModifiedFiles,
                 OmittedToolResultCount = summaryResult.SerializerStatistics.OmittedToolResultCount,
                 OmittedReasoningCount = summaryResult.SerializerStatistics.OmittedReasoningCount,
+                OmittedAttachmentCount = summaryResult.SerializerStatistics.OmittedAttachmentCount,
+                DroppedMessageCount = summaryResult.SerializerStatistics.DroppedMessageCount,
+                SerializedToolResultCharacters = summaryResult.SerializerStatistics.SerializedToolResultCharacters,
+                SerializedReasoningCharacters = summaryResult.SerializerStatistics.SerializedReasoningCharacters,
+                TotalToolCallCount = summaryResult.SerializerStatistics.TotalToolCallCount,
+                SerializedToolCallCount = summaryResult.SerializerStatistics.SerializedToolCallCount,
+                CollapsedToolCallCount = summaryResult.SerializerStatistics.CollapsedToolCallCount,
+                TotalToolResultCount = summaryResult.SerializerStatistics.TotalToolResultCount,
+                SerializedToolResultCount = summaryResult.SerializerStatistics.SerializedToolResultCount,
+                SerializedToolResultExcerptCount = summaryResult.SerializerStatistics.SerializedToolResultExcerptCount,
+                TotalReasoningCount = summaryResult.SerializerStatistics.TotalReasoningCount,
+                SerializedReasoningCount = summaryResult.SerializerStatistics.SerializedReasoningCount,
+                TotalAttachmentCount = summaryResult.SerializerStatistics.TotalAttachmentCount,
+                SerializedAttachmentCount = summaryResult.SerializerStatistics.SerializedAttachmentCount,
                 ChunkCount = summaryResult.ChunkCount,
                 OversizedAnchorReduced = summaryResult.OversizedAnchorReduced,
                 KeptMessages = retainedConversation,
@@ -1282,6 +1304,7 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
             runId,
             AgentSessionUpdateKind.CompactionCompleted,
             completionMessage,
+            Details: CreateCompactionDetailsElement(checkpoint),
             Usage: usage);
         await AppendEventsAsync([started, rawCheckpoint, completed], cancellationToken).ConfigureAwait(false);
         await _store.UpsertStateAsync(_state, cancellationToken).ConfigureAwait(false);
@@ -1311,6 +1334,88 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
             ? Math.Min(reservedCap, (int)budget.OutputTokenLimit.Value)
             : reservedCap;
         return Math.Max(providerCap, 1);
+    }
+
+    private static JsonElement CreateCompactionDetailsElement(LocalAgentCompactionCheckpoint checkpoint)
+    {
+        ArgumentNullException.ThrowIfNull(checkpoint);
+
+        var buffer = new ArrayBufferWriter<byte>();
+        using (var writer = new Utf8JsonWriter(buffer))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("schema", "codealta.localCompaction.v1");
+            writer.WriteString("contentId", checkpoint.ContentId);
+            writer.WriteString("trigger", checkpoint.Trigger);
+            writer.WriteString("summaryMarkdown", checkpoint.Summary);
+            writer.WriteString("anchorContentId", checkpoint.AnchorContentId);
+            writer.WriteNumber("tokensBefore", checkpoint.TokensBefore);
+            if (checkpoint.TokensAfter is { } tokensAfter)
+            {
+                writer.WriteNumber("tokensAfter", tokensAfter);
+                writer.WriteNumber("tokensRemoved", Math.Max(0, checkpoint.TokensBefore - tokensAfter));
+            }
+            else
+            {
+                writer.WriteNull("tokensAfter");
+                writer.WriteNull("tokensRemoved");
+            }
+
+            if (checkpoint.CompressionRatio is { } compressionRatio)
+            {
+                writer.WriteNumber("compressionRatio", compressionRatio);
+            }
+            else
+            {
+                writer.WriteNull("compressionRatio");
+            }
+
+            writer.WriteNumber("summarizedMessageCount", checkpoint.SummarizedMessageCount);
+            writer.WriteNumber("keptMessageCount", checkpoint.KeptMessageCount);
+            writer.WriteNumber("messagesAfter", checkpoint.KeptMessageCount + 1);
+            writer.WriteNumber("summaryPromptInputTokens", checkpoint.SummaryPromptInputTokens);
+            writer.WriteNumber("summaryPromptIncludedMessageCount", checkpoint.SummaryPromptIncludedMessageCount);
+            writer.WriteNumber("summaryPromptTotalMessageCount", checkpoint.SummaryPromptTotalMessageCount);
+            writer.WriteNumber("summaryCallCount", checkpoint.SummaryCallCount);
+            writer.WriteNumber("summaryMaxOutputTokens", checkpoint.SummaryMaxOutputTokens);
+            writer.WriteNumber("chunkCount", checkpoint.ChunkCount);
+            writer.WriteBoolean("isSplitTurn", checkpoint.IsSplitTurn);
+            writer.WriteBoolean("oversizedAnchorReduced", checkpoint.OversizedAnchorReduced);
+            writer.WriteNumber("omittedToolResultCount", checkpoint.OmittedToolResultCount);
+            writer.WriteNumber("omittedReasoningCount", checkpoint.OmittedReasoningCount);
+            writer.WriteNumber("omittedAttachmentCount", checkpoint.OmittedAttachmentCount);
+            writer.WriteNumber("droppedMessageCount", checkpoint.DroppedMessageCount);
+            writer.WriteNumber("serializedToolResultCharacters", checkpoint.SerializedToolResultCharacters);
+            writer.WriteNumber("serializedReasoningCharacters", checkpoint.SerializedReasoningCharacters);
+            writer.WriteNumber("totalToolCallCount", checkpoint.TotalToolCallCount);
+            writer.WriteNumber("serializedToolCallCount", checkpoint.SerializedToolCallCount);
+            writer.WriteNumber("collapsedToolCallCount", checkpoint.CollapsedToolCallCount);
+            writer.WriteNumber("totalToolResultCount", checkpoint.TotalToolResultCount);
+            writer.WriteNumber("serializedToolResultCount", checkpoint.SerializedToolResultCount);
+            writer.WriteNumber("serializedToolResultExcerptCount", checkpoint.SerializedToolResultExcerptCount);
+            writer.WriteNumber("totalReasoningCount", checkpoint.TotalReasoningCount);
+            writer.WriteNumber("serializedReasoningCount", checkpoint.SerializedReasoningCount);
+            writer.WriteNumber("totalAttachmentCount", checkpoint.TotalAttachmentCount);
+            writer.WriteNumber("serializedAttachmentCount", checkpoint.SerializedAttachmentCount);
+            WriteStringArray(writer, "readFiles", checkpoint.ReadFiles);
+            WriteStringArray(writer, "modifiedFiles", checkpoint.ModifiedFiles);
+            writer.WriteEndObject();
+        }
+
+        using var document = JsonDocument.Parse(buffer.WrittenMemory);
+        return document.RootElement.Clone();
+    }
+
+    private static void WriteStringArray(Utf8JsonWriter writer, string propertyName, IReadOnlyList<string> values)
+    {
+        writer.WritePropertyName(propertyName);
+        writer.WriteStartArray();
+        foreach (var value in values)
+        {
+            writer.WriteStringValue(value);
+        }
+
+        writer.WriteEndArray();
     }
 
     private static bool FitsResolvedPromptBudget(long promptTokens, LocalAgentTokenBudget budget)

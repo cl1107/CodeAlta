@@ -161,12 +161,28 @@ internal sealed class ThreadRuntimeTimelineRenderer
                     break;
                 }
 
+                var updateMarkdown = ChatMarkdownFormatter.FormatChatSessionUpdateMarkdown(update);
+                var updateTone = update.Kind == AgentSessionUpdateKind.Warning ? ChatTimelineTone.Interaction : ChatTimelineTone.Notice;
+                var updateHeader = ChatMarkdownFormatter.GetSessionUpdateHeader(update.Kind);
+                if (ChatMarkdownFormatter.TryGetCompactionSummaryMarkdown(update, out var compactionSummaryMarkdown))
+                {
+                    tab.Timeline.AddCollapsibleStatus(
+                        update.Timestamp,
+                        updateMarkdown,
+                        "Summarizer summary",
+                        compactionSummaryMarkdown,
+                        updateTone,
+                        headerOverride: "Notice",
+                        headerSecondary: updateHeader);
+                    break;
+                }
+
                 tab.Timeline.AddStatus(
                     update.Timestamp,
-                    ChatMarkdownFormatter.FormatChatSessionUpdateMarkdown(update),
-                    update.Kind == AgentSessionUpdateKind.Warning ? ChatTimelineTone.Interaction : ChatTimelineTone.Notice,
+                    updateMarkdown,
+                    updateTone,
                     headerOverride: "Notice",
-                    headerSecondary: ChatMarkdownFormatter.GetSessionUpdateHeader(update.Kind));
+                    headerSecondary: updateHeader);
                 break;
 
             case AgentErrorEvent error:

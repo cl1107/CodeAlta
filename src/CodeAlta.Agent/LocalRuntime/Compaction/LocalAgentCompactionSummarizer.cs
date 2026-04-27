@@ -208,6 +208,11 @@ internal sealed class LocalAgentCompactionSummarizer(ILocalAgentCompactionSummar
             TokensAfter: null,
             MessagesSummarized: preparation.MessagesToSummarize.Count,
             ChunkCount: 1,
+            SummaryCallCount: additionalSummaryCallCount + 1,
+            SummaryMaxOutputTokens: maxOutputTokens,
+            SummaryPromptInputTokens: serialization.EstimatedInputTokens,
+            SummaryPromptIncludedMessages: serialization.IncludedMessageCount,
+            SummaryPromptTotalMessages: serialization.TotalMessageCount,
             CompressionRatio: null,
             SerializerStatistics: serialization.Statistics,
             ReadFiles: fileActivity.ReadFiles,
@@ -249,6 +254,10 @@ internal sealed class LocalAgentCompactionSummarizer(ILocalAgentCompactionSummar
             ReducedOversizedAnchor: false);
         LocalAgentCompactionResult? finalResult = null;
         var totalChunkCount = 0;
+        var totalSummaryCallCount = additionalSummaryCallCount;
+        long totalSummaryPromptInputTokens = 0;
+        var totalSummaryPromptIncludedMessages = 0;
+        var totalSummaryPromptMessages = 0;
 
         for (var index = 0; index < chunks.Count; index++)
         {
@@ -282,6 +291,10 @@ internal sealed class LocalAgentCompactionSummarizer(ILocalAgentCompactionSummar
             rollingSummary = chunkResult.Summary;
             aggregatedStatistics = MergeStatistics(aggregatedStatistics, chunkResult.SerializerStatistics);
             totalChunkCount += chunkResult.ChunkCount;
+            totalSummaryCallCount += chunkResult.SummaryCallCount;
+            totalSummaryPromptInputTokens += chunkResult.SummaryPromptInputTokens;
+            totalSummaryPromptIncludedMessages += chunkResult.SummaryPromptIncludedMessages;
+            totalSummaryPromptMessages += chunkResult.SummaryPromptTotalMessages;
             finalResult = chunkResult;
         }
 
@@ -316,6 +329,10 @@ internal sealed class LocalAgentCompactionSummarizer(ILocalAgentCompactionSummar
             rollingSummary = mergeResult.Summary;
             aggregatedStatistics = MergeStatistics(aggregatedStatistics, mergeResult.SerializerStatistics);
             totalChunkCount += mergeResult.ChunkCount;
+            totalSummaryCallCount += mergeResult.SummaryCallCount;
+            totalSummaryPromptInputTokens += mergeResult.SummaryPromptInputTokens;
+            totalSummaryPromptIncludedMessages += mergeResult.SummaryPromptIncludedMessages;
+            totalSummaryPromptMessages += mergeResult.SummaryPromptTotalMessages;
             finalResult = mergeResult;
         }
 
@@ -324,6 +341,10 @@ internal sealed class LocalAgentCompactionSummarizer(ILocalAgentCompactionSummar
             : finalResult with
             {
                 ChunkCount = Math.Max(totalChunkCount, chunks.Count),
+                SummaryCallCount = Math.Max(totalSummaryCallCount, 1),
+                SummaryPromptInputTokens = totalSummaryPromptInputTokens,
+                SummaryPromptIncludedMessages = totalSummaryPromptIncludedMessages,
+                SummaryPromptTotalMessages = totalSummaryPromptMessages,
                 SerializerStatistics = aggregatedStatistics,
             };
     }
@@ -641,7 +662,17 @@ internal sealed class LocalAgentCompactionSummarizer(ILocalAgentCompactionSummar
             DroppedMessageCount: left.DroppedMessageCount + right.DroppedMessageCount,
             SerializedToolResultCharacters: left.SerializedToolResultCharacters + right.SerializedToolResultCharacters,
             SerializedReasoningCharacters: left.SerializedReasoningCharacters + right.SerializedReasoningCharacters,
-            ReducedOversizedAnchor: left.ReducedOversizedAnchor || right.ReducedOversizedAnchor);
+            ReducedOversizedAnchor: left.ReducedOversizedAnchor || right.ReducedOversizedAnchor,
+            TotalToolCallCount: left.TotalToolCallCount + right.TotalToolCallCount,
+            SerializedToolCallCount: left.SerializedToolCallCount + right.SerializedToolCallCount,
+            CollapsedToolCallCount: left.CollapsedToolCallCount + right.CollapsedToolCallCount,
+            TotalToolResultCount: left.TotalToolResultCount + right.TotalToolResultCount,
+            SerializedToolResultCount: left.SerializedToolResultCount + right.SerializedToolResultCount,
+            SerializedToolResultExcerptCount: left.SerializedToolResultExcerptCount + right.SerializedToolResultExcerptCount,
+            TotalReasoningCount: left.TotalReasoningCount + right.TotalReasoningCount,
+            SerializedReasoningCount: left.SerializedReasoningCount + right.SerializedReasoningCount,
+            TotalAttachmentCount: left.TotalAttachmentCount + right.TotalAttachmentCount,
+            SerializedAttachmentCount: left.SerializedAttachmentCount + right.SerializedAttachmentCount);
 
     private static FileActivity ExtractFileActivity(IReadOnlyList<AgentEvent> history)
     {

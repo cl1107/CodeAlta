@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using CodeAlta.Agent;
@@ -97,8 +98,247 @@ internal static class ChatMarkdownFormatter
     public static string FormatChatSessionUpdateMarkdown(AgentSessionUpdateEvent update)
     {
         ArgumentNullException.ThrowIfNull(update);
+        if (TryGetLocalCompactionDetails(update, out var details))
+        {
+            return FormatLocalCompactionMarkdown(update.Message, details);
+        }
+
         return update.Message ?? string.Empty;
     }
+
+    public static bool TryGetCompactionSummaryMarkdown(AgentSessionUpdateEvent update, out string summaryMarkdown)
+    {
+        ArgumentNullException.ThrowIfNull(update);
+        if (TryGetLocalCompactionDetails(update, out var details) &&
+            TryGetStringProperty(details, "summaryMarkdown", out var summary) &&
+            !string.IsNullOrWhiteSpace(summary))
+        {
+            summaryMarkdown = summary;
+            return true;
+        }
+
+        summaryMarkdown = string.Empty;
+        return false;
+    }
+
+    private static string FormatLocalCompactionMarkdown(string? message, JsonElement details)
+    {
+        var tokensBefore = GetLongProperty(details, "tokensBefore");
+        var tokensAfter = GetLongProperty(details, "tokensAfter");
+        var tokensRemoved = GetLongProperty(details, "tokensRemoved");
+        var compressionRatio = GetDoubleProperty(details, "compressionRatio");
+        var summarizedMessages = GetIntProperty(details, "summarizedMessageCount");
+        var keptMessages = GetIntProperty(details, "keptMessageCount");
+        var messagesAfter = GetIntProperty(details, "messagesAfter");
+        var summaryCalls = GetIntProperty(details, "summaryCallCount");
+        var chunkCount = GetIntProperty(details, "chunkCount");
+        var summaryInputTokens = GetLongProperty(details, "summaryPromptInputTokens");
+        var summaryIncludedMessages = GetIntProperty(details, "summaryPromptIncludedMessageCount");
+        var summaryTotalMessages = GetIntProperty(details, "summaryPromptTotalMessageCount");
+        var summaryMaxOutputTokens = GetIntProperty(details, "summaryMaxOutputTokens");
+        var totalToolCalls = GetIntProperty(details, "totalToolCallCount");
+        var serializedToolCalls = GetIntProperty(details, "serializedToolCallCount");
+        var collapsedToolCalls = GetIntProperty(details, "collapsedToolCallCount");
+        var totalToolResults = GetIntProperty(details, "totalToolResultCount");
+        var serializedToolResults = GetIntProperty(details, "serializedToolResultCount");
+        var toolResultExcerpts = GetIntProperty(details, "serializedToolResultExcerptCount");
+        var omittedToolResults = GetIntProperty(details, "omittedToolResultCount");
+        var toolResultCharacters = GetIntProperty(details, "serializedToolResultCharacters");
+        var totalReasoning = GetIntProperty(details, "totalReasoningCount");
+        var serializedReasoning = GetIntProperty(details, "serializedReasoningCount");
+        var omittedReasoning = GetIntProperty(details, "omittedReasoningCount");
+        var reasoningCharacters = GetIntProperty(details, "serializedReasoningCharacters");
+        var omittedAttachments = GetIntProperty(details, "omittedAttachmentCount");
+        var droppedMessages = GetIntProperty(details, "droppedMessageCount");
+        var readFiles = CountArrayProperty(details, "readFiles");
+        var modifiedFiles = CountArrayProperty(details, "modifiedFiles");
+
+        var builder = new StringBuilder();
+        if (!string.IsNullOrWhiteSpace(message))
+        {
+            builder.AppendLine(message.Trim());
+            builder.AppendLine();
+        }
+
+        builder.AppendLine("**Efficiency**");
+        if (tokensBefore is not null && tokensAfter is not null)
+        {
+            var removedText = tokensRemoved is null
+                ? string.Empty
+                : $", removed {FormatCompactNumber(tokensRemoved.Value)}";
+            var ratioText = compressionRatio is null
+                ? string.Empty
+                : $", ratio {FormatPercent(compressionRatio.Value)}";
+            builder.Append("- Context: ")
+                .Append(FormatCompactNumber(tokensBefore.Value))
+                .Append(" → ")
+                .Append(FormatCompactNumber(tokensAfter.Value))
+                .Append(" tokens")
+                .Append(removedText)
+                .AppendLine(ratioText);
+        }
+        else if (tokensBefore is not null)
+        {
+            builder.Append("- Context before: ")
+                .Append(FormatCompactNumber(tokensBefore.Value))
+                .AppendLine(" tokens");
+        }
+
+        builder.Append("- Messages: summarized ")
+            .Append(FormatNullableNumber(summarizedMessages))
+            .Append(", kept ")
+            .Append(FormatNullableNumber(keptMessages))
+            .Append(", after ")
+            .AppendLine(FormatNullableNumber(messagesAfter));
+
+        builder.Append("- Summarizer: ")
+            .Append(FormatNullableNumber(summaryCalls))
+            .Append(summaryCalls == 1 ? " call" : " calls")
+            .Append(", ")
+            .Append(FormatNullableNumber(chunkCount))
+            .Append(chunkCount == 1 ? " chunk" : " chunks")
+            .Append(", input ~")
+            .Append(FormatNullableNumber(summaryInputTokens))
+            .Append(" tokens, output budget ")
+            .Append(FormatNullableNumber(summaryMaxOutputTokens))
+            .AppendLine(" tokens");
+        builder.AppendLine();
+
+        builder.AppendLine("**What fed the summarizer**");
+        builder.Append("- Messages serialized: ")
+            .Append(FormatNullableNumber(summaryIncludedMessages))
+            .Append("/")
+            .Append(FormatNullableNumber(summaryTotalMessages))
+            .Append(" considered");
+        if (droppedMessages is > 0)
+        {
+            builder.Append(", ").Append(droppedMessages.Value).Append(" dropped as empty/unserializable");
+        }
+
+        builder.AppendLine();
+        builder.Append("- Tool calls: ")
+            .Append(FormatNullableNumber(serializedToolCalls))
+            .Append("/")
+            .Append(FormatNullableNumber(totalToolCalls))
+            .Append(" serialized");
+        if (collapsedToolCalls is > 0)
+        {
+            builder.Append(", ").Append(collapsedToolCalls.Value).Append(" repeated calls collapsed");
+        }
+
+        builder.AppendLine();
+        builder.Append("- Tool outputs: ")
+            .Append(FormatNullableNumber(toolResultExcerpts))
+            .Append("/")
+            .Append(FormatNullableNumber(totalToolResults))
+            .Append(" with excerpts, ")
+            .Append(FormatNullableNumber(serializedToolResults))
+            .Append(" result summaries, ")
+            .Append(FormatNullableNumber(omittedToolResults))
+            .Append(" omitted/truncated bulk outputs, ")
+            .Append(FormatNullableNumber(toolResultCharacters))
+            .AppendLine(" chars included");
+        builder.Append("- Reasoning: ")
+            .Append(FormatNullableNumber(serializedReasoning))
+            .Append("/")
+            .Append(FormatNullableNumber(totalReasoning))
+            .Append(" excerpts, ")
+            .Append(FormatNullableNumber(omittedReasoning))
+            .Append(" omitted, ")
+            .Append(FormatNullableNumber(reasoningCharacters))
+            .AppendLine(" chars included");
+        builder.Append("- Attachments/files: ")
+            .Append(FormatNullableNumber(omittedAttachments))
+            .Append(" inline attachments omitted; ")
+            .Append(modifiedFiles)
+            .Append(" modified files and ")
+            .Append(readFiles)
+            .AppendLine(" read files tracked");
+
+        if (GetBoolProperty(details, "oversizedAnchorReduced") is true || GetBoolProperty(details, "isSplitTurn") is true)
+        {
+            builder.AppendLine();
+            builder.AppendLine("**Special handling**");
+            if (GetBoolProperty(details, "isSplitTurn") is true)
+            {
+                builder.AppendLine("- Compaction split an in-progress turn and retained a turn prefix.");
+            }
+
+            if (GetBoolProperty(details, "oversizedAnchorReduced") is true)
+            {
+                builder.AppendLine("- The oversized latest user message was reduced before summarization.");
+            }
+        }
+
+        return builder.ToString().Trim();
+    }
+
+    private static bool TryGetLocalCompactionDetails(AgentSessionUpdateEvent update, out JsonElement details)
+    {
+        if (update.Kind == AgentSessionUpdateKind.CompactionCompleted &&
+            update.Details is { ValueKind: JsonValueKind.Object } candidate &&
+            TryGetStringProperty(candidate, "schema", out var schema) &&
+            string.Equals(schema, "codealta.localCompaction.v1", StringComparison.Ordinal))
+        {
+            details = candidate;
+            return true;
+        }
+
+        details = default;
+        return false;
+    }
+
+    private static long? GetLongProperty(JsonElement element, string propertyName)
+    {
+        return element.TryGetProperty(propertyName, out var property) &&
+               property.ValueKind == JsonValueKind.Number &&
+               property.TryGetInt64(out var value)
+            ? value
+            : null;
+    }
+
+    private static int? GetIntProperty(JsonElement element, string propertyName)
+    {
+        return element.TryGetProperty(propertyName, out var property) &&
+               property.ValueKind == JsonValueKind.Number &&
+               property.TryGetInt32(out var value)
+            ? value
+            : null;
+    }
+
+    private static double? GetDoubleProperty(JsonElement element, string propertyName)
+    {
+        return element.TryGetProperty(propertyName, out var property) &&
+               property.ValueKind == JsonValueKind.Number &&
+               property.TryGetDouble(out var value)
+            ? value
+            : null;
+    }
+
+    private static bool? GetBoolProperty(JsonElement element, string propertyName)
+    {
+        return element.TryGetProperty(propertyName, out var property) &&
+               property.ValueKind is JsonValueKind.True or JsonValueKind.False
+            ? property.GetBoolean()
+            : null;
+    }
+
+    private static int CountArrayProperty(JsonElement element, string propertyName)
+        => element.TryGetProperty(propertyName, out var property) && property.ValueKind == JsonValueKind.Array
+            ? property.GetArrayLength()
+            : 0;
+
+    private static string FormatNullableNumber(long? value)
+        => value is null ? "unknown" : FormatCompactNumber(value.Value);
+
+    private static string FormatNullableNumber(int? value)
+        => value is null ? "unknown" : value.Value.ToString("N0", CultureInfo.InvariantCulture);
+
+    private static string FormatCompactNumber(long value)
+        => value.ToString("N0", CultureInfo.InvariantCulture);
+
+    private static string FormatPercent(double value)
+        => value.ToString("P1", CultureInfo.InvariantCulture);
 
     public static string GetSessionUpdateHeader(AgentSessionUpdateKind kind)
     {

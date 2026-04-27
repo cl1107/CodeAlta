@@ -319,6 +319,27 @@ internal sealed class ThreadTimelinePresenter
         string? headerSecondary = null)
         => UpsertStatus(dictionary: null, key: null, timestamp, markdown, tone, headerOverride, headerSecondary);
 
+    public void AddCollapsibleStatus(
+        DateTimeOffset timestamp,
+        string markdown,
+        string collapsibleHeader,
+        string collapsibleMarkdown,
+        ChatTimelineTone tone,
+        string? headerOverride = null,
+        string? headerSecondary = null)
+    {
+        var entry = ChatTimelineVisualFactory.CreateCollapsibleMarkdownItem(
+            markdown,
+            collapsibleHeader,
+            collapsibleMarkdown,
+            tone,
+            headerOverride,
+            headerSecondary,
+            localFileRootPath: _localFileRootPath);
+        ChatTimelineVisualFactory.ApplyTimestamp(entry.TimestampText, timestamp);
+        AppendTimelineItem(entry.Item);
+    }
+
     public void UpsertInteraction(
         string interactionId,
         DateTimeOffset timestamp,
