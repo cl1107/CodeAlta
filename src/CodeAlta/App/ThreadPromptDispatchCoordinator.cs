@@ -189,7 +189,13 @@ internal sealed class ThreadPromptDispatchCoordinator
                     ;
             }
 
-            tab.ActiveRunId = runId;
+            // Local runtime sessions can complete and publish Idle before SendAsync returns.
+            // Do not revive a run that the event stream has already marked idle.
+            if (tab.ActiveRunStartedAt is not null)
+            {
+                tab.ActiveRunId = runId;
+            }
+
             thread.MarkStarted(DateTimeOffset.UtcNow);
             tab.HistoryLoaded = true;
             _commandContext.RefreshHeaderAndThreadWorkspace();

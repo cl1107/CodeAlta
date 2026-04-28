@@ -286,6 +286,27 @@ public sealed class ThreadCommandCoordinatorTests
     }
 
     [TestMethod]
+    public async Task DispatchQueuedPromptAsync_DoesNotRestoreActiveRunAfterTerminalEvent()
+    {
+        using var temp = TempDirectory.Create();
+        var backend = new RecordingBackend();
+        var harness = await CreateSelectedThreadHarnessAsync(temp.Path, backend).ConfigureAwait(false);
+        await using var _ = harness.Hub;
+        backend.BeforeSendReturns = () =>
+        {
+            harness.Tab.ActiveRunId = null;
+            harness.Tab.ActiveRunStartedAt = null;
+            harness.Tab.StatusBusy = false;
+        };
+
+        await harness.Coordinator.DispatchQueuedPromptAsync(harness.Tab, PromptSubmission.TextOnly("Completed prompt"), steer: false).ConfigureAwait(false);
+
+        Assert.AreEqual(1, backend.SendCount);
+        Assert.IsNull(harness.Tab.ActiveRunId);
+        Assert.IsNull(harness.Tab.ActiveRunStartedAt);
+    }
+
+    [TestMethod]
     public async Task DispatchQueuedPromptAsync_RestoresPromptTextWhenSendFails()
     {
         using var temp = TempDirectory.Create();
@@ -546,6 +567,8 @@ public sealed class ThreadCommandCoordinatorTests
 
         public Exception? SteerException { get; set; }
 
+        public Action? BeforeSendReturns { get; set; }
+
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
         public Task StartAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
@@ -608,6 +631,7 @@ public sealed class ThreadCommandCoordinatorTests
                     throw _backend.SendException;
                 }
 
+                _backend.BeforeSendReturns?.Invoke();
                 return Task.FromResult(new AgentRunId("fake-run-1"));
             }
 
