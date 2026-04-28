@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Channels;
 using CodeAlta.Agent;
+using CodeAlta.Agent.LocalRuntime;
 using CodeAlta.Catalog;
 using CodeAlta.Catalog.Roles;
 using CodeAlta.Catalog.Skills;
@@ -82,12 +83,15 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
     {
         var projects = await _projectCatalog.LoadAsync(cancellationToken).ConfigureAwait(false);
         var internalThreads = await _threadCatalog.LoadInternalAsync(cancellationToken).ConfigureAwait(false);
-        var results = new List<WorkThreadDescriptor>(internalThreads.Count);
-        results.AddRange(internalThreads);
+        var results = new List<RecoverableThreadCandidate>(internalThreads.Count);
+        results.AddRange(internalThreads.Select(static thread => new RecoverableThreadCandidate(thread, IsCodeAltaSession: true)));
 
         var backendIds = _agentHub.ListRegisteredBackends()
             .Where(backendId => shouldListBackendSessions?.Invoke(backendId) != false)
+            .OrderBy(static backendId => IsProviderManagedBackend(backendId) ? 1 : 0)
             .ToArray();
+        results.AddRange(await LoadNativeLocalMirrorThreadsAsync(backendIds, projects, cancellationToken).ConfigureAwait(false));
+
         var sessionResults = await Task.WhenAll(
                 backendIds.Select(LoadBackendSessionsAsync))
             .ConfigureAwait(false);
@@ -104,14 +108,25 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
                 var thread = TryCreateRecoverableThread(backendId, session, projects);
                 if (thread is not null)
                 {
-                    results.Add(thread);
+                    results.Add(new RecoverableThreadCandidate(thread, !IsProviderManagedBackend(backendId)));
                 }
             }
         }
 
-        return results
-            .GroupBy(static thread => thread.ThreadId, StringComparer.OrdinalIgnoreCase)
+        var deduplicatedByThreadId = results
+            .GroupBy(static candidate => candidate.Thread.ThreadId, StringComparer.OrdinalIgnoreCase)
             .Select(static group => group.First())
+            .ToArray();
+        var codeAltaSessionIds = deduplicatedByThreadId
+            .Where(static candidate => candidate.IsCodeAltaSession && !string.IsNullOrWhiteSpace(candidate.Thread.BackendSessionId))
+            .Select(static candidate => candidate.Thread.BackendSessionId!)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return deduplicatedByThreadId
+            .Where(candidate => candidate.IsCodeAltaSession ||
+                                !IsProviderManagedBackend(new AgentBackendId(candidate.Thread.BackendId)) ||
+                                !codeAltaSessionIds.Contains(candidate.Thread.BackendSessionId ?? string.Empty))
+            .Select(static candidate => candidate.Thread)
             .OrderByDescending(static thread => thread.LastActiveAt)
             .ToArray();
 
@@ -135,6 +150,41 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
                 return (backendId, null);
             }
         }
+    }
+
+    private async Task<IReadOnlyList<RecoverableThreadCandidate>> LoadNativeLocalMirrorThreadsAsync(
+        IReadOnlyList<AgentBackendId> backendIds,
+        IReadOnlyList<ProjectDescriptor> projects,
+        CancellationToken cancellationToken)
+    {
+        var nativeBackendIds = backendIds
+            .Where(static backendId => IsProviderManagedBackend(backendId))
+            .ToArray();
+        if (nativeBackendIds.Length == 0)
+        {
+            return [];
+        }
+
+        var store = new FileSystemLocalAgentSessionStore(new LocalAgentRuntimePathLayout(_catalogOptions.GlobalRoot));
+        var results = new List<RecoverableThreadCandidate>();
+        foreach (var backendId in nativeBackendIds)
+        {
+            var sessions = await store.ListSessionsAsync(
+                    backendId.Value,
+                    backendId.Value,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            foreach (var session in sessions)
+            {
+                var thread = TryCreateRecoverableThread(backendId, ToAgentSessionMetadata(session), projects);
+                if (thread is not null)
+                {
+                    results.Add(new RecoverableThreadCandidate(thread, IsCodeAltaSession: true));
+                }
+            }
+        }
+
+        return results;
     }
 
     /// <summary>
@@ -784,6 +834,29 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
         return fallback;
     }
 
+    private static AgentSessionMetadata ToAgentSessionMetadata(LocalAgentSessionSummary session)
+    {
+        var context = string.IsNullOrWhiteSpace(session.WorkingDirectory)
+            ? null
+            : new AgentSessionContext(session.WorkingDirectory, null, null, null);
+
+        return new AgentSessionMetadata(
+            session.SessionId,
+            session.CreatedAt,
+            session.UpdatedAt,
+            session.Summary ?? session.Title,
+            context,
+            session.WorkingDirectory,
+            null,
+            session.ProtocolFamily,
+            session.ProviderKey,
+            session.ModelId);
+    }
+
+    private static bool IsProviderManagedBackend(AgentBackendId backendId)
+        => string.Equals(backendId.Value, AgentBackendIds.Codex.Value, StringComparison.OrdinalIgnoreCase) ||
+           string.Equals(backendId.Value, AgentBackendIds.Copilot.Value, StringComparison.OrdinalIgnoreCase);
+
     private static string NormalizePath(string path)
     {
         var trimmed = path.Trim();
@@ -947,6 +1020,8 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
             await hub.StopSessionAsync(AgentId).ConfigureAwait(false);
         }
     }
+
+    private sealed record RecoverableThreadCandidate(WorkThreadDescriptor Thread, bool IsCodeAltaSession);
 
     private sealed class EventProjector
     {

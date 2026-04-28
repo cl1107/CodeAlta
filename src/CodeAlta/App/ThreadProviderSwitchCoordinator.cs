@@ -1,3 +1,4 @@
+using System.Text.Json;
 using CodeAlta.Agent;
 using CodeAlta.Agent.LocalRuntime;
 using CodeAlta.App.State;
@@ -16,6 +17,7 @@ internal sealed class ThreadProviderSwitchCoordinator
     private readonly Func<string, Task<bool>> _detachThreadSessionAsync;
     private readonly Action<string, WorkThreadDescriptor> _rekeyThreadIdentity;
     private readonly Func<Task> _persistViewStateAsync;
+    private readonly Func<string, CancellationToken, Task<IReadOnlyList<AgentEvent>>> _getThreadHistoryAsync;
 
     public ThreadProviderSwitchCoordinator(
         CatalogOptions catalogOptions,
@@ -25,7 +27,8 @@ internal sealed class ThreadProviderSwitchCoordinator
         Func<OpenThreadState, Task> applyThreadPreferenceAsync,
         Func<string, Task<bool>> detachThreadSessionAsync,
         Action<string, WorkThreadDescriptor> rekeyThreadIdentity,
-        Func<Task> persistViewStateAsync)
+        Func<Task> persistViewStateAsync,
+        Func<string, CancellationToken, Task<IReadOnlyList<AgentEvent>>>? getThreadHistoryAsync = null)
     {
         ArgumentNullException.ThrowIfNull(catalogOptions);
         ArgumentNullException.ThrowIfNull(threadCatalog);
@@ -43,6 +46,7 @@ internal sealed class ThreadProviderSwitchCoordinator
         _detachThreadSessionAsync = detachThreadSessionAsync;
         _rekeyThreadIdentity = rekeyThreadIdentity;
         _persistViewStateAsync = persistViewStateAsync;
+        _getThreadHistoryAsync = getThreadHistoryAsync ?? ((_, _) => Task.FromResult<IReadOnlyList<AgentEvent>>([]));
         _localRuntimeBackends = configStore.LoadGlobalProviderDefinitions(includeDisabled: true)
             .Where(static definition => TryMapProtocolFamily(definition.ProviderType, out _))
             .Select(definition =>
@@ -65,7 +69,7 @@ internal sealed class ThreadProviderSwitchCoordinator
 
         return !tab.StatusBusy &&
                tab.ActiveRunId is null &&
-               TryGetLocalRuntimeBackendInfo(new AgentBackendId(thread.BackendId), out _);
+               TryGetSwitchableSourceBackendInfo(new AgentBackendId(thread.BackendId), out _);
     }
 
     public bool CanSwitchThreadProvider(
@@ -102,7 +106,7 @@ internal sealed class ThreadProviderSwitchCoordinator
             return false;
         }
 
-        if (!TryGetLocalRuntimeBackendInfo(new AgentBackendId(thread.BackendId), out var sourceBackend) ||
+        if (!TryGetSwitchableSourceBackendInfo(new AgentBackendId(thread.BackendId), out var sourceBackend) ||
             !TryGetLocalRuntimeBackendInfo(targetBackendId, out var targetBackend))
         {
             return false;
@@ -111,13 +115,28 @@ internal sealed class ThreadProviderSwitchCoordinator
         var store = CreateSessionStore();
         var sessionId = thread.BackendSessionId;
         var sourceSummary = await store.GetSessionAsync(
-                sourceBackend.ProtocolFamily,
-                sourceBackend.ProviderKey,
+            sourceBackend.ProtocolFamily,
+            sourceBackend.ProviderKey,
+            sessionId,
+            cancellationToken);
+
+        if (sourceSummary is null && !sourceBackend.IsLocalRuntime)
+        {
+            sourceSummary = await MirrorNativeSessionAsync(
+                store,
+                sourceBackend,
+                thread,
+                tab,
                 sessionId,
-                cancellationToken)
-            
-            ?? throw new InvalidOperationException(
+                cancellationToken);
+        }
+
+        if (sourceSummary is null)
+        {
+            throw new InvalidOperationException(
                 $"The local-runtime session '{thread.BackendSessionId}' was not found for provider '{sourceBackend.ProviderKey}'.");
+        }
+
         var sourceState = await store.GetStateAsync(
                 sourceBackend.ProtocolFamily,
                 sourceBackend.ProviderKey,
@@ -220,10 +239,197 @@ internal sealed class ThreadProviderSwitchCoordinator
         return new FileSystemLocalAgentSessionStore(new LocalAgentRuntimePathLayout(_catalogOptions.GlobalRoot));
     }
 
+    private async Task<LocalAgentSessionSummary> MirrorNativeSessionAsync(
+        FileSystemLocalAgentSessionStore store,
+        RuntimeBackendInfo sourceBackend,
+        WorkThreadDescriptor thread,
+        OpenThreadState tab,
+        string sessionId,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyList<AgentEvent> history;
+        try
+        {
+            history = await _getThreadHistoryAsync(thread.ThreadId, cancellationToken);
+        }
+        catch (InvalidOperationException)
+        {
+            history = [];
+        }
+        catch (KeyNotFoundException)
+        {
+            history = [];
+        }
+
+        var timestamp = history.Count == 0
+            ? DateTimeOffset.UtcNow
+            : history.Max(static @event => @event.Timestamp);
+        var createdAt = thread.StartedAt ?? thread.CreatedAt;
+        var summary = new LocalAgentSessionSummary
+        {
+            SessionId = sessionId,
+            BackendId = sourceBackend.BackendId,
+            ProtocolFamily = sourceBackend.ProtocolFamily,
+            ProviderKey = sourceBackend.ProviderKey,
+            ModelId = tab.ModelId,
+            WorkingDirectory = thread.WorkingDirectory,
+            Title = thread.Title,
+            Summary = thread.LatestSummary,
+            Usage = tab.Usage,
+            CreatedAt = createdAt,
+            UpdatedAt = timestamp > createdAt ? timestamp : createdAt,
+        };
+
+        await store.UpsertSessionAsync(summary, cancellationToken);
+        await store.UpsertStateAsync(
+            new LocalAgentSessionState
+            {
+                SessionId = sessionId,
+                ProtocolFamily = sourceBackend.ProtocolFamily,
+                ProviderKey = sourceBackend.ProviderKey,
+                ProviderSessionId = sessionId,
+                Usage = tab.Usage,
+                UpdatedAt = summary.UpdatedAt,
+            },
+            cancellationToken);
+
+        var mirroredHistory = BuildLocalReplayEvents(sourceBackend.BackendId, sessionId, history);
+        if (mirroredHistory.Count > 0)
+        {
+            await store.AppendEventsAsync(
+                sourceBackend.ProtocolFamily,
+                sourceBackend.ProviderKey,
+                sessionId,
+                mirroredHistory,
+                cancellationToken);
+        }
+
+        return summary;
+    }
+
+    private static IReadOnlyList<AgentEvent> BuildLocalReplayEvents(
+        AgentBackendId backendId,
+        string sessionId,
+        IReadOnlyList<AgentEvent> history)
+    {
+        if (history.Count == 0)
+        {
+            return [];
+        }
+
+        var events = new List<AgentEvent>(history.Count * 2);
+        foreach (var @event in history)
+        {
+            if (@event is AgentContentCompletedEvent completed)
+            {
+                if (TryCreateReplayRawEvent(backendId, sessionId, completed, out var replayEvent))
+                {
+                    events.Add(replayEvent);
+                }
+            }
+
+            events.Add(@event);
+        }
+
+        return events;
+    }
+
+    private static bool TryCreateReplayRawEvent(
+        AgentBackendId backendId,
+        string sessionId,
+        AgentContentCompletedEvent completed,
+        out AgentRawEvent replayEvent)
+    {
+        replayEvent = null!;
+        if (string.IsNullOrWhiteSpace(completed.Content))
+        {
+            return false;
+        }
+
+        switch (completed.Kind)
+        {
+            case AgentContentKind.User:
+            {
+                var input = new AgentInput([new AgentInputItem.Text(completed.Content)]);
+                replayEvent = new AgentRawEvent(
+                    backendId,
+                    sessionId,
+                    completed.Timestamp,
+                    "local.userMessage",
+                    JsonDocument.Parse(input.ToJson()).RootElement.Clone(),
+                    completed.RunId);
+                return true;
+            }
+
+            case AgentContentKind.Assistant:
+            {
+                var message = new LocalAgentConversationMessage(
+                    LocalAgentConversationRole.Assistant,
+                    [new LocalAgentMessagePart.Text(completed.Content)]);
+                replayEvent = new AgentRawEvent(
+                    backendId,
+                    sessionId,
+                    completed.Timestamp,
+                    "local.assistantMessage",
+                    JsonDocument.Parse(message.ToJson()).RootElement.Clone(),
+                    completed.RunId);
+                return true;
+            }
+
+            case AgentContentKind.Reasoning:
+            {
+                var message = new LocalAgentConversationMessage(
+                    LocalAgentConversationRole.Assistant,
+                    [new LocalAgentMessagePart.Reasoning(completed.Content)]);
+                replayEvent = new AgentRawEvent(
+                    backendId,
+                    sessionId,
+                    completed.Timestamp,
+                    "local.assistantMessage",
+                    JsonDocument.Parse(message.ToJson()).RootElement.Clone(),
+                    completed.RunId);
+                return true;
+            }
+
+            default:
+                return false;
+        }
+    }
+
     private bool TryGetLocalRuntimeBackendInfo(AgentBackendId backendId, out LocalRuntimeBackendInfo backendInfo)
     {
         return _localRuntimeBackends.TryGetValue(backendId.Value, out backendInfo!);
     }
+
+    private bool TryGetSwitchableSourceBackendInfo(AgentBackendId backendId, out RuntimeBackendInfo backendInfo)
+    {
+        if (TryGetLocalRuntimeBackendInfo(backendId, out var localBackend))
+        {
+            backendInfo = new RuntimeBackendInfo(
+                localBackend.BackendId,
+                localBackend.ProviderKey,
+                localBackend.ProtocolFamily,
+                IsLocalRuntime: true);
+            return true;
+        }
+
+        if (IsNativeProviderBackend(backendId))
+        {
+            backendInfo = new RuntimeBackendInfo(
+                backendId,
+                backendId.Value,
+                backendId.Value,
+                IsLocalRuntime: false);
+            return true;
+        }
+
+        backendInfo = null!;
+        return false;
+    }
+
+    private static bool IsNativeProviderBackend(AgentBackendId backendId)
+        => string.Equals(backendId.Value, AgentBackendIds.Codex.Value, StringComparison.OrdinalIgnoreCase) ||
+           string.Equals(backendId.Value, AgentBackendIds.Copilot.Value, StringComparison.OrdinalIgnoreCase);
 
     private static bool TryMapProtocolFamily(string? providerType, out string? protocolFamily)
     {
@@ -245,4 +451,10 @@ internal sealed class ThreadProviderSwitchCoordinator
         AgentBackendId BackendId,
         string ProviderKey,
         string ProtocolFamily);
+
+    private sealed record RuntimeBackendInfo(
+        AgentBackendId BackendId,
+        string ProviderKey,
+        string ProtocolFamily,
+        bool IsLocalRuntime);
 }

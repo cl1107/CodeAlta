@@ -1,4 +1,5 @@
 using CodeAlta.Agent;
+using CodeAlta.Agent.LocalRuntime;
 using CodeAlta.Catalog;
 using CodeAlta.Catalog.Roles;
 using CodeAlta.Catalog.Skills;
@@ -1020,6 +1021,148 @@ public sealed class OrchestrationInfrastructureTests
         Assert.AreEqual(AgentBackendIds.OpenAIResponses.Value, recoverable[0].BackendId);
         Assert.AreEqual(WorkThreadKind.ProjectThread, recoverable[0].Kind);
         Assert.AreEqual(project.Id, recoverable[0].ProjectRef);
+    }
+
+    [TestMethod]
+    public async Task WorkThreadRuntimeService_ListRecoverableThreadsAsync_SuppressesNativeSessionWhenCodeAltaSessionExists()
+    {
+        using var temp = TempDirectory.Create();
+        var catalogOptions = new CatalogOptions { GlobalRoot = temp.Path };
+        var projectCatalog = new ProjectCatalog(catalogOptions);
+        var threadCatalog = new WorkThreadCatalog(catalogOptions);
+        var roleStore = new RoleProfileStore();
+        var instructionProvider = new AgentInstructionTemplateProvider();
+
+        var project = new ProjectDescriptor
+        {
+            Id = ProjectId.NewVersion7().ToString(),
+            Slug = "repo-main",
+            DisplayName = "Main Repo",
+            ProjectPath = Path.Combine(temp.Path, "repo-main"),
+            DefaultBranch = "main",
+        };
+        Directory.CreateDirectory(project.ProjectPath);
+        await projectCatalog.SaveAsync(project).ConfigureAwait(false);
+
+        var createdAt = DateTimeOffset.UtcNow.AddMinutes(-10);
+        var updatedAt = DateTimeOffset.UtcNow.AddMinutes(-1);
+        var backendFactory = new AgentBackendFactory();
+        backendFactory.Register(
+            "openai",
+            () => new FakeBackend(
+                backendId: new AgentBackendId("openai"),
+                sessions:
+                [
+                    new AgentSessionMetadata(
+                        "shared-session-1",
+                        createdAt,
+                        updatedAt,
+                        "CodeAlta local copy",
+                        Context: new AgentSessionContext(project.ProjectPath, project.ProjectPath, "repo-main", "main"),
+                        WorkspacePath: project.ProjectPath,
+                        ProtocolFamily: "openai-responses",
+                        ProviderKey: "openai")
+                ]));
+        backendFactory.Register(
+            AgentBackendIds.Codex.Value,
+            () => new FakeBackend(
+                backendId: AgentBackendIds.Codex,
+                sessions:
+                [
+                    new AgentSessionMetadata(
+                        "shared-session-1",
+                        createdAt,
+                        updatedAt.AddSeconds(30),
+                        "Native Codex copy",
+                        Context: new AgentSessionContext(project.ProjectPath, project.ProjectPath, "repo-main", "main"),
+                        WorkspacePath: project.ProjectPath)
+                ]));
+
+        var db = await CreateDbAsync(temp.Path).ConfigureAwait(false);
+        var repository = new AgentRepository(db);
+        await using var hub = new AgentHub(backendFactory, repository);
+        await using var runtime = new WorkThreadRuntimeService(
+            hub,
+            projectCatalog,
+            threadCatalog,
+            roleStore,
+            instructionProvider,
+            catalogOptions);
+
+        var recoverable = await runtime.ListRecoverableThreadsAsync().ConfigureAwait(false);
+
+        Assert.AreEqual(1, recoverable.Count);
+        Assert.AreEqual("openai", recoverable[0].BackendId);
+        Assert.AreEqual("openai:shared-session-1", recoverable[0].ThreadId);
+    }
+
+    [TestMethod]
+    public async Task WorkThreadRuntimeService_ListRecoverableThreadsAsync_UsesNativeLocalMirrorBeforeNativeSession()
+    {
+        using var temp = TempDirectory.Create();
+        var catalogOptions = new CatalogOptions { GlobalRoot = temp.Path };
+        var projectCatalog = new ProjectCatalog(catalogOptions);
+        var threadCatalog = new WorkThreadCatalog(catalogOptions);
+        var roleStore = new RoleProfileStore();
+        var instructionProvider = new AgentInstructionTemplateProvider();
+
+        var project = new ProjectDescriptor
+        {
+            Id = ProjectId.NewVersion7().ToString(),
+            Slug = "repo-main",
+            DisplayName = "Main Repo",
+            ProjectPath = Path.Combine(temp.Path, "repo-main"),
+            DefaultBranch = "main",
+        };
+        Directory.CreateDirectory(project.ProjectPath);
+        await projectCatalog.SaveAsync(project).ConfigureAwait(false);
+
+        var createdAt = DateTimeOffset.UtcNow.AddMinutes(-12);
+        var store = new FileSystemLocalAgentSessionStore(new LocalAgentRuntimePathLayout(catalogOptions.GlobalRoot));
+        await store.UpsertSessionAsync(new LocalAgentSessionSummary
+        {
+            SessionId = "codex-session-1",
+            BackendId = AgentBackendIds.Codex,
+            ProtocolFamily = AgentBackendIds.Codex.Value,
+            ProviderKey = AgentBackendIds.Codex.Value,
+            WorkingDirectory = project.ProjectPath,
+            Title = "Mirrored Codex copy",
+            CreatedAt = createdAt,
+            UpdatedAt = createdAt.AddMinutes(2),
+        }).ConfigureAwait(false);
+
+        var backendFactory = new AgentBackendFactory();
+        backendFactory.Register(
+            AgentBackendIds.Codex.Value,
+            () => new FakeBackend(
+                backendId: AgentBackendIds.Codex,
+                sessions:
+                [
+                    new AgentSessionMetadata(
+                        "codex-session-1",
+                        createdAt,
+                        createdAt.AddMinutes(3),
+                        "Native Codex copy",
+                        Context: new AgentSessionContext(project.ProjectPath, project.ProjectPath, "repo-main", "main"),
+                        WorkspacePath: project.ProjectPath)
+                ]));
+
+        var db = await CreateDbAsync(temp.Path).ConfigureAwait(false);
+        var repository = new AgentRepository(db);
+        await using var hub = new AgentHub(backendFactory, repository);
+        await using var runtime = new WorkThreadRuntimeService(
+            hub,
+            projectCatalog,
+            threadCatalog,
+            roleStore,
+            instructionProvider,
+            catalogOptions);
+
+        var recoverable = await runtime.ListRecoverableThreadsAsync().ConfigureAwait(false);
+
+        Assert.AreEqual(1, recoverable.Count);
+        Assert.AreEqual(AgentBackendIds.Codex.Value, recoverable[0].BackendId);
+        Assert.AreEqual("Mirrored Codex copy", recoverable[0].Title);
     }
 
     [TestMethod]

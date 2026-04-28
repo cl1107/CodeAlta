@@ -397,6 +397,15 @@ public static class AgentJsonExtensions
         => Serialize(value, AgentJsonSerializerContext.Default.AgentInput, AgentIndentedJsonSerializerContext.Default.AgentInput, indented);
 
     /// <summary>
+    /// Serializes the local-runtime conversation message to JSON.
+    /// </summary>
+    /// <param name="value">The value to serialize.</param>
+    /// <param name="indented">Whether to use indented formatting.</param>
+    /// <returns>The JSON representation.</returns>
+    public static string ToJson(this LocalAgentConversationMessage value, bool indented = false)
+        => Serialize(value, AgentJsonSerializerContext.Default.LocalAgentConversationMessage, AgentIndentedJsonSerializerContext.Default.LocalAgentConversationMessage, indented);
+
+    /// <summary>
     /// Serializes the send options to JSON.
     /// </summary>
     /// <param name="value">The value to serialize.</param>

@@ -307,6 +307,186 @@ public sealed class ThreadProviderSwitchCoordinatorTests
         Assert.IsNull(await store.GetSessionAsync("openai-codex-subscription", "codex_subscription", "session-1").ConfigureAwait(false));
     }
 
+    [TestMethod]
+    public async Task SwitchThreadProviderAsync_MirrorsNativeSessionAndSwitchesToLocalRuntime()
+    {
+        using var temp = TempDirectory.Create();
+        File.WriteAllText(
+            Path.Combine(temp.Path, "config.toml"),
+            """
+            [providers.openai]
+            type = "openai-responses"
+            api_key_env = "OPENAI_API_KEY"
+            """);
+
+        var options = new CatalogOptions { GlobalRoot = temp.Path };
+        var configStore = new CodeAltaConfigStore(options);
+        var threadCatalog = new WorkThreadCatalog(options);
+        var backendStates = new Dictionary<string, ChatBackendState>(StringComparer.OrdinalIgnoreCase)
+        {
+            [AgentBackendIds.Codex.Value] = new ChatBackendState(AgentBackendIds.Codex, "Codex")
+            {
+                Availability = ChatBackendAvailability.Ready,
+            },
+            ["openai"] = new ChatBackendState(new AgentBackendId("openai"), "OpenAI")
+            {
+                Availability = ChatBackendAvailability.Ready,
+            },
+        };
+
+        var createdAt = DateTimeOffset.Parse("2026-04-26T12:00:00+00:00");
+        var history = new AgentEvent[]
+        {
+            new AgentContentCompletedEvent(
+                AgentBackendIds.Codex,
+                "codex-session-1",
+                createdAt,
+                null,
+                AgentContentKind.User,
+                "user-1",
+                null,
+                "Summarize the repo"),
+            new AgentContentCompletedEvent(
+                AgentBackendIds.Codex,
+                "codex-session-1",
+                createdAt.AddSeconds(2),
+                null,
+                AgentContentKind.Assistant,
+                "assistant-1",
+                null,
+                "The repo contains a .NET app."),
+        };
+        var coordinator = new ThreadProviderSwitchCoordinator(
+            options,
+            threadCatalog,
+            configStore,
+            backendStates,
+            tab =>
+            {
+                tab.ModelId = "gpt-4.1";
+                return Task.CompletedTask;
+            },
+            threadId =>
+            {
+                Assert.AreEqual("codex:codex-session-1", threadId);
+                return Task.FromResult(true);
+            },
+            (oldThreadId, updatedThread) =>
+            {
+                Assert.AreEqual("codex:codex-session-1", oldThreadId);
+                Assert.AreEqual("openai:codex-session-1", updatedThread.ThreadId);
+            },
+            static () => Task.CompletedTask,
+            (threadId, _) =>
+            {
+                Assert.AreEqual("codex:codex-session-1", threadId);
+                return Task.FromResult<IReadOnlyList<AgentEvent>>(history);
+            });
+
+        var thread = new WorkThreadDescriptor
+        {
+            ThreadId = "codex:codex-session-1",
+            Kind = WorkThreadKind.ProjectThread,
+            BackendId = AgentBackendIds.Codex.Value,
+            ProviderKey = AgentBackendIds.Codex.Value,
+            BackendSessionId = "codex-session-1",
+            ProjectRef = "project-1",
+            WorkingDirectory = @"C:\repo",
+            Title = "Summarize repo",
+            Status = WorkThreadStatus.Active,
+            CreatedAt = createdAt,
+            UpdatedAt = createdAt,
+            LastActiveAt = createdAt,
+            StartedAt = createdAt,
+        };
+        var tabState = new OpenThreadState(thread, new Presentation.Timeline.ThreadTimelinePresenter(
+            new InlineUiDispatcher(),
+            static () => true,
+            static () => null,
+            localFileRootPath: null))
+        {
+            BackendId = AgentBackendIds.Codex,
+            ModelId = "gpt-5",
+        };
+
+        var switched = await coordinator.SwitchThreadProviderAsync(
+            thread,
+            tabState,
+            new AgentBackendId("openai")).ConfigureAwait(false);
+
+        Assert.IsTrue(switched);
+        Assert.AreEqual("openai", thread.BackendId);
+        Assert.AreEqual("openai", thread.ProviderKey);
+        Assert.AreEqual("openai:codex-session-1", thread.ThreadId);
+        Assert.AreEqual("openai", tabState.BackendId.Value);
+
+        var store = new FileSystemLocalAgentSessionStore(new LocalAgentRuntimePathLayout(options.GlobalRoot));
+        var clonedSummary = await store.GetSessionAsync("openai-responses", "openai", "codex-session-1").ConfigureAwait(false);
+        Assert.IsNotNull(clonedSummary);
+        Assert.AreEqual("openai", clonedSummary.ProviderKey);
+
+        var clonedHistory = await store.ReadEventsAsync("openai-responses", "openai", "codex-session-1").ConfigureAwait(false);
+        Assert.IsTrue(clonedHistory.OfType<AgentRawEvent>().Any(@event => @event.BackendEventType == "local.userMessage"));
+        Assert.IsTrue(clonedHistory.OfType<AgentRawEvent>().Any(@event => @event.BackendEventType == "local.assistantMessage"));
+        Assert.IsInstanceOfType<AgentSessionUpdateEvent>(clonedHistory[^1]);
+    }
+
+    [TestMethod]
+    public void CanSwitchThreadProvider_RejectsNativeTargets()
+    {
+        using var temp = TempDirectory.Create();
+        File.WriteAllText(
+            Path.Combine(temp.Path, "config.toml"),
+            """
+            [providers.openai]
+            type = "openai-responses"
+            api_key_env = "OPENAI_API_KEY"
+            """);
+
+        var options = new CatalogOptions { GlobalRoot = temp.Path };
+        var configStore = new CodeAltaConfigStore(options);
+        var threadCatalog = new WorkThreadCatalog(options);
+        var backendStates = new Dictionary<string, ChatBackendState>(StringComparer.OrdinalIgnoreCase)
+        {
+            [AgentBackendIds.Codex.Value] = new ChatBackendState(AgentBackendIds.Codex, "Codex")
+            {
+                Availability = ChatBackendAvailability.Ready,
+            },
+            ["openai"] = new ChatBackendState(new AgentBackendId("openai"), "OpenAI")
+            {
+                Availability = ChatBackendAvailability.Ready,
+            },
+        };
+        var coordinator = new ThreadProviderSwitchCoordinator(
+            options,
+            threadCatalog,
+            configStore,
+            backendStates,
+            static _ => Task.CompletedTask,
+            static _ => Task.FromResult(true),
+            static (_, _) => { },
+            static () => Task.CompletedTask);
+        var thread = new WorkThreadDescriptor
+        {
+            ThreadId = "openai:session-1",
+            BackendId = "openai",
+            ProviderKey = "openai",
+            BackendSessionId = "session-1",
+            StartedAt = DateTimeOffset.UtcNow,
+        };
+        var tabState = new OpenThreadState(thread, new Presentation.Timeline.ThreadTimelinePresenter(
+            new InlineUiDispatcher(),
+            static () => true,
+            static () => null,
+            localFileRootPath: null))
+        {
+            BackendId = new AgentBackendId("openai"),
+        };
+
+        Assert.IsTrue(coordinator.CanSelectThreadProvider(thread, tabState));
+        Assert.IsFalse(coordinator.CanSwitchThreadProvider(thread, tabState, AgentBackendIds.Codex));
+    }
+
     private sealed class InlineUiDispatcher : IUiDispatcher
     {
         public bool CheckAccess() => true;

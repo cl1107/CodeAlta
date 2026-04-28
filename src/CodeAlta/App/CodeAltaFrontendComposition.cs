@@ -151,7 +151,8 @@ internal sealed class CodeAltaFrontendComposition
             },
             threadId => runtimeService.DetachThreadSessionAsync(threadId),
             threadStateCoordinator.RekeyThreadIdentity,
-            callbacks.PersistViewStateAsync);
+            callbacks.PersistViewStateAsync,
+            runtimeService.GetHistoryAsync);
         var chatSelectorCoordinator = new ChatSelectorCoordinator(
             backendDescriptors,
             threadWorkspaceViewModel,
