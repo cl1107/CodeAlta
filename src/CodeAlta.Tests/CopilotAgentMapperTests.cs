@@ -93,6 +93,7 @@ public sealed class CopilotAgentMapperTests
 
         var config = CopilotAgentMapper.ToResumeSessionConfig(options);
 
+        Assert.IsTrue(config.DisableResume);
         Assert.IsNotNull(config.McpServers);
         var mcpConfig = (McpHttpServerConfig)config.McpServers["remote-docs"];
         Assert.AreEqual("https://example.com/mcp", mcpConfig.Url);

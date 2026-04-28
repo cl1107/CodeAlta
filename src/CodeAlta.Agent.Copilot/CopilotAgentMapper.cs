@@ -102,6 +102,7 @@ internal static class CopilotAgentMapper
         {
             Model = options.Model,
             WorkingDirectory = options.WorkingDirectory,
+            DisableResume = true,
             Streaming = options.Streaming,
             ReasoningEffort = ToCopilotReasoningEffort(options.ReasoningEffort),
             McpServers = ToCopilotMcpServers(options.McpServers),
