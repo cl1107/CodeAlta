@@ -1031,20 +1031,24 @@ public sealed class CodeAltaAppTests
     }
 
     [TestMethod]
-    public void FormatSystemPromptDiffMarkdown_BuildsFullPromptUnifiedDiff()
+    public void FormatSystemPromptDiffMarkdown_BuildsContextualUnifiedDiff()
     {
         var timestamp = DateTimeOffset.UtcNow;
+        var previousSystemLines = Enumerable.Range(1, 12)
+            .Select(static line => line == 8 ? "old rule" : $"system line {line:00}");
+        var currentSystemLines = Enumerable.Range(1, 12)
+            .Select(static line => line == 8 ? "new rule" : $"system line {line:00}");
         var previous = CreateSystemPromptEvent(
             timestamp,
             "sha256:old",
-            systemMessage: "system\nold rule",
+            systemMessage: string.Join('\n', previousSystemLines),
             developerInstructions: "developer\nkeep",
             changeKind: "initial");
         var current = CreateSystemPromptEvent(
             timestamp.AddSeconds(1),
             "sha256:new",
-            systemMessage: "system\nnew rule",
-            developerInstructions: "developer\nkeep\nmore detail",
+            systemMessage: string.Join('\n', currentSystemLines),
+            developerInstructions: "developer\nkeep",
             changeKind: "changed");
 
         var markdown = ChatMarkdownFormatter.FormatSystemPromptDiffMarkdown(previous, current);
@@ -1054,8 +1058,9 @@ public sealed class CodeAltaAppTests
         StringAssert.Contains(markdown, "+++ system-prompt/sha256:new");
         StringAssert.Contains(markdown, "-old rule");
         StringAssert.Contains(markdown, "+new rule");
-        StringAssert.Contains(markdown, "+more detail");
-        StringAssert.Contains(markdown, " <!-- DeveloperInstructions -->");
+        StringAssert.Contains(markdown, "@@ -6,7 +6,7 @@");
+        Assert.IsFalse(markdown.Contains("system line 01", StringComparison.Ordinal));
+        Assert.IsFalse(markdown.Contains("<!-- DeveloperInstructions -->", StringComparison.Ordinal));
     }
 
     [TestMethod]

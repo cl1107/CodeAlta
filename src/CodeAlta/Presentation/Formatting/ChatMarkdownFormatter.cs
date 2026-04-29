@@ -149,8 +149,7 @@ internal static class ChatMarkdownFormatter
             previousPrompt,
             currentPrompt,
             $"system-prompt/{previousPromptEvent.EffectivePromptHash}",
-            $"system-prompt/{promptEvent.EffectivePromptHash}",
-            contextLineCount: int.MaxValue);
+            $"system-prompt/{promptEvent.EffectivePromptHash}");
 
         return string.IsNullOrWhiteSpace(diff)
             ? string.Empty
