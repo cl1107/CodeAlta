@@ -1,3 +1,5 @@
+using System.Globalization;
+
 using CodeAlta.Agent;
 using CodeAlta.Catalog;
 using CodeAlta.Catalog.Roles;
@@ -52,6 +54,26 @@ public sealed class AgentInstructionTemplateProviderTests
         Assert.IsTrue(File.Exists(basePath), basePath);
         Assert.IsTrue(File.Exists(rolePath), rolePath);
         Assert.IsTrue(File.Exists(authoringDocPath), authoringDocPath);
+    }
+
+    [TestMethod]
+    public void ShippedDefaultSystemPrompt_RemainsWithinFrontmatterTokenBudget()
+    {
+        var locator = new FileSystemPromptContentLocator();
+        var basePath = locator.ResolveBuiltInPromptPath(Path.Combine("base", "default.system-prompt.md"));
+        var text = File.ReadAllText(basePath).Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
+        var frontmatterEnd = text.IndexOf("\n---\n", 4, StringComparison.Ordinal);
+        Assert.IsTrue(text.StartsWith("---\n", StringComparison.Ordinal) && frontmatterEnd > 0, "Default system prompt should include YAML frontmatter.");
+        var frontmatter = text[4..frontmatterEnd];
+        var body = text[(frontmatterEnd + 5)..].Trim();
+        var maxTokensLine = frontmatter.Split('\n').FirstOrDefault(static line => line.StartsWith("max_tokens:", StringComparison.OrdinalIgnoreCase));
+        Assert.IsNotNull(maxTokensLine, "Default system prompt should declare max_tokens.");
+        var maxTokens = int.Parse(maxTokensLine[(maxTokensLine.IndexOf(':', StringComparison.Ordinal) + 1)..].Trim(), CultureInfo.InvariantCulture);
+        var approximateTokens = Math.Max(1, (int)Math.Ceiling(body.Length / 4.0));
+
+        Assert.IsTrue(
+            approximateTokens <= maxTokens,
+            $"Default system prompt is approximately {approximateTokens} tokens, exceeding max_tokens {maxTokens}.");
     }
 
     [TestMethod]
