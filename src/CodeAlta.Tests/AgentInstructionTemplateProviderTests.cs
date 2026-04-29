@@ -25,6 +25,12 @@ public sealed class AgentInstructionTemplateProviderTests
         StringAssert.Contains(instructions.DeveloperInstructions, "# Role");
         StringAssert.Contains(instructions.DeveloperInstructions, "# Runtime Context");
         StringAssert.Contains(instructions.DeveloperInstructions, "# Tool Guidance");
+        var developerInstructions = NormalizeNewlines(instructions.DeveloperInstructions);
+        StringAssert.Contains(developerInstructions, "# Runtime Context\n\n- Current date:");
+        StringAssert.Contains(developerInstructions, "\n- Platform:");
+        StringAssert.Contains(developerInstructions, "\n- Default shell for shell commands:");
+        StringAssert.Contains(developerInstructions, "\n- Current working directory:");
+        StringAssert.Contains(developerInstructions, "\n- Thread kind:");
         Assert.IsNotNull(instructions.PromptBundle);
     }
 
@@ -171,7 +177,13 @@ public sealed class AgentInstructionTemplateProviderTests
         Assert.IsFalse(bundle.DeveloperInstructions.Contains(Path.Combine(repoRoot, "AGENTS.md"), StringComparison.Ordinal));
         StringAssert.Contains(bundle.DeveloperInstructions, Path.Combine(projectRoot, ".github", "copilot-instructions.md"));
         Assert.IsFalse(bundle.DeveloperInstructions.Contains(Path.Combine(projectRoot, "AGENTS.md"), StringComparison.Ordinal));
+        var developerInstructions = NormalizeNewlines(bundle.DeveloperInstructions);
+        StringAssert.Contains(developerInstructions, "<INSTRUCTIONS>\n\nroot claude instructions are longer\n\n</INSTRUCTIONS>");
+        StringAssert.Contains(developerInstructions, "<INSTRUCTIONS>\n\nproject copilot instructions are much longer than agents\n\n</INSTRUCTIONS>");
     }
+
+    private static string NormalizeNewlines(string text)
+        => text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
 
     private static async Task WriteSkillAsync(string projectRoot, string name, string description)
     {

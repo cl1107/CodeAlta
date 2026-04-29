@@ -490,22 +490,22 @@ public sealed class SystemPromptBuilder
     {
         var lines = new List<string>
         {
-            $"Current date: {DateTimeOffset.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}",
-            $"Platform: {GetPlatformLabel()}",
-            $"Default shell for shell commands: {GetDefaultShellLabel()}",
+            $"- Current date: {DateTimeOffset.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}",
+            $"- Platform: {GetPlatformLabel()}",
+            $"- Default shell for shell commands: {GetDefaultShellLabel()}",
         };
         var workingDirectory = NormalizeOptionalRoot(request.Thread.WorkingDirectory) ?? NormalizeOptionalRoot(request.WorkingDirectory);
         if (workingDirectory is not null)
         {
-            lines.Add($"Current working directory: {workingDirectory}");
+            lines.Add($"- Current working directory: {workingDirectory}");
         }
 
         if (projectRoot is not null)
         {
-            lines.Add($"Project root: {projectRoot}");
+            lines.Add($"- Project root: {projectRoot}");
         }
 
-        lines.Add($"Thread kind: {request.Thread.Kind.ToString().ToLowerInvariant()}");
+        lines.Add($"- Thread kind: {request.Thread.Kind.ToString().ToLowerInvariant()}");
         return string.Join(Environment.NewLine, lines);
     }
 
@@ -554,7 +554,9 @@ public sealed class SystemPromptBuilder
             builder.AppendLine($"File: {path}");
             builder.AppendLine();
             builder.AppendLine("<INSTRUCTIONS>");
+            builder.AppendLine();
             builder.AppendLine(content);
+            builder.AppendLine();
             builder.Append("</INSTRUCTIONS>");
         }
 
