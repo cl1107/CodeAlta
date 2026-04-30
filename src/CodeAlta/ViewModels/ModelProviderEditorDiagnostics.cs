@@ -93,7 +93,8 @@ internal static class ModelProviderEditorDiagnostics
         }
 
         var hasErrors = entries.Any(static entry => entry.Severity == ValidationSeverity.Error);
-        var hasWarnings = entries.Any(static entry => entry.Severity == ValidationSeverity.Warning);
+        var hasWarnings = entries.Any(entry => entry.Severity == ValidationSeverity.Warning &&
+                                               !IsStatusNeutralDiagnostic(item, entry));
 
         var statusKind = ResolveStatusKind(item, hasErrors, hasWarnings);
         return new ModelProviderDiagnosticsSnapshot
@@ -285,6 +286,11 @@ internal static class ModelProviderEditorDiagnostics
         ArgumentNullException.ThrowIfNull(item);
         ArgumentNullException.ThrowIfNull(entries);
 
+        if (item.LastTestState == ModelProviderLastTestState.Success)
+        {
+            return "Tested successfully";
+        }
+
         if (item.ProviderType == "openai-codex-subscription" &&
             TryResolveCodexSubscriptionStatusText(item, entries, out var codexStatusText))
         {
@@ -407,4 +413,8 @@ internal static class ModelProviderEditorDiagnostics
 
     private static bool IsCodexSubscription(ModelProviderEditorItemViewModel item)
         => string.Equals(item.ProviderType, "openai-codex-subscription", StringComparison.Ordinal);
+
+    private static bool IsStatusNeutralDiagnostic(ModelProviderEditorItemViewModel item, ModelProviderDiagnosticEntry entry)
+        => IsCodexSubscription(item) &&
+           entry.Message.StartsWith("Experimental ChatGPT/Codex subscription access", StringComparison.Ordinal);
 }

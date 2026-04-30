@@ -113,6 +113,26 @@ public sealed class ModelProviderEditorDiagnosticsTests
     }
 
     [TestMethod]
+    public void Analyze_CodexSubscriptionExperimentalAdvisory_DoesNotWarnInProviderStatus()
+    {
+        var item = CreateCodexSubscriptionItem(enabled: true, experimental: true);
+
+        var snapshot = ModelProviderEditorDiagnostics.Analyze(item, [item]);
+
+        Assert.AreEqual(ModelProviderUiStatusKind.Configured, snapshot.StatusKind);
+        Assert.AreEqual("Ready", snapshot.StatusText);
+        Assert.IsTrue(snapshot.Entries.Any(static entry =>
+            entry.Severity == ValidationSeverity.Warning &&
+            entry.Message.Contains("Experimental ChatGPT/Codex subscription access", StringComparison.Ordinal)));
+
+        item.SetTestResult(success: true, "Connected successfully · 5 model(s) discovered.");
+        var testedSnapshot = ModelProviderEditorDiagnostics.Analyze(item, [item]);
+
+        Assert.AreEqual(ModelProviderUiStatusKind.Success, testedSnapshot.StatusKind);
+        Assert.AreEqual("Tested successfully", testedSnapshot.StatusText);
+    }
+
+    [TestMethod]
     public void Analyze_CodexSubscriptionActionFailure_IsWarningNotError()
     {
         var item = CreateCodexSubscriptionItem(enabled: true, experimental: true);
