@@ -19,6 +19,10 @@ public enum HookSource
     Mdm,
     [JsonStringEnumMemberName("sessionFlags")]
     SessionFlags,
+    [JsonStringEnumMemberName("plugin")]
+    Plugin,
+    [JsonStringEnumMemberName("cloudRequirements")]
+    CloudRequirements,
     [JsonStringEnumMemberName("legacyManagedConfigFile")]
     LegacyManagedConfigFile,
     [JsonStringEnumMemberName("legacyManagedConfigMdm")]

@@ -9,5 +9,5 @@ namespace CodeAlta.CodexSdk;
 public sealed partial record PermissionProfileNetworkPermissions
 {
     [JsonPropertyName("enabled")]
-    public bool? Enabled { get; set; }
+    public bool Enabled { get; set; }
 }

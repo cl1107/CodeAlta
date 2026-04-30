@@ -18,6 +18,8 @@ namespace CodeAlta.CodexSdk;
 [JsonDerivedType(typeof(ThreadClosedNotification), typeDiscriminator: "thread/closed")]
 [JsonDerivedType(typeof(SkillsChangedNotification), typeDiscriminator: "skills/changed")]
 [JsonDerivedType(typeof(ThreadNameUpdatedNotification), typeDiscriminator: "thread/name/updated")]
+[JsonDerivedType(typeof(ThreadGoalUpdatedNotification), typeDiscriminator: "thread/goal/updated")]
+[JsonDerivedType(typeof(ThreadGoalClearedNotification), typeDiscriminator: "thread/goal/cleared")]
 [JsonDerivedType(typeof(ThreadTokenUsageUpdatedNotification), typeDiscriminator: "thread/tokenUsage/updated")]
 [JsonDerivedType(typeof(TurnStartedNotification), typeDiscriminator: "turn/started")]
 [JsonDerivedType(typeof(HookStartedNotification), typeDiscriminator: "hook/started")]
@@ -43,6 +45,7 @@ namespace CodeAlta.CodexSdk;
 [JsonDerivedType(typeof(AccountUpdatedNotification), typeDiscriminator: "account/updated")]
 [JsonDerivedType(typeof(AccountRateLimitsUpdatedNotification), typeDiscriminator: "account/rateLimits/updated")]
 [JsonDerivedType(typeof(AppListUpdatedNotification), typeDiscriminator: "app/list/updated")]
+[JsonDerivedType(typeof(RemoteControlStatusChangedNotification), typeDiscriminator: "remoteControl/status/changed")]
 [JsonDerivedType(typeof(ExternalAgentConfigImportCompletedNotification), typeDiscriminator: "externalAgentConfig/import/completed")]
 [JsonDerivedType(typeof(FsChangedNotification), typeDiscriminator: "fs/changed")]
 [JsonDerivedType(typeof(ItemReasoningSummaryTextDeltaNotification), typeDiscriminator: "item/reasoning/summaryTextDelta")]
@@ -119,6 +122,18 @@ public abstract partial record ServerNotification
     {
         [JsonPropertyName("params")]
         public ThreadNameUpdatedNotification Params { get; set; } = default!;
+    }
+
+    public sealed partial record ThreadGoalUpdatedNotification : ServerNotification
+    {
+        [JsonPropertyName("params")]
+        public ThreadGoalUpdatedNotification Params { get; set; } = default!;
+    }
+
+    public sealed partial record ThreadGoalClearedNotification : ServerNotification
+    {
+        [JsonPropertyName("params")]
+        public ThreadGoalClearedNotification Params { get; set; } = default!;
     }
 
     public sealed partial record ThreadTokenUsageUpdatedNotification : ServerNotification
@@ -275,6 +290,12 @@ public abstract partial record ServerNotification
     {
         [JsonPropertyName("params")]
         public AppListUpdatedNotification Params { get; set; } = default!;
+    }
+
+    public sealed partial record RemoteControlStatusChangedNotification : ServerNotification
+    {
+        [JsonPropertyName("params")]
+        public RemoteControlStatusChangedNotification Params { get; set; } = default!;
     }
 
     public sealed partial record ExternalAgentConfigImportCompletedNotification : ServerNotification

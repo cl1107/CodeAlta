@@ -19,7 +19,11 @@ public abstract partial record LoginAccountParams
         public string ApiKey { get; set; } = string.Empty;
     }
 
-    public sealed partial record Chatgptv2 : LoginAccountParams;
+    public sealed partial record Chatgptv2 : LoginAccountParams
+    {
+        [JsonPropertyName("codexStreamlinedLogin")]
+        public bool? CodexStreamlinedLogin { get; set; }
+    }
 
     public sealed partial record ChatgptDeviceCodev2 : LoginAccountParams;
 

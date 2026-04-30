@@ -9,7 +9,6 @@ namespace CodeAlta.CodexSdk;
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
 [JsonDerivedType(typeof(RootFileSystemSpecialPath), typeDiscriminator: "root")]
 [JsonDerivedType(typeof(MinimalFileSystemSpecialPath), typeDiscriminator: "minimal")]
-[JsonDerivedType(typeof(CurrentWorkingDirectoryFileSystemSpecialPath), typeDiscriminator: "current_working_directory")]
 [JsonDerivedType(typeof(KindFileSystemSpecialPath), typeDiscriminator: "project_roots")]
 [JsonDerivedType(typeof(TmpdirFileSystemSpecialPath), typeDiscriminator: "tmpdir")]
 [JsonDerivedType(typeof(SlashTmpFileSystemSpecialPath), typeDiscriminator: "slash_tmp")]
@@ -19,8 +18,6 @@ public abstract partial record FileSystemSpecialPath
     public sealed partial record RootFileSystemSpecialPath : FileSystemSpecialPath;
 
     public sealed partial record MinimalFileSystemSpecialPath : FileSystemSpecialPath;
-
-    public sealed partial record CurrentWorkingDirectoryFileSystemSpecialPath : FileSystemSpecialPath;
 
     public sealed partial record KindFileSystemSpecialPath : FileSystemSpecialPath
     {

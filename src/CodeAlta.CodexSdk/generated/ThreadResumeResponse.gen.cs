@@ -19,7 +19,7 @@ public sealed partial record ThreadResumeResponse
     public string Model { get; set; } = string.Empty;
     [JsonPropertyName("modelProvider")]
     public string ModelProvider { get; set; } = string.Empty;
-    /// <summary>Legacy sandbox policy retained for compatibility. New clients should use `permissionProfile` when present as the canonical active permissions view.</summary>
+    /// <summary>Legacy sandbox policy retained for compatibility. Experimental clients should prefer `permissionProfile` when they need exact runtime permissions.</summary>
     [JsonPropertyName("sandbox")]
     public SandboxPolicy Sandbox { get; set; } = default!;
     [JsonPropertyName("thread")]
@@ -27,9 +27,6 @@ public sealed partial record ThreadResumeResponse
     /// <summary>Instruction source files currently loaded for this thread.</summary>
     [JsonPropertyName("instructionSources")]
     public List<AbsolutePathBuf>? InstructionSources { get; set; }
-    /// <summary>Canonical active permissions view for this thread when representable. This is `null` for external sandbox policies because external enforcement cannot be round-tripped as a `PermissionProfile`.</summary>
-    [JsonPropertyName("permissionProfile")]
-    public PermissionProfile? PermissionProfile { get; set; }
     [JsonPropertyName("reasoningEffort")]
     public ReasoningEffort? ReasoningEffort { get; set; }
     [JsonPropertyName("serviceTier")]

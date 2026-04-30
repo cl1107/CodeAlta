@@ -31,9 +31,6 @@ public sealed partial record CommandExecParams
     /// <summary>Optional per-stream stdout/stderr capture cap in bytes.  When omitted, the server default applies. Cannot be combined with `disableOutputCap`.</summary>
     [JsonPropertyName("outputBytesCap")]
     public uint? OutputBytesCap { get; set; }
-    /// <summary>Optional full permissions profile for this command.  Defaults to the user's configured permissions when omitted. Cannot be combined with `sandboxPolicy`.</summary>
-    [JsonPropertyName("permissionProfile")]
-    public PermissionProfile? PermissionProfile { get; set; }
     /// <summary>Optional client-supplied, connection-scoped process id.  Required for `tty`, `streamStdin`, `streamStdoutStderr`, and follow-up `command/exec/write`, `command/exec/resize`, and `command/exec/terminate` calls. When omitted, buffered execution gets an internal id that is not exposed to the client.</summary>
     [JsonPropertyName("processId")]
     public string? ProcessId { get; set; }

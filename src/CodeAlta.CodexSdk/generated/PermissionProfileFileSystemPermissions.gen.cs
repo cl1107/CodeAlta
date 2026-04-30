@@ -6,10 +6,19 @@ using System.Text.Json.Serialization;
 
 namespace CodeAlta.CodexSdk;
 
-public sealed partial record PermissionProfileFileSystemPermissions
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
+[JsonDerivedType(typeof(RestrictedPermissionProfileFileSystemPermissions), typeDiscriminator: "restricted")]
+[JsonDerivedType(typeof(UnrestrictedPermissionProfileFileSystemPermissions), typeDiscriminator: "unrestricted")]
+public abstract partial record PermissionProfileFileSystemPermissions
 {
-    [JsonPropertyName("entries")]
-    public List<FileSystemSandboxEntry> Entries { get; set; } = [];
-    [JsonPropertyName("globScanMaxDepth")]
-    public uint? GlobScanMaxDepth { get; set; }
+    public sealed partial record RestrictedPermissionProfileFileSystemPermissions : PermissionProfileFileSystemPermissions
+    {
+        [JsonPropertyName("entries")]
+        public List<FileSystemSandboxEntry> Entries { get; set; } = [];
+        [JsonPropertyName("globScanMaxDepth")]
+        public uint? GlobScanMaxDepth { get; set; }
+    }
+
+    public sealed partial record UnrestrictedPermissionProfileFileSystemPermissions : PermissionProfileFileSystemPermissions;
+
 }

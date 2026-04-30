@@ -6,10 +6,35 @@ using System.Text.Json.Serialization;
 
 namespace CodeAlta.CodexSdk;
 
-public sealed partial record PermissionProfile
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
+[JsonDerivedType(typeof(ManagedPermissionProfile), typeDiscriminator: "managed")]
+[JsonDerivedType(typeof(DisabledPermissionProfile), typeDiscriminator: "disabled")]
+[JsonDerivedType(typeof(ExternalPermissionProfile), typeDiscriminator: "external")]
+public abstract partial record PermissionProfile
 {
-    [JsonPropertyName("fileSystem")]
-    public PermissionProfileFileSystemPermissions? FileSystem { get; set; }
-    [JsonPropertyName("network")]
-    public PermissionProfileNetworkPermissions? Network { get; set; }
+    /// <summary>
+    /// Codex owns sandbox construction for this profile.
+    /// </summary>
+    public sealed partial record ManagedPermissionProfile : PermissionProfile
+    {
+        [JsonPropertyName("fileSystem")]
+        public PermissionProfileFileSystemPermissions FileSystem { get; set; } = default!;
+        [JsonPropertyName("network")]
+        public PermissionProfileNetworkPermissions Network { get; set; } = default!;
+    }
+
+    /// <summary>
+    /// Do not apply an outer sandbox.
+    /// </summary>
+    public sealed partial record DisabledPermissionProfile : PermissionProfile;
+
+    /// <summary>
+    /// Filesystem isolation is enforced by an external caller.
+    /// </summary>
+    public sealed partial record ExternalPermissionProfile : PermissionProfile
+    {
+        [JsonPropertyName("network")]
+        public PermissionProfileNetworkPermissions Network { get; set; } = default!;
+    }
+
 }

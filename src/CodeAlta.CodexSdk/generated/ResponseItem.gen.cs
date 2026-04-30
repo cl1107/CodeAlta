@@ -18,7 +18,6 @@ namespace CodeAlta.CodexSdk;
 [JsonDerivedType(typeof(ToolSearchOutputResponseItem), typeDiscriminator: "tool_search_output")]
 [JsonDerivedType(typeof(WebSearchCallResponseItem), typeDiscriminator: "web_search_call")]
 [JsonDerivedType(typeof(ImageGenerationCallResponseItem), typeDiscriminator: "image_generation_call")]
-[JsonDerivedType(typeof(GhostSnapshotResponseItem), typeDiscriminator: "ghost_snapshot")]
 [JsonDerivedType(typeof(CompactionResponseItem), typeDiscriminator: "compaction")]
 [JsonDerivedType(typeof(OtherResponseItem), typeDiscriminator: "other")]
 public abstract partial record ResponseItem
@@ -27,8 +26,6 @@ public abstract partial record ResponseItem
     {
         [JsonPropertyName("content")]
         public List<ContentItem> Content { get; set; } = [];
-        [JsonPropertyName("end_turn")]
-        public bool? EndTurn { get; set; }
         [JsonPropertyName("id")]
         public string? Id { get; set; }
         [JsonPropertyName("phase")]
@@ -153,12 +150,6 @@ public abstract partial record ResponseItem
         public string? RevisedPrompt { get; set; }
         [JsonPropertyName("status")]
         public string Status { get; set; } = string.Empty;
-    }
-
-    public sealed partial record GhostSnapshotResponseItem : ResponseItem
-    {
-        [JsonPropertyName("ghost_commit")]
-        public GhostCommit GhostCommit { get; set; } = default!;
     }
 
     public sealed partial record CompactionResponseItem : ResponseItem

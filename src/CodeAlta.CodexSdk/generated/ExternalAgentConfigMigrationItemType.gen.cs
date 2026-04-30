@@ -15,5 +15,9 @@ public enum ExternalAgentConfigMigrationItemType
     SKILLS,
     PLUGINS,
     [JsonStringEnumMemberName("MCP_SERVER_CONFIG")]
-    MCPSERVERCONFIG
+    MCPSERVERCONFIG,
+    SUBAGENTS,
+    HOOKS,
+    COMMANDS,
+    SESSIONS
 }

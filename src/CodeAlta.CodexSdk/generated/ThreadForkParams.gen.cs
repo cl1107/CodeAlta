@@ -32,14 +32,14 @@ public sealed partial record ThreadForkParams
     public string? DeveloperInstructions { get; set; }
     [JsonPropertyName("ephemeral")]
     public bool? Ephemeral { get; set; }
+    /// <summary>When true, return only thread metadata and live fork state without populating `thread.turns`. This is useful when the client plans to call `thread/turns/list` immediately after forking.</summary>
+    [JsonPropertyName("excludeTurns")]
+    public bool? ExcludeTurns { get; set; }
     /// <summary>Configuration overrides for the forked thread, if any.</summary>
     [JsonPropertyName("model")]
     public string? Model { get; set; }
     [JsonPropertyName("modelProvider")]
     public string? ModelProvider { get; set; }
-    /// <summary>Full permissions override for the forked thread. Cannot be combined with `sandbox`.</summary>
-    [JsonPropertyName("permissionProfile")]
-    public PermissionProfile? PermissionProfile { get; set; }
     [JsonPropertyName("sandbox")]
     public SandboxMode? Sandbox { get; set; }
     [JsonPropertyName("serviceTier")]

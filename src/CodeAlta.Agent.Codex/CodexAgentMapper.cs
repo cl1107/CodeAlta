@@ -2953,11 +2953,11 @@ internal static class CodexAgentMapper
             SandboxMode.DangerFullAccess => new SandboxPolicy.DangerFullAccessSandboxPolicy(),
             SandboxMode.ReadOnly => new SandboxPolicy.ReadOnlySandboxPolicy
             {
-                Access = new ReadOnlyAccess.FullAccessReadOnlyAccess()
+                NetworkAccess = true,
             },
             SandboxMode.WorkspaceWrite => new SandboxPolicy.WorkspaceWriteSandboxPolicy
             {
-                ReadOnlyAccess = new ReadOnlyAccess.FullAccessReadOnlyAccess(),
+                NetworkAccess = true,
                 WritableRoots = string.IsNullOrWhiteSpace(workingDirectory)
                     ? null
                     : [workingDirectory]

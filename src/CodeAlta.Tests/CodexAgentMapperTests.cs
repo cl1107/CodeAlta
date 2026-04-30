@@ -299,7 +299,6 @@ public sealed class CodexAgentMapperTests
 
         Assert.IsInstanceOfType<SandboxPolicy.WorkspaceWriteSandboxPolicy>(parameters.SandboxPolicy);
         var sandboxPolicy = (SandboxPolicy.WorkspaceWriteSandboxPolicy)parameters.SandboxPolicy;
-        Assert.IsInstanceOfType<ReadOnlyAccess.FullAccessReadOnlyAccess>(sandboxPolicy.ReadOnlyAccess);
         CollectionAssert.AreEqual(new[] { @"C:\repo" }, sandboxPolicy.WritableRoots!.Select(static x => x.Value).ToArray());
     }
 

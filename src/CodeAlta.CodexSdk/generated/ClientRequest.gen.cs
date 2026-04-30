@@ -29,8 +29,10 @@ namespace CodeAlta.CodexSdk;
 [JsonDerivedType(typeof(ThreadTurnsListRequest), typeDiscriminator: "thread/turns/list")]
 [JsonDerivedType(typeof(ThreadInjectItemsRequest), typeDiscriminator: "thread/inject_items")]
 [JsonDerivedType(typeof(SkillsListRequest), typeDiscriminator: "skills/list")]
+[JsonDerivedType(typeof(HooksListRequest), typeDiscriminator: "hooks/list")]
 [JsonDerivedType(typeof(MarketplaceAddRequest), typeDiscriminator: "marketplace/add")]
 [JsonDerivedType(typeof(MarketplaceRemoveRequest), typeDiscriminator: "marketplace/remove")]
+[JsonDerivedType(typeof(MarketplaceUpgradeRequest), typeDiscriminator: "marketplace/upgrade")]
 [JsonDerivedType(typeof(PluginListRequest), typeDiscriminator: "plugin/list")]
 [JsonDerivedType(typeof(PluginReadRequest), typeDiscriminator: "plugin/read")]
 [JsonDerivedType(typeof(AppListRequest), typeDiscriminator: "app/list")]
@@ -54,6 +56,7 @@ namespace CodeAlta.CodexSdk;
 [JsonDerivedType(typeof(TurnInterruptRequest), typeDiscriminator: "turn/interrupt")]
 [JsonDerivedType(typeof(ReviewStartRequest), typeDiscriminator: "review/start")]
 [JsonDerivedType(typeof(ModelListRequest), typeDiscriminator: "model/list")]
+[JsonDerivedType(typeof(ModelProviderCapabilitiesReadRequest), typeDiscriminator: "modelProvider/capabilities/read")]
 [JsonDerivedType(typeof(ExperimentalFeatureListRequest), typeDiscriminator: "experimentalFeature/list")]
 [JsonDerivedType(typeof(ExperimentalFeatureEnablementSetRequest), typeDiscriminator: "experimentalFeature/enablement/set")]
 [JsonDerivedType(typeof(McpServerOauthLoginRequest), typeDiscriminator: "mcpServer/oauth/login")]
@@ -240,6 +243,14 @@ public abstract partial record ClientRequest
         public SkillsListParams Params { get; set; } = default!;
     }
 
+    public sealed partial record HooksListRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public HooksListParams Params { get; set; } = default!;
+    }
+
     public sealed partial record MarketplaceAddRequest : ClientRequest
     {
         [JsonPropertyName("id")]
@@ -254,6 +265,14 @@ public abstract partial record ClientRequest
         public RequestId Id { get; set; } = default!;
         [JsonPropertyName("params")]
         public MarketplaceRemoveParams Params { get; set; } = default!;
+    }
+
+    public sealed partial record MarketplaceUpgradeRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public MarketplaceUpgradeParams Params { get; set; } = default!;
     }
 
     public sealed partial record PluginListRequest : ClientRequest
@@ -438,6 +457,14 @@ public abstract partial record ClientRequest
         public RequestId Id { get; set; } = default!;
         [JsonPropertyName("params")]
         public ModelListParams Params { get; set; } = default!;
+    }
+
+    public sealed partial record ModelProviderCapabilitiesReadRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public ModelProviderCapabilitiesReadParams Params { get; set; } = default!;
     }
 
     public sealed partial record ExperimentalFeatureListRequest : ClientRequest

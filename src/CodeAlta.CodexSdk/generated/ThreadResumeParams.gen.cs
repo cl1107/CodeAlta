@@ -30,14 +30,14 @@ public sealed partial record ThreadResumeParams
     public string? Cwd { get; set; }
     [JsonPropertyName("developerInstructions")]
     public string? DeveloperInstructions { get; set; }
+    /// <summary>When true, return only thread metadata and live-resume state without populating `thread.turns`. This is useful when the client plans to call `thread/turns/list` immediately after resuming.</summary>
+    [JsonPropertyName("excludeTurns")]
+    public bool? ExcludeTurns { get; set; }
     /// <summary>Configuration overrides for the resumed thread, if any.</summary>
     [JsonPropertyName("model")]
     public string? Model { get; set; }
     [JsonPropertyName("modelProvider")]
     public string? ModelProvider { get; set; }
-    /// <summary>Full permissions override for the resumed thread. Cannot be combined with `sandbox`.</summary>
-    [JsonPropertyName("permissionProfile")]
-    public PermissionProfile? PermissionProfile { get; set; }
     [JsonPropertyName("personality")]
     public Personality? Personality { get; set; }
     [JsonPropertyName("sandbox")]
