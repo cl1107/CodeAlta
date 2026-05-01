@@ -22,7 +22,7 @@ public sealed class AgentInstructionTemplateProviderTests
         Assert.IsFalse(string.IsNullOrWhiteSpace(instructions.SystemMessage));
         StringAssert.Contains(instructions.SystemMessage, "You are CodeAlta");
         StringAssert.Contains(instructions.SystemMessage, "# Engineering Discipline");
-        StringAssert.Contains(instructions.SystemMessage, "Make complexity earn its place.");
+        StringAssert.Contains(instructions.SystemMessage, "minimal unnecessary churn");
         Assert.IsNotNull(instructions.DeveloperInstructions);
         StringAssert.Contains(instructions.DeveloperInstructions, "# Role");
         StringAssert.Contains(instructions.DeveloperInstructions, "# Runtime Context");
@@ -44,7 +44,7 @@ public sealed class AgentInstructionTemplateProviderTests
         var instructions = provider.BuildCoordinatorInstructions(CreateThread(), project: null, CreateProfile());
 
         Assert.IsFalse(string.IsNullOrWhiteSpace(instructions.SystemMessage));
-        StringAssert.Contains(instructions.SystemMessage, "software engineering agent");
+        StringAssert.Contains(instructions.SystemMessage, "software-engineering agent");
         Assert.IsNotNull(instructions.DeveloperInstructions);
         StringAssert.Contains(instructions.DeveloperInstructions, "# Role");
         Assert.IsNotNull(instructions.PromptBundle);
