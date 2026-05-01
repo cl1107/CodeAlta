@@ -63,6 +63,8 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
 
     public bool HasOpenConnection => _webSocket?.State == WebSocketState.Open;
 
+    public Action<OpenAIResponsesWebSocketSideChannelEvent>? SideChannelReceived { get; set; }
+
     public AsyncCollectionResult<StreamingResponseUpdate> CreateResponseStreamingAsync(
         CreateResponseOptions options,
         CreateResponseOptions? reconnectOptions = null,
@@ -137,11 +139,21 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
 
             await foreach (var message in ReceiveMessagesAsync(_webSocket!, cancellationToken).ConfigureAwait(false))
             {
-                if (!TryCreateResponseUpdateMessage(message, out var normalizedMessage, out var eventType, out var messageException))
+                if (!TryCreateResponseUpdateMessage(
+                        message,
+                        out var normalizedMessage,
+                        out var eventType,
+                        out var messageException,
+                        out var sideChannelEvent))
                 {
                     if (messageException is not null)
                     {
                         throw messageException;
+                    }
+
+                    if (sideChannelEvent is not null)
+                    {
+                        SideChannelReceived?.Invoke(sideChannelEvent);
                     }
 
                     continue;
@@ -463,13 +475,15 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
         BinaryData message,
         out BinaryData normalizedMessage,
         out string? eventType,
-        out Exception? exception)
+        out Exception? exception,
+        out OpenAIResponsesWebSocketSideChannelEvent? sideChannelEvent)
     {
         ArgumentNullException.ThrowIfNull(message);
 
         normalizedMessage = message;
         eventType = null;
         exception = null;
+        sideChannelEvent = null;
 
         JsonDocument document;
         try
@@ -496,6 +510,11 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
 
             if (IsIgnorableSideChannelEvent(eventType))
             {
+                if (!string.IsNullOrWhiteSpace(eventType))
+                {
+                    sideChannelEvent = new OpenAIResponsesWebSocketSideChannelEvent(eventType, message);
+                }
+
                 return false;
             }
 

@@ -265,7 +265,7 @@ public sealed class OpenAICodexSubscriptionPipelineTests
     }
 
     [TestMethod]
-    public void WebSocketSession_IgnoresSideChannelEventsAndNormalizesDone()
+    public void WebSocketSession_CapturesSideChannelEventsAndNormalizesDone()
     {
         var rateLimitsHandled = TryCreateWebSocketResponseUpdateMessage(
             BinaryData.FromString(
@@ -277,7 +277,8 @@ public sealed class OpenAICodexSubscriptionPipelineTests
                 """),
             out _,
             out var rateLimitsType,
-            out var rateLimitsException);
+            out var rateLimitsException,
+            out var rateLimitsSideChannel);
         var modelHandled = TryCreateWebSocketResponseUpdateMessage(
             BinaryData.FromString(
                 """
@@ -288,7 +289,8 @@ public sealed class OpenAICodexSubscriptionPipelineTests
                 """),
             out _,
             out var modelType,
-            out var modelException);
+            out var modelException,
+            out var modelSideChannel);
         var doneHandled = TryCreateWebSocketResponseUpdateMessage(
             BinaryData.FromString(
                 """
@@ -305,9 +307,11 @@ public sealed class OpenAICodexSubscriptionPipelineTests
         Assert.IsFalse(rateLimitsHandled);
         Assert.AreEqual("codex.rate_limits", rateLimitsType);
         Assert.IsNull(rateLimitsException);
+        AssertSideChannelType("codex.rate_limits", rateLimitsSideChannel);
         Assert.IsFalse(modelHandled);
         Assert.AreEqual("server_model", modelType);
         Assert.IsNull(modelException);
+        AssertSideChannelType("server_model", modelSideChannel);
         Assert.IsTrue(doneHandled);
         Assert.AreEqual("response.done", doneType);
         Assert.IsNull(doneException);
@@ -613,6 +617,19 @@ public sealed class OpenAICodexSubscriptionPipelineTests
         out BinaryData normalizedMessage,
         out string? eventType,
         out Exception? exception)
+        => TryCreateWebSocketResponseUpdateMessage(
+            message,
+            out normalizedMessage,
+            out eventType,
+            out exception,
+            out _);
+
+    private static bool TryCreateWebSocketResponseUpdateMessage(
+        BinaryData message,
+        out BinaryData normalizedMessage,
+        out string? eventType,
+        out Exception? exception,
+        out object? sideChannelEvent)
     {
         var sessionType = GetCodexSubscriptionWebSocketSessionType();
         var method = sessionType?.GetMethod(
@@ -623,12 +640,20 @@ public sealed class OpenAICodexSubscriptionPipelineTests
             Assert.Fail("Codex subscription WebSocket parser was not found.");
         }
 
-        object?[] parameters = [message, null, null, null];
+        object?[] parameters = [message, null, null, null, null];
         var result = (bool)method.Invoke(null, parameters)!;
         normalizedMessage = (BinaryData)parameters[1]!;
         eventType = (string?)parameters[2];
         exception = (Exception?)parameters[3];
+        sideChannelEvent = parameters[4];
         return result;
+    }
+
+    private static void AssertSideChannelType(string expectedType, object? sideChannelEvent)
+    {
+        Assert.IsNotNull(sideChannelEvent);
+        var actualType = (string?)sideChannelEvent.GetType().GetProperty("Type")?.GetValue(sideChannelEvent);
+        Assert.AreEqual(expectedType, actualType);
     }
 
     private static Type? GetCodexSubscriptionWebSocketSessionType()

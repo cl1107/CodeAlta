@@ -1808,6 +1808,80 @@ public sealed class OpenAIRawApiAgentBackendTests
     }
 
     [TestMethod]
+    public async Task OpenAIResponsesTurnExecutor_CodexWebSocketSideChannelsSurfaceInProviderState()
+    {
+        var webSocketSession = new RecordingOpenAIResponsesWebSocketSession(
+        [
+            [
+                CreateTextOnlyAssistantResponseUpdate(
+                    responseId: "response-side-channel",
+                    modelId: "gpt-5.3-codex",
+                    text: "Side channel answer."),
+            ],
+        ],
+        [
+            new OpenAIResponsesWebSocketSideChannelEvent(
+                "codex.rate_limits",
+                BinaryData.FromString(
+                    """
+                    {
+                      "type": "codex.rate_limits",
+                      "primary": { "used_percent": 12.5, "resets_at": 1234567890 },
+                      "secondary": { "used_percent": 3 }
+                    }
+                    """)),
+            new OpenAIResponsesWebSocketSideChannelEvent(
+                "server_model",
+                BinaryData.FromString(
+                    """
+                    {
+                      "type": "server_model",
+                      "model": "gpt-5.3-codex",
+                      "models_etag": "models-etag-123"
+                    }
+                    """)),
+            new OpenAIResponsesWebSocketSideChannelEvent(
+                "model_verification",
+                BinaryData.FromString(
+                    """
+                    {
+                      "type": "model_verification",
+                      "params": { "verifications": ["trustedAccessForCyber"] }
+                    }
+                    """)),
+        ]);
+        var executor = new OpenAIResponsesTurnExecutor(new OpenAIProviderOptions
+        {
+            ProviderKey = "codex_subscription",
+            ResponsesClientFactory = _ => new RecordingOpenAIResponseClient([]),
+            ResponsesWebSocketSessionFactory = _ => ValueTask.FromResult<IOpenAIResponsesWebSocketSession>(webSocketSession),
+            CodexSubscription = new OpenAICodexSubscriptionOptions
+            {
+                Experimental = true,
+            },
+        });
+
+        var response = await executor.ExecuteTurnAsync(
+                CreateCodexTurnRequest(),
+                static (_, _) => ValueTask.CompletedTask)
+            .ConfigureAwait(false);
+
+        Assert.IsTrue(response.ProviderState.HasValue);
+        var providerState = response.ProviderState.Value;
+        Assert.AreEqual("response-side-channel", providerState.GetProperty("responseId").GetString());
+        var sideChannels = providerState.GetProperty("codexWebSocketSideChannels");
+        Assert.AreEqual(3, sideChannels.GetArrayLength());
+        Assert.AreEqual("codex.rate_limits", sideChannels[0].GetProperty("type").GetString());
+        Assert.AreEqual(12.5, sideChannels[0].GetProperty("primary").GetProperty("usedPercent").GetDouble());
+        Assert.AreEqual(1234567890, sideChannels[0].GetProperty("primary").GetProperty("resetsAt").GetInt64());
+        Assert.AreEqual("server_model", sideChannels[1].GetProperty("type").GetString());
+        Assert.AreEqual("gpt-5.3-codex", sideChannels[1].GetProperty("model").GetString());
+        Assert.AreEqual("models-etag-123", sideChannels[1].GetProperty("modelsEtag").GetString());
+        Assert.AreEqual("model_verification", sideChannels[2].GetProperty("type").GetString());
+        Assert.AreEqual("trustedAccessForCyber", sideChannels[2].GetProperty("verifications")[0].GetString());
+    }
+
+    [TestMethod]
     public async Task OpenAIResponsesTurnExecutor_CodexWebSocketReceivesFullReconnectPayloadForContinuation()
     {
         var webSocketSession = new RecordingOpenAIResponsesWebSocketSession(
@@ -2867,9 +2941,14 @@ public sealed class OpenAIRawApiAgentBackendTests
         }
     }
 
-    private sealed class RecordingOpenAIResponsesWebSocketSession(IReadOnlyList<IReadOnlyList<StreamingResponseUpdate>> responseBatches) : IOpenAIResponsesWebSocketSession
+    private sealed class RecordingOpenAIResponsesWebSocketSession(
+        IReadOnlyList<IReadOnlyList<StreamingResponseUpdate>> responseBatches,
+        IReadOnlyList<OpenAIResponsesWebSocketSideChannelEvent>? sideChannelEvents = null)
+        : IOpenAIResponsesWebSocketSession
     {
         public bool HasOpenConnection => true;
+
+        public Action<OpenAIResponsesWebSocketSideChannelEvent>? SideChannelReceived { get; set; }
 
         public int RequestCount { get; private set; }
 
@@ -2889,6 +2968,11 @@ public sealed class OpenAIRawApiAgentBackendTests
                 options.InputItems.Count,
                 reconnectOptions?.PreviousResponseId,
                 reconnectOptions?.InputItems.Count ?? 0));
+            foreach (var sideChannelEvent in sideChannelEvents ?? [])
+            {
+                SideChannelReceived?.Invoke(sideChannelEvent);
+            }
+
             var requestIndex = RequestCount - 1;
             var updates = requestIndex < responseBatches.Count
                 ? responseBatches[requestIndex]
@@ -2907,6 +2991,8 @@ public sealed class OpenAIRawApiAgentBackendTests
         Exception secondRequestException) : IOpenAIResponsesWebSocketSession
     {
         public bool HasOpenConnection => true;
+
+        public Action<OpenAIResponsesWebSocketSideChannelEvent>? SideChannelReceived { get; set; }
 
         public List<WebSocketRequestRecord> Requests { get; } = [];
 
@@ -2940,6 +3026,8 @@ public sealed class OpenAIRawApiAgentBackendTests
     {
         public bool HasOpenConnection => true;
 
+        public Action<OpenAIResponsesWebSocketSideChannelEvent>? SideChannelReceived { get; set; }
+
         public int RequestCount { get; private set; }
 
         public AsyncCollectionResult<StreamingResponseUpdate> CreateResponseStreamingAsync(
@@ -2970,6 +3058,8 @@ public sealed class OpenAIRawApiAgentBackendTests
     {
         public bool HasOpenConnection => true;
 
+        public Action<OpenAIResponsesWebSocketSideChannelEvent>? SideChannelReceived { get; set; }
+
         public int RequestCount { get; private set; }
 
         public int DisposeCount { get; private set; }
@@ -2995,6 +3085,8 @@ public sealed class OpenAIRawApiAgentBackendTests
     private sealed class ThrowingOpenAIResponsesWebSocketSession(Exception exception) : IOpenAIResponsesWebSocketSession
     {
         public bool HasOpenConnection => true;
+
+        public Action<OpenAIResponsesWebSocketSideChannelEvent>? SideChannelReceived { get; set; }
 
         public int RequestCount { get; private set; }
 

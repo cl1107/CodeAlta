@@ -102,6 +102,7 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
                     ResponseResult? completedResponse = null;
                     ResponseResult? latestResponse = null;
                     var streamedOutputItems = new SortedDictionary<int, ResponseItem>();
+                    var sideChannelEvents = new List<OpenAIResponsesWebSocketSideChannelEvent>();
 
                     async Task ProcessStreamAsync(OpenAIResponsesTransport transport)
                     {
@@ -110,6 +111,7 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
                                 request,
                                 fullOptions,
                                 transport,
+                                sideChannelEvents,
                                 cancellationToken).ConfigureAwait(false))
                         {
                             WriteCodexConsoleDiagnostic(
@@ -201,6 +203,7 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
                         completedResponse = null;
                         latestResponse = null;
                         streamedOutputItems.Clear();
+                        sideChannelEvents.Clear();
                         emittedUpdate = false;
                         await ProcessStreamAsync(OpenAIResponsesTransport.Http).ConfigureAwait(false);
                     }
@@ -242,7 +245,7 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
                         AssistantPartContentIds = assistantPartContentIds,
                         Usage = CreateUsage(request, completedResponse),
                         ProviderSessionId = string.IsNullOrWhiteSpace(completedResponse.Id) ? null : completedResponse.Id,
-                        ProviderState = CreateProviderState(completedResponse),
+                        ProviderState = CreateProviderState(completedResponse, sideChannelEvents),
                         Summary = ExtractSummary(assistantMessage),
                     };
                 }
@@ -373,6 +376,7 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
         LocalAgentTurnRequest request,
         CreateResponseOptions fullOptions,
         OpenAIResponsesTransport transport,
+        List<OpenAIResponsesWebSocketSideChannelEvent> sideChannelEvents,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         if (transport == OpenAIResponsesTransport.WebSocket)
@@ -381,8 +385,14 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
             var options = entry.Session.HasOpenConnection
                 ? CreateWebSocketContinuationRequestOptions(request, fullOptions)
                 : fullOptions;
+            var previousSideChannelReceived = entry.Session.SideChannelReceived;
             try
             {
+                entry.Session.SideChannelReceived = sideChannelEvent =>
+                {
+                    sideChannelEvents.Add(sideChannelEvent);
+                    previousSideChannelReceived?.Invoke(sideChannelEvent);
+                };
                 await foreach (var update in entry.Session
                     .CreateResponseStreamingAsync(options, fullOptions, cancellationToken)
                     .ConfigureAwait(false))
@@ -392,6 +402,7 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
             }
             finally
             {
+                entry.Session.SideChannelReceived = previousSideChannelReceived;
                 ArmWebSocketSessionIdle(request.SessionId, entry);
             }
 
@@ -1258,9 +1269,11 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
             updatedAt: response.CreatedAt == default ? DateTimeOffset.UtcNow : response.CreatedAt);
     }
 
-    private static JsonElement? CreateProviderState(ResponseResult response)
+    private static JsonElement? CreateProviderState(
+        ResponseResult response,
+        IReadOnlyList<OpenAIResponsesWebSocketSideChannelEvent> sideChannelEvents)
     {
-        if (string.IsNullOrWhiteSpace(response.Id))
+        if (string.IsNullOrWhiteSpace(response.Id) && sideChannelEvents.Count == 0)
         {
             return null;
         }
@@ -1269,11 +1282,190 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
         using (var writer = new Utf8JsonWriter(stream))
         {
             writer.WriteStartObject();
-            writer.WriteString("responseId", response.Id);
+            if (!string.IsNullOrWhiteSpace(response.Id))
+            {
+                writer.WriteString("responseId", response.Id);
+            }
+
+            if (sideChannelEvents.Count > 0)
+            {
+                writer.WritePropertyName("codexWebSocketSideChannels"u8);
+                writer.WriteStartArray();
+                foreach (var sideChannelEvent in sideChannelEvents.TakeLast(8))
+                {
+                    WriteSideChannelSummary(writer, sideChannelEvent);
+                }
+
+                writer.WriteEndArray();
+            }
+
             writer.WriteEndObject();
         }
 
         return JsonDocument.Parse(stream.ToArray()).RootElement.Clone();
+    }
+
+    private static void WriteSideChannelSummary(
+        Utf8JsonWriter writer,
+        OpenAIResponsesWebSocketSideChannelEvent sideChannelEvent)
+    {
+        writer.WriteStartObject();
+        writer.WriteString("type"u8, TruncateForConsole(
+            OpenAICodexSubscriptionSecretRedactor.Redact(sideChannelEvent.Type),
+            128));
+
+        try
+        {
+            using var document = JsonDocument.Parse(sideChannelEvent.Payload);
+            var root = document.RootElement;
+            if (string.Equals(sideChannelEvent.Type, "codex.rate_limits", StringComparison.Ordinal))
+            {
+                WriteRateLimitSummary(writer, root);
+            }
+            else
+            {
+                var metadata = TryGetProperty(root, out var parameters, "params") &&
+                    parameters.ValueKind == JsonValueKind.Object
+                    ? parameters
+                    : root;
+                WriteOptionalStringProperty(writer, "model", metadata, "model", "server_model", "serverModel");
+                WriteOptionalStringProperty(writer, "status", metadata, "status");
+                WriteOptionalStringProperty(writer, "modelsEtag", metadata, "models_etag", "modelsEtag", "etag");
+                WriteOptionalStringProperty(writer, "message", metadata, "message", "detail");
+                WriteStringArrayProperty(writer, "verifications", metadata, "verifications");
+            }
+        }
+        catch (JsonException)
+        {
+            // The event type is still useful if a future side-channel frame changes shape.
+        }
+
+        writer.WriteEndObject();
+    }
+
+    private static void WriteRateLimitSummary(Utf8JsonWriter writer, JsonElement root)
+    {
+        var rateLimits = TryGetProperty(root, out var nested, "rate_limits", "rateLimits") ? nested : root;
+        WriteOptionalStringProperty(writer, "limitId", rateLimits, "limit_id", "limitId");
+        WriteOptionalStringProperty(writer, "limitName", rateLimits, "limit_name", "limitName");
+        WriteOptionalStringProperty(writer, "planType", rateLimits, "plan_type", "planType");
+        WriteOptionalStringProperty(writer, "rateLimitReachedType", rateLimits, "rate_limit_reached_type", "rateLimitReachedType");
+        WriteRateLimitWindowSummary(writer, "primary", rateLimits, "primary");
+        WriteRateLimitWindowSummary(writer, "secondary", rateLimits, "secondary");
+    }
+
+    private static void WriteRateLimitWindowSummary(
+        Utf8JsonWriter writer,
+        string outputName,
+        JsonElement element,
+        string propertyName)
+    {
+        if (!TryGetProperty(element, out var window, propertyName) ||
+            window.ValueKind != JsonValueKind.Object)
+        {
+            return;
+        }
+
+        writer.WritePropertyName(outputName);
+        writer.WriteStartObject();
+        WriteOptionalNumberProperty(writer, "usedPercent", window, "used_percent", "usedPercent");
+        WriteOptionalNumberProperty(writer, "resetsAt", window, "resets_at", "resetsAt");
+        WriteOptionalNumberProperty(writer, "windowDurationMins", window, "window_duration_mins", "windowDurationMins");
+        writer.WriteEndObject();
+    }
+
+    private static void WriteOptionalStringProperty(
+        Utf8JsonWriter writer,
+        string outputName,
+        JsonElement element,
+        params string[] propertyNames)
+    {
+        if (!TryGetProperty(element, out var property, propertyNames) ||
+            property.ValueKind != JsonValueKind.String)
+        {
+            return;
+        }
+
+        var value = property.GetString();
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        writer.WriteString(outputName, TruncateForConsole(
+            OpenAICodexSubscriptionSecretRedactor.Redact(value),
+            512));
+    }
+
+    private static void WriteStringArrayProperty(
+        Utf8JsonWriter writer,
+        string outputName,
+        JsonElement element,
+        string propertyName)
+    {
+        if (!TryGetProperty(element, out var array, propertyName) ||
+            array.ValueKind != JsonValueKind.Array)
+        {
+            return;
+        }
+
+        writer.WritePropertyName(outputName);
+        writer.WriteStartArray();
+        foreach (var item in array.EnumerateArray().Take(16))
+        {
+            if (item.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(item.GetString()))
+            {
+                writer.WriteStringValue(TruncateForConsole(
+                    OpenAICodexSubscriptionSecretRedactor.Redact(item.GetString()),
+                    128));
+            }
+        }
+
+        writer.WriteEndArray();
+    }
+
+    private static void WriteOptionalNumberProperty(
+        Utf8JsonWriter writer,
+        string outputName,
+        JsonElement element,
+        params string[] propertyNames)
+    {
+        if (!TryGetProperty(element, out var property, propertyNames) ||
+            property.ValueKind != JsonValueKind.Number)
+        {
+            return;
+        }
+
+        if (property.TryGetInt64(out var longValue))
+        {
+            writer.WriteNumber(outputName, longValue);
+            return;
+        }
+
+        if (property.TryGetDouble(out var doubleValue))
+        {
+            writer.WriteNumber(outputName, doubleValue);
+        }
+    }
+
+    private static bool TryGetProperty(
+        JsonElement element,
+        out JsonElement property,
+        params string[] propertyNames)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var propertyName in propertyNames)
+            {
+                if (element.TryGetProperty(propertyName, out property))
+                {
+                    return true;
+                }
+            }
+        }
+
+        property = default;
+        return false;
     }
 
     private static JsonElement DeserializeJson(BinaryData data)

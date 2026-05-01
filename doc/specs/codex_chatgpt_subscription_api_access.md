@@ -570,13 +570,13 @@ Transport rules:
 
 - HTTP/SSE remains the correctness fallback and uses the same `/codex/responses` model contract and core request body fields.
 - Do not bypass CodeAlta's LocalRuntime tool/permission model for either transport.
-- Fall back from WebSocket to HTTP/SSE only before any user-visible stream delta is emitted; after visible assistant/reasoning output starts, surface the stream failure so CodeAlta does not duplicate partial output or tool calls.
+- Fall back from WebSocket to HTTP/SSE only before any user-visible stream delta is emitted; when falling back, discard non-visible WebSocket response aggregation before reading the HTTP/SSE stream. After visible assistant/reasoning output starts, surface the stream failure so CodeAlta does not duplicate partial output or tool calls.
 - Reuse one WebSocket session per active CodeAlta agent session and serialize requests on that session.
 - Close and remove the per-session WebSocket when the CodeAlta session is disposed, and idle-expire cached WebSocket sessions after five minutes of inactivity.
 - If a reused WebSocket is stale and fails while sending the next request, reconnect once and send the full request payload instead of a `previous_response_id` delta.
 - Parse wrapped WebSocket error frames such as `{ "type": "error", "status": ..., "error": ... }` into status-bearing request failures; treat `websocket_connection_limit_reached` as retryable on a fresh connection rather than as an HTTP fallback signal.
 - Wrap WebSocket receive waits in a per-message idle timeout so a silent socket cannot hang indefinitely.
-- Ignore known non-response side-channel frames such as `codex.rate_limits`, model verification, and server-model notifications unless CodeAlta gains an explicit UI/event surface for them.
+- Capture known non-response side-channel frames such as `codex.rate_limits`, model verification, server-model notifications, and models-etag metadata as redacted provider-state diagnostics only; they must not alter assistant content, tool execution, retry policy, request identity, or usage-limit handling.
 - `previous_response_id` and input-delta continuation may be used only on a currently live/reused WebSocket for in-memory CodeAlta sessions created in the current process. HTTP/SSE, HTTP fallback, new WebSocket connections, and sessions reloaded from disk must send full replayable input and must not resume a stored provider response id.
 - When request fields change or the transcript is not a strict extension of the previous request plus assistant/tool output, send full input and clear continuation state.
 - CodeAlta's ChatGPT subscription WebSocket transport applies the Responses WebSocket message shape with ChatGPT OAuth/account headers and must remain independent from platform API-key WebSocket helpers in the OpenAI SDK.

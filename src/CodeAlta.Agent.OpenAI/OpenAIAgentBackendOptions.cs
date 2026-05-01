@@ -226,9 +226,15 @@ internal sealed record OpenAIResponsesRequestCustomizationContext(
     LocalAgentTurnRequest Request,
     CreateResponseOptions Options);
 
+internal sealed record OpenAIResponsesWebSocketSideChannelEvent(
+    string Type,
+    BinaryData Payload);
+
 internal interface IOpenAIResponsesWebSocketSession : IDisposable
 {
     bool HasOpenConnection { get; }
+
+    Action<OpenAIResponsesWebSocketSideChannelEvent>? SideChannelReceived { get; set; }
 
     AsyncCollectionResult<StreamingResponseUpdate> CreateResponseStreamingAsync(
         CreateResponseOptions options,
