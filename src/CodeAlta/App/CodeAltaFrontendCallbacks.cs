@@ -27,6 +27,7 @@ internal sealed class CodeAltaFrontendCallbacks
     public required Action ResetPendingThreadTabSelection { get; init; }
     public required Action<string> RemoveThreadTabPage { get; init; }
     public required Action<string, bool, StatusTone> SetStatus { get; init; }
+    public required Action<string?> SetProviderSessionLoadStatus { get; init; }
     public required Func<string, bool> IsSelectedThread { get; init; }
     public required Action<ChatBackendState> ApplyDraftBackendPreference { get; init; }
     public required Action<AgentBackendId, string?, AgentReasoningEffort?> RememberGlobalBackendPreference { get; init; }

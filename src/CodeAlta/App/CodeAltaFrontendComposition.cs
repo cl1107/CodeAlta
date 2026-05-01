@@ -219,7 +219,8 @@ internal sealed class CodeAltaFrontendComposition
             chatBackendStates,
             callbacks.DispatchToUi,
             callbacks.RefreshHeaderAndThreadWorkspace,
-            codexInstallProgress);
+            codexInstallProgress,
+            callbacks.SetProviderSessionLoadStatus);
         var threadRuntimeEventCoordinator = new ThreadRuntimeEventCoordinator(
             threadId => threadStateCoordinator.FindThread(threadId),
             threadId => threadStateCoordinator.FindOpenThread(threadId),

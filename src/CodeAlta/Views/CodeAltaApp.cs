@@ -90,6 +90,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
     private Visual? ThreadPaneLayout => _threadWorkspaceView?.ThreadPaneLayout;
     private VSplitter? ThreadBodySplitter => _threadWorkspaceView?.ThreadBodySplitter;
     private ChatPromptEditor? ThreadInput => _threadWorkspaceView?.ThreadInput;
+    private Visual GetDialogAnchor() => ThreadInput is Visual input ? input : _sidebarCoordinator.View.Tree;
     private CommandBar? ThreadCommandBar => _threadWorkspaceView?.ThreadCommandBar;
     private TabControl? ThreadTabControl => _threadWorkspaceView?.ThreadTabControl;
 
@@ -182,6 +183,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
                 ResetPendingThreadTabSelection = ResetPendingThreadTabSelection,
                 RemoveThreadTabPage = threadId => _threadWorkspaceView?.RemoveTabPage(threadId),
                 SetStatus = SetStatus,
+                SetProviderSessionLoadStatus = SetProviderSessionLoadStatus,
                 IsSelectedThread = IsSelectedThread,
                 ApplyDraftBackendPreference = ApplyDraftBackendPreference,
                 RememberGlobalBackendPreference = RememberGlobalBackendPreference,
@@ -267,16 +269,16 @@ internal sealed class CodeAltaApp : IAsyncDisposable
         _providerUi = new ProviderFrontendCoordinator(_ownedServices, _catalogOptions, _chatBackendInitializationCoordinator, _chatBackendStates, DispatchToUi, RefreshSelectionAndThreadWorkspace, SetStatus);
         _providerDialogCoordinator = new ProviderDialogCoordinator(
             _providerUi,
-            () => DialogBoundsResolver.ResolveAppBounds(ThreadInput is Visual threadInput ? threadInput : _sidebarCoordinator.View.Tree),
-            () => ThreadInput is Visual threadInput ? threadInput : _sidebarCoordinator.View.Tree);
+            () => DialogBoundsResolver.ResolveAppBounds(GetDialogAnchor()),
+            GetDialogAnchor);
         _acpManagementCoordinator = AcpManagementCoordinatorFactory.Create(
             _ownedServices,
             _catalogOptions,
             _chatBackendStates,
             () => _acpUi.RefreshBackendsAsync(),
             agentId => _acpUi.ProbeBackendAsync(agentId),
-            () => DialogBoundsResolver.ResolveAppBounds(ThreadInput is Visual threadInput ? threadInput : _sidebarCoordinator.View.Tree),
-            () => ThreadInput is Visual threadInput ? threadInput : _sidebarCoordinator.View.Tree);
+            () => DialogBoundsResolver.ResolveAppBounds(GetDialogAnchor()),
+            GetDialogAnchor);
         _fileEditorWorkspaceCoordinator = new FileEditorWorkspaceCoordinator(
             projectFileSearchService,
             () => PromptReferenceProjectRootResolver.Resolve(GetSelectedThread(), GetProjectById, GetSelectedProject),
@@ -290,8 +292,8 @@ internal sealed class CodeAltaApp : IAsyncDisposable
                 new SkillsManagementService(_ownedServices.SkillCatalog, _catalogOptions, GetSelectedProject),
                 path => _fileEditorWorkspaceCoordinator.OpenFilePathAsync(path),
                 skillName => _threadCommandCoordinator.ActivateSelectedSkillAsync(skillName),
-                () => DialogBoundsResolver.ResolveAppBounds(ThreadInput is Visual threadInput ? threadInput : _sidebarCoordinator.View.Tree),
-                () => ThreadInput is Visual threadInput ? threadInput : _sidebarCoordinator.View.Tree)
+                () => DialogBoundsResolver.ResolveAppBounds(GetDialogAnchor()),
+                GetDialogAnchor)
             : null;
         _threadTabContext = new ThreadTabContext(
             () => ThreadTabControl,

@@ -353,9 +353,10 @@ internal sealed class CodeAltaShellController : IAsyncDisposable
         try
         {
             // These startup calls are background I/O and must not assume UI-thread affinity.
-            await _shell.InitializeChatBackendsAsync(cancellationToken).ConfigureAwait(false);
+            var chatBackendInitializationTask = _shell.InitializeChatBackendsAsync(cancellationToken);
             await MarkInitializedForInteractionAsync(cancellationToken).ConfigureAwait(false);
             initializedForInteraction = true;
+            await chatBackendInitializationTask.ConfigureAwait(false);
             await RefreshCatalogFromBackendsAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

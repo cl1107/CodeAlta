@@ -17,6 +17,7 @@ internal sealed class ChatBackendInitializationCoordinator
     private readonly Action<Action> _dispatchToUi;
     private readonly Action _refreshHeaderAndThreadWorkspace;
     private readonly CodexInstallProgressReporter? _codexInstallProgress;
+    private readonly Action<string?>? _setProviderInitializationStatus;
 
     public ChatBackendInitializationCoordinator(
         AgentHub agentHub,
@@ -24,7 +25,8 @@ internal sealed class ChatBackendInitializationCoordinator
         Dictionary<string, ChatBackendState> chatBackendStates,
         Action<Action> dispatchToUi,
         Action refreshHeaderAndThreadWorkspace,
-        CodexInstallProgressReporter? codexInstallProgress = null)
+        CodexInstallProgressReporter? codexInstallProgress = null,
+        Action<string?>? setProviderInitializationStatus = null)
     {
         ArgumentNullException.ThrowIfNull(agentHub);
         ArgumentNullException.ThrowIfNull(backendDescriptors);
@@ -38,12 +40,22 @@ internal sealed class ChatBackendInitializationCoordinator
         _dispatchToUi = dispatchToUi;
         _refreshHeaderAndThreadWorkspace = refreshHeaderAndThreadWorkspace;
         _codexInstallProgress = codexInstallProgress;
+        _setProviderInitializationStatus = setProviderInitializationStatus;
     }
 
     public async Task InitializeAsync(CancellationToken cancellationToken)
     {
-        await Task.WhenAll(_backendDescriptors.Select(descriptor => RefreshAsync(descriptor.BackendId, cancellationToken)))
-            .ConfigureAwait(false);
+        var progress = new ProviderInitializationProgress(_backendDescriptors);
+        ReportProviderInitializationProgress(progress.Snapshot(null));
+        try
+        {
+            await Task.WhenAll(_backendDescriptors.Select(descriptor => RefreshAndReportAsync(descriptor, progress, cancellationToken)))
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            ReportProviderInitializationProgress(null);
+        }
     }
 
     public Task RefreshBackendAsync(AgentBackendId backendId, CancellationToken cancellationToken = default)
@@ -91,6 +103,45 @@ internal sealed class ChatBackendInitializationCoordinator
 
         return IsProcessBackedProviderBackend(backendId) &&
                state.Availability == ChatBackendAvailability.Ready;
+    }
+
+    internal static string? FormatProviderInitializationStatus(
+        int completedProviderCount,
+        int totalProviderCount,
+        IReadOnlyList<string> initializingProviderDisplayNames)
+    {
+        ArgumentNullException.ThrowIfNull(initializingProviderDisplayNames);
+
+        if (totalProviderCount <= 0 || completedProviderCount >= totalProviderCount)
+        {
+            return null;
+        }
+
+        var completed = Math.Clamp(completedProviderCount, 0, totalProviderCount);
+        var initializingNames = initializingProviderDisplayNames
+            .Where(static name => !string.IsNullOrWhiteSpace(name))
+            .Take(2)
+            .ToArray();
+        var initializingText = initializingNames.Length == 0
+            ? "providers"
+            : string.Join(", ", initializingNames) + (initializingProviderDisplayNames.Count > initializingNames.Length ? ", …" : string.Empty);
+
+        return $"Initializing {initializingText} {BuildProgressBar(completed, totalProviderCount)} {completed}/{totalProviderCount}";
+    }
+
+    private async Task RefreshAndReportAsync(
+        AgentBackendDescriptor descriptor,
+        ProviderInitializationProgress progress,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await RefreshAsync(descriptor.BackendId, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            ReportProviderInitializationProgress(progress.Snapshot(descriptor));
+        }
     }
 
     private async Task RefreshAsync(AgentBackendId backendId, CancellationToken cancellationToken)
@@ -174,6 +225,75 @@ internal sealed class ChatBackendInitializationCoordinator
     private static bool IsProcessBackedProviderBackend(AgentBackendId backendId)
         => string.Equals(backendId.Value, AgentBackendIds.Codex.Value, StringComparison.OrdinalIgnoreCase) ||
            string.Equals(backendId.Value, AgentBackendIds.Copilot.Value, StringComparison.OrdinalIgnoreCase);
+
+    private void ReportProviderInitializationProgress(ProviderInitializationProgressSnapshot? progress)
+    {
+        if (_setProviderInitializationStatus is null)
+        {
+            return;
+        }
+
+        var status = progress is null
+            ? null
+            : FormatProviderInitializationStatus(
+                progress.CompletedProviderCount,
+                progress.TotalProviderCount,
+                progress.InitializingProviderDisplayNames);
+        _dispatchToUi(() => _setProviderInitializationStatus(status));
+    }
+
+    private static string BuildProgressBar(int completed, int total)
+    {
+        const int width = 8;
+        if (total <= 0)
+        {
+            return "[□□□□□□□□]";
+        }
+
+        var filled = (int)Math.Round(Math.Clamp(completed, 0, total) / (double)total * width, MidpointRounding.AwayFromZero);
+        filled = Math.Clamp(filled, 0, width);
+        return "[" + new string('■', filled) + new string('□', width - filled) + "]";
+    }
+
+    private sealed class ProviderInitializationProgress
+    {
+        private readonly object _gate = new();
+        private readonly List<string> _initializingProviderDisplayNames;
+        private int _completedProviderCount;
+
+        public ProviderInitializationProgress(IReadOnlyList<AgentBackendDescriptor> descriptors)
+        {
+            ArgumentNullException.ThrowIfNull(descriptors);
+
+            TotalProviderCount = descriptors.Count;
+            _initializingProviderDisplayNames = descriptors.Select(static descriptor => descriptor.DisplayName).ToList();
+        }
+
+        public int TotalProviderCount { get; }
+
+        public ProviderInitializationProgressSnapshot Snapshot(AgentBackendDescriptor? completedDescriptor)
+        {
+            lock (_gate)
+            {
+                if (completedDescriptor is not null)
+                {
+                    _completedProviderCount++;
+                    _initializingProviderDisplayNames.RemoveAll(
+                        name => string.Equals(name, completedDescriptor.DisplayName, StringComparison.Ordinal));
+                }
+
+                return new ProviderInitializationProgressSnapshot(
+                    _completedProviderCount,
+                    TotalProviderCount,
+                    _initializingProviderDisplayNames.ToArray());
+            }
+        }
+    }
+
+    private sealed record ProviderInitializationProgressSnapshot(
+        int CompletedProviderCount,
+        int TotalProviderCount,
+        IReadOnlyList<string> InitializingProviderDisplayNames);
 
     private static void LogInfo(string message)
     {

@@ -84,6 +84,28 @@ public sealed class ChatBackendInitializationCoordinatorTests
         CollectionAssert.AreEqual(new[] { "new-model" }, state.Models.Select(static model => model.Id).ToArray());
     }
 
+    [TestMethod]
+    public void FormatProviderInitializationStatus_ShowsProgressAndProviderNames()
+    {
+        var status = ChatBackendInitializationCoordinator.FormatProviderInitializationStatus(
+            1,
+            3,
+            ["OpenAI", "Gemma", "Anthropic"]);
+
+        Assert.AreEqual("Initializing OpenAI, Gemma, … [■■■□□□□□] 1/3", status);
+    }
+
+    [TestMethod]
+    public void FormatProviderInitializationStatus_HidesWhenComplete()
+    {
+        var status = ChatBackendInitializationCoordinator.FormatProviderInitializationStatus(
+            3,
+            3,
+            []);
+
+        Assert.IsNull(status);
+    }
+
     private static ChatBackendInitializationCoordinator CreateCoordinator(
         AgentHub hub,
         IReadOnlyList<AgentBackendDescriptor> descriptors,

@@ -100,6 +100,35 @@ public sealed class CodeAltaShellControllerTests
     }
 
     [TestMethod]
+    public async Task InitializeAsync_MarksShellInitializedBeforeBackendInitializationCompletes()
+    {
+        var log = new List<string>();
+        var shell = new FakeShell(log)
+        {
+            InitializeChatBackendsCompletion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously),
+        };
+        var controller = new CodeAltaShellController(
+            shell,
+            new FakeImporter(log),
+            new FakeProjectCatalogStore(log, [new ProjectDescriptor { Id = "project-1", DisplayName = "CodeAlta", ProjectPath = @"C:\repo", Slug = "codealta" }]),
+            new FakeRecoverableThreadSource(log, [CreateThread("thread-1")]),
+            new FakeWorkThreadDeleter(log));
+        controller.AttachUiDispatcher(new FakeUiDispatcher());
+
+        var initializationTask = controller.InitializeAsync(CancellationToken.None);
+
+        await WaitUntilAsync(() => log.Contains("Shell.SetInitialized:True")).ConfigureAwait(false);
+
+        Assert.IsFalse(initializationTask.IsCompleted, "Initialization should continue in the background while the shell is usable.");
+        Assert.IsFalse(log.Contains("Importer.Import"), "Session catalog loading should wait until provider initialization finishes.");
+
+        shell.InitializeChatBackendsCompletion.SetResult(true);
+        await initializationTask.ConfigureAwait(false);
+
+        Assert.IsTrue(log.IndexOf("Shell.SetInitialized:True") < log.IndexOf("Importer.Import"));
+    }
+
+    [TestMethod]
     public async Task InitializeAsync_AppliesRecoverableThreadsAsProviderProgressCompletes()
     {
         var log = new List<string>();
@@ -615,10 +644,12 @@ public sealed class CodeAltaShellControllerTests
     {
         public WorkThreadRuntimeEvent? LastRuntimeEvent { get; private set; }
 
+        public TaskCompletionSource<bool>? InitializeChatBackendsCompletion { get; init; }
+
         public Task InitializeChatBackendsAsync(CancellationToken cancellationToken)
         {
             log.Add("Shell.InitializeChatBackends");
-            return Task.CompletedTask;
+            return InitializeChatBackendsCompletion?.Task ?? Task.CompletedTask;
         }
 
         public void SetStatus(string message, bool showSpinner = false, StatusTone tone = StatusTone.Info)
