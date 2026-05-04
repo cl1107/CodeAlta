@@ -156,18 +156,20 @@ internal sealed class ThreadPromptQueueCoordinator
 
         if (!TryGetSelectedTabWithQueue(out var tab) ||
             tab is null ||
-            !TrySnapshotQueuedPrompt(tab, queuedPromptId, out var queuedPrompt))
+            !TryDequeueQueuedPrompt(tab, queuedPromptId, out var queuedPrompt))
         {
             return;
         }
 
+        RefreshSelectedThreadQueueUi();
+
         try
         {
             await DispatchQueuedPromptForCurrentThreadStateAsync(tab, queuedPrompt.Submission, cancellationToken);
-            ConsumeQueuedPrompt(tab, queuedPrompt.Id);
         }
         catch
         {
+            RestoreDequeuedPrompt(tab, queuedPrompt);
         }
     }
 
@@ -175,19 +177,21 @@ internal sealed class ThreadPromptQueueCoordinator
     {
         ArgumentNullException.ThrowIfNull(tab);
 
-        if (!TrySnapshotNextQueuedPrompt(tab, out var queuedPrompt))
+        if (!TryDequeueNextQueuedPrompt(tab, out var queuedPrompt))
         {
             RefreshSelectedThreadQueueUi();
             return;
         }
 
+        RefreshSelectedThreadQueueUi();
+
         try
         {
             await _dispatchQueuedPromptAsync(tab, queuedPrompt.Submission, cancellationToken);
-            ConsumeQueuedPrompt(tab, queuedPrompt.Id);
         }
         catch
         {
+            RestoreDequeuedPrompt(tab, queuedPrompt);
         }
     }
 
@@ -195,19 +199,21 @@ internal sealed class ThreadPromptQueueCoordinator
     {
         ArgumentNullException.ThrowIfNull(tab);
 
-        if (!TrySnapshotNextQueuedPrompt(tab, out var queuedPrompt))
+        if (!TryDequeueNextQueuedPrompt(tab, out var queuedPrompt))
         {
             RefreshSelectedThreadQueueUi();
             return;
         }
 
+        RefreshSelectedThreadQueueUi();
+
         try
         {
             await DispatchQueuedPromptForCurrentThreadStateAsync(tab, queuedPrompt.Submission, cancellationToken);
-            ConsumeQueuedPrompt(tab, queuedPrompt.Id);
         }
         catch
         {
+            RestoreDequeuedPrompt(tab, queuedPrompt);
         }
     }
 
@@ -349,32 +355,6 @@ internal sealed class ThreadPromptQueueCoordinator
             : _dispatchQueuedPromptAsync(tab, prompt, cancellationToken);
     }
 
-    private void ConsumeQueuedPrompt(OpenThreadState tab, string queuedPromptId)
-    {
-        ArgumentNullException.ThrowIfNull(tab);
-        ArgumentException.ThrowIfNullOrWhiteSpace(queuedPromptId);
-
-        lock (tab.PromptStripSyncRoot)
-        {
-            var queuedPrompt = FindQueuedPrompt(tab, queuedPromptId);
-            if (queuedPrompt is null)
-            {
-                return;
-            }
-
-            if (queuedPrompt.RemainingCount > 1)
-            {
-                queuedPrompt.UpdateRemainingCount(queuedPrompt.RemainingCount - 1);
-            }
-            else
-            {
-                _ = tab.QueuedPrompts.Remove(queuedPrompt);
-            }
-        }
-
-        RefreshSelectedThreadQueueUi();
-    }
-
     private bool TryGetSelectedTabWithQueue(out OpenThreadState? tab)
     {
         tab = null;
@@ -407,23 +387,25 @@ internal sealed class ThreadPromptQueueCoordinator
         return tab.QueuedPrompts.FirstOrDefault(prompt => string.Equals(prompt.Id, queuedPromptId, StringComparison.Ordinal));
     }
 
-    private static bool TrySnapshotQueuedPrompt(OpenThreadState tab, string queuedPromptId, out QueuedPromptSnapshot queuedPrompt)
+    private static bool TryDequeueQueuedPrompt(OpenThreadState tab, string queuedPromptId, out QueuedPromptSnapshot queuedPrompt)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(queuedPromptId);
+
         lock (tab.PromptStripSyncRoot)
         {
-            var existing = FindQueuedPrompt(tab, queuedPromptId);
-            if (existing is null)
+            var queueIndex = FindQueuedPromptIndex(tab, queuedPromptId);
+            if (queueIndex < 0)
             {
                 queuedPrompt = default;
                 return false;
             }
 
-            queuedPrompt = new QueuedPromptSnapshot(existing.Id, existing.Submission.Copy(), existing.RemainingCount);
+            queuedPrompt = DequeueQueuedPromptAt(tab, queueIndex);
             return true;
         }
     }
 
-    private static bool TrySnapshotNextQueuedPrompt(OpenThreadState tab, out QueuedPromptSnapshot queuedPrompt)
+    private static bool TryDequeueNextQueuedPrompt(OpenThreadState tab, out QueuedPromptSnapshot queuedPrompt)
     {
         lock (tab.PromptStripSyncRoot)
         {
@@ -433,10 +415,47 @@ internal sealed class ThreadPromptQueueCoordinator
                 return false;
             }
 
-            var existing = tab.QueuedPrompts[0];
-            queuedPrompt = new QueuedPromptSnapshot(existing.Id, existing.Submission.Copy(), existing.RemainingCount);
+            queuedPrompt = DequeueQueuedPromptAt(tab, queueIndex: 0);
             return true;
         }
+    }
+
+    private static QueuedPromptSnapshot DequeueQueuedPromptAt(OpenThreadState tab, int queueIndex)
+    {
+        var existing = tab.QueuedPrompts[queueIndex];
+        var queuedPrompt = new QueuedPromptSnapshot(
+            existing.Id,
+            existing.Submission.Copy(),
+            queueIndex);
+        if (existing.RemainingCount > 1)
+        {
+            existing.UpdateRemainingCount(existing.RemainingCount - 1);
+        }
+        else
+        {
+            tab.QueuedPrompts.RemoveAt(queueIndex);
+        }
+
+        return queuedPrompt;
+    }
+
+    private void RestoreDequeuedPrompt(OpenThreadState tab, QueuedPromptSnapshot queuedPrompt)
+    {
+        lock (tab.PromptStripSyncRoot)
+        {
+            var existing = FindQueuedPrompt(tab, queuedPrompt.Id);
+            if (existing is not null)
+            {
+                existing.UpdateRemainingCount(existing.RemainingCount + 1);
+            }
+            else
+            {
+                var queueIndex = Math.Clamp(queuedPrompt.QueueIndex, 0, tab.QueuedPrompts.Count);
+                tab.QueuedPrompts.Insert(queueIndex, new QueuedThreadPrompt(queuedPrompt.Submission));
+            }
+        }
+
+        RefreshSelectedThreadQueueUi();
     }
 
     private static PendingSteerPrompt? FindPendingSteer(OpenThreadState tab, string pendingSteerId)
@@ -453,5 +472,5 @@ internal sealed class ThreadPromptQueueCoordinator
     private readonly record struct QueuedPromptSnapshot(
         string Id,
         PromptSubmission Submission,
-        int RemainingCount);
+        int QueueIndex);
 }
