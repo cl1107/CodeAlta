@@ -4,6 +4,7 @@ using System.ClientModel;
 #pragma warning disable SCME0001
 using System.ClientModel.Primitives;
 using System.Net;
+using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -1571,6 +1572,47 @@ public sealed class OpenAIRawApiAgentBackendTests
     }
 
     [TestMethod]
+    public async Task OpenAIResponsesTurnExecutor_CodexWebSocketTransportAbortFallsBackBeforeVisibleOutput()
+    {
+        var webSocketSession = new PartiallyFailingOpenAIResponsesWebSocketSession(
+            CreateCreatedResponseUpdate(
+                responseId: "response-started",
+                modelId: "gpt-5.3-codex"),
+            CreateTransportAbortedTaskCanceledException());
+        var responsesClient = new RecordingOpenAIResponseClient(
+        [
+            [
+                CreateAssistantResponseUpdate(
+                    responseId: "response-fallback-transport-abort",
+                    modelId: "gpt-5.3-codex",
+                    text: "Fallback answer.",
+                    reasoningText: "Recovered over HTTP.",
+                    encryptedReasoning: null),
+            ],
+        ]);
+        var executor = new OpenAIResponsesTurnExecutor(new OpenAIProviderOptions
+        {
+            ProviderKey = "codex_subscription",
+            ResponsesClientFactory = _ => responsesClient,
+            ResponsesWebSocketSessionFactory = _ => ValueTask.FromResult<IOpenAIResponsesWebSocketSession>(webSocketSession),
+            CodexSubscription = new OpenAICodexSubscriptionOptions
+            {
+                Experimental = true,
+            },
+        });
+
+        var response = await executor.ExecuteTurnAsync(
+                CreateCodexTurnRequest(),
+                static (_, _) => ValueTask.CompletedTask)
+            .ConfigureAwait(false);
+
+        Assert.AreEqual(1, webSocketSession.RequestCount);
+        Assert.AreEqual(1, webSocketSession.DisposeCount);
+        Assert.AreEqual(1, responsesClient.Requests.Count);
+        Assert.AreEqual("Fallback answer.", response.AssistantMessage.Parts.OfType<LocalAgentMessagePart.Text>().Single().Value);
+    }
+
+    [TestMethod]
     public async Task OpenAIResponsesTurnExecutor_CodexWebSocketFallbackDiscardsAbandonedStreamState()
     {
         var webSocketSession = new PartiallyFailingOpenAIResponsesWebSocketSession(
@@ -2760,6 +2802,13 @@ public sealed class OpenAIRawApiAgentBackendTests
             HttpRequestError.ResponseEnded,
             "The response ended prematurely. (ResponseEnded)",
             innerException: null!);
+
+    private static TaskCanceledException CreateTransportAbortedTaskCanceledException()
+        => new(
+            "The operation was canceled.",
+            new IOException(
+                "Unable to read data from the transport connection: The I/O operation has been aborted because of either a thread exit or an application request.",
+                new SocketException((int)SocketError.OperationAborted)));
 
     private static StreamingResponseUpdate CreateCreatedResponseUpdate(
         string responseId,

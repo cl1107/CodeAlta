@@ -312,6 +312,17 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
                 }
             }
         }
+        catch (OperationCanceledException ex) when (IsTransportAbortedOperationCanceled(ex))
+        {
+            ClearLiveContinuation(request.SessionId);
+            LogCodexDiagnostic(
+                "error",
+                request,
+                attempt: 1,
+                httpStatus: GetHttpStatusCode(ex),
+                errorType: ex.GetType().Name);
+            throw CreateTurnExecutionException(TranslateCodexSubscriptionException(provider, ex));
+        }
         catch (OperationCanceledException)
         {
             throw;
@@ -364,7 +375,7 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
         if (provider.CodexSubscription is null ||
             transport != OpenAIResponsesTransport.WebSocket ||
             emittedUpdate ||
-            exception is OperationCanceledException)
+            exception is OperationCanceledException && !IsTransportAbortedOperationCanceled(exception))
         {
             return false;
         }
@@ -1852,7 +1863,8 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
         if (provider.CodexSubscription is null ||
             emittedUpdate ||
             attempt >= retryBudget ||
-            exception is OperationCanceledException or LocalAgentTurnExecutionException)
+            exception is LocalAgentTurnExecutionException ||
+            exception is OperationCanceledException && !IsTransportAbortedOperationCanceled(exception))
         {
             return false;
         }
@@ -1880,6 +1892,11 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
 
     private static bool IsPrematureResponseEnded(Exception exception)
     {
+        if (IsTransportAbortedOperationCanceled(exception))
+        {
+            return true;
+        }
+
         if (exception is HttpIOException { HttpRequestError: HttpRequestError.ResponseEnded })
         {
             return true;
@@ -1904,6 +1921,38 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
         }
 
         return exception.InnerException is not null && IsPrematureResponseEnded(exception.InnerException);
+    }
+
+    private static bool IsTransportAbortedOperationCanceled(Exception exception)
+    {
+        if (exception is not OperationCanceledException)
+        {
+            return false;
+        }
+
+        return ContainsAbortedTransportSignal(exception.InnerException);
+    }
+
+    private static bool ContainsAbortedTransportSignal(Exception? exception)
+    {
+        while (exception is not null)
+        {
+            if (exception is System.Net.Sockets.SocketException socketException &&
+                socketException.SocketErrorCode == System.Net.Sockets.SocketError.OperationAborted)
+            {
+                return true;
+            }
+
+            if (exception is IOException &&
+                exception.Message.Contains("operation has been aborted", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            exception = exception.InnerException;
+        }
+
+        return false;
     }
 
     private static bool IsRetryableCodexSubscriptionException(Exception exception)
