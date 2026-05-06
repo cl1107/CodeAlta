@@ -164,6 +164,7 @@ internal static class RawApiBackendRegistrar
                         CreateExtraBody(definition.ExtraBody)),
                     ModelOverrides = CreateModelOverrides(definition.ModelOverrides),
                     ModelCatalog = modelCatalog,
+                    ProtocolTracing = CreateOpenAIProtocolTraceOptions(definition, stateRootPath),
                 },
             },
         };
@@ -226,6 +227,7 @@ internal static class RawApiBackendRegistrar
                         CreateExtraBody(definition.ExtraBody)),
                     ModelOverrides = CreateModelOverrides(definition.ModelOverrides),
                     ModelCatalog = modelCatalog,
+                    ProtocolTracing = CreateOpenAIProtocolTraceOptions(definition, stateRootPath),
                 },
             },
         };
@@ -263,6 +265,7 @@ internal static class RawApiBackendRegistrar
             Profile = CreateCodexSubscriptionProfile(definition.Profile),
             Compaction = CreateCompactionSettings(definition.Compaction),
             ModelCatalog = modelCatalog,
+            ProtocolTracing = CreateOpenAIProtocolTraceOptions(definition, stateRootPath),
             CodexSubscription = new OpenAICodexSubscriptionOptions
             {
                 AuthSource = NormalizeText(definition.AuthSource) ?? "codealta_oauth",
@@ -605,6 +608,17 @@ internal static class RawApiBackendRegistrar
     private static Uri? ParseUri(string? uriText)
         => Uri.TryCreate(NormalizeText(uriText), UriKind.Absolute, out var uri)
             ? uri
+            : null;
+
+    private static OpenAIProtocolTraceOptions? CreateOpenAIProtocolTraceOptions(
+        CodeAltaProviderDocument definition,
+        string stateRootPath)
+        => definition.ProtocolTrace == true
+            ? new OpenAIProtocolTraceOptions
+            {
+                Enabled = true,
+                StateRootPath = stateRootPath,
+            }
             : null;
 
     private static string? NormalizeText(string? value)

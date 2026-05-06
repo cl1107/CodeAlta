@@ -27,6 +27,11 @@ public sealed class LocalAgentRuntimePathLayout
     public string SessionsRootPath => Path.Combine(RootPath, "sessions");
 
     /// <summary>
+    /// Gets the root directory for optional provider protocol traces.
+    /// </summary>
+    public string SessionTracesRootPath => Path.Combine(SessionsRootPath, "traces");
+
+    /// <summary>
     /// Gets the session journal path.
     /// </summary>
     /// <param name="sessionId">Local session identifier.</param>
@@ -44,6 +49,18 @@ public sealed class LocalAgentRuntimePathLayout
             createdAt.UtcDateTime.ToString("MM", System.Globalization.CultureInfo.InvariantCulture),
             createdAt.UtcDateTime.ToString("dd", System.Globalization.CultureInfo.InvariantCulture),
             $"{NormalizeSegment(sessionId)}.jsonl");
+    }
+
+    /// <summary>
+    /// Gets the optional provider protocol trace path for a local session.
+    /// </summary>
+    /// <param name="sessionId">Local session identifier.</param>
+    /// <returns>The session protocol trace path.</returns>
+    public string GetSessionTraceFilePath(string sessionId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
+
+        return Path.Combine(SessionTracesRootPath, $"{NormalizeSegment(sessionId)}.trace");
     }
 
     private static string NormalizeSegment(string value)

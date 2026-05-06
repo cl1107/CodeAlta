@@ -47,6 +47,10 @@ internal static class OpenAIBackendFactory
         foreach (var provider in options.Providers)
         {
             provider.StateRootPath ??= options.StateRootPath;
+            if (provider.ProtocolTracing is { } protocolTracing && string.IsNullOrWhiteSpace(protocolTracing.StateRootPath))
+            {
+                protocolTracing.StateRootPath = provider.StateRootPath;
+            }
         }
 
         return new LocalAgentBackend(

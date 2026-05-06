@@ -1,6 +1,7 @@
 #pragma warning disable OPENAI001
 #pragma warning disable SCME0001
 
+using System.ClientModel.Primitives;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using System.Text.Json;
@@ -27,7 +28,8 @@ internal sealed class OpenAIChatTurnExecutor(OpenAIProviderOptions provider) : I
 
         try
         {
-            var client = OpenAIProviderSdkFactory.CreateChatClient(provider, request.ModelId);
+            var protocolTrace = OpenAIProtocolTraceLogger.Create(provider.ProtocolTracing, request);
+            var client = OpenAIProviderSdkFactory.CreateChatClient(provider, request.ModelId, protocolTrace);
             var messages = CreateMessages(request);
             var options = CreateOptions(request);
             var streamedToolCalls = new Dictionary<int, StreamingToolCallState>();
@@ -41,6 +43,8 @@ internal sealed class OpenAIChatTurnExecutor(OpenAIProviderOptions provider) : I
 
             await foreach (var update in client.CompleteChatStreamingAsync(messages, options, cancellationToken).ConfigureAwait(false))
             {
+                protocolTrace?.WriteLine("<<< stream update (sdk model JSON):");
+                protocolTrace?.WriteLine(SerializeModel(update));
                 completionId ??= update.CompletionId;
                 modelId ??= update.Model;
                 usage = update.Usage ?? usage;
@@ -141,6 +145,8 @@ internal sealed class OpenAIChatTurnExecutor(OpenAIProviderOptions provider) : I
             }
 
             var assistantMessage = new LocalAgentConversationMessage(LocalAgentConversationRole.Assistant, parts);
+            protocolTrace?.WriteLine(
+                $"### turn end provider={request.Provider.ProviderKey} session={request.SessionId} run={request.RunId.Value} completion={completionId ?? "<none>"} model={modelId ?? "<none>"}");
             return new LocalAgentTurnResponse
             {
                 AssistantMessage = assistantMessage,
@@ -557,14 +563,11 @@ internal sealed class OpenAIChatTurnExecutor(OpenAIProviderOptions provider) : I
             }).Where(static value => !string.IsNullOrWhiteSpace(value)));
     }
 
-    private sealed class StreamingToolCallState
-    {
-        public StringBuilder Arguments { get; } = new();
-
-        public string? CallId { get; set; }
-
-        public string? Name { get; set; }
-    }
+    private static string SerializeModel<T>(T model)
+        where T : notnull
+        => model is IPersistableModel<T> persistable
+            ? persistable.Write(new ModelReaderWriterOptions("J")).ToString()
+            : model.ToString() ?? string.Empty;
 
     private static LocalAgentTurnExecutionException CreateTurnExecutionException(Exception ex)
         => new(
@@ -578,4 +581,13 @@ internal sealed class OpenAIChatTurnExecutor(OpenAIProviderOptions provider) : I
            (message.Contains("context length", StringComparison.OrdinalIgnoreCase) ||
             message.Contains("maximum context length", StringComparison.OrdinalIgnoreCase) ||
             message.Contains("too many tokens", StringComparison.OrdinalIgnoreCase));
+
+    private sealed class StreamingToolCallState
+    {
+        public StringBuilder Arguments { get; } = new();
+
+        public string? CallId { get; set; }
+
+        public string? Name { get; set; }
+    }
 }

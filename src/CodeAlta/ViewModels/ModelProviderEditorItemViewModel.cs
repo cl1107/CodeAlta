@@ -281,6 +281,7 @@ internal sealed partial class ModelProviderEditorItemViewModel
             ApiKey = definition.ApiKey,
             ApiKeyEnv = definition.ApiKeyEnv,
             ApiUrl = definition.ApiUrl,
+            ProtocolTrace = definition.ProtocolTrace,
             OrganizationId = definition.OrganizationId,
             ProjectId = definition.ProjectId,
             Project = definition.Project,

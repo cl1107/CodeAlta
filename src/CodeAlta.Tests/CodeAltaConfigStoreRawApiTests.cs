@@ -22,6 +22,7 @@ public sealed class CodeAltaConfigStoreRawApiTests
             reasoning_effort = " high "
             api_key_env = " OPENROUTER_API_KEY "
             api_url = " https://openrouter.ai/api/v1 "
+            protocol_trace = true
             models_dev_provider_id = " OpenRouter "
             single_model_id = " gpt-5 "
 
@@ -69,6 +70,7 @@ public sealed class CodeAltaConfigStoreRawApiTests
         Assert.AreEqual("high", openRouter.ReasoningEffort);
         Assert.AreEqual("OPENROUTER_API_KEY", openRouter.ApiKeyEnv);
         Assert.AreEqual("https://openrouter.ai/api/v1", openRouter.ApiUrl);
+        Assert.IsTrue(openRouter.ProtocolTrace);
         Assert.AreEqual("openrouter", openRouter.ModelsDevProviderId);
         Assert.AreEqual("gpt-5", openRouter.SingleModelId);
         Assert.IsNotNull(openRouter.ExtraBody);
@@ -480,6 +482,7 @@ public sealed class CodeAltaConfigStoreRawApiTests
                 ProviderType = "openai-chat",
                 ApiKeyEnv = "OPENROUTER_API_KEY",
                 ApiUrl = "https://openrouter.ai/api/v1",
+                ProtocolTrace = true,
             },
         ]);
 
@@ -488,6 +491,7 @@ public sealed class CodeAltaConfigStoreRawApiTests
 
         Assert.IsTrue(providers["codex"].Enabled);
         Assert.IsTrue(providers["openrouter"].Enabled);
+        Assert.IsTrue(providers["openrouter"].ProtocolTrace);
     }
 
     [TestMethod]

@@ -129,6 +129,11 @@ public sealed class OpenAIProviderOptions
     /// </summary>
     public OpenAICodexSubscriptionOptions? CodexSubscription { get; set; }
 
+    /// <summary>
+    /// Gets or sets optional low-level protocol tracing settings.
+    /// </summary>
+    public OpenAIProtocolTraceOptions? ProtocolTracing { get; set; }
+
     internal Func<string?, ResponsesClient>? ResponsesClientFactory { get; set; }
 
     internal Func<OpenAIResponsesClientFactoryContext, ResponsesClient>? ResponsesClientContextFactory { get; set; }
@@ -148,6 +153,27 @@ public sealed class OpenAIProviderOptions
     internal Func<CancellationToken, ValueTask>? CodexSubscriptionCredentialRefreshAsync { get; set; }
 
     internal Func<CancellationToken, Task<IReadOnlyList<AgentModelInfo>>>? ModelListAsync { get; set; }
+}
+
+/// <summary>
+/// Describes low-level OpenAI SDK protocol tracing settings.
+/// </summary>
+public sealed class OpenAIProtocolTraceOptions
+{
+    /// <summary>
+    /// Gets or sets whether protocol tracing is enabled.
+    /// </summary>
+    public bool Enabled { get; set; }
+
+    /// <summary>
+    /// Gets or sets the root directory used to write per-session trace files. When unset, the backend state root is used.
+    /// </summary>
+    public string? StateRootPath { get; set; }
+
+    /// <summary>
+    /// Gets or sets the maximum request or buffered response body bytes to write before truncating.
+    /// </summary>
+    public int MaxBodyBytes { get; set; } = 4 * 1024 * 1024;
 }
 
 /// <summary>

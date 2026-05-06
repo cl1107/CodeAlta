@@ -230,6 +230,12 @@ public sealed class CodeAltaProviderDocument
     public string? ApiUrl { get; set; }
 
     /// <summary>
+    /// Gets or sets whether low-level provider protocol tracing is enabled.
+    /// </summary>
+    [JsonPropertyName("protocol_trace")]
+    public bool? ProtocolTrace { get; set; }
+
+    /// <summary>
     /// Gets or sets the ChatGPT/Codex OAuth credential source for the Codex subscription provider.
     /// </summary>
     [JsonPropertyName("auth_source")]

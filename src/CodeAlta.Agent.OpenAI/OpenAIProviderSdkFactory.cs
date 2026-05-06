@@ -50,13 +50,17 @@ internal static class OpenAIProviderSdkFactory
             return CreateCodexSubscriptionResponsesClient(provider, context);
         }
 
-        return new ResponsesClient(CreateCredential(provider), CreateResponsesClientOptions(provider));
+        var protocolTrace = OpenAIProtocolTraceLogger.Create(provider.ProtocolTracing, context);
+        return new ResponsesClient(CreateCredential(provider), CreateResponsesClientOptions(provider, protocolTrace));
     }
 
-    public static ChatClient CreateChatClient(OpenAIProviderOptions provider, string? model)
+    public static ChatClient CreateChatClient(
+        OpenAIProviderOptions provider,
+        string? model,
+        OpenAIProtocolTraceLogger? protocolTrace = null)
         => provider.ChatClientFactory is not null
             ? provider.ChatClientFactory(model)
-            : new ChatClient(model ?? string.Empty, CreateCredential(provider), CreateClientOptions(provider));
+            : new ChatClient(model ?? string.Empty, CreateCredential(provider), CreateClientOptionsCore(provider, protocolTrace));
 
     public static async ValueTask ForceRefreshCodexSubscriptionCredentialAsync(
         OpenAIProviderOptions provider,
@@ -315,7 +319,13 @@ internal static class OpenAIProviderSdkFactory
         => new(provider.ApiKey ?? string.Empty);
 
     private static OpenAIClientOptions CreateClientOptions(OpenAIProviderOptions provider)
-        => new()
+        => CreateClientOptionsCore(provider, protocolTrace: null);
+
+    private static OpenAIClientOptions CreateClientOptionsCore(
+        OpenAIProviderOptions provider,
+        OpenAIProtocolTraceLogger? protocolTrace = null)
+    {
+        var options = new OpenAIClientOptions
         {
             Endpoint = provider.BaseUri,
             OrganizationId = provider.OrganizationId,
@@ -326,8 +336,18 @@ internal static class OpenAIProviderSdkFactory
             NetworkTimeout = provider.CodexSubscription is null ? null : CodexSubscriptionNetworkTimeout,
         };
 
-    private static OpenAIClientOptions CreateResponsesClientOptions(OpenAIProviderOptions provider)
-        => CreateClientOptions(provider);
+        if (protocolTrace is not null)
+        {
+            options.AddPolicy(protocolTrace.CreateHttpPolicy(), PipelinePosition.BeforeTransport);
+        }
+
+        return options;
+    }
+
+    private static OpenAIClientOptions CreateResponsesClientOptions(
+        OpenAIProviderOptions provider,
+        OpenAIProtocolTraceLogger? protocolTrace = null)
+        => CreateClientOptionsCore(provider, protocolTrace);
 
     private static ResponsesClient CreateCodexSubscriptionResponsesClient(
         OpenAIProviderOptions provider,
@@ -339,7 +359,8 @@ internal static class OpenAIProviderSdkFactory
             provider,
             options,
             ResolveStateRootPath(provider));
-        var clientOptions = CreateResponsesClientOptions(provider);
+        var protocolTrace = OpenAIProtocolTraceLogger.Create(provider.ProtocolTracing, context);
+        var clientOptions = CreateResponsesClientOptions(provider, protocolTrace);
         clientOptions.UserAgentApplicationId = CreateCodeAltaUserAgentApplicationId();
         clientOptions.AddPolicy(
             new CodexSubscriptionHeadersPolicy(

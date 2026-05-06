@@ -109,6 +109,7 @@ Each configured entry describes one endpoint registration. Key fields include:
 - shared endpoint/auth fields such as `display_name`, `api_key`, `api_key_env`, and `api_url`
 - provider-owned defaults such as `model` and `reasoning_effort`
 - cross-provider extras such as `single_model_id` for single-model endpoints that cannot list models dynamically, and OpenAI-compatible `extra_body` for provider-specific request-body fields
+- optional `protocol_trace = true` for targeted OpenAI-compatible protocol debugging
 - provider-specific fields such as `organization_id`, `project_id`, `project`, and `location`
 
 Default provider selection lives under `[chat].default_provider`.
@@ -138,6 +139,8 @@ Use a shared date-sharded session-journal layout:
 ~/.alta/
   config.toml
   sessions/
+    traces/
+      <local-session-id>.trace
     YYYY/
       MM/
         DD/
@@ -153,6 +156,11 @@ Do not persist provider descriptors under a separate `providers/` tree. Provider
 - stores normalized `AgentEvent` items alongside internal snapshot events used to recover the latest summary/state
 - contains replay-significant finalized events, not duplicate streaming-only deltas
 - captures provider/model switch events so the latest active provider can be reconstructed without auxiliary files
+
+`sessions/traces/<local-session-id>.trace`
+- optional, created only when a provider has protocol tracing enabled
+- contains low-level OpenAI-compatible request/response metadata plus SDK streaming updates for debugging provider protocol issues
+- redacts credential headers, but can contain prompts, tool arguments, model output, and other sensitive payload data; it is not a canonical replay log
 
 ## 9. One canonical event log
 

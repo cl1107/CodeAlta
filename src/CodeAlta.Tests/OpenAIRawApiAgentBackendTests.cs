@@ -216,6 +216,58 @@ public sealed class OpenAIRawApiAgentBackendTests
     }
 
     [TestMethod]
+    public async Task OpenAIChatAgentBackend_ProtocolTracing_WritesSessionTrace()
+    {
+        using var temp = TestTempDirectory.Create();
+        var chatClient = new RecordingOpenAIChatClient(
+        [
+            OpenAIChatModelFactory.StreamingChatCompletionUpdate(
+                completionId: "chatcmpl-trace",
+                contentUpdate: [ChatMessageContentPart.CreateTextPart("Trace answer.")],
+                model: "gpt-chat-test"),
+        ]);
+
+        await using var backend = new OpenAIChatAgentBackend(new OpenAIChatAgentBackendOptions
+        {
+            StateRootPath = temp.Path,
+            Providers =
+            {
+                new OpenAIProviderOptions
+                {
+                    ProviderKey = "openai",
+                    IsDefault = true,
+                    ChatClientFactory = _ => chatClient,
+                    ProtocolTracing = new OpenAIProtocolTraceOptions
+                    {
+                        Enabled = true,
+                    },
+                },
+            },
+        });
+
+        await using var session = await backend.CreateSessionAsync(new AgentSessionCreateOptions
+        {
+            Model = "gpt-chat-test",
+            WorkingDirectory = temp.Path,
+            OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
+        }).ConfigureAwait(false);
+
+        _ = await session.SendAsync(new AgentSendOptions
+        {
+            Input = new AgentInput([new AgentInputItem.Text("Trace this")]),
+        }).ConfigureAwait(false);
+
+        var tracePath = new LocalAgentRuntimePathLayout(temp.Path).GetSessionTraceFilePath(session.SessionId);
+        Assert.IsTrue(File.Exists(tracePath));
+        var trace = File.ReadAllText(tracePath);
+        StringAssert.Contains(trace, "### turn start provider=openai");
+        StringAssert.Contains(trace, "<<< stream update (sdk model JSON):");
+        StringAssert.Contains(trace, "Trace answer.");
+        StringAssert.Contains(trace, "### turn end provider=openai");
+        StringAssert.Contains(trace, "completion=chatcmpl-trace");
+    }
+
+    [TestMethod]
     public async Task OpenAIChatAgentBackend_MapsRefusalUpdatesToAssistantContent()
     {
         using var temp = TestTempDirectory.Create();

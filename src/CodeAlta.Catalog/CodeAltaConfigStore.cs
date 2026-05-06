@@ -697,6 +697,11 @@ public sealed class CodeAltaConfigStore
         definition.ApiKey = NormalizeText(definition.ApiKey);
         definition.ApiKeyEnv = NormalizeText(definition.ApiKeyEnv);
         definition.ApiUrl = NormalizeText(definition.ApiUrl);
+        if (definition.ProtocolTrace == false)
+        {
+            definition.ProtocolTrace = null;
+        }
+
         definition.AuthSource = NormalizeCodexSubscriptionAuthSource(definition.AuthSource);
         definition.AccountId = NormalizeText(definition.AccountId);
         definition.TextVerbosity = NormalizeCodexSubscriptionTextVerbosity(definition.TextVerbosity);
@@ -957,6 +962,7 @@ public sealed class CodeAltaConfigStore
                 RejectUnsupportedField(definition, "api_key", definition.ApiKey);
                 RejectUnsupportedField(definition, "api_key_env", definition.ApiKeyEnv);
                 RejectUnsupportedField(definition, "api_url", definition.ApiUrl);
+                RejectUnsupportedField(definition, "protocol_trace", definition.ProtocolTrace);
                 RejectUnsupportedField(definition, "organization_id", definition.OrganizationId);
                 RejectUnsupportedField(definition, "project_id", definition.ProjectId);
                 RejectUnsupportedField(definition, "project", definition.Project);
@@ -1373,6 +1379,7 @@ public sealed class CodeAltaConfigStore
                !string.IsNullOrWhiteSpace(definition.ApiKey) ||
                !string.IsNullOrWhiteSpace(definition.ApiKeyEnv) ||
                !string.IsNullOrWhiteSpace(definition.ApiUrl) ||
+               definition.ProtocolTrace == true ||
                !string.IsNullOrWhiteSpace(definition.AuthSource) ||
                !string.IsNullOrWhiteSpace(definition.AccountId) ||
                definition.MaxConcurrentRequests is not null ||
@@ -1473,6 +1480,7 @@ public sealed class CodeAltaConfigStore
             ApiKey = definition.ApiKey,
             ApiKeyEnv = definition.ApiKeyEnv,
             ApiUrl = definition.ApiUrl,
+            ProtocolTrace = definition.ProtocolTrace,
             AuthSource = definition.AuthSource,
             AccountId = definition.AccountId,
             MaxConcurrentRequests = definition.MaxConcurrentRequests,

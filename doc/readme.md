@@ -124,7 +124,7 @@ The preferred workflow is now the in-app model providers dialog (`Ctrl+G Ctrl+M`
 - validates provider keys, endpoint URLs, required credentials, and conflicting entries before save
 - lets users store API keys directly in config or point to an environment variable
 - can save, reload from disk, and test a provider before applying changes
-- preserves advanced TOML sections such as `profile`, `compaction`, `extra_body`, and `model_overrides` even though those advanced sections are still edited manually today
+- preserves advanced TOML settings such as `profile`, `compaction`, `extra_body`, `model_overrides`, and `protocol_trace` even though those advanced settings are still edited manually today
 
 When CodeAlta writes `config.toml` back, it now omits properties that match built-in defaults such as `enabled = true`, reserved-provider `type`/`display_name`, and default compaction values.
 
@@ -157,6 +157,9 @@ api_key_env = "OPENAI_API_KEY"
 model = "gpt-5"
 reasoning_effort = "high"
 models_dev_provider_id = "openai"
+# Dev-only: writes raw HTTP request/response metadata and SDK stream updates to
+# ~/.alta/sessions/traces/<session-id>.trace. Trace files contain prompts/outputs.
+# protocol_trace = true
 
 [providers.openai_chat.model_overrides.gpt-5]
 context_window = 400000
@@ -229,7 +232,7 @@ The bundled snapshot lives in `src/CodeAlta.Agent/Data/models_dev_db.json`. To r
 dotnet run --project src/CodeAlta.Agent.ModelsDev.Updater/CodeAlta.Agent.ModelsDev.Updater.csproj -c Release
 ```
 
-Session state for these local runtimes is stored under `~/.alta/sessions/yyyy/mm/dd/<session-id>.jsonl`. The journal contains replayable agent events plus internal session summary/state snapshots, so provider or model switches are captured as events in the same durable file instead of rewriting multiple provider-bound files.
+Session state for these local runtimes is stored under `~/.alta/sessions/yyyy/mm/dd/<session-id>.jsonl`. The journal contains replayable agent events plus internal session summary/state snapshots, so provider or model switches are captured as events in the same durable file instead of rewriting multiple provider-bound files. For protocol debugging, `protocol_trace = true` on an OpenAI-compatible provider enables a per-session trace at `~/.alta/sessions/traces/<session-id>.trace`; this redacts credential headers but otherwise may contain prompts, tool arguments, model output, and streamed SDK updates, so keep it disabled outside targeted local investigations.
 
 ## Live Backend Smoke Tests
 
