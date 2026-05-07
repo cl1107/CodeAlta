@@ -4,6 +4,7 @@ using CodeAlta.App.Context;
 using CodeAlta.Catalog;
 using CodeAlta.Models;
 using CodeAlta.Presentation.Shell;
+using CodeAlta.Presentation.Sidebar;
 using CodeAlta.ViewModels;
 using CodeAlta.Views;
 using XenoAtom.Terminal.UI;
@@ -347,17 +348,20 @@ internal sealed class ShellWorkspaceCoordinator
             }
 
             var tab = _threadSelection.EnsureThreadTab(selectedThread);
-            var backendState = _chatBackendStates[tab.BackendId.Value];
+            _chatBackendStates.TryGetValue(tab.BackendId.Value, out var backendState);
             _sessionUsageViewModel.Usage = tab.Usage;
-            _sessionUsageViewModel.BackendName = backendState.DisplayName;
-            _sessionUsageViewModel.ModelName = tab.ModelId ?? backendState.SelectedModelId;
+            _sessionUsageViewModel.BackendName = ResolveBackendDisplayName(tab.BackendId, backendState);
+            _sessionUsageViewModel.ModelName = tab.ModelId ?? backendState?.SelectedModelId;
             return;
         }
 
         var backendId = _workspaceContext.GetPreferredBackendId();
-        var draftBackendState = _chatBackendStates[backendId.Value];
+        _chatBackendStates.TryGetValue(backendId.Value, out var draftBackendState);
         _sessionUsageViewModel.Usage = null;
-        _sessionUsageViewModel.BackendName = draftBackendState.DisplayName;
-        _sessionUsageViewModel.ModelName = draftBackendState.SelectedModelId;
+        _sessionUsageViewModel.BackendName = ResolveBackendDisplayName(backendId, draftBackendState);
+        _sessionUsageViewModel.ModelName = draftBackendState?.SelectedModelId;
     }
+
+    private static string ResolveBackendDisplayName(AgentBackendId backendId, ChatBackendState? backendState)
+        => SidebarThreadPresentation.ResolveProviderDisplayName(backendId.Value, backendState?.DisplayName);
 }

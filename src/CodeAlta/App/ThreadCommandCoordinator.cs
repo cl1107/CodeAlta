@@ -409,7 +409,8 @@ internal sealed class ThreadCommandCoordinator
 
     private bool IsChatBackendReady(AgentBackendId backendId)
     {
-        return _chatBackendStates[backendId.Value].Availability == ChatBackendAvailability.Ready;
+        return _chatBackendStates.TryGetValue(backendId.Value, out var state) &&
+               state.Availability == ChatBackendAvailability.Ready;
     }
 
     private bool CurrentPromptModelSupportsImages(WorkThreadDescriptor? thread, OpenThreadState? tab)

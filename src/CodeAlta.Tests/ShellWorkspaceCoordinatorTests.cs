@@ -78,6 +78,101 @@ public sealed class ShellWorkspaceCoordinatorTests
         Assert.AreEqual(1, focusedPromptCount);
     }
 
+    [TestMethod]
+    public void RefreshSelectionAndThreadWorkspace_DraftScopeWithoutConfiguredProviders_DoesNotThrow()
+    {
+        using var temp = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = temp.Path };
+        var threadStateCoordinator = CreateThreadStateCoordinator(options);
+        threadStateCoordinator.ApplyRecoveredCatalogState([], []);
+
+        var threadSelection = new ThreadSelectionContext(
+            threadStateCoordinator,
+            static (_, _) => Task.CompletedTask,
+            threadId => string.Equals(threadId, threadStateCoordinator.SelectedThreadId, StringComparison.OrdinalIgnoreCase));
+
+        var (workspace, sessionUsage) = CreateWorkspaceCoordinator(
+            threadStateCoordinator,
+            threadSelection,
+            new Dictionary<string, ChatBackendState>(StringComparer.OrdinalIgnoreCase),
+            static () => AgentBackendIds.Codex);
+
+        workspace.RefreshSelectionAndThreadWorkspace();
+
+        Assert.AreEqual("Codex", sessionUsage.BackendName);
+        Assert.IsNull(sessionUsage.ModelName);
+        Assert.IsNull(sessionUsage.Usage);
+    }
+
+    [TestMethod]
+    public void RefreshSelectionAndThreadWorkspace_SelectedThreadWithMissingProvider_DoesNotThrow()
+    {
+        using var temp = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = temp.Path };
+        var thread = CreateThread("thread-1", "project-1");
+        var threadStateCoordinator = CreateThreadStateCoordinator(options);
+        threadStateCoordinator.ApplyRecoveredCatalogState([CreateProject("project-1", "CodeAlta")], [thread]);
+        threadStateCoordinator.OpenThread(thread.ThreadId);
+
+        var threadSelection = new ThreadSelectionContext(
+            threadStateCoordinator,
+            static (_, _) => Task.CompletedTask,
+            threadId => string.Equals(threadId, threadStateCoordinator.SelectedThreadId, StringComparison.OrdinalIgnoreCase));
+        var (workspace, sessionUsage) = CreateWorkspaceCoordinator(
+            threadStateCoordinator,
+            threadSelection,
+            new Dictionary<string, ChatBackendState>(StringComparer.OrdinalIgnoreCase),
+            static () => AgentBackendIds.Codex);
+
+        workspace.RefreshSelectionAndThreadWorkspace();
+
+        Assert.AreEqual("Codex", sessionUsage.BackendName);
+        Assert.IsNull(sessionUsage.ModelName);
+        Assert.IsNull(sessionUsage.Usage);
+    }
+
+    private static (ShellWorkspaceCoordinator Workspace, SessionUsageViewModel SessionUsage) CreateWorkspaceCoordinator(
+        ShellThreadStateCoordinator threadStateCoordinator,
+        ThreadSelectionContext threadSelection,
+        Dictionary<string, ChatBackendState> chatBackendStates,
+        Func<AgentBackendId> getPreferredBackendId)
+    {
+        var workspaceContext = new ShellWorkspaceContext(
+            new DelegatingShellPromptAvailabilityPort(
+                getPreferredBackendId,
+                static () => (true, "No model provider is ready.", StatusTone.Warning)),
+            new ShellWorkspaceSurfacePort(
+                static () => true,
+                static () => null,
+                static () => null,
+                static _ => { },
+                static () => { },
+                static _ => { },
+                static _ => { }),
+            new DelegatingShellWorkspaceProjectionPort(
+                threadStateCoordinator.EnsureSelectionDefaults,
+                static () => { },
+                static () => { },
+                static () => { },
+                static () => { },
+                static _ => { },
+                static _ => { },
+                static () => { },
+                static () => { }),
+            new FrontendUiScheduler(new InlineUiDispatcher()));
+        var sessionUsage = new SessionUsageViewModel();
+        var workspace = new ShellWorkspaceCoordinator(
+            new CodeAltaShellViewModel(),
+            new ThreadWorkspaceViewModel(),
+            sessionUsage,
+            chatBackendStates,
+            threadSelection,
+            workspaceContext,
+            new State<float>(0));
+
+        return (workspace, sessionUsage);
+    }
+
     private static ShellThreadStateCoordinator CreateThreadStateCoordinator(CatalogOptions options)
         => new(
             new ProjectCatalog(options),
