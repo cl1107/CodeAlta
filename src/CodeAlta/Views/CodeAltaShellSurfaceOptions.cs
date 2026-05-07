@@ -1,0 +1,49 @@
+using CodeAlta.Catalog;
+using CodeAlta.Frontend.Commands;
+using CodeAlta.Presentation.Prompting;
+using CodeAlta.ViewModels;
+using XenoAtom.Terminal.UI;
+using XenoAtom.Terminal.UI.Controls;
+
+namespace CodeAlta.Views;
+
+internal sealed class CodeAltaShellSurfaceOptions
+{
+    public required CodeAltaShellViewModel ShellViewModel { get; init; }
+
+    public required ThreadWorkspaceViewModel WorkspaceViewModel { get; init; }
+
+    public required PromptComposerViewModel PromptComposerViewModel { get; init; }
+
+    public required IReadOnlyList<ThreadWorkspaceCommandBinding> WorkspaceCommandBindings { get; init; }
+
+    public required ThreadWorkspaceViewActions WorkspaceActions { get; init; }
+
+    public required IProjectFileSearchService ProjectFileSearchService { get; init; }
+
+    public required Func<string?> GetPromptReferenceProjectRoot { get; init; }
+
+    public required Binding<string?> PromptText { get; init; }
+
+    public required State<float> ThinkingAnimationPhase01 { get; init; }
+
+    public PromptImageWorkspaceCallbacks? PromptImageCallbacks { get; init; }
+
+    public required Visual Sidebar { get; init; }
+
+    public required ShellCommandSurfaceCoordinator ShellCommandSurfaceCoordinator { get; init; }
+
+    public required Action OpenAcpManager { get; init; }
+
+    public required Action ToggleTerminalLoopCallback { get; init; }
+
+    public required Action FocusSidebar { get; init; }
+
+    public required Action FocusPromptEditor { get; init; }
+
+    public required Func<bool> CanUseCommandPalette { get; init; }
+
+    public Func<CommandBar, Visual?>? ComposePluginFooter { get; init; }
+
+    public bool CommandBarMultiLine { get; init; }
+}

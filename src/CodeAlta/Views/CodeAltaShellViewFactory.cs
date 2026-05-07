@@ -9,6 +9,53 @@ namespace CodeAlta.Views;
 
 internal static class CodeAltaShellViewFactory
 {
+    public static CodeAltaShellSurface CreateSurface(CodeAltaShellSurfaceOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(options.ShellViewModel);
+        ArgumentNullException.ThrowIfNull(options.WorkspaceViewModel);
+        ArgumentNullException.ThrowIfNull(options.PromptComposerViewModel);
+        ArgumentNullException.ThrowIfNull(options.WorkspaceCommandBindings);
+        ArgumentNullException.ThrowIfNull(options.WorkspaceActions);
+        ArgumentNullException.ThrowIfNull(options.ProjectFileSearchService);
+        ArgumentNullException.ThrowIfNull(options.GetPromptReferenceProjectRoot);
+        ArgumentNullException.ThrowIfNull(options.ThinkingAnimationPhase01);
+        ArgumentNullException.ThrowIfNull(options.Sidebar);
+        ArgumentNullException.ThrowIfNull(options.ShellCommandSurfaceCoordinator);
+        ArgumentNullException.ThrowIfNull(options.OpenAcpManager);
+        ArgumentNullException.ThrowIfNull(options.ToggleTerminalLoopCallback);
+        ArgumentNullException.ThrowIfNull(options.FocusSidebar);
+        ArgumentNullException.ThrowIfNull(options.FocusPromptEditor);
+        ArgumentNullException.ThrowIfNull(options.CanUseCommandPalette);
+
+        var workspaceView = new ThreadWorkspaceView(
+            options.ShellViewModel,
+            options.WorkspaceViewModel,
+            options.PromptComposerViewModel,
+            options.WorkspaceCommandBindings,
+            options.WorkspaceActions,
+            options.ProjectFileSearchService,
+            options.GetPromptReferenceProjectRoot,
+            options.PromptText,
+            options.ThinkingAnimationPhase01,
+            options.PromptImageCallbacks);
+        workspaceView.ThreadCommandBar.MultiLine = options.CommandBarMultiLine;
+
+        var shellView = Create(
+            options.Sidebar,
+            workspaceView.Root,
+            workspaceView.ThreadCommandBar,
+            options.ShellCommandSurfaceCoordinator,
+            options.OpenAcpManager,
+            options.ToggleTerminalLoopCallback,
+            options.FocusSidebar,
+            options.FocusPromptEditor,
+            options.CanUseCommandPalette,
+            options.ComposePluginFooter?.Invoke(workspaceView.ThreadCommandBar));
+
+        return new CodeAltaShellSurface(shellView, workspaceView, options.Sidebar);
+    }
+
     public static CodeAltaShellView Create(
         Visual sidebar,
         Visual threadWorkspace,

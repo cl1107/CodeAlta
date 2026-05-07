@@ -91,7 +91,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
     }
     internal Visual? ThreadPaneLayout => _threadWorkspaceView?.ThreadPaneLayout;
     internal ChatPromptEditor? ThreadInput => _threadWorkspaceView?.ThreadInput;
-    private Visual GetDialogAnchor() => ThreadInput is Visual input ? input : _sidebarCoordinator.View.Tree;
+    private Visual GetDialogAnchor() => ThreadInput is { } input ? input : _sidebarCoordinator.View.Tree;
     private CommandBar? ThreadCommandBar => _threadWorkspaceView?.ThreadCommandBar;
     private TabControl? ThreadTabControl => _threadWorkspaceView?.ThreadTabControl;
 
@@ -476,6 +476,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
 
     private CodeAltaShellView EnsureShellView()
     {
+        if (_shellView is not null) return _shellView;
         var imageCallbacks = PromptImageWorkspaceCallbackFactory.Create(
             _promptDraftUiCoordinator,
             new PromptImageCapabilityContext(
@@ -484,12 +485,13 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
                 GetPreferredBackendId,
                 _chatBackendStates),
             (message, tone) => SetStatus(message, tone: tone));
-        _threadWorkspaceView ??= new ThreadWorkspaceView(
-            _shellViewModel,
-            _threadWorkspaceViewModel,
-            _promptComposerViewModel,
-            _shellCommandSurfaceCoordinator.BuildWorkspaceCommandBindings(),
-            new ThreadWorkspaceViewActions(
+        var shellSurface = CodeAltaShellViewFactory.CreateSurface(new()
+        {
+            ShellViewModel = _shellViewModel,
+            WorkspaceViewModel = _threadWorkspaceViewModel,
+            PromptComposerViewModel = _promptComposerViewModel,
+            WorkspaceCommandBindings = _shellCommandSurfaceCoordinator.BuildWorkspaceCommandBindings(),
+            WorkspaceActions = new(
                 () => CreateUsageComputedVisual(EnsureSessionUsagePresenter().BuildIndicatorVisual),
                 () => EnsureSessionUsagePresenter().TogglePopupFromIndicator(),
                 anchor => EnsureThreadInfoPresenter().TogglePopup(anchor),
@@ -512,26 +514,24 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
                 OnChatModelSelectionChanged,
                 OnChatReasoningSelectionChanged,
                 selectedIndex => _threadTabStripCoordinator.ObserveBoundSelection(selectedIndex)),
-            _ownedServices?.ProjectFileSearchService ?? NullProjectFileSearchService.Instance,
-            () => PromptReferenceProjectRootResolver.Resolve(GetSelectedThread(), GetProjectById, GetSelectedProject),
-            _promptDraftUiCoordinator.PromptTextBinding,
-            _shellAnimationRuntime.ThinkingPhase01,
-            imageCallbacks);
-        ThreadCommandBar!.MultiLine = _commandBarMultiLine;
-
+            ProjectFileSearchService = _ownedServices?.ProjectFileSearchService ?? NullProjectFileSearchService.Instance,
+            GetPromptReferenceProjectRoot = () => PromptReferenceProjectRootResolver.Resolve(GetSelectedThread(), GetProjectById, GetSelectedProject),
+            PromptText = _promptDraftUiCoordinator.PromptTextBinding,
+            ThinkingAnimationPhase01 = _shellAnimationRuntime.ThinkingPhase01,
+            PromptImageCallbacks = imageCallbacks,
+            Sidebar = _sidebarCoordinator.View.Root,
+            ShellCommandSurfaceCoordinator = _shellCommandSurfaceCoordinator,
+            OpenAcpManager = OpenAcpManagement,
+            ToggleTerminalLoopCallback = ToggleTerminalLoopCallback,
+            FocusSidebar = FocusSidebar,
+            FocusPromptEditor = FocusPromptEditor,
+            CanUseCommandPalette = () => _fileEditorWorkspaceCoordinator.SelectedTabId is null,
+            ComposePluginFooter = commandBar => ShellPluginFooterComposer.Compose(commandBar, _ownedServices?.PluginHostBridge),
+            CommandBarMultiLine = _commandBarMultiLine,
+        });
+        _threadWorkspaceView = shellSurface.WorkspaceView;
+        _shellView = shellSurface.ShellView;
         RefreshCatalogAndThreadWorkspace();
-
-        _shellView ??= CodeAltaShellViewFactory.Create(
-            _sidebarCoordinator.View.Root,
-            _threadWorkspaceView.Root,
-            ThreadCommandBar!,
-            _shellCommandSurfaceCoordinator,
-            OpenAcpManagement,
-            ToggleTerminalLoopCallback,
-            FocusSidebar,
-            FocusPromptEditor,
-            () => _fileEditorWorkspaceCoordinator.SelectedTabId is null,
-            ShellPluginFooterComposer.Compose(ThreadCommandBar!, _ownedServices?.PluginHostBridge));
 
         return _shellView;
     }
