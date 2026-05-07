@@ -407,6 +407,35 @@ public sealed class ThreadRuntimeEventCoordinatorTests
         Assert.IsTrue(events.OfType<ShellChromeChangedEvent>().Any());
     }
 
+    [TestMethod]
+    public void HandleAgentEvent_PublishesSessionUsageChangedWhenSelectedUsageChanges()
+    {
+        var thread = CreateThread();
+        var tab = CreateOpenThreadState(thread);
+        var publisher = new FrontendEventPublisher(new InlineUiDispatcher());
+        var events = new List<ShellFrontendEvent>();
+        publisher.Subscribe(events.Add);
+        var coordinator = CreateCoordinator(thread, tab, frontendEvents: publisher);
+
+        coordinator.HandleAgentEvent(
+            thread,
+            tab,
+            new AgentSessionUpdateEvent(
+                AgentBackendIds.Copilot,
+                "session-1",
+                DateTimeOffset.UtcNow,
+                null,
+                AgentSessionUpdateKind.UsageUpdated,
+                "usage",
+                Usage: new AgentSessionUsage(
+                    Window: new AgentWindowUsageSnapshot(1200, 8000, 3, "window"),
+                    Scope: AgentUsageScope.CurrentWindow,
+                    Source: AgentUsageSource.CopilotSessionUsageInfo,
+                    UpdatedAt: DateTimeOffset.UtcNow)));
+
+        Assert.IsTrue(events.OfType<SessionUsageChangedEvent>().Any(@event => @event.ThreadId == thread.ThreadId));
+    }
+
     private static ThreadRuntimeEventCoordinator CreateCoordinator(
         WorkThreadDescriptor thread,
         OpenThreadState tab,
@@ -418,7 +447,6 @@ public sealed class ThreadRuntimeEventCoordinatorTests
             findOpenThread: id => id == tab.Thread.ThreadId ? tab : null,
             getAutoApproveEnabled: static () => false,
             isSelectedThread: id => id == thread.ThreadId,
-            invalidateSelectedSessionUsage: static () => { },
             statusPort: new TestShellStatusPort(),
             drainQueuedPromptAsync: static (_, _) => Task.CompletedTask,
             projectFileSearchService: projectFileSearchService ?? NullProjectFileSearchService.Instance,

@@ -27,7 +27,7 @@ using XenoAtom.Terminal.UI.Threading;
 
 namespace CodeAlta.Views;
 
-internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycle, IShellProjectionInvalidator
+internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycle
 {
     internal static readonly Logger UiLogger = LogManager.GetLogger("CodeAlta.UI");
     internal const string DraftTabId = "__draft__";
@@ -175,7 +175,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
         _shellController = composition.ShellController;
         _runtimeEventPump = composition.RuntimeEventPump;
         _terminalLoopCoordinator = composition.TerminalLoopCoordinator;
-        _projectionCoordinator = new ShellProjectionCoordinator(composition.FrontendEvents, this);
+        _projectionCoordinator = new ShellProjectionCoordinator(composition.FrontendEvents, new CodeAltaProjectionInvalidator(this));
         _chatBackendInitializationCoordinator = composition.ChatBackendInitializationCoordinator;
         _threadStateCoordinator = composition.ThreadStateCoordinator;
         _workspaceCoordinator = composition.WorkspaceCoordinator;
@@ -464,6 +464,8 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
     internal void UpdatePromptAvailabilityUi()
         => _chatSelectorCoordinator.UpdatePromptAvailabilityUi();
 
+    internal void RefreshQueuedPromptList() => _threadPromptQueueCoordinator.RefreshSelectedThreadQueueUi();
+
     internal void UpdatePromptImageAttachmentsUi() { _promptComposerViewModel.PromptImageAttachmentVersion++; RefreshSidebarProjection(); }
     internal void SyncThreadTabControl()
         => _threadTabStripCoordinator.SyncControl();
@@ -537,20 +539,11 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
         => _workspaceCoordinator.RefreshShellChrome();
 
     internal void RefreshCatalogAndThreadWorkspace() { _threadInfoPresenter?.InvalidateSelection(); _workspaceCoordinator.RefreshCatalogAndThreadWorkspace(); }
-    void IShellProjectionInvalidator.RefreshCatalogAndThreadWorkspace() => RefreshCatalogAndThreadWorkspace();
 
     internal void RefreshHeaderAndThreadWorkspace()
         => _workspaceCoordinator.RefreshHeaderAndThreadWorkspace();
-    void IShellProjectionInvalidator.RefreshHeaderAndThreadWorkspace() => RefreshHeaderAndThreadWorkspace();
 
     internal void RefreshSelectionAndThreadWorkspace() { _threadInfoPresenter?.InvalidateSelection(); _workspaceCoordinator.RefreshSelectionAndThreadWorkspace(); }
-    void IShellProjectionInvalidator.RefreshSelectionAndThreadWorkspace() => RefreshSelectionAndThreadWorkspace();
-
-    void IShellProjectionInvalidator.RefreshShellChrome() => RefreshShellChrome();
-
-    void IShellProjectionInvalidator.UpdatePromptAvailabilityUi() => UpdatePromptAvailabilityUi();
-
-    void IShellProjectionInvalidator.RefreshQueuedPromptList() => _threadPromptQueueCoordinator.RefreshSelectedThreadQueueUi();
 
     internal void SelectGlobalScope()
     {

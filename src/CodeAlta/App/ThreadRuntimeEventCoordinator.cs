@@ -15,7 +15,6 @@ internal sealed class ThreadRuntimeEventCoordinator
     private readonly Func<string, WorkThreadDescriptor?> _findThread;
     private readonly Func<string, OpenThreadState?> _findOpenThread;
     private readonly Func<string, bool> _isSelectedThread;
-    private readonly Action _invalidateSelectedSessionUsage;
     private readonly IShellStatusPort _statusPort;
     private readonly Func<OpenThreadState, CancellationToken, Task> _drainQueuedPromptAsync;
     private readonly IProjectFileSearchService _projectFileSearchService;
@@ -29,7 +28,6 @@ internal sealed class ThreadRuntimeEventCoordinator
         Func<string, OpenThreadState?> findOpenThread,
         Func<bool> getAutoApproveEnabled,
         Func<string, bool> isSelectedThread,
-        Action invalidateSelectedSessionUsage,
         IShellStatusPort statusPort,
         Func<OpenThreadState, CancellationToken, Task> drainQueuedPromptAsync,
         IProjectFileSearchService projectFileSearchService,
@@ -40,7 +38,6 @@ internal sealed class ThreadRuntimeEventCoordinator
         ArgumentNullException.ThrowIfNull(findOpenThread);
         ArgumentNullException.ThrowIfNull(getAutoApproveEnabled);
         ArgumentNullException.ThrowIfNull(isSelectedThread);
-        ArgumentNullException.ThrowIfNull(invalidateSelectedSessionUsage);
         ArgumentNullException.ThrowIfNull(statusPort);
         ArgumentNullException.ThrowIfNull(drainQueuedPromptAsync);
         ArgumentNullException.ThrowIfNull(projectFileSearchService);
@@ -48,7 +45,6 @@ internal sealed class ThreadRuntimeEventCoordinator
         _findThread = findThread;
         _findOpenThread = findOpenThread;
         _isSelectedThread = isSelectedThread;
-        _invalidateSelectedSessionUsage = invalidateSelectedSessionUsage;
         _statusPort = statusPort;
         _drainQueuedPromptAsync = drainQueuedPromptAsync;
         _projectFileSearchService = projectFileSearchService;
@@ -228,9 +224,9 @@ internal sealed class ThreadRuntimeEventCoordinator
             _frontendEvents?.Publish(new QueuedPromptListChangedEvent(tab.Thread.ThreadId));
         }
 
-        if (reduction.InvalidateSelectedSessionUsage)
+        if (reduction.InvalidateSelectedSessionUsage && tab is not null)
         {
-            _invalidateSelectedSessionUsage();
+            _frontendEvents?.Publish(new SessionUsageChangedEvent(tab.Thread.ThreadId));
         }
 
         if (reduction.RefreshShellChrome)

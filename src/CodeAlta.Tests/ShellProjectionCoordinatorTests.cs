@@ -66,6 +66,18 @@ public sealed class ShellProjectionCoordinatorTests
         CollectionAssert.AreEqual(new[] { "queue" }, invalidator.Calls);
     }
 
+    [TestMethod]
+    public void Publish_SessionUsageChanged_InvalidatesSelectedSessionUsage()
+    {
+        var invalidator = new CapturingProjectionInvalidator();
+        var publisher = new FrontendEventPublisher(new InlineUiDispatcher());
+        using var coordinator = new ShellProjectionCoordinator(publisher, invalidator);
+
+        publisher.Publish(new SessionUsageChangedEvent("thread-1"));
+
+        CollectionAssert.AreEqual(new[] { "usage" }, invalidator.Calls);
+    }
+
     private sealed class CapturingProjectionInvalidator : IShellProjectionInvalidator
     {
         public List<string> Calls { get; } = [];
@@ -81,6 +93,8 @@ public sealed class ShellProjectionCoordinatorTests
         public void UpdatePromptAvailabilityUi() => Calls.Add("prompt");
 
         public void RefreshQueuedPromptList() => Calls.Add("queue");
+
+        public void InvalidateSelectedSessionUsage() => Calls.Add("usage");
     }
 
     private sealed class InlineUiDispatcher : IUiDispatcher

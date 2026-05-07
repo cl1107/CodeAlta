@@ -13,6 +13,8 @@ internal interface IShellProjectionInvalidator
     void UpdatePromptAvailabilityUi();
 
     void RefreshQueuedPromptList();
+
+    void InvalidateSelectedSessionUsage();
 }
 
 internal sealed class ShellProjectionCoordinator : IDisposable
@@ -61,6 +63,9 @@ internal sealed class ShellProjectionCoordinator : IDisposable
                 break;
             case QueuedPromptListChangedEvent:
                 _invalidator.RefreshQueuedPromptList();
+                break;
+            case SessionUsageChangedEvent:
+                _invalidator.InvalidateSelectedSessionUsage();
                 break;
             default:
                 throw new InvalidOperationException($"Unsupported shell frontend event: {frontendEvent.GetType().Name}");

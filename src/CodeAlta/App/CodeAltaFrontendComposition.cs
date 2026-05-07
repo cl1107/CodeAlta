@@ -264,7 +264,6 @@ internal sealed class CodeAltaFrontendComposition
             threadId => threadStateCoordinator.FindOpenThread(threadId),
             frontend.GetAutoApproveEnabled,
             frontend.IsSelectedThread,
-            frontend.InvalidateSelectedSessionUsage,
             shellStatusPort,
             (tab, cancellationToken) => threadCommandCoordinator!.DrainQueuedPromptAsync(tab, cancellationToken),
             projectFileSearchService,
