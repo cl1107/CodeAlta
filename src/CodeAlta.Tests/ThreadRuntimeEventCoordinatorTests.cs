@@ -210,17 +210,19 @@ public sealed class ThreadRuntimeEventCoordinatorTests
     }
 
     [TestMethod]
-    public void HandleAgentEvent_RefreshesQueuedPromptListWhenPendingSteerIsConsumed()
+    public void HandleAgentEvent_PublishesQueuedPromptListChangedWhenPendingSteerIsConsumed()
     {
         var thread = CreateThread();
         var tab = CreateOpenThreadState(thread);
         tab.PendingSteers.Add(new PendingSteerPrompt("First steer"));
-        var refreshQueuedPromptListCount = 0;
+        var publisher = new FrontendEventPublisher(new InlineUiDispatcher());
+        var events = new List<ShellFrontendEvent>();
+        publisher.Subscribe(events.Add);
 
         var coordinator = CreateCoordinator(
             thread,
             tab,
-            refreshQueuedPromptList: () => refreshQueuedPromptListCount++);
+            frontendEvents: publisher);
         coordinator.HandleAgentEvent(
             thread,
             tab,
@@ -235,7 +237,7 @@ public sealed class ThreadRuntimeEventCoordinatorTests
                 "First steer"));
 
         Assert.AreEqual(0, tab.PendingSteers.Count);
-        Assert.AreEqual(1, refreshQueuedPromptListCount);
+        Assert.AreEqual(1, events.OfType<QueuedPromptListChangedEvent>().Count(@event => @event.ThreadId == thread.ThreadId));
     }
 
     [TestMethod]
@@ -286,17 +288,19 @@ public sealed class ThreadRuntimeEventCoordinatorTests
     }
 
     [TestMethod]
-    public void HandleAgentEvent_RefreshesQueuedPromptListWhenPendingSteersAreCleared()
+    public void HandleAgentEvent_PublishesQueuedPromptListChangedWhenPendingSteersAreCleared()
     {
         var thread = CreateThread();
         var tab = CreateOpenThreadState(thread);
         tab.PendingSteers.Add(new PendingSteerPrompt("Pending steer"));
-        var refreshQueuedPromptListCount = 0;
+        var publisher = new FrontendEventPublisher(new InlineUiDispatcher());
+        var events = new List<ShellFrontendEvent>();
+        publisher.Subscribe(events.Add);
 
         var coordinator = CreateCoordinator(
             thread,
             tab,
-            refreshQueuedPromptList: () => refreshQueuedPromptListCount++);
+            frontendEvents: publisher);
         coordinator.HandleAgentEvent(
             thread,
             tab,
@@ -309,7 +313,7 @@ public sealed class ThreadRuntimeEventCoordinatorTests
                 "Idle"));
 
         Assert.AreEqual(0, tab.PendingSteers.Count);
-        Assert.AreEqual(1, refreshQueuedPromptListCount);
+        Assert.AreEqual(1, events.OfType<QueuedPromptListChangedEvent>().Count(@event => @event.ThreadId == thread.ThreadId));
     }
 
     [TestMethod]
@@ -406,7 +410,6 @@ public sealed class ThreadRuntimeEventCoordinatorTests
     private static ThreadRuntimeEventCoordinator CreateCoordinator(
         WorkThreadDescriptor thread,
         OpenThreadState tab,
-        Action? refreshQueuedPromptList = null,
         IProjectFileSearchService? projectFileSearchService = null,
         FrontendEventPublisher? frontendEvents = null)
     {
@@ -417,7 +420,6 @@ public sealed class ThreadRuntimeEventCoordinatorTests
             isSelectedThread: id => id == thread.ThreadId,
             invalidateSelectedSessionUsage: static () => { },
             statusPort: new TestShellStatusPort(),
-            refreshQueuedPromptList: refreshQueuedPromptList ?? (() => { }),
             drainQueuedPromptAsync: static (_, _) => Task.CompletedTask,
             projectFileSearchService: projectFileSearchService ?? NullProjectFileSearchService.Instance,
             frontendEvents: frontendEvents);

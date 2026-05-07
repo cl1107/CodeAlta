@@ -54,6 +54,18 @@ public sealed class ShellProjectionCoordinatorTests
         CollectionAssert.AreEqual(new[] { "prompt" }, invalidator.Calls);
     }
 
+    [TestMethod]
+    public void Publish_QueuedPromptListChanged_RefreshesQueuedPromptList()
+    {
+        var invalidator = new CapturingProjectionInvalidator();
+        var publisher = new FrontendEventPublisher(new InlineUiDispatcher());
+        using var coordinator = new ShellProjectionCoordinator(publisher, invalidator);
+
+        publisher.Publish(new QueuedPromptListChangedEvent("thread-1"));
+
+        CollectionAssert.AreEqual(new[] { "queue" }, invalidator.Calls);
+    }
+
     private sealed class CapturingProjectionInvalidator : IShellProjectionInvalidator
     {
         public List<string> Calls { get; } = [];
@@ -67,6 +79,8 @@ public sealed class ShellProjectionCoordinatorTests
         public void RefreshShellChrome() => Calls.Add("chrome");
 
         public void UpdatePromptAvailabilityUi() => Calls.Add("prompt");
+
+        public void RefreshQueuedPromptList() => Calls.Add("queue");
     }
 
     private sealed class InlineUiDispatcher : IUiDispatcher

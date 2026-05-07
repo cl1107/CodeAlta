@@ -17,7 +17,6 @@ internal sealed class ThreadRuntimeEventCoordinator
     private readonly Func<string, bool> _isSelectedThread;
     private readonly Action _invalidateSelectedSessionUsage;
     private readonly IShellStatusPort _statusPort;
-    private readonly Action _refreshQueuedPromptList;
     private readonly Func<OpenThreadState, CancellationToken, Task> _drainQueuedPromptAsync;
     private readonly IProjectFileSearchService _projectFileSearchService;
     private readonly PluginHostBridge? _pluginHostBridge;
@@ -32,7 +31,6 @@ internal sealed class ThreadRuntimeEventCoordinator
         Func<string, bool> isSelectedThread,
         Action invalidateSelectedSessionUsage,
         IShellStatusPort statusPort,
-        Action refreshQueuedPromptList,
         Func<OpenThreadState, CancellationToken, Task> drainQueuedPromptAsync,
         IProjectFileSearchService projectFileSearchService,
         PluginHostBridge? pluginHostBridge = null,
@@ -44,7 +42,6 @@ internal sealed class ThreadRuntimeEventCoordinator
         ArgumentNullException.ThrowIfNull(isSelectedThread);
         ArgumentNullException.ThrowIfNull(invalidateSelectedSessionUsage);
         ArgumentNullException.ThrowIfNull(statusPort);
-        ArgumentNullException.ThrowIfNull(refreshQueuedPromptList);
         ArgumentNullException.ThrowIfNull(drainQueuedPromptAsync);
         ArgumentNullException.ThrowIfNull(projectFileSearchService);
 
@@ -53,7 +50,6 @@ internal sealed class ThreadRuntimeEventCoordinator
         _isSelectedThread = isSelectedThread;
         _invalidateSelectedSessionUsage = invalidateSelectedSessionUsage;
         _statusPort = statusPort;
-        _refreshQueuedPromptList = refreshQueuedPromptList;
         _drainQueuedPromptAsync = drainQueuedPromptAsync;
         _projectFileSearchService = projectFileSearchService;
         _pluginHostBridge = pluginHostBridge;
@@ -227,9 +223,9 @@ internal sealed class ThreadRuntimeEventCoordinator
             }
         }
 
-        if (reduction.RefreshPromptStrip)
+        if (reduction.RefreshPromptStrip && tab is not null)
         {
-            _refreshQueuedPromptList();
+            _frontendEvents?.Publish(new QueuedPromptListChangedEvent(tab.Thread.ThreadId));
         }
 
         if (reduction.InvalidateSelectedSessionUsage)

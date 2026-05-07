@@ -11,6 +11,8 @@ internal interface IShellProjectionInvalidator
     void RefreshShellChrome();
 
     void UpdatePromptAvailabilityUi();
+
+    void RefreshQueuedPromptList();
 }
 
 internal sealed class ShellProjectionCoordinator : IDisposable
@@ -56,6 +58,9 @@ internal sealed class ShellProjectionCoordinator : IDisposable
             case PromptAvailabilityChangedEvent:
             case ModelProviderStateChangedEvent:
                 _invalidator.UpdatePromptAvailabilityUi();
+                break;
+            case QueuedPromptListChangedEvent:
+                _invalidator.RefreshQueuedPromptList();
                 break;
             default:
                 throw new InvalidOperationException($"Unsupported shell frontend event: {frontendEvent.GetType().Name}");

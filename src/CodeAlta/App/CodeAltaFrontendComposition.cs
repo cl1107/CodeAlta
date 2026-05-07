@@ -266,7 +266,6 @@ internal sealed class CodeAltaFrontendComposition
             frontend.IsSelectedThread,
             frontend.InvalidateSelectedSessionUsage,
             shellStatusPort,
-            () => threadPromptQueueCoordinator!.RefreshSelectedThreadQueueUi(),
             (tab, cancellationToken) => threadCommandCoordinator!.DrainQueuedPromptAsync(tab, cancellationToken),
             projectFileSearchService,
             pluginHostBridge,

@@ -550,6 +550,8 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
 
     void IShellProjectionInvalidator.UpdatePromptAvailabilityUi() => UpdatePromptAvailabilityUi();
 
+    void IShellProjectionInvalidator.RefreshQueuedPromptList() => _threadPromptQueueCoordinator.RefreshSelectedThreadQueueUi();
+
     internal void SelectGlobalScope()
     {
         ActivateThreadSurface();
