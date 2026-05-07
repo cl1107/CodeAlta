@@ -49,6 +49,7 @@ internal sealed class ShellCommandSurfaceCoordinator
     private readonly Action _focusPrompt;
     private readonly Action _toggleCommandBarMultiLine;
     private readonly Action<string, bool, StatusTone> _setStatus;
+    private readonly IShellStatusService _statusService;
     private readonly Action _openSessionUsage;
     private readonly Action _openThreadInfo;
     private readonly Action _openExpandedPromptEditor;
@@ -144,6 +145,7 @@ internal sealed class ShellCommandSurfaceCoordinator
         _focusPrompt = focusPrompt;
         _toggleCommandBarMultiLine = toggleCommandBarMultiLine;
         _setStatus = setStatus;
+        _statusService = new DelegatingShellStatusService(setStatus);
         _openSessionUsage = openSessionUsage;
         _openThreadInfo = openThreadInfo;
         _openExpandedPromptEditor = openExpandedPromptEditor;
@@ -512,7 +514,7 @@ internal sealed class ShellCommandSurfaceCoordinator
             }
         }
 
-        _setStatus(BuildUnknownCommandStatus(name), false, StatusTone.Warning);
+        _statusService.SetStatus(BuildUnknownCommandStatus(name), tone: StatusTone.Warning);
     }
 
     internal static string BuildUnknownCommandStatus(string commandName)
