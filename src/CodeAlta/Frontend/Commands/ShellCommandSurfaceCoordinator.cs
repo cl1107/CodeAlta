@@ -42,6 +42,7 @@ internal sealed class ShellCommandSurfaceCoordinator
     private readonly Func<Task> _openFileEditorAsync;
     private readonly Func<Task> _openSkillsAsync;
     private readonly Func<Task> _openPluginsAsync;
+    private readonly Func<Task> _closeCurrentTabAsync;
     private readonly Func<WorkThreadDescriptor?> _getSelectedThread;
     private readonly Func<WorkThreadDescriptor, OpenThreadState> _ensureThreadTab;
     private readonly Action _focusSidebar;
@@ -57,6 +58,7 @@ internal sealed class ShellCommandSurfaceCoordinator
     private readonly Func<Task> _scrollToNextMessageAsync;
     private readonly Func<Task> _scrollToFirstMessageAsync;
     private readonly Func<Task> _scrollToLastMessageAsync;
+    private readonly IShellCommandDispatcher _shellCommandDispatcher;
     private readonly ShellInputCoordinator _shellInputCoordinator;
     private readonly PluginHostBridge? _pluginHostBridge;
     private CommandPaletteStyle _activeCommandPaletteStyle = CommandPalettePopupStyle;
@@ -132,6 +134,7 @@ internal sealed class ShellCommandSurfaceCoordinator
         _openFileEditorAsync = openFileEditorAsync;
         _openSkillsAsync = openSkillsAsync;
         _openPluginsAsync = openPluginsAsync;
+        _closeCurrentTabAsync = closeCurrentTabAsync;
         _getHelpBounds = getHelpBounds;
         _getHelpFocusTarget = getHelpFocusTarget;
         _getSelectedThread = getSelectedThread;
@@ -150,61 +153,38 @@ internal sealed class ShellCommandSurfaceCoordinator
         _scrollToFirstMessageAsync = scrollToFirstMessageAsync;
         _scrollToLastMessageAsync = scrollToLastMessageAsync;
         _pluginHostBridge = pluginHostBridge;
+        _shellCommandDispatcher = CreateCommandDispatcher();
         _shellInputCoordinator = new ShellInputCoordinator(
             new ShellInputRouter(),
             getPromptText,
-            closeCurrentTabAsync,
-            () => ShowShellHelpAsync(),
-            ShowShellHelpAsync,
-            ShowCommandPaletteAsync,
-            ExitAppAsync,
-            ShowOpenFolderDialogAsync,
-            OpenModelProvidersAsync,
-            OpenFileEditorAsync,
-            OpenSkillsAsync,
-            OpenPluginsAsync,
-            FocusSidebarAsync,
-            FocusPromptAsync,
-            ShowSelectedSessionUsageAsync,
-            ShowSelectedThreadInfoAsync,
-            ShowExpandedPromptEditorAsync,
-            ShowSelectedThreadQueueStatusAsync,
-            SelectTabLeftAsync,
-            SelectTabRightAsync,
-            ScrollToPreviousMessageAsync,
-            ScrollToNextMessageAsync,
-            ScrollToFirstMessageAsync,
-            ScrollToLastMessageAsync,
-            ClearSelectedThreadQueueAsync,
-            threadCommandCoordinator,
-            setStatus,
-            pluginHostBridge);
+            threadCommandCoordinator.IsCurrentPromptEmpty,
+            _shellCommandDispatcher);
     }
 
     public IReadOnlyList<ThreadWorkspaceCommandBinding> BuildWorkspaceCommandBindings()
     {
         var bindings = new List<ThreadWorkspaceCommandBinding>
         {
-            CreateCommandBinding("CodeAlta.Shell.Help", () => ObserveUiTask(() => ShowHelpAsync(), "show help")),
-            CreateCommandBinding("CodeAlta.Project.OpenFolder", () => ObserveUiTask(() => ShowOpenFolderDialogAsync(), "open a project")),
-            CreateCommandBinding("CodeAlta.Providers.Manage", () => ObserveUiTask(OpenModelProvidersAsync, "open model providers")),
-            CreateCommandBinding("CodeAlta.File.Edit", () => ObserveUiTask(OpenFileEditorAsync, "open a file")),
-            CreateCommandBinding("CodeAlta.Skills.Manage", () => ObserveUiTask(OpenSkillsAsync, "open skills")),
-            CreateCommandBinding("CodeAlta.Plugins.Manage", () => ObserveUiTask(OpenPluginsAsync, "open plugins")),
-            CreateCommandBinding("CodeAlta.Thread.SessionUsage", _openSessionUsage),
-            CreateCommandBinding("CodeAlta.Thread.Info", _openThreadInfo),
-            CreateCommandBinding("CodeAlta.Thread.ExpandPrompt", _openExpandedPromptEditor),
+            CreateCommandBinding("CodeAlta.Shell.Help", new OpenHelpCommand()),
+            CreateCommandBinding("CodeAlta.Project.OpenFolder", new OpenFolderCommand()),
+            CreateCommandBinding("CodeAlta.Providers.Manage", new OpenModelProvidersCommand()),
+            CreateCommandBinding("CodeAlta.File.Edit", new OpenFileEditorCommand()),
+            CreateCommandBinding("CodeAlta.Skills.Manage", new OpenSkillsCommand()),
+            CreateCommandBinding("CodeAlta.Plugins.Manage", new OpenPluginsCommand()),
+            CreateCommandBinding("CodeAlta.Thread.SessionUsage", new OpenSessionUsageCommand()),
+            CreateCommandBinding("CodeAlta.Thread.Info", new OpenThreadInfoCommand()),
+            CreateCommandBinding("CodeAlta.Thread.ExpandPrompt", new OpenExpandedPromptCommand()),
             CreateCommandBinding("CodeAlta.Thread.Steer", () => ObserveUiTask(() => _shellInputCoordinator.SubmitCurrentPromptAsync(steer: true), "steer the current thread")),
-            CreateCommandBinding("CodeAlta.Thread.Abort", () => ObserveUiTask(() => _shellInputCoordinator.AbortSelectedThreadAsync(), "abort the selected thread")),
-            CreateCommandBinding("CodeAlta.Thread.ClearQueue", () => ObserveUiTask(_threadCommandCoordinator.ClearSelectedThreadQueueAsync, "clear the thread queue")),
-            CreateCommandBinding("CodeAlta.Thread.Compact", () => ObserveUiTask(() => _shellInputCoordinator.CompactSelectedThreadAsync(), "compact the selected thread")),
-            CreateCommandBinding("CodeAlta.Thread.CloseTab", () => ObserveUiTask(() => _shellInputCoordinator.CloseCurrentTabAsync(), "close the current tab")),
-            CreateCommandBinding("CodeAlta.Thread.TabLeft", () => ObserveUiTask(SelectTabLeftAsync, "select the tab to the left")),
-            CreateCommandBinding("CodeAlta.Thread.TabRight", () => ObserveUiTask(SelectTabRightAsync, "select the tab to the right")),
-            CreateCommandBinding("CodeAlta.Thread.MessagePrevious", () => ObserveUiTask(ScrollToPreviousMessageAsync, "scroll to the previous message")),
-            CreateCommandBinding("CodeAlta.Thread.MessageNext", () => ObserveUiTask(ScrollToNextMessageAsync, "scroll to the next message")),
-            CreateCommandBinding("CodeAlta.Thread.MessageFirst", () => ObserveUiTask(ScrollToFirstMessageAsync, "scroll to the first message")),
-            CreateCommandBinding("CodeAlta.Thread.MessageLast", () => ObserveUiTask(ScrollToLastMessageAsync, "scroll to the last message")),
+            CreateCommandBinding("CodeAlta.Thread.Abort", new AbortSelectedThreadCommand()),
+            CreateCommandBinding("CodeAlta.Thread.ClearQueue", new ClearSelectedThreadQueueCommand()),
+            CreateCommandBinding("CodeAlta.Thread.Compact", new CompactSelectedThreadCommand()),
+            CreateCommandBinding("CodeAlta.Thread.CloseTab", new CloseCurrentTabCommand()),
+            CreateCommandBinding("CodeAlta.Thread.TabLeft", new SelectRelativeTabCommand(-1)),
+            CreateCommandBinding("CodeAlta.Thread.TabRight", new SelectRelativeTabCommand(1)),
+            CreateCommandBinding("CodeAlta.Thread.MessagePrevious", new ScrollSelectedThreadMessageCommand(ThreadMessageScrollTarget.Previous)),
+            CreateCommandBinding("CodeAlta.Thread.MessageNext", new ScrollSelectedThreadMessageCommand(ThreadMessageScrollTarget.Next)),
+            CreateCommandBinding("CodeAlta.Thread.MessageFirst", new ScrollSelectedThreadMessageCommand(ThreadMessageScrollTarget.First)),
+            CreateCommandBinding("CodeAlta.Thread.MessageLast", new ScrollSelectedThreadMessageCommand(ThreadMessageScrollTarget.Last)),
         };
         AddPluginCommandBindings(bindings);
         return bindings;
@@ -226,7 +206,7 @@ internal sealed class ShellCommandSurfaceCoordinator
         => _shellInputCoordinator.CloseCurrentTabAsync(cancellationToken);
 
     public Task ShowHelpAsync(string? filterText = null, CancellationToken cancellationToken = default)
-        => ExecuteHelpAsync(filterText, cancellationToken);
+        => DispatchShellCommandAsync(new OpenHelpCommand(filterText), cancellationToken);
 
     public void ShowCommandPalette()
     {
@@ -236,23 +216,31 @@ internal sealed class ShellCommandSurfaceCoordinator
     }
 
     public Task ShowCommandPaletteAsync()
-    {
-        ShowCommandPalette();
-        return Task.CompletedTask;
-    }
+        => DispatchShellCommandAsync(new OpenCommandPaletteCommand());
 
     public Task ExitAppAsync()
-    {
-        _getHelpFocusTarget()?.App?.Stop();
-        return Task.CompletedTask;
-    }
+        => DispatchShellCommandAsync(new ExitAppCommand());
 
     public void ToggleCommandBarMultiLine()
         => _toggleCommandBarMultiLine();
 
     public Task ShowOpenFolderDialogAsync(string? initialPath = null)
-    {
-        new DirectoryPathDialog(
+        => DispatchShellCommandAsync(new OpenFolderCommand(initialPath));
+
+    public Task OpenModelProvidersAsync()
+        => DispatchShellCommandAsync(new OpenModelProvidersCommand());
+
+    public Task OpenFileEditorAsync()
+        => DispatchShellCommandAsync(new OpenFileEditorCommand());
+
+    public Task OpenSkillsAsync()
+        => DispatchShellCommandAsync(new OpenSkillsCommand());
+
+    public Task OpenPluginsAsync()
+        => DispatchShellCommandAsync(new OpenPluginsCommand());
+
+    private void ShowOpenFolderDialogCore(string? initialPath)
+        => new DirectoryPathDialog(
             "Open Project",
             "Type a project name from the sidebar or a rooted folder path.",
             "Open",
@@ -264,20 +252,78 @@ internal sealed class ShellCommandSurfaceCoordinator
             initialPath,
             placeholder: "CodeAlta or C:\\code\\SomeFolder")
             .Show();
-        return Task.CompletedTask;
+
+    private Task ScrollToMessageAsync(ThreadMessageScrollTarget target)
+    {
+        return target switch
+        {
+            ThreadMessageScrollTarget.Previous => _scrollToPreviousMessageAsync(),
+            ThreadMessageScrollTarget.Next => _scrollToNextMessageAsync(),
+            ThreadMessageScrollTarget.First => _scrollToFirstMessageAsync(),
+            ThreadMessageScrollTarget.Last => _scrollToLastMessageAsync(),
+            _ => throw new ArgumentOutOfRangeException(nameof(target), target, "Unknown thread message scroll target."),
+        };
     }
 
-    public Task OpenModelProvidersAsync()
-        => _openModelProvidersAsync();
-
-    public Task OpenFileEditorAsync()
-        => _openFileEditorAsync();
-
-    public Task OpenSkillsAsync()
-        => _openSkillsAsync();
-
-    public Task OpenPluginsAsync()
-        => _openPluginsAsync();
+    private ShellCommandDispatcher CreateCommandDispatcher()
+    {
+        var registry = new ShellCommandRegistry();
+        registry.Register<SubmitPromptCommand>((command, cancellationToken) => ToValueTask(_threadCommandCoordinator.SendPromptAsync(command.Text, command.Steer, cancellationToken)));
+        registry.Register<AbortSelectedThreadCommand>((_, _) => ToValueTask(_threadCommandCoordinator.AbortSelectedThreadAsync()));
+        registry.Register<CompactSelectedThreadCommand>((_, _) => ToValueTask(_threadCommandCoordinator.CompactSelectedThreadAsync()));
+        registry.Register<CloseCurrentTabCommand>((_, _) => ToValueTask(_closeCurrentTabAsync()));
+        registry.Register<SelectRelativeTabCommand>((command, _) => ToValueTask(command.Offset < 0 ? _selectTabLeftAsync() : _selectTabRightAsync()));
+        registry.Register<ScrollSelectedThreadMessageCommand>((command, _) => ToValueTask(ScrollToMessageAsync(command.Target)));
+        registry.Register<ShowQueueStatusCommand>((_, _) => ToValueTask(ShowSelectedThreadQueueStatusAsync()));
+        registry.Register<OpenHelpCommand>((command, _) => ToValueTask(ShowShellHelpAsync(command.FilterText)));
+        registry.Register<OpenCommandPaletteCommand>((_, _) =>
+        {
+            ShowCommandPalette();
+            return ValueTask.CompletedTask;
+        });
+        registry.Register<ExitAppCommand>((_, _) =>
+        {
+            _getHelpFocusTarget()?.App?.Stop();
+            return ValueTask.CompletedTask;
+        });
+        registry.Register<OpenFolderCommand>((command, _) =>
+        {
+            ShowOpenFolderDialogCore(command.InitialPath);
+            return ValueTask.CompletedTask;
+        });
+        registry.Register<OpenModelProvidersCommand>((_, _) => ToValueTask(_openModelProvidersAsync()));
+        registry.Register<OpenFileEditorCommand>((_, _) => ToValueTask(_openFileEditorAsync()));
+        registry.Register<OpenSkillsCommand>((_, _) => ToValueTask(_openSkillsAsync()));
+        registry.Register<OpenPluginsCommand>((_, _) => ToValueTask(_openPluginsAsync()));
+        registry.Register<FocusSidebarCommand>((_, _) =>
+        {
+            _focusSidebar();
+            return ValueTask.CompletedTask;
+        });
+        registry.Register<FocusPromptCommand>((_, _) =>
+        {
+            _focusPrompt();
+            return ValueTask.CompletedTask;
+        });
+        registry.Register<OpenSessionUsageCommand>((_, _) =>
+        {
+            _openSessionUsage();
+            return ValueTask.CompletedTask;
+        });
+        registry.Register<OpenThreadInfoCommand>((_, _) =>
+        {
+            _openThreadInfo();
+            return ValueTask.CompletedTask;
+        });
+        registry.Register<OpenExpandedPromptCommand>((_, _) =>
+        {
+            _openExpandedPromptEditor();
+            return ValueTask.CompletedTask;
+        });
+        registry.Register<ClearSelectedThreadQueueCommand>((_, _) => ToValueTask(_threadCommandCoordinator.ClearSelectedThreadQueueAsync()));
+        registry.Register<ExecutePluginTextCommand>((command, cancellationToken) => ToValueTask(ExecutePluginTextCommandAsync(command.CommandName, command.Arguments, cancellationToken)));
+        return new ShellCommandDispatcher(registry);
+    }
 
     private ThreadWorkspaceCommandBinding CreateCommandBinding(string commandId, Action execute)
     {
@@ -289,6 +335,25 @@ internal sealed class ShellCommandSurfaceCoordinator
             metadata,
             execute,
             () => CanExecuteShellCommand(metadata.Availability));
+    }
+
+    private ThreadWorkspaceCommandBinding CreateCommandBinding(string commandId, ShellCommand command)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(commandId);
+        ArgumentNullException.ThrowIfNull(command);
+
+        return CreateCommandBinding(
+            commandId,
+            () => ObserveUiTask(() => DispatchShellCommandAsync(command), $"run command {commandId}"));
+    }
+
+    private async Task DispatchShellCommandAsync(ShellCommand command, CancellationToken cancellationToken = default)
+        => await _shellCommandDispatcher.DispatchAsync(command, cancellationToken);
+
+    private static ValueTask ToValueTask(Task task)
+    {
+        ArgumentNullException.ThrowIfNull(task);
+        return new ValueTask(task);
     }
 
     private void AddPluginCommandBindings(List<ThreadWorkspaceCommandBinding> bindings)
@@ -391,6 +456,36 @@ internal sealed class ShellCommandSurfaceCoordinator
         {
             await _threadCommandCoordinator.SendPromptAsync(result.PromptText, steer: false, cancellationToken);
         }
+    }
+
+    private async Task ExecutePluginTextCommandAsync(string name, string? arguments, CancellationToken cancellationToken)
+    {
+        if (_pluginHostBridge is not null)
+        {
+            var result = await _pluginHostBridge.ExecuteCommandAsync(name, arguments, cancellationToken);
+            if (result.Disposition != PluginCommandDisposition.NotHandled)
+            {
+                if (!string.IsNullOrWhiteSpace(result.UserMessage))
+                {
+                    _setStatus(result.UserMessage, false, StatusTone.Info);
+                }
+
+                if (!string.IsNullOrWhiteSpace(result.PromptText))
+                {
+                    await _threadCommandCoordinator.SendPromptAsync(result.PromptText, steer: false, cancellationToken);
+                }
+
+                return;
+            }
+        }
+
+        _setStatus(BuildUnknownCommandStatus(name), false, StatusTone.Warning);
+    }
+
+    internal static string BuildUnknownCommandStatus(string commandName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(commandName);
+        return $"Unknown command '/{commandName}'. Press F1 or type /help.";
     }
 
     private bool CanExecuteShellCommand(ShellCommandAvailability availability)

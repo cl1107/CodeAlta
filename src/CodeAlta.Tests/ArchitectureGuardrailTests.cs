@@ -1,6 +1,8 @@
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.Reflection;
 using System.Text.RegularExpressions;
+using CodeAlta.Frontend.Commands;
 using CodeAlta.Orchestration.Runtime;
 
 namespace CodeAlta.Tests;
@@ -269,6 +271,24 @@ public sealed class ArchitectureGuardrailTests
             .ToArray();
 
         CollectionAssert.AreEqual(Array.Empty<string>(), violations);
+    }
+
+    [TestMethod]
+    public void ShellInputCoordinator_UsesCommandDispatcherInsteadOfCallbackFanOut()
+    {
+        var constructor = typeof(ShellInputCoordinator)
+            .GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+            .Single();
+        var parameters = constructor.GetParameters();
+        var delegateParameters = parameters.Count(static parameter => typeof(Delegate).IsAssignableFrom(parameter.ParameterType));
+
+        Assert.AreEqual(4, parameters.Length);
+        Assert.AreEqual(2, delegateParameters);
+        Assert.IsTrue(parameters.Any(static parameter => parameter.ParameterType == typeof(IShellCommandDispatcher)));
+
+        var source = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Frontend", "Commands", "ShellInputCoordinator.cs"));
+        Assert.IsFalse(source.Contains("PluginHostBridge", StringComparison.Ordinal));
+        Assert.IsFalse(source.Contains("ThreadCommandCoordinator", StringComparison.Ordinal));
     }
 
     [TestMethod]
