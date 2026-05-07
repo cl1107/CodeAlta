@@ -12,7 +12,7 @@ namespace CodeAlta.App;
 internal sealed class OpenThreadStateStore
 {
     private readonly Dictionary<string, OpenThreadState> _threadTabs = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Func<IUiDispatcher> _getUiDispatcher;
+    private readonly IUiDispatcher _uiDispatcher;
     private readonly Func<Rectangle?> _getTimelineBounds;
     private readonly Func<string, string?> _loadPromptDraft;
     private readonly Action<OpenThreadState> _applyThreadPreference;
@@ -21,7 +21,7 @@ internal sealed class OpenThreadStateStore
     private readonly Func<string?, ProjectDescriptor?> _getProjectById;
 
     public OpenThreadStateStore(
-        Func<IUiDispatcher> getUiDispatcher,
+        IUiDispatcher uiDispatcher,
         Func<Rectangle?> getTimelineBounds,
         Func<string, string?> loadPromptDraft,
         Action<OpenThreadState> applyThreadPreference,
@@ -29,7 +29,7 @@ internal sealed class OpenThreadStateStore
         Func<ProjectDescriptor?> getSelectedProject,
         Func<string?, ProjectDescriptor?> getProjectById)
     {
-        ArgumentNullException.ThrowIfNull(getUiDispatcher);
+        ArgumentNullException.ThrowIfNull(uiDispatcher);
         ArgumentNullException.ThrowIfNull(getTimelineBounds);
         ArgumentNullException.ThrowIfNull(loadPromptDraft);
         ArgumentNullException.ThrowIfNull(applyThreadPreference);
@@ -37,7 +37,7 @@ internal sealed class OpenThreadStateStore
         ArgumentNullException.ThrowIfNull(getSelectedProject);
         ArgumentNullException.ThrowIfNull(getProjectById);
 
-        _getUiDispatcher = getUiDispatcher;
+        _uiDispatcher = uiDispatcher;
         _getTimelineBounds = getTimelineBounds;
         _loadPromptDraft = loadPromptDraft;
         _applyThreadPreference = applyThreadPreference;
@@ -60,7 +60,7 @@ internal sealed class OpenThreadStateStore
         }
 
         var timeline = new ThreadTimelinePresenter(
-            _getUiDispatcher(),
+            _uiDispatcher,
             _getTimelineBounds,
             ResolveThreadProjectRoot(thread));
         var state = new OpenThreadState(thread, timeline);

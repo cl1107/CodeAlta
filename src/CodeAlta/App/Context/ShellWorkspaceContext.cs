@@ -11,23 +11,23 @@ internal sealed class ShellWorkspaceContext
     private readonly IShellPromptAvailabilityPort _promptAvailability;
     private readonly IShellWorkspaceSurfacePort _surface;
     private readonly IShellWorkspaceProjectionPort _projection;
-    private readonly IFrontendUiScheduler _uiScheduler;
+    private readonly IUiDispatcher _uiDispatcher;
 
     public ShellWorkspaceContext(
         IShellPromptAvailabilityPort promptAvailability,
         IShellWorkspaceSurfacePort surface,
         IShellWorkspaceProjectionPort projection,
-        IFrontendUiScheduler uiScheduler)
+        IUiDispatcher uiDispatcher)
     {
         ArgumentNullException.ThrowIfNull(promptAvailability);
         ArgumentNullException.ThrowIfNull(surface);
         ArgumentNullException.ThrowIfNull(projection);
-        ArgumentNullException.ThrowIfNull(uiScheduler);
+        ArgumentNullException.ThrowIfNull(uiDispatcher);
 
         _promptAvailability = promptAvailability;
         _surface = surface;
         _projection = projection;
-        _uiScheduler = uiScheduler;
+        _uiDispatcher = uiDispatcher;
     }
 
     public AgentBackendId GetPreferredBackendId()
@@ -72,18 +72,18 @@ internal sealed class ShellWorkspaceContext
     public void DispatchToUi(Action action)
     {
         ArgumentNullException.ThrowIfNull(action);
-        _uiScheduler.Post(action);
+        _uiDispatcher.Post(action);
     }
 
     public void DispatchToUiDeferred(Action action)
     {
         ArgumentNullException.ThrowIfNull(action);
-        _uiScheduler.PostDeferred(action);
+        _uiDispatcher.PostDeferred(action);
     }
 
     public void FocusPromptTarget()
         => _surface.FocusPromptTarget();
 
     public void VerifyBindableAccess()
-        => _uiScheduler.VerifyAccess();
+        => _uiDispatcher.VerifyAccess();
 }

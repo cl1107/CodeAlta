@@ -115,10 +115,9 @@ public sealed class ThreadCommandContextTests
         snapshotPromptImages ??= static () => [];
         restorePromptImages ??= static _ => { };
         setShellStatus ??= static (_, _, _) => { };
-        var scheduler = new FrontendUiScheduler(dispatcher);
         var promptSessionId = new PromptSessionId("prompt-1");
         var promptSessionPort = new PromptSessionPort(
-            scheduler,
+            dispatcher,
             isThreadInputEmpty,
             static () => { },
             restoreThreadInput,
@@ -136,7 +135,7 @@ public sealed class ThreadCommandContextTests
                 static _ => Task.FromResult<WorkThreadDescriptor?>(null),
                 static () => Task.CompletedTask),
             new ThreadCommandUiPort(
-                scheduler,
+                dispatcher,
                 static () => false,
                 static () => true,
                 clearDraftInput,
@@ -146,7 +145,7 @@ public sealed class ThreadCommandContextTests
                 static (_, _, _) => { }),
             promptSessionPort,
             () => promptSessionId,
-            new ShellStatusPort(scheduler, setShellStatus, static (_, _, _, _) => { }));
+            new ShellStatusPort(dispatcher, setShellStatus, static (_, _, _, _) => { }));
     }
 
     private sealed class RecordingUiDispatcher : IUiDispatcher

@@ -25,13 +25,13 @@ public sealed class PromptSessionPortTests
     }
 
     [TestMethod]
-    public void RestorePrompt_RestoresTextAndImagesThroughScheduler()
+    public void RestorePrompt_RestoresTextAndImagesThroughDispatcher()
     {
-        var scheduler = new RecordingScheduler();
+        var dispatcher = new RecordingUiDispatcher();
         var restoredText = string.Empty;
         IReadOnlyList<PromptImageAttachment>? restoredImages = null;
         var port = CreatePort(
-            scheduler,
+            dispatcher,
             restorePromptText: text => restoredText = text,
             restorePromptImages: images => restoredImages = images);
         var promptSessionId = new PromptSessionId("prompt-1");
@@ -43,7 +43,7 @@ public sealed class PromptSessionPortTests
         Assert.AreEqual("retry", restoredText);
         Assert.IsNotNull(restoredImages);
         Assert.AreEqual(1, restoredImages.Count);
-        Assert.AreEqual(1, scheduler.InvokeCount);
+        Assert.AreEqual(1, dispatcher.InvokeCount);
     }
 
     [TestMethod]
@@ -72,14 +72,14 @@ public sealed class PromptSessionPortTests
     }
 
     private static PromptSessionPort CreatePort(
-        RecordingScheduler? scheduler = null,
+        RecordingUiDispatcher? dispatcher = null,
         Func<bool>? isPromptEmpty = null,
         Action? clearPrompt = null,
         Action<string>? restorePromptText = null,
         Func<IReadOnlyList<PromptImageAttachment>>? snapshotPromptImages = null,
         Action<IReadOnlyList<PromptImageAttachment>>? restorePromptImages = null)
         => new(
-            scheduler ?? new RecordingScheduler(),
+            dispatcher ?? new RecordingUiDispatcher(),
             isPromptEmpty ?? (() => false),
             clearPrompt ?? (() => { }),
             restorePromptText ?? (_ => { }),
@@ -93,11 +93,11 @@ public sealed class PromptSessionPortTests
             new ShellThreadRef.Draft(new ThreadDraftId("draft-1")),
             new ModelProviderId("provider-1"));
 
-    private sealed class RecordingScheduler : IFrontendUiScheduler
+    private sealed class RecordingUiDispatcher : IUiDispatcher
     {
-        public IUiDispatcher Dispatcher { get; } = new InlineUiDispatcher();
-
         public int InvokeCount { get; private set; }
+
+        public bool CheckAccess() => true;
 
         public void VerifyAccess()
         {
@@ -128,29 +128,15 @@ public sealed class PromptSessionPortTests
             InvokeCount++;
             return action();
         }
-    }
-
-    private sealed class InlineUiDispatcher : IUiDispatcher
-    {
-        public bool CheckAccess() => true;
-
-        public void Post(Action action)
-        {
-            ArgumentNullException.ThrowIfNull(action);
-            action();
-        }
 
         public Task InvokeAsync(Action action)
         {
-            ArgumentNullException.ThrowIfNull(action);
-            action();
+            Invoke(action);
             return Task.CompletedTask;
         }
 
         public Task<T> InvokeAsync<T>(Func<T> action)
-        {
-            ArgumentNullException.ThrowIfNull(action);
-            return Task.FromResult(action());
-        }
+            => Task.FromResult(Invoke(action));
     }
+
 }

@@ -74,10 +74,10 @@ internal sealed class CodeAltaFrontendComposition
         var promptComposerViewModel = new PromptComposerViewModel();
         var sessionUsageViewModel = new SessionUsageViewModel();
         var chatBackendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
-        var uiScheduler = new FrontendUiScheduler(frontend.GetUiDispatcher);
+        var uiDispatcher = frontend.GetUiDispatcher();
         var legacyPromptSessionId = new PromptSessionId("legacy-selected-prompt");
         var promptSessionPort = new LegacyPromptSessionPort(
-            uiScheduler,
+            uiDispatcher,
             frontend.IsPromptTextEmpty,
             frontend.ClearPromptText,
             frontend.RestorePromptText,
@@ -101,12 +101,12 @@ internal sealed class CodeAltaFrontendComposition
         var terminalLoopCoordinator = new TerminalLoopCoordinator(
             shellController,
             runtimeEventPump,
-            frontend.AssignUiDispatcher,
+            uiDispatcher,
             frontend.ApplyPendingSidebarSelection);
         var threadStateCoordinator = new ShellThreadStateCoordinator(
             projectCatalog,
             threadCatalog,
-            frontend.GetUiDispatcher,
+            uiDispatcher,
             frontend.GetThreadPaneBounds,
             thread => frontend.IsChatBackendReady(new AgentBackendId(thread.BackendId)),
             frontend.LoadPromptDraft,
@@ -129,7 +129,7 @@ internal sealed class CodeAltaFrontendComposition
             () => threadStateCoordinator.Selection,
             frontend.RefreshCatalogAndThreadWorkspace,
             frontend.UpdatePromptImageAttachmentsUi);
-        var chatSelectorStateContext = new ChatSelectorStateStore(threadWorkspaceViewModel, uiScheduler);
+        var chatSelectorStateContext = new ChatSelectorStateStore(threadWorkspaceViewModel, uiDispatcher);
         var modelProviderPreferencePort = new FrontendModelProviderPreferencePort(
             frontend.ApplyDraftBackendPreference,
             frontend.ApplyThreadPreference,
@@ -222,7 +222,7 @@ internal sealed class CodeAltaFrontendComposition
                 frontend.SyncPromptText,
                 frontend.UpdatePromptAvailabilityUi,
                 frontend.SyncThreadTabControl),
-            uiScheduler);
+            uiDispatcher);
         var workspaceCoordinator = new ShellWorkspaceCoordinator(
             shellViewModel,
             threadWorkspaceViewModel,
@@ -288,7 +288,7 @@ internal sealed class CodeAltaFrontendComposition
                     frontend.PersistViewStateAsync,
                     frontend.RekeyThreadIdentity),
                 new ThreadCommandUiPort(
-                    uiScheduler,
+                    uiDispatcher,
                     frontend.TrySetPromptUnavailableStatus,
                     frontend.GetAutoApproveEnabled,
                     frontend.ClearDraftPromptText,
@@ -299,7 +299,7 @@ internal sealed class CodeAltaFrontendComposition
                 promptSessionPort,
                 () => legacyPromptSessionId,
                 new ShellStatusPort(
-                    uiScheduler,
+                    uiDispatcher,
                     frontend.SetStatus,
                     frontend.SetThreadStatus,
                     frontend.ClearThreadStatus,

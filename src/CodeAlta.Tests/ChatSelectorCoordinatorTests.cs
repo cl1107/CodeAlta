@@ -44,7 +44,7 @@ public sealed class ChatSelectorCoordinatorTests
             DefaultReasoningEffort: AgentReasoningEffort.Low,
             SupportedReasoningEfforts: [AgentReasoningEffort.Low]));
 
-        var selectorState = new ChatSelectorStateStore(workspaceViewModel, new FrontendUiScheduler(new InlineUiDispatcher()));
+        var selectorState = new ChatSelectorStateStore(workspaceViewModel, new InlineUiDispatcher());
         var preferences = new FrontendModelProviderPreferencePort(
             ApplyDraftBackendPreference,
             static _ => throw new NotSupportedException(),
@@ -191,7 +191,7 @@ public sealed class ChatSelectorCoordinatorTests
         backendStates["openai"].Availability = ChatBackendAvailability.Ready;
         backendStates["anthropic"].Availability = ChatBackendAvailability.Ready;
 
-        var selectorState = new ChatSelectorStateStore(workspaceViewModel, new FrontendUiScheduler(new InlineUiDispatcher()));
+        var selectorState = new ChatSelectorStateStore(workspaceViewModel, new InlineUiDispatcher());
         var preferences = new FrontendModelProviderPreferencePort(
             ApplyDraftBackendPreference,
             static _ => { },
@@ -238,7 +238,7 @@ public sealed class ChatSelectorCoordinatorTests
         backendStates["openai"].Availability = ChatBackendAvailability.Ready;
         backendStates["anthropic"].Availability = ChatBackendAvailability.Ready;
 
-        var selectorState = new ChatSelectorStateStore(workspaceViewModel, new FrontendUiScheduler(new InlineUiDispatcher()));
+        var selectorState = new ChatSelectorStateStore(workspaceViewModel, new InlineUiDispatcher());
         var preferences = new FrontendModelProviderPreferencePort(
             ApplyDraftBackendPreference,
             static _ => { },
@@ -293,7 +293,7 @@ public sealed class ChatSelectorCoordinatorTests
         backendStates["openai"].Availability = ChatBackendAvailability.Ready;
         backendStates["anthropic"].Availability = ChatBackendAvailability.Ready;
 
-        var selectorState = new ChatSelectorStateStore(workspaceViewModel, new FrontendUiScheduler(new InlineUiDispatcher()));
+        var selectorState = new ChatSelectorStateStore(workspaceViewModel, new InlineUiDispatcher());
         var preferences = new FrontendModelProviderPreferencePort(
             ApplyDraftBackendPreference,
             static _ => { },
@@ -353,7 +353,7 @@ public sealed class ChatSelectorCoordinatorTests
         backendStates["openai"].Models.Add(new AgentModelInfo("gpt-5.4", DisplayName: "GPT-5.4"));
         backendStates["openai"].Models.Add(new AgentModelInfo("gpt-5.4-mini", DisplayName: "GPT-5.4 Mini"));
 
-        var selectorState = new ChatSelectorStateStore(workspaceViewModel, new FrontendUiScheduler(new InlineUiDispatcher()));
+        var selectorState = new ChatSelectorStateStore(workspaceViewModel, new InlineUiDispatcher());
         var preferences = new FrontendModelProviderPreferencePort(
             ApplyDraftBackendPreference,
             static _ => { },
@@ -395,7 +395,7 @@ public sealed class ChatSelectorCoordinatorTests
         backendState.Models.Add(new AgentModelInfo("gpt-5.4", DisplayName: "GPT-5.4"));
         backendState.Models.Add(new AgentModelInfo("gpt-5.4-mini", DisplayName: "GPT-5.4 Mini"));
 
-        var selectorState = new ChatSelectorStateStore(workspaceViewModel, new FrontendUiScheduler(new InlineUiDispatcher()));
+        var selectorState = new ChatSelectorStateStore(workspaceViewModel, new InlineUiDispatcher());
         var draftPreferenceApplyCount = 0;
         var preferences = new FrontendModelProviderPreferencePort(
             state =>
@@ -438,7 +438,7 @@ public sealed class ChatSelectorCoordinatorTests
         Func<string?, string?> getEffectiveDefaultProviderKey,
         Func<IReadOnlyList<string>>? getConfiguredProviderKeys = null)
     {
-        var selectorState = new ChatSelectorStateStore(workspaceViewModel, new FrontendUiScheduler(new InlineUiDispatcher()));
+        var selectorState = new ChatSelectorStateStore(workspaceViewModel, new InlineUiDispatcher());
         var preferences = new FrontendModelProviderPreferencePort(
             ApplyDraftBackendPreference,
             static _ => throw new NotSupportedException(),
@@ -478,7 +478,7 @@ public sealed class ChatSelectorCoordinatorTests
         var coordinator = new ShellThreadStateCoordinator(
             new ProjectCatalog(options),
             new WorkThreadCatalog(options),
-            static () => new InlineUiDispatcher(),
+            new InlineUiDispatcher(),
             static () => null,
             static _ => true,
             static _ => null,

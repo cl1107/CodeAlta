@@ -9,14 +9,14 @@ namespace CodeAlta.Tests;
 public sealed class LegacyPromptSessionPortTests
 {
     [TestMethod]
-    public void CaptureAndRestorePrompt_UseUiSchedulerAndImages()
+    public void CaptureAndRestorePrompt_UseUiDispatcherAndImages()
     {
-        var scheduler = new RecordingScheduler();
+        var dispatcher = new RecordingUiDispatcher();
         var image = PromptImageAttachment.Create("Image-1", [1, 2, 3], "image/png", ".png");
         var restoredText = string.Empty;
         IReadOnlyList<PromptImageAttachment>? restoredImages = null;
         var port = new LegacyPromptSessionPort(
-            scheduler,
+            dispatcher,
             static () => false,
             static () => { },
             text => restoredText = text,
@@ -29,7 +29,7 @@ public sealed class LegacyPromptSessionPortTests
 
         Assert.AreEqual("hello", submission.Text);
         Assert.AreEqual(1, submission.Images.Count);
-        Assert.AreEqual(2, scheduler.InvokeCount);
+        Assert.AreEqual(2, dispatcher.InvokeCount);
         Assert.AreEqual("hello", restoredText);
         Assert.IsNotNull(restoredImages);
         Assert.AreEqual(1, restoredImages.Count);
@@ -39,7 +39,7 @@ public sealed class LegacyPromptSessionPortTests
     public void PromptOperations_RejectDefaultPromptSessionId()
     {
         var port = new LegacyPromptSessionPort(
-            new RecordingScheduler(),
+            new RecordingUiDispatcher(),
             static () => false,
             static () => { },
             static _ => { },
@@ -51,11 +51,11 @@ public sealed class LegacyPromptSessionPortTests
         Assert.ThrowsExactly<ArgumentException>(() => port.IsPromptEmpty(default));
     }
 
-    private sealed class RecordingScheduler : IFrontendUiScheduler
+    private sealed class RecordingUiDispatcher : IUiDispatcher
     {
         public int InvokeCount { get; private set; }
 
-        public IUiDispatcher Dispatcher { get; } = new ImmediateUiDispatcher();
+        public bool CheckAccess() => true;
 
         public void VerifyAccess()
         {
@@ -78,22 +78,15 @@ public sealed class LegacyPromptSessionPortTests
             InvokeCount++;
             return action();
         }
-    }
-
-    private sealed class ImmediateUiDispatcher : IUiDispatcher
-    {
-        public bool CheckAccess() => true;
-
-        public void Post(Action action)
-            => action();
 
         public Task InvokeAsync(Action action)
         {
-            action();
+            Invoke(action);
             return Task.CompletedTask;
         }
 
         public Task<T> InvokeAsync<T>(Func<T> action)
-            => Task.FromResult(action());
+            => Task.FromResult(Invoke(action));
     }
+
 }

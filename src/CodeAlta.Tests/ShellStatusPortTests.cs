@@ -8,28 +8,28 @@ namespace CodeAlta.Tests;
 public sealed class ShellStatusPortTests
 {
     [TestMethod]
-    public void SetShellStatus_InvokesCallbackThroughScheduler()
+    public void SetShellStatus_InvokesCallbackThroughDispatcher()
     {
-        var scheduler = new RecordingScheduler();
+        var dispatcher = new RecordingUiDispatcher();
         var captured = default(ShellStatusUpdate);
         var port = new ShellStatusPort(
-            scheduler,
+            dispatcher,
             (message, showSpinner, tone) => captured = new ShellStatusUpdate(message, showSpinner, tone),
             static (_, _, _, _) => { });
 
         port.SetShellStatus(new ShellStatusUpdate("Working", true, StatusTone.Info));
 
         Assert.AreEqual(new ShellStatusUpdate("Working", true, StatusTone.Info), captured);
-        Assert.AreEqual(1, scheduler.InvokeCount);
+        Assert.AreEqual(1, dispatcher.InvokeCount);
     }
 
     [TestMethod]
     public void SetProviderSessionLoadStatus_AllowsNullMessage()
     {
-        var scheduler = new RecordingScheduler();
+        var dispatcher = new RecordingUiDispatcher();
         string? captured = "unchanged";
         var port = new ShellStatusPort(
-            scheduler,
+            dispatcher,
             static (_, _, _) => { },
             static (_, _, _, _) => { },
             setProviderSessionLoadStatus: message => captured = message);
@@ -37,25 +37,25 @@ public sealed class ShellStatusPortTests
         port.SetProviderSessionLoadStatus(null);
 
         Assert.IsNull(captured);
-        Assert.AreEqual(1, scheduler.InvokeCount);
+        Assert.AreEqual(1, dispatcher.InvokeCount);
     }
 
     [TestMethod]
     public void SetShellStatus_RejectsEmptyMessage()
     {
         var port = new ShellStatusPort(
-            new RecordingScheduler(),
+            new RecordingUiDispatcher(),
             static (_, _, _) => { },
             static (_, _, _, _) => { });
 
         Assert.ThrowsExactly<ArgumentException>(() => port.SetShellStatus(new ShellStatusUpdate(string.Empty, false, StatusTone.Info)));
     }
 
-    private sealed class RecordingScheduler : IFrontendUiScheduler
+    private sealed class RecordingUiDispatcher : IUiDispatcher
     {
-        public IUiDispatcher Dispatcher { get; } = new InlineUiDispatcher();
-
         public int InvokeCount { get; private set; }
+
+        public bool CheckAccess() => true;
 
         public void VerifyAccess()
         {
@@ -86,29 +86,15 @@ public sealed class ShellStatusPortTests
             InvokeCount++;
             return action();
         }
-    }
-
-    private sealed class InlineUiDispatcher : IUiDispatcher
-    {
-        public bool CheckAccess() => true;
-
-        public void Post(Action action)
-        {
-            ArgumentNullException.ThrowIfNull(action);
-            action();
-        }
 
         public Task InvokeAsync(Action action)
         {
-            ArgumentNullException.ThrowIfNull(action);
-            action();
+            Invoke(action);
             return Task.CompletedTask;
         }
 
         public Task<T> InvokeAsync<T>(Func<T> action)
-        {
-            ArgumentNullException.ThrowIfNull(action);
-            return Task.FromResult(action());
-        }
+            => Task.FromResult(Invoke(action));
     }
+
 }

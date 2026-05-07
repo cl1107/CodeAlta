@@ -17,7 +17,7 @@ internal sealed class ShellThreadStateCoordinator
         WorkThreadViewState ViewState);
 
     private readonly ShellSelectionCoordinator _selectionCoordinator = new();
-    private readonly Func<IUiDispatcher> _getUiDispatcher;
+    private readonly IUiDispatcher _uiDispatcher;
     private readonly ShellCatalogStateCoordinator _catalogStateCoordinator;
     private readonly OpenThreadStateStore _OpenThreadStateStore;
     private readonly ThreadViewStateCoordinator _viewStateCoordinator;
@@ -32,7 +32,7 @@ internal sealed class ShellThreadStateCoordinator
     public ShellThreadStateCoordinator(
         ProjectCatalog projectCatalog,
         WorkThreadCatalog threadCatalog,
-        Func<IUiDispatcher> getUiDispatcher,
+        IUiDispatcher uiDispatcher,
         Func<Rectangle?> getTimelineBounds,
         Func<WorkThreadDescriptor, bool> isBackendReady,
         Func<string, string?> loadPromptDraft,
@@ -48,7 +48,7 @@ internal sealed class ShellThreadStateCoordinator
     {
         ArgumentNullException.ThrowIfNull(projectCatalog);
         ArgumentNullException.ThrowIfNull(threadCatalog);
-        ArgumentNullException.ThrowIfNull(getUiDispatcher);
+        ArgumentNullException.ThrowIfNull(uiDispatcher);
         ArgumentNullException.ThrowIfNull(getTimelineBounds);
         ArgumentNullException.ThrowIfNull(isBackendReady);
         ArgumentNullException.ThrowIfNull(loadPromptDraft);
@@ -62,10 +62,10 @@ internal sealed class ShellThreadStateCoordinator
         ArgumentNullException.ThrowIfNull(removeTabPage);
         ArgumentNullException.ThrowIfNull(setStatus);
 
-        _getUiDispatcher = getUiDispatcher;
+        _uiDispatcher = uiDispatcher;
         _viewStateCoordinator = new ThreadViewStateCoordinator(threadCatalog);
         _OpenThreadStateStore = new OpenThreadStateStore(
-            getUiDispatcher,
+            uiDispatcher,
             getTimelineBounds,
             loadPromptDraft,
             applyThreadPreference,
@@ -301,7 +301,7 @@ internal sealed class ShellThreadStateCoordinator
         ArgumentNullException.ThrowIfNull(thread);
 
         UiDispatch.Invoke(
-            _getUiDispatcher(),
+            _uiDispatcher,
             () =>
             {
                 _catalogStateCoordinator.UpsertThread(thread);

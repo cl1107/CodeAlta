@@ -94,7 +94,7 @@ public sealed class ThreadPromptQueueCoordinatorTests
         var threadState = new ShellThreadStateCoordinator(
             new ProjectCatalog(catalogOptions),
             new WorkThreadCatalog(catalogOptions),
-            static () => new InlineUiDispatcher(),
+            new InlineUiDispatcher(),
             static () => null,
             static _ => true,
             static _ => null,

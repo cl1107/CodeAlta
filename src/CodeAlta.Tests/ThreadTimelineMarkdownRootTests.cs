@@ -70,7 +70,7 @@ public sealed class ThreadTimelineMarkdownRootTests
             ProjectPath = @"C:\code\CodeAlta",
         };
         var registry = new OpenThreadStateStore(
-            () => new InlineUiDispatcher(),
+            new InlineUiDispatcher(),
             static () => null,
             static _ => null,
             static _ => { },

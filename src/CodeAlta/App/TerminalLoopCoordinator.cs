@@ -1,6 +1,5 @@
 using CodeAlta.Threading;
 using XenoAtom.Terminal.UI;
-using XenoAtom.Terminal.UI.Threading;
 
 namespace CodeAlta.App;
 
@@ -8,24 +7,24 @@ internal sealed class TerminalLoopCoordinator
 {
     private readonly CodeAltaShellController _shellController;
     private readonly RuntimeEventPump _runtimeEventPump;
-    private readonly Action<IUiDispatcher> _attachUiDispatcher;
+    private readonly IUiDispatcher _uiDispatcher;
     private readonly Action _applyPendingSidebarSelection;
     private bool _started;
 
     public TerminalLoopCoordinator(
         CodeAltaShellController shellController,
         RuntimeEventPump runtimeEventPump,
-        Action<IUiDispatcher> attachUiDispatcher,
+        IUiDispatcher uiDispatcher,
         Action applyPendingSidebarSelection)
     {
         ArgumentNullException.ThrowIfNull(shellController);
         ArgumentNullException.ThrowIfNull(runtimeEventPump);
-        ArgumentNullException.ThrowIfNull(attachUiDispatcher);
+        ArgumentNullException.ThrowIfNull(uiDispatcher);
         ArgumentNullException.ThrowIfNull(applyPendingSidebarSelection);
 
         _shellController = shellController;
         _runtimeEventPump = runtimeEventPump;
-        _attachUiDispatcher = attachUiDispatcher;
+        _uiDispatcher = uiDispatcher;
         _applyPendingSidebarSelection = applyPendingSidebarSelection;
     }
 
@@ -39,9 +38,7 @@ internal sealed class TerminalLoopCoordinator
         }
 
         _started = true;
-        var uiDispatcher = new TerminalUiDispatcher(Dispatcher.Current);
-        _attachUiDispatcher(uiDispatcher);
-        _shellController.AttachUiDispatcher(uiDispatcher);
+        _shellController.AttachUiDispatcher(_uiDispatcher);
         _shellController.StartInitialization(cancellationToken);
         _runtimeEventPump.Start(cancellationToken);
     }

@@ -814,8 +814,8 @@ public sealed class ArchitectureGuardrailTests
         var codeAltaRoot = GetCodeAltaSourceRoot();
 
         Assert.IsTrue(File.Exists(Path.Combine(codeAltaRoot, "Threading", "IUiDispatcher.cs")));
-        Assert.IsTrue(File.Exists(Path.Combine(codeAltaRoot, "Threading", "IFrontendUiScheduler.cs")));
-        Assert.IsTrue(File.Exists(Path.Combine(codeAltaRoot, "Threading", "FrontendUiScheduler.cs")));
+        Assert.IsFalse(File.Exists(Path.Combine(codeAltaRoot, "Threading", "IFrontendUiScheduler.cs")));
+        Assert.IsFalse(File.Exists(Path.Combine(codeAltaRoot, "Threading", "FrontendUiScheduler.cs")));
         Assert.IsTrue(File.Exists(Path.Combine(codeAltaRoot, "Threading", "UiDispatch.cs")));
         Assert.IsTrue(File.Exists(Path.Combine(codeAltaRoot, "Threading", "TerminalUiDispatcher.cs")));
         Assert.IsFalse(File.Exists(Path.Combine(codeAltaRoot, "App", "IUiDispatcher.cs")));

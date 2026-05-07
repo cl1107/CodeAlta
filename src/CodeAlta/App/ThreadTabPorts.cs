@@ -44,23 +44,23 @@ internal sealed class DelegatingThreadTabSurfacePort : IThreadTabSurfacePort
     private readonly Func<TabControl?> _getTabControl;
     private readonly Func<ThreadWorkspaceView?> _getWorkspaceView;
     private readonly Func<Func<Visual>, ComputedVisual> _createComputedVisual;
-    private readonly Func<IUiDispatcher> _getUiDispatcher;
+    private readonly IUiDispatcher _uiDispatcher;
 
     public DelegatingThreadTabSurfacePort(
         Func<TabControl?> getTabControl,
         Func<ThreadWorkspaceView?> getWorkspaceView,
         Func<Func<Visual>, ComputedVisual> createComputedVisual,
-        Func<IUiDispatcher> getUiDispatcher)
+        IUiDispatcher uiDispatcher)
     {
         ArgumentNullException.ThrowIfNull(getTabControl);
         ArgumentNullException.ThrowIfNull(getWorkspaceView);
         ArgumentNullException.ThrowIfNull(createComputedVisual);
-        ArgumentNullException.ThrowIfNull(getUiDispatcher);
+        ArgumentNullException.ThrowIfNull(uiDispatcher);
 
         _getTabControl = getTabControl;
         _getWorkspaceView = getWorkspaceView;
         _createComputedVisual = createComputedVisual;
-        _getUiDispatcher = getUiDispatcher;
+        _uiDispatcher = uiDispatcher;
     }
 
     public TabControl? GetTabControl()
@@ -76,7 +76,7 @@ internal sealed class DelegatingThreadTabSurfacePort : IThreadTabSurfacePort
     }
 
     public IUiDispatcher GetUiDispatcher()
-        => _getUiDispatcher();
+        => _uiDispatcher;
 }
 
 internal sealed class DelegatingThreadTabLifecyclePort : IThreadTabLifecyclePort

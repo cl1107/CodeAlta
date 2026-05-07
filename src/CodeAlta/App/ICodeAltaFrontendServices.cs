@@ -11,7 +11,6 @@ namespace CodeAlta.App;
 
 internal interface ICodeAltaFrontendServices
 {
-    void AssignUiDispatcher(IUiDispatcher dispatcher);
     void ApplyPendingSidebarSelection();
     IUiDispatcher GetUiDispatcher();
     Rectangle? GetThreadPaneBounds();

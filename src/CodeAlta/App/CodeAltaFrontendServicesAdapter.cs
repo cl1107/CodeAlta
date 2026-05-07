@@ -20,7 +20,6 @@ internal sealed class CodeAltaFrontendServicesAdapter : ICodeAltaFrontendService
         _app = app;
     }
 
-    public void AssignUiDispatcher(IUiDispatcher dispatcher) => _app.AssignUiDispatcher(dispatcher);
     public void ApplyPendingSidebarSelection() => _app.ApplyPendingSidebarSelection();
     public IUiDispatcher GetUiDispatcher() => _app.GetUiDispatcher();
     public Rectangle? GetThreadPaneBounds() => _app.ThreadPaneLayout?.GetAbsoluteBounds();

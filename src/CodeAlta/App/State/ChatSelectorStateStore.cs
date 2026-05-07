@@ -7,17 +7,17 @@ namespace CodeAlta.App.State;
 internal sealed class ChatSelectorStateStore
 {
     private readonly ThreadWorkspaceViewModel _workspaceViewModel;
-    private readonly IFrontendUiScheduler _uiScheduler;
+    private readonly IUiDispatcher _uiDispatcher;
 
     public ChatSelectorStateStore(
         ThreadWorkspaceViewModel workspaceViewModel,
-        IFrontendUiScheduler uiScheduler)
+        IUiDispatcher uiDispatcher)
     {
         ArgumentNullException.ThrowIfNull(workspaceViewModel);
-        ArgumentNullException.ThrowIfNull(uiScheduler);
+        ArgumentNullException.ThrowIfNull(uiDispatcher);
 
         _workspaceViewModel = workspaceViewModel;
-        _uiScheduler = uiScheduler;
+        _uiDispatcher = uiDispatcher;
     }
 
     public int? GetSelectedBackendIndex()
@@ -51,8 +51,8 @@ internal sealed class ChatSelectorStateStore
     }
 
     public IUiDispatcher GetUiDispatcher()
-        => _uiScheduler.Dispatcher;
+        => _uiDispatcher;
 
     public void VerifyBindableAccess()
-        => _uiScheduler.VerifyAccess();
+        => _uiDispatcher.VerifyAccess();
 }

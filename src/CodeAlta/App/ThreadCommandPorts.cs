@@ -75,7 +75,7 @@ internal interface IThreadCommandUiPort
 
 internal sealed class ThreadCommandUiPort : IThreadCommandUiPort
 {
-    private readonly IFrontendUiScheduler _uiScheduler;
+    private readonly IUiDispatcher _uiDispatcher;
     private readonly Func<bool> _trySetPromptUnavailableStatus;
     private readonly Func<bool> _getAutoApproveEnabled;
     private readonly Action _clearDraftInput;
@@ -85,7 +85,7 @@ internal sealed class ThreadCommandUiPort : IThreadCommandUiPort
     private readonly Action<OpenThreadState, Action, string> _tryRenderInteraction;
 
     public ThreadCommandUiPort(
-        IFrontendUiScheduler uiScheduler,
+        IUiDispatcher uiDispatcher,
         Func<bool> trySetPromptUnavailableStatus,
         Func<bool> getAutoApproveEnabled,
         Action clearDraftInput,
@@ -94,7 +94,7 @@ internal sealed class ThreadCommandUiPort : IThreadCommandUiPort
         Action refreshCatalogAndThreadWorkspace,
         Action<OpenThreadState, Action, string> tryRenderInteraction)
     {
-        ArgumentNullException.ThrowIfNull(uiScheduler);
+        ArgumentNullException.ThrowIfNull(uiDispatcher);
         ArgumentNullException.ThrowIfNull(trySetPromptUnavailableStatus);
         ArgumentNullException.ThrowIfNull(getAutoApproveEnabled);
         ArgumentNullException.ThrowIfNull(clearDraftInput);
@@ -103,7 +103,7 @@ internal sealed class ThreadCommandUiPort : IThreadCommandUiPort
         ArgumentNullException.ThrowIfNull(refreshCatalogAndThreadWorkspace);
         ArgumentNullException.ThrowIfNull(tryRenderInteraction);
 
-        _uiScheduler = uiScheduler;
+        _uiDispatcher = uiDispatcher;
         _trySetPromptUnavailableStatus = trySetPromptUnavailableStatus;
         _getAutoApproveEnabled = getAutoApproveEnabled;
         _clearDraftInput = clearDraftInput;
@@ -114,28 +114,28 @@ internal sealed class ThreadCommandUiPort : IThreadCommandUiPort
     }
 
     public bool TrySetPromptUnavailableStatus()
-        => _uiScheduler.Invoke(_trySetPromptUnavailableStatus);
+        => _uiDispatcher.Invoke(_trySetPromptUnavailableStatus);
 
     public bool GetAutoApproveEnabled()
-        => _uiScheduler.Invoke(_getAutoApproveEnabled);
+        => _uiDispatcher.Invoke(_getAutoApproveEnabled);
 
     public void ClearDraftInput()
-        => _uiScheduler.Invoke(_clearDraftInput);
+        => _uiDispatcher.Invoke(_clearDraftInput);
 
     public void SetReadyStatusForCurrentSelection()
-        => _uiScheduler.Invoke(_setReadyStatusForCurrentSelection);
+        => _uiDispatcher.Invoke(_setReadyStatusForCurrentSelection);
 
     public void RefreshHeaderAndThreadWorkspace()
-        => _uiScheduler.Invoke(_refreshHeaderAndThreadWorkspace);
+        => _uiDispatcher.Invoke(_refreshHeaderAndThreadWorkspace);
 
     public void RefreshCatalogAndThreadWorkspace()
-        => _uiScheduler.Invoke(_refreshCatalogAndThreadWorkspace);
+        => _uiDispatcher.Invoke(_refreshCatalogAndThreadWorkspace);
 
     public void TryRenderInteraction(OpenThreadState tab, Action action, string context)
     {
         ArgumentNullException.ThrowIfNull(tab);
         ArgumentNullException.ThrowIfNull(action);
         ArgumentException.ThrowIfNullOrWhiteSpace(context);
-        _uiScheduler.Invoke(() => _tryRenderInteraction(tab, action, context));
+        _uiDispatcher.Invoke(() => _tryRenderInteraction(tab, action, context));
     }
 }

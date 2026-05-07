@@ -30,7 +30,7 @@ public sealed class ShellWorkspaceCoordinatorTests
         var deferredActions = new Queue<Action>();
         var focusedPromptCount = 0;
         Visual? paneContent = null;
-        var uiScheduler = new FrontendUiScheduler(new QueueingUiDispatcher(deferredActions));
+        var uiDispatcher = new QueueingUiDispatcher(deferredActions);
         var workspaceContext = new ShellWorkspaceContext(
             new DelegatingShellPromptAvailabilityPort(
                 static () => AgentBackendIds.Codex,
@@ -53,7 +53,7 @@ public sealed class ShellWorkspaceCoordinatorTests
                 static _ => { },
                 static () => { },
                 static () => { }),
-            uiScheduler);
+            uiDispatcher);
         var workspace = new ShellWorkspaceCoordinator(
             new CodeAltaShellViewModel(),
             new ThreadWorkspaceViewModel(),
@@ -159,7 +159,7 @@ public sealed class ShellWorkspaceCoordinatorTests
                 static _ => { },
                 static () => { },
                 static () => { }),
-            new FrontendUiScheduler(new InlineUiDispatcher()));
+            new InlineUiDispatcher());
         var sessionUsage = new SessionUsageViewModel();
         var workspace = new ShellWorkspaceCoordinator(
             new CodeAltaShellViewModel(),
@@ -177,7 +177,7 @@ public sealed class ShellWorkspaceCoordinatorTests
         => new(
             new ProjectCatalog(options),
             new WorkThreadCatalog(options),
-            static () => new InlineUiDispatcher(),
+            new InlineUiDispatcher(),
             static () => null,
             static _ => true,
             static _ => null,

@@ -42,13 +42,13 @@ public sealed class ThreadCommandPortsTests
     }
 
     [TestMethod]
-    public void UiPort_MarshalsCallbacksThroughScheduler()
+    public void UiPort_MarshalsCallbacksThroughDispatcher()
     {
-        var scheduler = new RecordingScheduler();
+        var dispatcher = new RecordingUiDispatcher();
         var cleared = false;
         var rendered = false;
         var port = new ThreadCommandUiPort(
-            scheduler,
+            dispatcher,
             static () => true,
             static () => false,
             () => cleared = true,
@@ -70,7 +70,7 @@ public sealed class ThreadCommandPortsTests
         Assert.IsTrue(cleared);
         Assert.IsTrue(rendered);
         Assert.IsTrue(actionRan);
-        Assert.AreEqual(4, scheduler.InvokeCount);
+        Assert.AreEqual(4, dispatcher.InvokeCount);
     }
 
     private static OpenThreadState CreateThreadState()
@@ -79,11 +79,11 @@ public sealed class ThreadCommandPortsTests
         return new OpenThreadState(thread, new ThreadTimelinePresenter(new ImmediateUiDispatcher(), static () => null));
     }
 
-    private sealed class RecordingScheduler : IFrontendUiScheduler
+    private sealed class RecordingUiDispatcher : IUiDispatcher
     {
         public int InvokeCount { get; private set; }
 
-        public IUiDispatcher Dispatcher { get; } = new ImmediateUiDispatcher();
+        public bool CheckAccess() => true;
 
         public void VerifyAccess()
         {
@@ -106,6 +106,15 @@ public sealed class ThreadCommandPortsTests
             InvokeCount++;
             return action();
         }
+
+        public Task InvokeAsync(Action action)
+        {
+            Invoke(action);
+            return Task.CompletedTask;
+        }
+
+        public Task<T> InvokeAsync<T>(Func<T> action)
+            => Task.FromResult(Invoke(action));
     }
 
     private sealed class ImmediateUiDispatcher : IUiDispatcher

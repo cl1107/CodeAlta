@@ -77,7 +77,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
     private ThreadWorkspaceView? _threadWorkspaceView;
     private SessionUsagePresenter? _sessionUsagePresenter;
     private ThreadInfoPresenter? _threadInfoPresenter;
-    private IUiDispatcher? _uiDispatcher;
+    private readonly IUiDispatcher _uiDispatcher = new TerminalUiDispatcher(Dispatcher.Current);
     private bool _disableTerminalLoopCallback;
     private bool _commandBarMultiLine;
     private bool _startupProviderDialogHandled;
@@ -231,7 +231,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
                 () => ThreadTabControl,
                 () => _threadWorkspaceView,
                 build => CreateComputedVisual(build),
-                GetUiDispatcher),
+                _uiDispatcher),
             new DelegatingThreadTabLifecyclePort(
                 () => ObserveUiTask(ActivateDraftTabAsync, "activate the draft tab"),
                 ActivateThreadSurface,
@@ -645,10 +645,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
         => _deferredUiActionQueue.Drain();
 
     internal IUiDispatcher GetUiDispatcher()
-        => _uiDispatcher ??= new TerminalUiDispatcher(Dispatcher.Current);
-
-    internal void AssignUiDispatcher(IUiDispatcher dispatcher)
-        => _uiDispatcher = dispatcher;
+        => _uiDispatcher;
 
     internal string? LoadPromptDraft(string threadId)
         => _promptDraftUiCoordinator!.LoadPromptDraft(threadId);

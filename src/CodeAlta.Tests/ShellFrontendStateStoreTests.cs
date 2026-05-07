@@ -59,7 +59,7 @@ public sealed class ShellFrontendStateStoreTests
     {
         var store = new ChatSelectorStateStore(
             new ThreadWorkspaceViewModel(),
-            new FrontendUiScheduler(new NonOwnerUiDispatcher()));
+            new NonOwnerUiDispatcher());
 
         Assert.ThrowsExactly<InvalidOperationException>(store.VerifyBindableAccess);
     }

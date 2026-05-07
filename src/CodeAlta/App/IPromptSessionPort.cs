@@ -27,7 +27,7 @@ internal interface IPromptSessionPort
 
 internal sealed class PromptSessionPort : IPromptSessionPort
 {
-    private readonly IFrontendUiScheduler _uiScheduler;
+    private readonly IUiDispatcher _uiDispatcher;
     private readonly Func<bool> _isPromptEmpty;
     private readonly Action _clearPrompt;
     private readonly Action<string> _restorePromptText;
@@ -38,7 +38,7 @@ internal sealed class PromptSessionPort : IPromptSessionPort
     private readonly Dictionary<PromptSessionId, PromptSessionBinding> _bindings = new();
 
     public PromptSessionPort(
-        IFrontendUiScheduler uiScheduler,
+        IUiDispatcher uiDispatcher,
         Func<bool> isPromptEmpty,
         Action clearPrompt,
         Action<string> restorePromptText,
@@ -47,14 +47,14 @@ internal sealed class PromptSessionPort : IPromptSessionPort
         Action? updatePromptAvailability = null,
         Action? updatePromptAttachments = null)
     {
-        ArgumentNullException.ThrowIfNull(uiScheduler);
+        ArgumentNullException.ThrowIfNull(uiDispatcher);
         ArgumentNullException.ThrowIfNull(isPromptEmpty);
         ArgumentNullException.ThrowIfNull(clearPrompt);
         ArgumentNullException.ThrowIfNull(restorePromptText);
         ArgumentNullException.ThrowIfNull(snapshotPromptImages);
         ArgumentNullException.ThrowIfNull(restorePromptImages);
 
-        _uiScheduler = uiScheduler;
+        _uiDispatcher = uiDispatcher;
         _isPromptEmpty = isPromptEmpty;
         _clearPrompt = clearPrompt;
         _restorePromptText = restorePromptText;
@@ -73,13 +73,13 @@ internal sealed class PromptSessionPort : IPromptSessionPort
     public PromptSubmission CapturePrompt(PromptSessionId promptSessionId, string? submittedText)
     {
         _ = GetBinding(promptSessionId);
-        return _uiScheduler.Invoke(() => PromptSubmission.Create(submittedText, _snapshotPromptImages()));
+        return _uiDispatcher.Invoke(() => PromptSubmission.Create(submittedText, _snapshotPromptImages()));
     }
 
     public bool IsPromptEmpty(PromptSessionId promptSessionId)
     {
         _ = GetBinding(promptSessionId);
-        return _uiScheduler.Invoke(_isPromptEmpty);
+        return _uiDispatcher.Invoke(_isPromptEmpty);
     }
 
     public void BindPromptSession(PromptSessionBinding binding)
@@ -91,14 +91,14 @@ internal sealed class PromptSessionPort : IPromptSessionPort
     public void ClearPrompt(PromptSessionId promptSessionId)
     {
         _ = GetBinding(promptSessionId);
-        _uiScheduler.Invoke(_clearPrompt);
+        _uiDispatcher.Invoke(_clearPrompt);
     }
 
     public void RestorePrompt(PromptSessionId promptSessionId, PromptSubmission prompt)
     {
         ArgumentNullException.ThrowIfNull(prompt);
         _ = GetBinding(promptSessionId);
-        _uiScheduler.Invoke(() =>
+        _uiDispatcher.Invoke(() =>
         {
             _restorePromptText(prompt.Text);
             _restorePromptImages(prompt.Images);
@@ -108,13 +108,13 @@ internal sealed class PromptSessionPort : IPromptSessionPort
     public void UpdatePromptAvailability(PromptSessionId promptSessionId)
     {
         _ = GetBinding(promptSessionId);
-        _uiScheduler.Invoke(_updatePromptAvailability);
+        _uiDispatcher.Invoke(_updatePromptAvailability);
     }
 
     public void UpdatePromptAttachments(PromptSessionId promptSessionId)
     {
         _ = GetBinding(promptSessionId);
-        _uiScheduler.Invoke(_updatePromptAttachments);
+        _uiDispatcher.Invoke(_updatePromptAttachments);
     }
 
     private PromptSessionBinding GetBinding(PromptSessionId promptSessionId)

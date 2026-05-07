@@ -320,7 +320,7 @@ public sealed class ShellThreadStateCoordinatorTests
         return new ShellThreadStateCoordinator(
             new ProjectCatalog(options),
             threadCatalog,
-            static () => new InlineUiDispatcher(),
+            new InlineUiDispatcher(),
             static () => null,
             static _ => true,
             loadPromptDraft ?? (static _ => null),
