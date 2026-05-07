@@ -69,14 +69,14 @@ public sealed class ThreadTimelineMarkdownRootTests
             DisplayName = "CodeAlta",
             ProjectPath = @"C:\code\CodeAlta",
         };
-        var registry = new OpenThreadStateStore(
+        var registry = new OpenThreadStateStore(new ThreadSessionFactory(
             new InlineUiDispatcher(),
-            static () => null,
-            static _ => null,
-            static _ => { },
-            static (_, _, _, _) => { },
-            () => project,
-            projectId => string.Equals(projectId, project.Id, StringComparison.OrdinalIgnoreCase) ? project : null);
+            new ThreadTimelineSurface(static () => null),
+            new ThreadPromptDraftService(static _ => null),
+            new ThreadModelProviderPreferenceService(static _ => { }, static (_, _, _, _) => { }),
+            new ThreadProjectRootResolver(
+                () => project,
+                projectId => string.Equals(projectId, project.Id, StringComparison.OrdinalIgnoreCase) ? project : null)));
         var thread = CreateThread();
 
         var firstTab = registry.EnsureThreadTab(thread);

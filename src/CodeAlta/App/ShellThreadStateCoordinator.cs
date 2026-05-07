@@ -65,14 +65,13 @@ internal sealed class ShellThreadStateCoordinator
         _stateStore = stateStore;
         _frontendEvents = frontendEvents;
         _viewStateCoordinator = new ThreadViewStateCoordinator(threadCatalog);
-        _OpenThreadStateStore = new OpenThreadStateStore(
+        var threadSessionFactory = new ThreadSessionFactory(
             uiDispatcher,
-            getTimelineBounds,
-            loadPromptDraft,
-            applyThreadPreference,
-            rememberThreadPreference,
-            GetSelectedProject,
-            GetProjectById);
+            new ThreadTimelineSurface(getTimelineBounds),
+            new ThreadPromptDraftService(loadPromptDraft),
+            new ThreadModelProviderPreferenceService(applyThreadPreference, rememberThreadPreference),
+            new ThreadProjectRootResolver(GetSelectedProject, GetProjectById));
+        _OpenThreadStateStore = new OpenThreadStateStore(threadSessionFactory);
         _catalogStateCoordinator = new ShellCatalogStateCoordinator(projectCatalog, threadCatalog, _viewStateCoordinator, _OpenThreadStateStore);
         _isBackendReady = isBackendReady;
         _deletePromptDraft = deletePromptDraft;

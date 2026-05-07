@@ -1,49 +1,17 @@
-using CodeAlta.Agent;
 using CodeAlta.App.State;
 using CodeAlta.Catalog;
-using CodeAlta.Presentation.Shell;
-using CodeAlta.Presentation.Timeline;
-using CodeAlta.Threading;
-using CodeAlta.Views;
-using XenoAtom.Terminal.UI.Geometry;
 
 namespace CodeAlta.App;
 
 internal sealed class OpenThreadStateStore
 {
     private readonly Dictionary<string, OpenThreadState> _threadTabs = new(StringComparer.OrdinalIgnoreCase);
-    private readonly IUiDispatcher _uiDispatcher;
-    private readonly Func<Rectangle?> _getTimelineBounds;
-    private readonly Func<string, string?> _loadPromptDraft;
-    private readonly Action<OpenThreadState> _applyThreadPreference;
-    private readonly Action<string, string?, AgentReasoningEffort?, bool> _rememberThreadPreference;
-    private readonly Func<ProjectDescriptor?> _getSelectedProject;
-    private readonly Func<string?, ProjectDescriptor?> _getProjectById;
+    private readonly ThreadSessionFactory _threadSessionFactory;
 
-    public OpenThreadStateStore(
-        IUiDispatcher uiDispatcher,
-        Func<Rectangle?> getTimelineBounds,
-        Func<string, string?> loadPromptDraft,
-        Action<OpenThreadState> applyThreadPreference,
-        Action<string, string?, AgentReasoningEffort?, bool> rememberThreadPreference,
-        Func<ProjectDescriptor?> getSelectedProject,
-        Func<string?, ProjectDescriptor?> getProjectById)
+    public OpenThreadStateStore(ThreadSessionFactory threadSessionFactory)
     {
-        ArgumentNullException.ThrowIfNull(uiDispatcher);
-        ArgumentNullException.ThrowIfNull(getTimelineBounds);
-        ArgumentNullException.ThrowIfNull(loadPromptDraft);
-        ArgumentNullException.ThrowIfNull(applyThreadPreference);
-        ArgumentNullException.ThrowIfNull(rememberThreadPreference);
-        ArgumentNullException.ThrowIfNull(getSelectedProject);
-        ArgumentNullException.ThrowIfNull(getProjectById);
-
-        _uiDispatcher = uiDispatcher;
-        _getTimelineBounds = getTimelineBounds;
-        _loadPromptDraft = loadPromptDraft;
-        _applyThreadPreference = applyThreadPreference;
-        _rememberThreadPreference = rememberThreadPreference;
-        _getSelectedProject = getSelectedProject;
-        _getProjectById = getProjectById;
+        ArgumentNullException.ThrowIfNull(threadSessionFactory);
+        _threadSessionFactory = threadSessionFactory;
     }
 
     public OpenThreadState EnsureThreadTab(WorkThreadDescriptor thread)
@@ -52,35 +20,13 @@ internal sealed class OpenThreadStateStore
 
         if (_threadTabs.TryGetValue(thread.ThreadId, out var existing))
         {
-            existing.Thread = thread;
-            existing.Timeline.SetLocalFileRootPath(ResolveThreadProjectRoot(thread));
-            existing.ViewModel.ThreadId = thread.ThreadId;
-            existing.ViewModel.Title = thread.Title;
+            _threadSessionFactory.UpdateThreadSession(existing, thread);
             return existing;
         }
 
-        var timeline = new ThreadTimelinePresenter(
-            _uiDispatcher,
-            _getTimelineBounds,
-            ResolveThreadProjectRoot(thread));
-        var state = new OpenThreadState(thread, timeline);
-        state.BackendId = new AgentBackendId(thread.BackendId);
-        state.Session.PromptDraftText = _loadPromptDraft(thread.ThreadId) ?? string.Empty;
-        state.ViewModel.Title = thread.Title;
-        state.StatusMessage = ShellTextFormatter.BuildReadyStatusText(thread, _getSelectedProject(), globalScopeSelected: false);
-
-        _applyThreadPreference(state);
-        _rememberThreadPreference(thread.ThreadId, state.ModelId, state.ReasoningEffort, false);
-
+        var state = _threadSessionFactory.CreateThreadSession(thread);
         _threadTabs[thread.ThreadId] = state;
         return state;
-    }
-
-    private string? ResolveThreadProjectRoot(WorkThreadDescriptor thread)
-    {
-        ArgumentNullException.ThrowIfNull(thread);
-
-        return PromptReferenceProjectRootResolver.Resolve(thread, _getProjectById, _getSelectedProject);
     }
 
     public void ResetThreadTab(OpenThreadState tab)
@@ -111,10 +57,7 @@ internal sealed class OpenThreadStateStore
         _threadTabs.Remove(oldThreadId);
         _threadTabs.Remove(thread.ThreadId);
 
-        state.Thread = thread;
-        state.Timeline.SetLocalFileRootPath(ResolveThreadProjectRoot(thread));
-        state.ViewModel.ThreadId = thread.ThreadId;
-        state.ViewModel.Title = thread.Title;
+        _threadSessionFactory.UpdateThreadSession(state, thread);
         _threadTabs[thread.ThreadId] = state;
     }
 
