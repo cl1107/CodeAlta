@@ -5,11 +5,13 @@ using System.Text.Json;
 using System.Globalization;
 using CodeAlta.Agent;
 using CodeAlta.App;
+using CodeAlta.App.Events;
 using CodeAlta.Catalog;
 using CodeAlta.Models;
 using CodeAlta.Orchestration.Runtime;
 using CodeAlta.Presentation.Chat;
 using CodeAlta.Presentation.Formatting;
+using CodeAlta.Threading;
 using CodeAlta.Presentation.Prompting;
 using CodeAlta.Presentation.Shell;
 using CodeAlta.Presentation.Sidebar;
@@ -2554,7 +2556,7 @@ public sealed class CodeAltaAppTests
             new PromptDraftCoordinator(),
             new CatalogOptions { GlobalRoot = Path.GetTempPath() },
             static () => ShellSelection.Thread("thread-1", "project-1"),
-            static () => { });
+            new FrontendEventPublisher(new InlineUiDispatcher()));
         var first = new ThreadSessionState();
         var second = new ThreadSessionState();
 
@@ -2705,6 +2707,30 @@ public sealed class CodeAltaAppTests
         var method = typeof(TerminalApp).GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.IsNotNull(method);
         method.Invoke(app, null);
+    }
+
+    private sealed class InlineUiDispatcher : IUiDispatcher
+    {
+        public bool CheckAccess() => true;
+
+        public void Post(Action action)
+        {
+            ArgumentNullException.ThrowIfNull(action);
+            action();
+        }
+
+        public Task InvokeAsync(Action action)
+        {
+            ArgumentNullException.ThrowIfNull(action);
+            action();
+            return Task.CompletedTask;
+        }
+
+        public Task<T> InvokeAsync<T>(Func<T> action)
+        {
+            ArgumentNullException.ThrowIfNull(action);
+            return Task.FromResult(action());
+        }
     }
 
 }

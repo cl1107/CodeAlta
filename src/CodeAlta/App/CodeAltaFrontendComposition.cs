@@ -131,7 +131,7 @@ internal sealed class CodeAltaFrontendComposition
             new PromptDraftCoordinator(),
             catalogOptions,
             () => threadStateCoordinator.Selection,
-            frontend.RefreshCatalogAndThreadWorkspace,
+            frontendEvents,
             frontend.UpdatePromptImageAttachmentsUi);
         var modelProviderSelectorStateContext = new ModelProviderSelectorStateStore(threadWorkspaceViewModel, uiDispatcher);
         var modelProviderPreferencePort = new FrontendModelProviderPreferencePort(

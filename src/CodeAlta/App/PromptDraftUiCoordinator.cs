@@ -1,4 +1,5 @@
 using CodeAlta.Models;
+using CodeAlta.App.Events;
 using CodeAlta.Catalog;
 using CodeAlta.Presentation.Prompting;
 using CodeAlta.ViewModels;
@@ -11,7 +12,7 @@ internal sealed class PromptDraftUiCoordinator : IAsyncDisposable
     private readonly PromptDraftCoordinator _promptDrafts;
     private readonly ThreadPromptDraftPersistenceCoordinator _promptDraftPersistence;
     private readonly Func<ShellSelection> _getSelection;
-    private readonly Action _onThreadPromptEditedStateChanged;
+    private readonly FrontendEventPublisher _frontendEvents;
     private readonly Action _onPromptImageAttachmentsChanged;
     private readonly PromptDraftViewModel _viewModel;
     private readonly List<PromptImageAttachment> _draftPromptImages = [];
@@ -22,18 +23,18 @@ internal sealed class PromptDraftUiCoordinator : IAsyncDisposable
         PromptDraftCoordinator promptDrafts,
         CatalogOptions catalogOptions,
         Func<ShellSelection> getSelection,
-        Action onThreadPromptEditedStateChanged,
+        FrontendEventPublisher frontendEvents,
         Action? onPromptImageAttachmentsChanged = null)
     {
         ArgumentNullException.ThrowIfNull(promptDrafts);
         ArgumentNullException.ThrowIfNull(catalogOptions);
         ArgumentNullException.ThrowIfNull(getSelection);
-        ArgumentNullException.ThrowIfNull(onThreadPromptEditedStateChanged);
+        ArgumentNullException.ThrowIfNull(frontendEvents);
 
         _promptDrafts = promptDrafts;
         _promptDraftPersistence = new ThreadPromptDraftPersistenceCoordinator(catalogOptions);
         _getSelection = getSelection;
-        _onThreadPromptEditedStateChanged = onThreadPromptEditedStateChanged;
+        _frontendEvents = frontendEvents;
         _onPromptImageAttachmentsChanged = onPromptImageAttachmentsChanged ?? (static () => { });
         _viewModel = new PromptDraftViewModel(OnPromptTextChanged);
     }
@@ -210,7 +211,7 @@ internal sealed class PromptDraftUiCoordinator : IAsyncDisposable
         _onPromptImageAttachmentsChanged();
         if (_selectedSession is not null && editedStateChanged)
         {
-            _onThreadPromptEditedStateChanged();
+            PublishThreadPromptEditedStateChanged();
         }
     }
 
@@ -228,8 +229,11 @@ internal sealed class PromptDraftUiCoordinator : IAsyncDisposable
             _promptDraftPersistence.ObservePromptDraft(selectedThreadId, _selectedSession.PromptDraftText);
             if (change.EditedStateChanged)
             {
-                _onThreadPromptEditedStateChanged();
+                PublishThreadPromptEditedStateChanged();
             }
         }
     }
+
+    private void PublishThreadPromptEditedStateChanged()
+        => _frontendEvents.Publish(new CatalogChangedEvent());
 }
