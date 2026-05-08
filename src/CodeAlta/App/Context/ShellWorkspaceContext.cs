@@ -9,13 +9,13 @@ namespace CodeAlta.App.Context;
 internal sealed class ShellWorkspaceContext
 {
     private readonly IShellPromptAvailabilityPort _promptAvailability;
-    private readonly IShellWorkspaceSurfacePort _surface;
+    private readonly IWorkspaceSurface _surface;
     private readonly IShellWorkspaceProjectionPort _projection;
     private readonly IUiDispatcher _uiDispatcher;
 
     public ShellWorkspaceContext(
         IShellPromptAvailabilityPort promptAvailability,
-        IShellWorkspaceSurfacePort surface,
+        IWorkspaceSurface surface,
         IShellWorkspaceProjectionPort projection,
         IUiDispatcher uiDispatcher)
     {

@@ -1,6 +1,6 @@
 namespace CodeAlta.App.Events;
 
-internal interface IShellProjectionInvalidator
+internal interface IProjectionInvalidator
 {
     void RefreshCatalogAndThreadWorkspace();
 
@@ -20,9 +20,9 @@ internal interface IShellProjectionInvalidator
 internal sealed class ShellProjectionCoordinator : IDisposable
 {
     private readonly IDisposable _subscription;
-    private readonly IShellProjectionInvalidator _invalidator;
+    private readonly IProjectionInvalidator _invalidator;
 
-    public ShellProjectionCoordinator(FrontendEventPublisher publisher, IShellProjectionInvalidator invalidator)
+    public ShellProjectionCoordinator(FrontendEventPublisher publisher, IProjectionInvalidator invalidator)
     {
         ArgumentNullException.ThrowIfNull(publisher);
         ArgumentNullException.ThrowIfNull(invalidator);

@@ -90,7 +90,7 @@ public sealed class ShellProjectionCoordinatorTests
         CollectionAssert.AreEqual(new[] { "usage" }, invalidator.Calls);
     }
 
-    private sealed class CapturingProjectionInvalidator : IShellProjectionInvalidator
+    private sealed class CapturingProjectionInvalidator : IProjectionInvalidator
     {
         public List<string> Calls { get; } = [];
 

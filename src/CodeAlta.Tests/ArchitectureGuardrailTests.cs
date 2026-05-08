@@ -244,7 +244,7 @@ public sealed class ArchitectureGuardrailTests
             ["App/IPromptSessionPort.cs:PromptSessionPort"] = "Transitional prompt-session port before orchestration facade migration.",
             ["App/IShellSelectionPort.cs:DelegatingShellSelectionPort"] = "Transitional selection port adapter.",
             ["App/IShellStatusPort.cs:ShellStatusPort"] = "Transitional status port adapter.",
-            ["App/IShellWorkspaceSurfacePort.cs:ShellWorkspaceSurfacePort"] = "Transitional workspace surface port adapter.",
+            ["App/IWorkspaceSurface.cs:ShellWorkspaceSurfacePort"] = "Transitional workspace surface port adapter.",
             ["App/LegacyPromptSessionPort.cs:LegacyPromptSessionPort"] = "Legacy prompt-session bridge kept during facade migration.",
             ["App/NavigatorActionCoordinator.cs:NavigatorActionCoordinator"] = "Legacy navigator coordinator pending port extraction.",
             ["App/NavigatorSettingsCoordinator.cs:NavigatorSettingsCoordinator"] = "Legacy navigator settings coordinator pending service split.",

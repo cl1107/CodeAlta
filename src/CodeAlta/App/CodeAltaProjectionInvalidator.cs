@@ -3,7 +3,7 @@ using CodeAlta.Views;
 
 namespace CodeAlta.App;
 
-internal sealed class CodeAltaProjectionInvalidator : IShellProjectionInvalidator
+internal sealed class CodeAltaProjectionInvalidator : IProjectionInvalidator
 {
     private readonly CodeAltaApp _app;
 

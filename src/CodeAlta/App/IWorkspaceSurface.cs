@@ -21,7 +21,7 @@ internal enum SidebarRefreshReason
     Explicit,
 }
 
-internal interface IShellWorkspaceSurfacePort
+internal interface IWorkspaceSurface
 {
     bool HasWorkspaceSurface { get; }
 
@@ -38,7 +38,7 @@ internal interface IShellWorkspaceSurfacePort
     void RefreshSidebar(SidebarRefreshReason reason);
 }
 
-internal sealed class ShellWorkspaceSurfacePort : IShellWorkspaceSurfacePort
+internal sealed class ShellWorkspaceSurfacePort : IWorkspaceSurface
 {
     private readonly Func<bool> _hasWorkspaceSurface;
     private readonly Func<Rectangle?> _getWorkspaceBounds;
