@@ -17,8 +17,7 @@ namespace CodeAlta.Views;
 internal sealed class AcpManagementDialog
 {
     private readonly AcpManagementService _service;
-    private readonly Func<Task> _reloadAcpBackendsAsync;
-    private readonly Func<string, Task> _probeAcpBackendAsync;
+    private readonly IAcpManagementRuntimeActions _runtimeActions;
     private readonly Func<Visual?> _getFocusTarget;
     private readonly Dialog _dialog;
     private readonly EnumSelect<AcpManagementScope> _scopeSelect;
@@ -36,20 +35,17 @@ internal sealed class AcpManagementDialog
 
     public AcpManagementDialog(
         AcpManagementService service,
-        Func<Task> reloadAcpBackendsAsync,
-        Func<string, Task> probeAcpBackendAsync,
+        IAcpManagementRuntimeActions runtimeActions,
         Func<Rectangle?> getBounds,
         Func<Visual?> getFocusTarget)
     {
         ArgumentNullException.ThrowIfNull(service);
-        ArgumentNullException.ThrowIfNull(reloadAcpBackendsAsync);
-        ArgumentNullException.ThrowIfNull(probeAcpBackendAsync);
+        ArgumentNullException.ThrowIfNull(runtimeActions);
         ArgumentNullException.ThrowIfNull(getBounds);
         ArgumentNullException.ThrowIfNull(getFocusTarget);
 
         _service = service;
-        _reloadAcpBackendsAsync = reloadAcpBackendsAsync;
-        _probeAcpBackendAsync = probeAcpBackendAsync;
+        _runtimeActions = runtimeActions;
         _getFocusTarget = getFocusTarget;
 
         var closeButton = new Button(new TextBlock($"{NerdFont.MdClose} Close"))
@@ -336,7 +332,7 @@ internal sealed class AcpManagementDialog
             async () =>
             {
                 await _service.InstallAgentAsync(item.AgentId);
-                await _reloadAcpBackendsAsync();
+                await _runtimeActions.ReloadAcpBackendsAsync();
                 await ReloadSnapshotAsync(refreshRegistry: false);
             },
             () => _dialog.GetAbsoluteBounds(),
@@ -362,7 +358,7 @@ internal sealed class AcpManagementDialog
             async savedDefinition =>
             {
                 _service.SaveConfiguration(savedDefinition);
-                await _reloadAcpBackendsAsync();
+                await _runtimeActions.ReloadAcpBackendsAsync();
                 await ReloadSnapshotAsync(refreshRegistry: false);
             },
             () => _dialog.GetAbsoluteBounds(),
@@ -381,7 +377,7 @@ internal sealed class AcpManagementDialog
             async savedDefinition =>
             {
                 _service.SaveConfiguration(savedDefinition);
-                await _reloadAcpBackendsAsync();
+                await _runtimeActions.ReloadAcpBackendsAsync();
                 await ReloadSnapshotAsync(refreshRegistry: false);
             },
             () => _dialog.GetAbsoluteBounds(),
@@ -405,7 +401,7 @@ internal sealed class AcpManagementDialog
             async () =>
             {
                 _service.ResetConfiguration(item.AgentId);
-                await _reloadAcpBackendsAsync();
+                await _runtimeActions.ReloadAcpBackendsAsync();
                 await ReloadSnapshotAsync(refreshRegistry: false);
             },
             () => _dialog.GetAbsoluteBounds(),
@@ -435,7 +431,7 @@ internal sealed class AcpManagementDialog
             async () =>
             {
                 _service.RemoveAgent(item.AgentId, removeArtifacts: true);
-                await _reloadAcpBackendsAsync();
+                await _runtimeActions.ReloadAcpBackendsAsync();
                 await ReloadSnapshotAsync(refreshRegistry: false);
             },
             () => _dialog.GetAbsoluteBounds(),
@@ -452,7 +448,7 @@ internal sealed class AcpManagementDialog
             return;
         }
 
-        await _probeAcpBackendAsync(item.AgentId);
+        await _runtimeActions.ProbeAcpBackendAsync(item.AgentId);
         await ReloadSnapshotAsync(refreshRegistry: false);
     }
 

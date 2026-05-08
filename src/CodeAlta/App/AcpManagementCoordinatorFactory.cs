@@ -32,8 +32,7 @@ internal static class AcpManagementCoordinatorFactory
                     new CodeAltaConfigStore(catalogOptions),
                     new AcpInstalledBackendStore(catalogOptions),
                     chatBackendStates),
-                reloadAcpBackendsAsync,
-                probeAcpBackendAsync,
+                new DelegatingAcpManagementRuntimeActions(reloadAcpBackendsAsync, probeAcpBackendAsync),
                 getBounds,
                 getFocusTarget);
     }
