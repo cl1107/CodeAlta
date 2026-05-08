@@ -37,6 +37,7 @@ internal sealed class PluginTransientEventProjectionStore
                 derivedEvent.RenderTarget,
                 derivedEvent.Payload,
                 ResolveDetailSections(derivedEvent),
+                ResolveVisualFactory(derivedEvent),
                 derivedEvent.DynamicContent);
             var changed = !_events.TryGetValue(derivedEvent.EventId, out var existing) || !Equals(existing, projection);
             _events[derivedEvent.EventId] = projection;
@@ -69,6 +70,7 @@ internal sealed class PluginTransientEventProjectionStore
             {
                 Markdown = ResolveMarkdown(existing),
                 DetailSections = existing.DynamicContent.DetailSections,
+                VisualFactory = existing.DynamicContent.VisualFactory,
             };
             var changed = !Equals(existing, updated);
             _events[eventId] = updated;
@@ -113,6 +115,9 @@ internal sealed class PluginTransientEventProjectionStore
 
     private static IReadOnlyList<PluginDerivedThreadEventDetailSection> ResolveDetailSections(PluginDerivedThreadEvent derivedEvent)
         => derivedEvent.DynamicContent?.DetailSections ?? derivedEvent.DetailSections;
+
+    private static PluginThreadEventVisualFactory? ResolveVisualFactory(PluginDerivedThreadEvent derivedEvent)
+        => derivedEvent.DynamicContent?.VisualFactory ?? derivedEvent.VisualFactory;
 }
 
 internal sealed record PluginTransientEventProjection(
@@ -122,6 +127,7 @@ internal sealed record PluginTransientEventProjection(
     string? RenderTarget,
     object? Payload,
     IReadOnlyList<PluginDerivedThreadEventDetailSection> DetailSections,
+    PluginThreadEventVisualFactory? VisualFactory,
     PluginDynamicDerivedThreadEventContent? DynamicContent);
 
 internal sealed class PluginDynamicProjectionSubscription : IDisposable

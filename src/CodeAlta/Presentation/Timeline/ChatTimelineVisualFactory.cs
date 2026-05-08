@@ -116,7 +116,8 @@ internal static class ChatTimelineVisualFactory
         string? headerOverride = null,
         string? headerSecondary = null,
         int maxCodeBlockHeight = 14,
-        string? localFileRootPath = null)
+        string? localFileRootPath = null,
+        Func<Visual>? contentVisualFactory = null)
         => UiDispatch.InvokeCurrent(
             static state => CreateChatMarkdownItemCore(
                 state.markdown,
@@ -125,8 +126,9 @@ internal static class ChatTimelineVisualFactory
                 state.headerSecondary,
                 state.maxCodeBlockHeight,
                 state.localFileRootPath,
-                state.collapsibleSections),
-            (markdown, tone, headerOverride, headerSecondary, maxCodeBlockHeight, localFileRootPath, collapsibleSections));
+                state.collapsibleSections,
+                contentVisualFactory: state.contentVisualFactory),
+            (markdown, tone, headerOverride, headerSecondary, maxCodeBlockHeight, localFileRootPath, collapsibleSections, contentVisualFactory));
 
     public static MarkdownRenderOptions CreateThreadMarkdownOptions(int maxCodeBlockHeight, string? localFileRootPath = null)
         => MarkdownRenderOptions.Default with
@@ -253,6 +255,7 @@ internal static class ChatTimelineVisualFactory
         int maxCodeBlockHeight,
         string? localFileRootPath,
         IReadOnlyList<ChatCollapsibleMarkdownSection>? collapsibleSections = null,
+        Func<Visual>? contentVisualFactory = null,
         IReadOnlyList<PromptImageAttachmentReference>? imageAttachments = null,
         Func<Rectangle?>? getDialogBounds = null)
     {
@@ -265,40 +268,64 @@ internal static class ChatTimelineVisualFactory
             Options = CreateThreadMarkdownOptions(maxCodeBlockHeight, localFileRootPath),
         };
 
-        var copyButton = new Button(new TextBlock($"{NerdFont.MdContentCopy}"))
-            .Click(() => markdownControl.App?.Terminal.Clipboard.TrySetText(BuildCopyMarkdown(markdownControl.Markdown ?? string.Empty, collapsibleSections)));
-
         var timestampText = new Markup(string.Empty);
 
         var contentItems = new List<Visual> { markdownControl };
         var detailMarkdownControls = new List<MarkdownControl>();
+        var detailMarkdownSectionIndexes = new List<int>();
+        var copyDetailMarkdownControls = new List<MarkdownControl?>();
         if (imageAttachments is { Count: > 0 })
         {
             contentItems.Add(CreateImageAttachmentStrip(imageAttachments, getDialogBounds));
         }
 
+        if (contentVisualFactory is not null)
+        {
+            contentItems.Add(contentVisualFactory());
+        }
+
         if (collapsibleSections is { Count: > 0 })
         {
-            foreach (var section in collapsibleSections)
+            for (var sectionIndex = 0; sectionIndex < collapsibleSections.Count; sectionIndex++)
             {
+                var section = collapsibleSections[sectionIndex];
                 if (string.IsNullOrWhiteSpace(section.Header) || string.IsNullOrWhiteSpace(section.Markdown))
                 {
+                    copyDetailMarkdownControls.Add(null);
                     continue;
                 }
 
-                var detailsMarkdown = new MarkdownControl(section.Markdown.Trim())
+                var sectionMarkdown = section.Markdown.Trim();
+                Visual sectionContent;
+                if (section.VisualFactory is not null)
                 {
-                    HorizontalAlignment = Align.Stretch,
-                    VerticalAlignment = Align.Start,
-                    Options = CreateThreadMarkdownOptions(maxCodeBlockHeight, localFileRootPath),
-                };
-                detailMarkdownControls.Add(detailsMarkdown);
+                    sectionContent = section.VisualFactory();
+                    copyDetailMarkdownControls.Add(null);
+                }
+                else
+                {
+                    var detailsMarkdown = new MarkdownControl(sectionMarkdown)
+                    {
+                        HorizontalAlignment = Align.Stretch,
+                        VerticalAlignment = Align.Start,
+                        Options = CreateThreadMarkdownOptions(maxCodeBlockHeight, localFileRootPath),
+                    };
+                    detailMarkdownControls.Add(detailsMarkdown);
+                    detailMarkdownSectionIndexes.Add(sectionIndex);
+                    copyDetailMarkdownControls.Add(detailsMarkdown);
+                    sectionContent = detailsMarkdown;
+                }
+
                 contentItems.Add(new Collapsible()
                     .Header(section.Header)
-                    .Content(detailsMarkdown)
+                    .Content(sectionContent)
                     .IsExpanded(false));
             }
         }
+
+        var copyState = new ChatMarkdownCopyState { DetailSections = collapsibleSections };
+        var copyButton = new Button(new TextBlock($"{NerdFont.MdContentCopy}"))
+            .Click(() => markdownControl.App?.Terminal.Clipboard.TrySetText(BuildCopyMarkdown(markdownControl.Markdown ?? string.Empty, ResolveCurrentCopySections(copyState.DetailSections, copyDetailMarkdownControls))));
 
         Visual groupContent = contentItems.Count == 1
             ? contentItems[0]
@@ -322,6 +349,8 @@ internal static class ChatTimelineVisualFactory
             headerText)
         {
             DetailMarkdownControls = detailMarkdownControls,
+            DetailMarkdownSectionIndexes = detailMarkdownSectionIndexes,
+            CopyState = copyState,
         };
     }
 
@@ -354,6 +383,33 @@ internal static class ChatTimelineVisualFactory
         }
 
         return builder.ToString();
+    }
+
+    private static IReadOnlyList<ChatCollapsibleMarkdownSection>? ResolveCurrentCopySections(
+        IReadOnlyList<ChatCollapsibleMarkdownSection>? sections,
+        IReadOnlyList<MarkdownControl?> detailMarkdownControls)
+    {
+        if (sections is not { Count: > 0 })
+        {
+            return sections;
+        }
+
+        if (detailMarkdownControls.Count == 0)
+        {
+            return sections;
+        }
+
+        var resolved = new ChatCollapsibleMarkdownSection[sections.Count];
+        for (var index = 0; index < sections.Count; index++)
+        {
+            var section = sections[index];
+            var currentMarkdown = index < detailMarkdownControls.Count
+                ? detailMarkdownControls[index]?.Markdown ?? section.Markdown
+                : section.Markdown;
+            resolved[index] = section with { Markdown = currentMarkdown };
+        }
+
+        return resolved;
     }
 
     private static Visual CreateImageAttachmentStrip(

@@ -347,7 +347,8 @@ internal sealed class ThreadTimelinePresenter
         DateTimeOffset timestamp,
         string markdown,
         string? headerSecondary = null,
-        IReadOnlyList<ChatCollapsibleMarkdownSection>? detailSections = null)
+        IReadOnlyList<ChatCollapsibleMarkdownSection>? detailSections = null,
+        Func<Visual>? visualFactory = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
         ArgumentNullException.ThrowIfNull(markdown);
@@ -355,27 +356,32 @@ internal sealed class ThreadTimelinePresenter
         detailSections ??= [];
         if (!_pluginProjectionStates.TryGetValue(key, out var stateEntry))
         {
-            stateEntry = CreateChatStatusState(markdown, ChatTimelineTone.Notice, timestamp, "Plugin", headerSecondary, detailSections);
+            stateEntry = CreateChatStatusState(markdown, ChatTimelineTone.Notice, timestamp, "Plugin", headerSecondary, detailSections, visualFactory);
             _pluginProjectionStates[key] = stateEntry;
             AppendTimelineItem(stateEntry.Item);
         }
-        else if (RequiresPluginProjectionRecreate(stateEntry.DetailSections, detailSections))
+        else if (RequiresPluginProjectionRecreate(stateEntry, detailSections, visualFactory))
         {
-            RemoveTimelineItems([stateEntry.Item]);
-            stateEntry = CreateChatStatusState(markdown, ChatTimelineTone.Notice, timestamp, "Plugin", headerSecondary, detailSections);
+            var previousItem = stateEntry.Item;
+            stateEntry = CreateChatStatusState(markdown, ChatTimelineTone.Notice, timestamp, "Plugin", headerSecondary, detailSections, visualFactory);
             _pluginProjectionStates[key] = stateEntry;
-            AppendTimelineItem(stateEntry.Item);
+            ReplaceTimelineItem(previousItem, stateEntry.Item);
         }
 
         stateEntry.BaseMarkdown = markdown;
         stateEntry.DetailSections = detailSections;
+        stateEntry.CopyState.DetailSections = detailSections;
         UiDispatch.Post(_uiDispatcher, () =>
         {
             ChatTimelineVisualFactory.ApplyTimestamp(stateEntry.TimestampText, timestamp);
             stateEntry.Markdown.Markdown = stateEntry.MarkdownValue;
-            for (var index = 0; index < stateEntry.DetailMarkdownControls.Count && index < detailSections.Count; index++)
+            for (var index = 0; index < stateEntry.DetailMarkdownControls.Count && index < stateEntry.DetailMarkdownSectionIndexes.Count; index++)
             {
-                stateEntry.DetailMarkdownControls[index].Markdown = detailSections[index].Markdown.Trim();
+                var sectionIndex = stateEntry.DetailMarkdownSectionIndexes[index];
+                if (sectionIndex < detailSections.Count)
+                {
+                    stateEntry.DetailMarkdownControls[index].Markdown = detailSections[sectionIndex].Markdown.Trim();
+                }
             }
         });
     }
@@ -740,23 +746,32 @@ internal sealed class ThreadTimelinePresenter
         DateTimeOffset timestamp,
         string? headerOverride = null,
         string? headerSecondary = null,
-        IReadOnlyList<ChatCollapsibleMarkdownSection>? detailSections = null)
+        IReadOnlyList<ChatCollapsibleMarkdownSection>? detailSections = null,
+        Func<Visual>? visualFactory = null)
     {
-        var entry = detailSections is { Count: > 0 }
-            ? ChatTimelineVisualFactory.CreateCollapsibleMarkdownItem(markdown, detailSections, tone, headerOverride, headerSecondary, localFileRootPath: _localFileRootPath)
+        var entry = detailSections is { Count: > 0 } || visualFactory is not null
+            ? ChatTimelineVisualFactory.CreateCollapsibleMarkdownItem(markdown, detailSections ?? [], tone, headerOverride, headerSecondary, localFileRootPath: _localFileRootPath, contentVisualFactory: visualFactory)
             : ChatTimelineVisualFactory.CreateMarkdownItem(markdown, tone, headerOverride, headerSecondary, localFileRootPath: _localFileRootPath);
         ChatTimelineVisualFactory.ApplyTimestamp(entry.TimestampText, timestamp);
-        return new ChatStatusState(entry.Item, entry.Markdown, entry.TimestampText, entry.DetailMarkdownControls)
+        return new ChatStatusState(entry.Item, entry.Markdown, entry.TimestampText, entry.DetailMarkdownControls, entry.DetailMarkdownSectionIndexes, entry.CopyState)
         {
             BaseMarkdown = markdown,
             DetailSections = detailSections ?? [],
+            HasContentVisualFactory = visualFactory is not null,
         };
     }
 
     private static bool RequiresPluginProjectionRecreate(
-        IReadOnlyList<ChatCollapsibleMarkdownSection> existing,
-        IReadOnlyList<ChatCollapsibleMarkdownSection> updated)
+        ChatStatusState existingState,
+        IReadOnlyList<ChatCollapsibleMarkdownSection> updated,
+        Func<Visual>? visualFactory)
     {
+        if (existingState.HasContentVisualFactory || visualFactory is not null)
+        {
+            return true;
+        }
+
+        var existing = existingState.DetailSections;
         if (existing.Count != updated.Count)
         {
             return true;
@@ -768,9 +783,47 @@ internal sealed class ThreadTimelinePresenter
             {
                 return true;
             }
+
+            if (existing[index].VisualFactory is not null || updated[index].VisualFactory is not null)
+            {
+                return true;
+            }
         }
 
         return false;
+    }
+
+    private void ReplaceTimelineItem(DocumentFlowItem oldItem, DocumentFlowItem newItem)
+    {
+        RemoveMessageNavigationAnchors([oldItem]);
+        ToolCalls.OnNonToolTimelineItemAppended();
+        if (_bufferedHistoryItems is not null)
+        {
+            var index = _bufferedHistoryItems.IndexOf(oldItem);
+            if (index >= 0)
+            {
+                _bufferedHistoryItems[index] = newItem;
+            }
+            else
+            {
+                _bufferedHistoryItems.Add(newItem);
+            }
+
+            return;
+        }
+
+        UiDispatch.Post(_uiDispatcher, () =>
+        {
+            var index = Flow.Items.IndexOf(oldItem);
+            if (index >= 0)
+            {
+                Flow.Items[index] = newItem;
+            }
+            else
+            {
+                Flow.Items.Add(newItem);
+            }
+        });
     }
 
     private void AppendTimelineItem(DocumentFlowItem item, bool resetActiveToolCallGroup = true)

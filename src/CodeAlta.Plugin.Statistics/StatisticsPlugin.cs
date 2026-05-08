@@ -4,6 +4,11 @@ using System.Text;
 using System.Text.Json;
 using CodeAlta.Agent;
 using CodeAlta.Plugins.Abstractions;
+using XenoAtom.Terminal.UI;
+using XenoAtom.Terminal.UI.Controls;
+using XenoAtom.Terminal.UI.Extensions.Markdown;
+using XenoAtom.Terminal.UI.Geometry;
+using XenoAtom.Terminal.UI.Styling;
 
 namespace CodeAlta.Plugin.Statistics;
 
@@ -509,6 +514,7 @@ public sealed class StatisticsPlugin : PluginBase
                     {
                         Header = "Detailed statistics",
                         Markdown = StatisticsMarkdownRenderer.RenderTurnDetails(turn),
+                        VisualFactory = _ => StatisticsVisualRenderer.RenderTurnDetails(turn),
                     },
                 ];
                 _payload = new
@@ -558,6 +564,9 @@ public sealed class StatisticsPlugin : PluginBase
         private readonly Dictionary<string, ContentBuilder> _content = new(StringComparer.Ordinal);
         private readonly Dictionary<string, ToolCallBuilder> _tools = new(StringComparer.Ordinal);
         private readonly List<DateTimeOffset> _modelOutputTimestamps = [];
+        private readonly List<DateTimeOffset> _assistantDeltaTimestamps = [];
+        private readonly List<DateTimeOffset> _reasoningDeltaTimestamps = [];
+        private readonly List<DateTimeOffset> _generatedOutputDeltaTimestamps = [];
         private readonly CompactionStatisticsBuilder _compactions = new();
         private readonly StringBuilder _planSnapshotText = new();
         private AgentOperationUsageSnapshot? _lastOperationUsage;
@@ -653,12 +662,15 @@ public sealed class StatisticsPlugin : PluginBase
             var plan = ContentStats.Sum(ContentStats.For(contents, AgentContentKind.Plan, AgentContentKind.Notice), ContentStats.ForText(_planSnapshotText.ToString()));
             var prompt = ContentStats.For(contents, AgentContentKind.User);
             var toolInput = ContentStats.Sum(tools.Select(static item => item.Input));
+            var generatedReasoningSummary = reasoning.Characters > 0 || reasoning.Bytes > 0 || reasoning.EstimatedTokens > 0
+                ? ContentStats.Empty
+                : reasoningSummary;
             var unownedToolOutput = ContentStats.For(contents.Where(content =>
                 IsToolOutputKind(content.Kind) &&
                 !_tools.ContainsKey(content.ContentId) &&
                 (string.IsNullOrWhiteSpace(content.ParentActivityId) || !_tools.ContainsKey(content.ParentActivityId))));
             var toolOutput = ContentStats.Sum(tools.Select(static item => item.Output), unownedToolOutput);
-            var generatedOutput = ContentStats.Sum(assistant, reasoning, reasoningSummary, plan, toolInput);
+            var generatedOutput = ContentStats.Sum(assistant, reasoning, generatedReasoningSummary, plan, toolInput);
             var outputChars = generatedOutput.Characters;
             var estimatedInputTokens = EstimateTokensFromCharacters(prompt.Characters + (_systemPromptStatistics?.SystemChars ?? 0) + (_systemPromptStatistics?.DeveloperChars ?? 0));
             var estimatedOutputTokens = EstimateTokensFromCharacters(outputChars);
@@ -694,6 +706,9 @@ public sealed class StatisticsPlugin : PluginBase
                 LongestGap(BuildInterestingTimestamps()),
                 toolSpan,
                 tools.Sum(static item => item.Duration?.Ticks ?? 0) is var ticks ? TimeSpan.FromTicks(ticks) : TimeSpan.Zero,
+                ResolveStreamDuration(_assistantDeltaTimestamps),
+                ResolveStreamDuration(_reasoningDeltaTimestamps),
+                ResolveStreamDuration(_generatedOutputDeltaTimestamps),
                 prompt,
                 assistant,
                 reasoning,
@@ -729,13 +744,16 @@ public sealed class StatisticsPlugin : PluginBase
             if (IsModelGeneratedContent(delta.Kind))
             {
                 _modelOutputTimestamps.Add(delta.Timestamp);
+                _generatedOutputDeltaTimestamps.Add(delta.Timestamp);
                 if (delta.Kind == AgentContentKind.Assistant)
                 {
                     FirstAssistantAt = Min(FirstAssistantAt, delta.Timestamp);
+                    _assistantDeltaTimestamps.Add(delta.Timestamp);
                 }
                 else if (delta.Kind == AgentContentKind.Reasoning)
                 {
                     FirstReasoningAt = Min(FirstReasoningAt, delta.Timestamp);
+                    _reasoningDeltaTimestamps.Add(delta.Timestamp);
                 }
             }
         }
@@ -962,6 +980,18 @@ public sealed class StatisticsPlugin : PluginBase
             }
 
             return longest;
+        }
+
+        private static TimeSpan? ResolveStreamDuration(IReadOnlyList<DateTimeOffset> timestamps)
+        {
+            if (timestamps.Count < 2)
+            {
+                return null;
+            }
+
+            var ordered = timestamps.Order().ToArray();
+            var duration = ordered[^1] - ordered[0];
+            return duration > TimeSpan.Zero ? duration : null;
         }
 
         private static IReadOnlyList<ToolBucketStatistics> BuildBuckets(IReadOnlyList<ToolCallStatistics> tools)
@@ -1356,6 +1386,9 @@ public sealed class StatisticsPlugin : PluginBase
         TimeSpan LongestGap,
         TimeSpan ToolSpan,
         TimeSpan TotalToolTime,
+        TimeSpan? AssistantOutputDuration,
+        TimeSpan? ReasoningOutputDuration,
+        TimeSpan? GeneratedOutputDuration,
         ContentStats Prompt,
         ContentStats Assistant,
         ContentStats Reasoning,
@@ -1384,18 +1417,20 @@ public sealed class StatisticsPlugin : PluginBase
     {
         public long DisplayInputTokens => ReportedInputTokens ?? EstimatedInputTokens;
 
-        public long DisplayOutputTokens => ReportedOutputTokens ?? EstimatedOutputTokens;
+        public long DisplayOutputTokens => EstimatedOutputTokens;
 
         public bool HasReportedUsage => ReportedInputTokens is not null || ReportedOutputTokens is not null || ReportedReasoningTokens is not null;
 
-        public double AssistantTokensPerSecond => Rate(Assistant.EstimatedTokens, Duration - ToolSpan);
+        public double? AssistantTokensPerSecond => Rate(Assistant.EstimatedTokens, AssistantOutputDuration);
 
-        public double ReasoningTokensPerSecond => Rate(Reasoning.EstimatedTokens, Duration - ToolSpan);
+        public double? ReasoningTokensPerSecond => Rate(Reasoning.EstimatedTokens, ReasoningOutputDuration);
 
-        public double GeneratedOutputTokensPerSecond => Rate(GeneratedOutput.EstimatedTokens, Duration - ToolSpan);
+        public double? GeneratedOutputTokensPerSecond => Rate(
+            Math.Max(0, GeneratedOutput.EstimatedTokens - ToolInput.EstimatedTokens),
+            GeneratedOutputDuration);
 
-        private static double Rate(long tokens, TimeSpan duration)
-            => tokens <= 0 || duration.TotalSeconds <= 0 ? 0 : tokens / duration.TotalSeconds;
+        private static double? Rate(long tokens, TimeSpan? duration)
+            => tokens <= 0 || duration is null || duration.Value.TotalSeconds <= 0 ? null : tokens / duration.Value.TotalSeconds;
     }
 
     private sealed record SessionStatistics(
@@ -1422,24 +1457,73 @@ public sealed class StatisticsPlugin : PluginBase
                 turns.Sum(static item => item.ToolOutput.Characters));
     }
 
+    private static class StatisticsVisualRenderer
+    {
+        public static Visual RenderTurnDetails(TurnStatistics turn)
+        {
+            var tables = new List<Visual>
+            {
+                CreateTable(StatisticsMarkdownRenderer.RenderMetricTable(turn)),
+            };
+
+            var usageTable = StatisticsMarkdownRenderer.RenderUsageTable(turn);
+            if (!string.IsNullOrWhiteSpace(usageTable))
+            {
+                tables.Add(CreateTable(usageTable));
+            }
+
+            var toolBucketTable = StatisticsMarkdownRenderer.RenderToolBucketTable(turn);
+            if (!string.IsNullOrWhiteSpace(toolBucketTable))
+            {
+                tables.Add(CreateTable(toolBucketTable));
+            }
+
+            return new WrapHStack(tables.ToArray())
+                .Spacing(1)
+                .RunSpacing(1)
+                .MeasureMode(WrapMeasureMode.ConstrainToRun)
+                .HorizontalAlignment(Align.Stretch);
+        }
+
+        private static Visual CreateTable(string markdown)
+            => new Border(new MarkdownControl(markdown.Trim())
+                {
+                    HorizontalAlignment = Align.Start,
+                    VerticalAlignment = Align.Start,
+                    Options = MarkdownRenderOptions.Default with
+                    {
+                        WrapCodeBlocks = true,
+                        MaxCodeBlockHeight = 14,
+                    },
+                })
+                .Padding(new Thickness(1, 0, 1, 0))
+                .Style(BorderStyle.Rounded);
+    }
+
     private static class StatisticsMarkdownRenderer
     {
         public static string RenderTurnSummary(TurnStatistics turn)
         {
-            var tokenSource = turn.HasReportedUsage ? "reported" : "estimated ≈ chars/4";
+            var inputTokenSource = turn.ReportedInputTokens is not null ? "reported" : "estimated ≈ chars/4";
             var builder = new StringBuilder();
             builder.Append("**Turn statistics** · ")
                 .Append(FormatDuration(turn.Duration))
                 .Append(" · tokens ")
                 .Append(FormatNumber(turn.DisplayInputTokens))
-                .Append(" in / ")
+                .Append(" in (")
+                .Append(inputTokenSource)
+                .Append(") / ≈")
                 .Append(FormatNumber(turn.DisplayOutputTokens))
-                .Append(" out (")
-                .Append(tokenSource)
-                .Append(") · tools ")
+                .Append(" out (estimated generated) · tools ")
                 .Append(turn.Tools.Count)
                 .Append(" calls / ")
                 .Append(FormatDuration(turn.TotalToolTime));
+            if (turn.ReportedOutputTokens is not null)
+            {
+                builder.Append(" · provider out ")
+                    .Append(FormatNumber(turn.ReportedOutputTokens.Value));
+            }
+
             if (turn.CompactionCount > 0)
             {
                 builder.Append(" · compactions ")
@@ -1452,6 +1536,26 @@ public sealed class StatisticsPlugin : PluginBase
         }
 
         public static string RenderTurnDetails(TurnStatistics turn)
+        {
+            var builder = new StringBuilder();
+            builder.Append(RenderMetricTable(turn));
+
+            var usageTable = RenderUsageTable(turn);
+            if (!string.IsNullOrWhiteSpace(usageTable))
+            {
+                builder.AppendLine().AppendLine().Append(usageTable);
+            }
+
+            var toolBucketTable = RenderToolBucketTable(turn);
+            if (!string.IsNullOrWhiteSpace(toolBucketTable))
+            {
+                builder.AppendLine().AppendLine().Append(toolBucketTable);
+            }
+
+            return builder.ToString();
+        }
+
+        public static string RenderMetricTable(TurnStatistics turn)
         {
             var builder = new StringBuilder();
             builder.AppendLine("| Metric | Value |")
@@ -1473,34 +1577,49 @@ public sealed class StatisticsPlugin : PluginBase
                 .Append("| Reasoning speed | ").Append(FormatRate(turn.ReasoningTokensPerSecond)).AppendLine(" |")
                 .Append("| Generated output speed | ").Append(FormatRate(turn.GeneratedOutputTokensPerSecond)).AppendLine(" |");
 
-            if (turn.HasReportedUsage || turn.SystemPromptTokens is not null || turn.DeveloperPromptTokens is not null)
+            return builder.ToString();
+        }
+
+        public static string RenderUsageTable(TurnStatistics turn)
+        {
+            if (!turn.HasReportedUsage && turn.SystemPromptTokens is null && turn.DeveloperPromptTokens is null)
             {
-                builder.AppendLine().AppendLine("| Usage | Tokens |").AppendLine("| --- | ---: |");
-                AppendTokenLine(builder, "Input", turn.ReportedInputTokens);
-                AppendTokenLine(builder, "Cached input", turn.ReportedCachedInputTokens);
-                AppendTokenLine(builder, "Cache read", turn.ReportedCacheReadTokens);
-                AppendTokenLine(builder, "Cache write", turn.ReportedCacheWriteTokens);
-                AppendTokenLine(builder, "Output", turn.ReportedOutputTokens);
-                AppendTokenLine(builder, "Reasoning", turn.ReportedReasoningTokens);
-                AppendTokenLine(builder, "System prompt", turn.SystemPromptTokens);
-                AppendTokenLine(builder, "Developer prompt", turn.DeveloperPromptTokens);
+                return string.Empty;
             }
 
-            if (turn.Buckets.Count > 0)
+            var builder = new StringBuilder();
+            builder.AppendLine("| Usage | Tokens |").AppendLine("| --- | ---: |");
+            AppendTokenLine(builder, "Input (provider reported)", turn.ReportedInputTokens);
+            AppendTokenLine(builder, "Cached input (provider reported)", turn.ReportedCachedInputTokens);
+            AppendTokenLine(builder, "Cache read (provider reported)", turn.ReportedCacheReadTokens);
+            AppendTokenLine(builder, "Cache write (provider reported)", turn.ReportedCacheWriteTokens);
+            AppendTokenLine(builder, "Output (provider reported)", turn.ReportedOutputTokens);
+            AppendTokenLine(builder, "Reasoning (provider reported)", turn.ReportedReasoningTokens);
+            AppendTokenLine(builder, "System prompt", turn.SystemPromptTokens);
+            AppendTokenLine(builder, "Developer prompt", turn.DeveloperPromptTokens);
+            return builder.ToString();
+        }
+
+        public static string RenderToolBucketTable(TurnStatistics turn)
+        {
+            if (turn.Buckets.Count == 0)
             {
-                builder.AppendLine().AppendLine("| Tool bucket | Calls | Fail | Cancel | Duration | Input | Output |")
-                    .AppendLine("| --- | ---: | ---: | ---: | ---: | ---: | ---: |");
-                foreach (var bucket in turn.Buckets)
-                {
-                    builder.Append("| ").Append(EscapeMarkdown(bucket.Name))
-                        .Append(" | ").Append(bucket.CallCount.ToString(CultureInfo.InvariantCulture))
-                        .Append(" | ").Append(bucket.FailedCount.ToString(CultureInfo.InvariantCulture))
-                        .Append(" | ").Append(bucket.CanceledCount.ToString(CultureInfo.InvariantCulture))
-                        .Append(" | ").Append(FormatDuration(bucket.TotalDuration))
-                        .Append(" | ").Append(FormatNumber(bucket.InputCharacters)).Append(" chars")
-                        .Append(" | ").Append(FormatNumber(bucket.OutputCharacters)).Append(" chars |")
-                        .AppendLine();
-                }
+                return string.Empty;
+            }
+
+            var builder = new StringBuilder();
+            builder.AppendLine("| Tool bucket | Calls | Fail | Cancel | Duration | Input | Output |")
+                .AppendLine("| --- | ---: | ---: | ---: | ---: | ---: | ---: |");
+            foreach (var bucket in turn.Buckets)
+            {
+                builder.Append("| ").Append(EscapeMarkdown(bucket.Name))
+                    .Append(" | ").Append(bucket.CallCount.ToString(CultureInfo.InvariantCulture))
+                    .Append(" | ").Append(bucket.FailedCount.ToString(CultureInfo.InvariantCulture))
+                    .Append(" | ").Append(bucket.CanceledCount.ToString(CultureInfo.InvariantCulture))
+                    .Append(" | ").Append(FormatDuration(bucket.TotalDuration))
+                    .Append(" | ").Append(FormatNumber(bucket.InputCharacters)).Append(" chars")
+                    .Append(" | ").Append(FormatNumber(bucket.OutputCharacters)).Append(" chars |")
+                    .AppendLine();
             }
 
             return builder.ToString();
@@ -1520,8 +1639,8 @@ public sealed class StatisticsPlugin : PluginBase
         private static string FormatOptionalDuration(TimeSpan? duration)
             => duration is null ? "n/a" : FormatDuration(duration.Value);
 
-        private static string FormatRate(double rate)
-            => rate <= 0 ? "n/a" : FormattableString.Invariant($"{rate:0.#} tokens/s");
+        private static string FormatRate(double? rate)
+            => rate is null || rate <= 0 ? "n/a" : FormattableString.Invariant($"{rate:0.#} tokens/s");
 
         private static string FormatNumber(long value)
             => value.ToString("N0", CultureInfo.InvariantCulture);

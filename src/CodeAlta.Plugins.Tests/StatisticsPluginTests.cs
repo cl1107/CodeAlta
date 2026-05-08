@@ -2,6 +2,7 @@ using System.Text.Json;
 using CodeAlta.Agent;
 using CodeAlta.Plugin.Statistics;
 using CodeAlta.Plugins.Abstractions;
+using XenoAtom.Terminal.UI.Controls;
 
 namespace CodeAlta.Plugins.Tests;
 
@@ -38,6 +39,16 @@ public sealed class StatisticsPluginTests
         Assert.AreEqual(1, completed.DetailSections.Count);
         StringAssert.Contains(completed.DetailSections[0].Markdown, "shell");
         StringAssert.Contains(completed.DetailSections[0].Markdown, "Assistant | 11 chars");
+        var visualFactory = completed.DetailSections[0].VisualFactory;
+        Assert.IsNotNull(visualFactory);
+        var detailVisual = visualFactory(new PluginThreadEventVisualContext
+        {
+            EventId = result[0].EventId,
+            Markdown = completed.DetailSections[0].Markdown,
+            DetailHeader = completed.DetailSections[0].Header,
+        });
+        var detailWrap = Assert.IsInstanceOfType<WrapHStack>(detailVisual);
+        Assert.AreEqual(2, detailWrap.Children.Count);
     }
 
     [TestMethod]
@@ -67,8 +78,9 @@ public sealed class StatisticsPluginTests
 
         var completed = await WaitForDynamicProjectionAsync(result.Single());
         StringAssert.Contains(completed.Markdown, "reported");
-        StringAssert.Contains(completed.Markdown, "1,234 in / 567 out");
-        StringAssert.Contains(completed.DetailSections.Single().Markdown, "Cached input");
+        StringAssert.Contains(completed.Markdown, "1,234 in (reported) / ≈6 out (estimated generated)");
+        StringAssert.Contains(completed.Markdown, "provider out 567");
+        StringAssert.Contains(completed.DetailSections.Single().Markdown, "Cached input (provider reported)");
     }
 
     [TestMethod]
@@ -129,11 +141,64 @@ public sealed class StatisticsPluginTests
         var result = await contribution.ProjectAsync(CreateContext(events), CancellationToken.None);
 
         var card = await WaitForDynamicProjectionAsync(result.Single());
-        StringAssert.Contains(card.Markdown, "2 in / 7 out");
+        StringAssert.Contains(card.Markdown, "2 in (estimated ≈ chars/4) / ≈7 out (estimated generated)");
         var detailsMarkdown = card.DetailSections.Single().Markdown;
         StringAssert.Contains(detailsMarkdown, "Tool input (model generated) | 16 chars");
-        StringAssert.Contains(detailsMarkdown, "Generated output | 28 chars");
+        StringAssert.Contains(detailsMarkdown, "Generated output | 25 chars");
         StringAssert.Contains(detailsMarkdown, "Tool output | 31 chars");
+    }
+
+    [TestMethod]
+    public async Task Projection_UsesReasoningSummaryForOutputOnlyWhenFullReasoningIsAbsent()
+    {
+        var plugin = new StatisticsPlugin();
+        var contribution = plugin.GetThreadEventProjections().Single();
+        var backendId = new AgentBackendId("provider-1");
+        var runId = new AgentRunId("run-reasoning-summary-accounting");
+        var startedAt = DateTimeOffset.Parse("2026-05-08T10:00:00Z");
+        var events = new AgentEvent[]
+        {
+            new AgentActivityEvent(backendId, "session-1", startedAt, runId, AgentActivityKind.Turn, AgentActivityPhase.Started, "turn-1", null, "turn", null),
+            new AgentContentCompletedEvent(backendId, "session-1", startedAt.AddMilliseconds(100), runId, AgentContentKind.User, "user-1", "turn-1", "prompt"),
+            new AgentContentCompletedEvent(backendId, "session-1", startedAt.AddMilliseconds(200), runId, AgentContentKind.Assistant, "assistant-1", "turn-1", "ok"),
+            new AgentContentCompletedEvent(backendId, "session-1", startedAt.AddMilliseconds(300), runId, AgentContentKind.Reasoning, "reasoning-1", "turn-1", "full reasoning"),
+            new AgentContentCompletedEvent(backendId, "session-1", startedAt.AddMilliseconds(400), runId, AgentContentKind.ReasoningSummary, "summary-1", "turn-1", "summary duplicate"),
+            new AgentActivityEvent(backendId, "session-1", startedAt.AddSeconds(1), runId, AgentActivityKind.Turn, AgentActivityPhase.Completed, "turn-1", null, "turn", null),
+        };
+
+        var result = await contribution.ProjectAsync(CreateContext(events), CancellationToken.None);
+
+        var card = await WaitForDynamicProjectionAsync(result.Single());
+        var detailsMarkdown = card.DetailSections.Single().Markdown;
+        StringAssert.Contains(detailsMarkdown, "Reasoning | 14 chars");
+        StringAssert.Contains(detailsMarkdown, "Reasoning summary | 17 chars");
+        StringAssert.Contains(detailsMarkdown, "Generated output | 16 chars");
+    }
+
+    [TestMethod]
+    public async Task Projection_OmitsSpeedWhenOnlyCompletedContentTimestampsAreAvailable()
+    {
+        var plugin = new StatisticsPlugin();
+        var contribution = plugin.GetThreadEventProjections().Single();
+        var backendId = new AgentBackendId("provider-1");
+        var runId = new AgentRunId("run-speed-unavailable");
+        var startedAt = DateTimeOffset.Parse("2026-05-08T10:00:00Z");
+        var events = new AgentEvent[]
+        {
+            new AgentActivityEvent(backendId, "session-1", startedAt, runId, AgentActivityKind.Turn, AgentActivityPhase.Started, "turn-1", null, "turn", null),
+            new AgentContentCompletedEvent(backendId, "session-1", startedAt.AddMilliseconds(100), runId, AgentContentKind.User, "user-1", "turn-1", "prompt"),
+            new AgentContentCompletedEvent(backendId, "session-1", startedAt.AddSeconds(2), runId, AgentContentKind.Assistant, "assistant-1", "turn-1", "completed assistant text"),
+            new AgentContentCompletedEvent(backendId, "session-1", startedAt.AddSeconds(4), runId, AgentContentKind.Reasoning, "reasoning-1", "turn-1", "completed reasoning text"),
+            new AgentActivityEvent(backendId, "session-1", startedAt.AddSeconds(10), runId, AgentActivityKind.Turn, AgentActivityPhase.Completed, "turn-1", null, "turn", null),
+        };
+
+        var result = await contribution.ProjectAsync(CreateContext(events), CancellationToken.None);
+
+        var card = await WaitForDynamicProjectionAsync(result.Single());
+        var detailsMarkdown = card.DetailSections.Single().Markdown;
+        StringAssert.Contains(detailsMarkdown, "Assistant speed | n/a");
+        StringAssert.Contains(detailsMarkdown, "Reasoning speed | n/a");
+        StringAssert.Contains(detailsMarkdown, "Generated output speed | n/a");
     }
 
     [TestMethod]

@@ -5,8 +5,10 @@ using CodeAlta.Catalog;
 using CodeAlta.Models;
 using CodeAlta.Orchestration.Runtime;
 using CodeAlta.Presentation.Shell;
+using CodeAlta.Plugins.Abstractions;
 using CodeAlta.Views;
 using XenoAtom.Logging;
+using XenoAtom.Terminal.UI;
 
 namespace CodeAlta.App;
 
@@ -275,9 +277,38 @@ internal sealed class ThreadRuntimeEventCoordinator
                 projection.Markdown,
                 projection.RenderTarget,
                 projection.DetailSections
-                    .Select(static section => new ChatCollapsibleMarkdownSection(section.Header, section.Markdown))
-                    .ToArray()),
+                    .Select(section => new ChatCollapsibleMarkdownSection(
+                        section.Header,
+                        section.Markdown,
+                        CreatePluginDetailVisualFactory(projection, section)))
+                    .ToArray(),
+                CreatePluginVisualFactory(projection)),
             "plugin projection");
+
+    private static Func<Visual>? CreatePluginVisualFactory(PluginTransientEventProjection projection)
+        => projection.VisualFactory is null
+            ? null
+            : () => projection.VisualFactory(new PluginThreadEventVisualContext
+            {
+                EventId = projection.EventId,
+                RenderTarget = projection.RenderTarget,
+                Markdown = projection.Markdown,
+                Payload = projection.Payload,
+            });
+
+    private static Func<Visual>? CreatePluginDetailVisualFactory(
+        PluginTransientEventProjection projection,
+        PluginDerivedThreadEventDetailSection section)
+        => section.VisualFactory is null
+            ? null
+            : () => section.VisualFactory(new PluginThreadEventVisualContext
+            {
+                EventId = projection.EventId,
+                RenderTarget = projection.RenderTarget,
+                Markdown = section.Markdown,
+                Payload = projection.Payload,
+                DetailHeader = section.Header,
+            });
 
     private void UpdateDynamicProjectionSubscription(
         WorkThreadDescriptor thread,

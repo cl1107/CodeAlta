@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using CodeAlta.Agent;
+using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Controls;
 
 namespace CodeAlta.Models
@@ -48,9 +49,18 @@ namespace CodeAlta.Models
     internal sealed record ChatMarkdownEntry(DocumentFlowItem Item, MarkdownControl Markdown, Markup TimestampText, Markup HeaderText)
     {
         public IReadOnlyList<MarkdownControl> DetailMarkdownControls { get; init; } = [];
+
+        public IReadOnlyList<int> DetailMarkdownSectionIndexes { get; init; } = [];
+
+        public ChatMarkdownCopyState CopyState { get; init; } = new();
     }
 
-    internal sealed record ChatCollapsibleMarkdownSection(string Header, string Markdown);
+    internal sealed record ChatMarkdownCopyState
+    {
+        public IReadOnlyList<ChatCollapsibleMarkdownSection>? DetailSections { get; set; }
+    }
+
+    internal sealed record ChatCollapsibleMarkdownSection(string Header, string Markdown, Func<Visual>? VisualFactory = null);
 
     internal sealed class ChatBackendState(AgentBackendId backendId, string displayName)
     {
@@ -120,7 +130,7 @@ namespace CodeAlta.Models
         public string? EchoContentId { get; set; }
     }
 
-    internal sealed class ChatStatusState(DocumentFlowItem item, MarkdownControl markdown, Markup timestampText, IReadOnlyList<MarkdownControl> detailMarkdownControls)
+    internal sealed class ChatStatusState(DocumentFlowItem item, MarkdownControl markdown, Markup timestampText, IReadOnlyList<MarkdownControl> detailMarkdownControls, IReadOnlyList<int> detailMarkdownSectionIndexes, ChatMarkdownCopyState copyState)
     {
         public DocumentFlowItem Item { get; } = item;
 
@@ -129,6 +139,12 @@ namespace CodeAlta.Models
         public Markup TimestampText { get; } = timestampText;
 
         public IReadOnlyList<MarkdownControl> DetailMarkdownControls { get; } = detailMarkdownControls;
+
+        public IReadOnlyList<int> DetailMarkdownSectionIndexes { get; } = detailMarkdownSectionIndexes;
+
+        public ChatMarkdownCopyState CopyState { get; } = copyState;
+
+        public bool HasContentVisualFactory { get; init; }
 
         public string BaseMarkdown { get; set; } = string.Empty;
 

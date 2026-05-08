@@ -1,4 +1,5 @@
 using CodeAlta.Agent;
+using XenoAtom.Terminal.UI;
 
 namespace CodeAlta.Plugins.Abstractions;
 
@@ -11,6 +12,13 @@ namespace CodeAlta.Plugins.Abstractions;
 public delegate ValueTask<IReadOnlyList<PluginDerivedThreadEvent>> PluginThreadEventProjectionHandler(
     PluginThreadEventProjectionContext context,
     CancellationToken cancellationToken);
+
+/// <summary>
+/// Creates a host-rendered visual for a plugin-derived thread event or detail section.
+/// </summary>
+/// <param name="context">The visual rendering context.</param>
+/// <returns>The visual to render.</returns>
+public delegate Visual PluginThreadEventVisualFactory(PluginThreadEventVisualContext context);
 
 /// <summary>
 /// Describes a plugin contribution that can project replayed and live canonical thread events into transient events.
@@ -64,6 +72,27 @@ public sealed record PluginThreadEventProjectionContext
 }
 
 /// <summary>
+/// Provides host context to a plugin visual factory.
+/// </summary>
+public sealed record PluginThreadEventVisualContext
+{
+    /// <summary>Gets the plugin-stable derived event identifier.</summary>
+    public required string EventId { get; init; }
+
+    /// <summary>Gets the optional renderer target/schema name.</summary>
+    public string? RenderTarget { get; init; }
+
+    /// <summary>Gets the current fallback Markdown for the visual being rendered.</summary>
+    public string? Markdown { get; init; }
+
+    /// <summary>Gets the optional structured payload.</summary>
+    public object? Payload { get; init; }
+
+    /// <summary>Gets the detail section header when rendering a detail section.</summary>
+    public string? DetailHeader { get; init; }
+}
+
+/// <summary>
 /// Describes a plugin-owned transient thread event projection result.
 /// </summary>
 public sealed record PluginDerivedThreadEvent
@@ -85,6 +114,11 @@ public sealed record PluginDerivedThreadEvent
 
     /// <summary>Gets optional Markdown detail sections that the frontend may render collapsed by default.</summary>
     public IReadOnlyList<PluginDerivedThreadEventDetailSection> DetailSections { get; init; } = [];
+
+    /// <summary>
+    /// Gets an optional visual factory for advanced frontend rendering. <see cref="Markdown"/> remains the clipboard and fallback representation.
+    /// </summary>
+    public PluginThreadEventVisualFactory? VisualFactory { get; init; }
 
     /// <summary>
     /// Gets optional dynamic Markdown content for projections that complete asynchronously after the event is first rendered.
@@ -113,6 +147,11 @@ public abstract class PluginDynamicDerivedThreadEventContent
     /// <summary>Gets the current detail sections.</summary>
     public virtual IReadOnlyList<PluginDerivedThreadEventDetailSection> DetailSections => [];
 
+    /// <summary>
+    /// Gets an optional visual factory for advanced frontend rendering. <see cref="Markdown"/> remains the clipboard and fallback representation.
+    /// </summary>
+    public virtual PluginThreadEventVisualFactory? VisualFactory => null;
+
     /// <summary>Raises the <see cref="Changed"/> event.</summary>
     protected void NotifyChanged() => Changed?.Invoke(this, EventArgs.Empty);
 }
@@ -127,4 +166,9 @@ public sealed record PluginDerivedThreadEventDetailSection
 
     /// <summary>Gets the section Markdown.</summary>
     public required string Markdown { get; init; }
+
+    /// <summary>
+    /// Gets an optional visual factory for advanced frontend rendering. <see cref="Markdown"/> remains the clipboard and fallback representation.
+    /// </summary>
+    public PluginThreadEventVisualFactory? VisualFactory { get; init; }
 }
