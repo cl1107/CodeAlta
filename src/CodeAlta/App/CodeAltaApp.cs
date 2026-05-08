@@ -490,7 +490,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
             (message, tone) => SetStatus(message, tone: tone));
         var openHelp = () => ObserveUiTask(() => _shellCommandSurfaceCoordinator.ShowHelpAsync(), "show help");
         var showPalette = () => _shellCommandSurfaceCoordinator.ShowCommandPalette();
-        var shellSurface = CodeAltaAppSurfaceFactory.Create(new CodeAltaAppSurfaceRequest
+        var shellSurface = CodeAltaShellViewFactory.CreateSurface(new CodeAltaShellSurfaceOptions
         {
             ShellViewModel = _shellViewModel,
             WorkspaceViewModel = _threadWorkspaceViewModel,

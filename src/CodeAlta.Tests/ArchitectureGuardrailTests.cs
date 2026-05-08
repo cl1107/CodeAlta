@@ -1519,6 +1519,26 @@ public sealed class ArchitectureGuardrailTests
             string.Join("|", partialFiles));
     }
 
+    [TestMethod]
+    public void ShellSurfaceConstruction_UsesSingleOptionsBagAndHostOwnsLifecycle()
+    {
+        var codeAltaRoot = GetCodeAltaSourceRoot();
+        var sourceFiles = Directory.EnumerateFiles(codeAltaRoot, "*.cs", SearchOption.AllDirectories).ToArray();
+        var allSource = string.Join(Environment.NewLine, sourceFiles.Select(File.ReadAllText));
+        var appSource = File.ReadAllText(Path.Combine(codeAltaRoot, "App", "CodeAltaApp.cs"));
+        var hostSource = File.ReadAllText(Path.Combine(codeAltaRoot, "App", "ShellFrontendHost.cs"));
+
+        Assert.IsFalse(File.Exists(Path.Combine(codeAltaRoot, "App", "CodeAltaApp.Surface.cs")));
+        Assert.IsFalse(allSource.Contains("CodeAltaAppSurfaceRequest", StringComparison.Ordinal));
+        Assert.IsFalse(allSource.Contains("CodeAltaAppSurfaceFactory", StringComparison.Ordinal));
+        Assert.IsTrue(File.Exists(Path.Combine(codeAltaRoot, "Views", "CodeAltaShellSurfaceOptions.cs")));
+        Assert.IsTrue(appSource.Contains("CodeAltaShellViewFactory.CreateSurface(new CodeAltaShellSurfaceOptions", StringComparison.Ordinal));
+        Assert.IsTrue(hostSource.Contains("Terminal.RunAsync(", StringComparison.Ordinal));
+        Assert.IsTrue(hostSource.Contains("DisposeFrontendAsync", StringComparison.Ordinal));
+        Assert.IsTrue(appSource.Contains("=> await _frontendHost.RunAsync(cancellationToken);", StringComparison.Ordinal));
+        Assert.IsTrue(appSource.Contains("=> await _frontendHost.DisposeAsync();", StringComparison.Ordinal));
+    }
+
     private static void AssertSourceDoesNotContain(IEnumerable<string> sourceFiles, string pattern)
     {
         ArgumentNullException.ThrowIfNull(sourceFiles);
