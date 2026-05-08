@@ -309,7 +309,6 @@ internal sealed class ThreadTabStripCoordinator
 
         if (_threadSelection.OpenThreadIds.Count == 0)
         {
-            _restoredThreadTabsFromViewState = true;
             return;
         }
 
@@ -335,6 +334,21 @@ internal sealed class ThreadTabStripCoordinator
         {
             EnsureDraftShellTab(workspaceView);
         }
+
+        SelectRestoredThreadSurfaceShellTab();
+    }
+
+    private void SelectRestoredThreadSurfaceShellTab()
+    {
+        var selectedTabId = ResolveThreadSurfaceSelectedTabId();
+        if (string.IsNullOrWhiteSpace(selectedTabId) ||
+            !_shellTabs.TryGetTab(new ShellTabId(selectedTabId), out var selectedTab) ||
+            selectedTab.IsSelected)
+        {
+            return;
+        }
+
+        _shellTabs.SelectTabAsync(selectedTab.TabId).GetAwaiter().GetResult();
     }
 
     private void EnsureSelectedThreadSurfaceShellTab(ThreadWorkspaceView workspaceView)

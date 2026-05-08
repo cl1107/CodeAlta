@@ -2,10 +2,13 @@ using CodeAlta.App;
 using CodeAlta.App.Context;
 using CodeAlta.App.State;
 using CodeAlta.Catalog;
+using CodeAlta.Frontend.Commands;
 using CodeAlta.Models;
+using CodeAlta.Presentation.Prompting;
 using CodeAlta.Presentation.Shell;
 using CodeAlta.Presentation.Tabs;
 using CodeAlta.Threading;
+using CodeAlta.ViewModels;
 using CodeAlta.Views;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Controls;
@@ -193,6 +196,79 @@ public sealed class CodeAltaAppTabStripTests
     }
 
     [TestMethod]
+    public void SyncControl_RestoresPersistedSelectedThreadTab()
+    {
+        using var temp = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = temp.Path };
+        var dispatcher = new InlineUiDispatcher();
+        var threadState = TestThreadStateServices.CreateCoordinator(
+            new ProjectCatalog(options),
+            new WorkThreadCatalog(options),
+            dispatcher,
+            new ShellStateStore(dispatcher));
+        var project = CreateProject("project-1", "CodeAlta");
+        threadState.ViewState = new WorkThreadViewState
+        {
+            OpenThreadIds = ["thread-1", "thread-2"],
+            Selection = WorkThreadSelectionState.Thread("thread-2", project.Id),
+            SelectedThreadId = "thread-2",
+        };
+        threadState.ApplyRecoveredCatalogState(
+            [project],
+            [CreateThread("thread-1", project.Id), CreateThread("thread-2", project.Id)]);
+        var workspaceView = CreateThreadWorkspaceView();
+        var tabs = new InMemoryShellTabService();
+        var coordinator = CreateCoordinator(tabs, threadState, workspaceView, dispatcher);
+
+        coordinator.SyncControl();
+
+        Assert.IsTrue(tabs.TryGetTab(new ShellTabId("thread-1"), out var firstTab));
+        Assert.IsTrue(tabs.TryGetTab(new ShellTabId("thread-2"), out var selectedTab));
+        Assert.IsFalse(firstTab.IsSelected);
+        Assert.IsTrue(selectedTab.IsSelected);
+        Assert.AreEqual(1, workspaceView.ThreadTabControl.SelectedIndex);
+    }
+
+    [TestMethod]
+    public void SyncControl_RestoresSelectedThreadAfterStartupDraftWasCreated()
+    {
+        using var temp = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = temp.Path };
+        var dispatcher = new InlineUiDispatcher();
+        var threadState = TestThreadStateServices.CreateCoordinator(
+            new ProjectCatalog(options),
+            new WorkThreadCatalog(options),
+            dispatcher,
+            new ShellStateStore(dispatcher));
+        var workspaceView = CreateThreadWorkspaceView();
+        var tabs = new InMemoryShellTabService();
+        var coordinator = CreateCoordinator(tabs, threadState, workspaceView, dispatcher);
+
+        coordinator.SyncControl();
+        Assert.IsTrue(tabs.TryGetTab(new ShellTabId(CodeAltaApp.DraftTabId), out var draftTab));
+        Assert.IsTrue(draftTab.IsSelected);
+
+        var project = CreateProject("project-1", "CodeAlta");
+        var firstThread = CreateThread("thread-1", project.Id);
+        var lastThread = CreateThread("thread-2", project.Id);
+        threadState.ApplyInitialCatalogState(new ShellThreadStateCoordinator.InitialCatalogState(
+            [project],
+            [firstThread, lastThread],
+            new WorkThreadViewState
+            {
+                OpenThreadIds = [firstThread.ThreadId, lastThread.ThreadId],
+                Selection = WorkThreadSelectionState.ProjectDraft(project.Id),
+            }));
+
+        coordinator.SyncControl();
+
+        Assert.IsTrue(tabs.TryGetTab(new ShellTabId(firstThread.ThreadId), out _));
+        Assert.IsTrue(tabs.TryGetTab(new ShellTabId(lastThread.ThreadId), out var selectedTab));
+        Assert.IsTrue(selectedTab.IsSelected);
+        Assert.AreEqual(2, workspaceView.ThreadTabControl.SelectedIndex);
+    }
+
+    [TestMethod]
     public void GetAdjacentTabIndex_WrapsLeftFromFirstTab()
     {
         Assert.AreEqual(2, ThreadTabStripCoordinator.GetAdjacentTabIndex(selectedIndex: 0, tabCount: 3, delta: -1));
@@ -275,6 +351,90 @@ public sealed class CodeAltaAppTabStripTests
         return new ThreadTabStripCoordinator(selection, context, tabs);
     }
 
+    private static ThreadTabStripCoordinator CreateCoordinator(
+        IShellTabService tabs,
+        ShellThreadStateCoordinator threadState,
+        ThreadWorkspaceView workspaceView,
+        IUiDispatcher dispatcher)
+    {
+        var selection = new ThreadSelectionContext(
+            threadState,
+            static (_, _) => Task.CompletedTask,
+            threadId => string.Equals(threadState.SelectedThreadId, threadId, StringComparison.OrdinalIgnoreCase));
+        var context = new ThreadTabContext(
+            new DelegatingThreadTabSurfacePort(
+                () => workspaceView.ThreadTabControl,
+                () => workspaceView,
+                static build => new ComputedVisual(build),
+                dispatcher),
+            new DelegatingThreadTabLifecyclePort(
+                static () => { },
+                static () => { },
+                threadId => threadState.CloseThreadTabAsync(threadId).GetAwaiter().GetResult(),
+                static () => { },
+                threadId => _ = threadState.OpenThread(threadId)),
+            new DelegatingFileEditorTabPort(
+                static _ => null,
+                static _ => { },
+                static _ => { }));
+        return new ThreadTabStripCoordinator(selection, context, tabs);
+    }
+
+    private static ThreadWorkspaceView CreateThreadWorkspaceView()
+        => new(
+            new CodeAltaShellViewModel(),
+            new ThreadWorkspaceViewModel(),
+            new PromptComposerViewModel(),
+            Array.Empty<ThreadWorkspaceCommandBinding>(),
+            ThreadWorkspaceChromeController.Empty,
+            PromptComposerViewController.Create(static _ => { }, static () => { }, static () => { }, static () => { }, static () => { }),
+            QueuedPromptStripController.Create(
+                static _ => { },
+                static _ => { },
+                static _ => { },
+                static _ => { },
+                static (_, _) => { },
+                static (_, _) => { },
+                static (onAccepted, placeholder) => ThreadWorkspaceView.CreateStyledPromptEditor(onAccepted, null, null, placeholder)),
+            ModelProviderSelectorController.Create(static _ => { }, static _ => { }, static _ => { }, static () => { }),
+            ThreadTabHostController.Create(static _ => { }),
+            NullProjectFileSearchService.Instance,
+            static () => null,
+            new State<string?>(string.Empty),
+            new State<float>(0));
+
+    private static ProjectDescriptor CreateProject(string id, string displayName)
+    {
+        return new ProjectDescriptor
+        {
+            Id = id,
+            Slug = displayName.ToLowerInvariant(),
+            Name = displayName,
+            DisplayName = displayName,
+            ProjectPath = $@"C:\repo\{displayName}",
+            DefaultBranch = "main",
+        };
+    }
+
+    private static WorkThreadDescriptor CreateThread(string threadId, string projectId)
+    {
+        var timestamp = DateTimeOffset.Parse("2026-03-29T12:00:00+00:00");
+        return new WorkThreadDescriptor
+        {
+            ThreadId = threadId,
+            Kind = WorkThreadKind.ProjectThread,
+            BackendId = "codex",
+            BackendSessionId = $"session-{threadId}",
+            ProjectRef = projectId,
+            WorkingDirectory = @"C:\repo",
+            Title = threadId,
+            Status = WorkThreadStatus.Active,
+            CreatedAt = timestamp,
+            UpdatedAt = timestamp,
+            LastActiveAt = timestamp,
+        };
+    }
+
     private sealed class InlineUiDispatcher : IUiDispatcher
     {
         public bool CheckAccess() => true;
@@ -296,6 +456,39 @@ public sealed class CodeAltaAppTabStripTests
         {
             ArgumentNullException.ThrowIfNull(action);
             return Task.FromResult(action());
+        }
+    }
+
+    private sealed class TempDirectory : IDisposable
+    {
+        private TempDirectory(string path)
+        {
+            Path = path;
+        }
+
+        public string Path { get; }
+
+        public static TempDirectory Create()
+        {
+            var path = System.IO.Path.Combine(
+                System.IO.Path.GetTempPath(),
+                $"CodeAlta.Tests.{Guid.NewGuid():N}");
+            Directory.CreateDirectory(path);
+            return new TempDirectory(path);
+        }
+
+        public void Dispose()
+        {
+            try
+            {
+                if (Directory.Exists(Path))
+                {
+                    Directory.Delete(Path, recursive: true);
+                }
+            }
+            catch
+            {
+            }
         }
     }
 }

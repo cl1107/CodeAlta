@@ -290,6 +290,30 @@ public sealed class ShellThreadStateCoordinatorTests
     }
 
     [TestMethod]
+    public void ApplyInitialCatalogState_RestoresLastOpenProjectThreadWhenStartupSelectionIsDraft()
+    {
+        using var temp = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = temp.Path };
+        var coordinator = CreateCoordinator(options);
+        var project = CreateProject("project-1", "CodeAlta");
+        var firstThread = CreateThread("thread-1", project.Id);
+        var lastThread = CreateThread("thread-2", project.Id);
+
+        coordinator.ApplyInitialCatalogState(new ShellThreadStateCoordinator.InitialCatalogState(
+            [project],
+            [firstThread, lastThread],
+            new WorkThreadViewState
+            {
+                OpenThreadIds = [firstThread.ThreadId, lastThread.ThreadId],
+                Selection = WorkThreadSelectionState.ProjectDraft(project.Id),
+            }));
+
+        Assert.AreEqual(lastThread.ThreadId, coordinator.SelectedThreadId);
+        Assert.AreEqual(lastThread.ThreadId, coordinator.PendingStartupThreadRestoreId);
+        Assert.AreEqual(WorkThreadSelectionSurface.Thread, coordinator.ViewState.Selection.Surface);
+    }
+
+    [TestMethod]
     public void ApplyRecoveredCatalogState_PartialRecoveryPreservesPendingStartupRestore()
     {
         using var temp = TempDirectory.Create();

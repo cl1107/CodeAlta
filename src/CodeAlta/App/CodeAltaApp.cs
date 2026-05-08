@@ -305,6 +305,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
     async ValueTask IShellFrontendHostLifecycle.DisposeFrontendAsync()
     {
         _projectionCoordinator.Dispose();
+        await PersistViewStateAsync();
         await _fileEditorWorkspaceCoordinator.DisposeAsync();
         await _runtimeEventPump.DisposeAsync();
         await _shellController.DisposeAsync();
