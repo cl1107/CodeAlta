@@ -1302,7 +1302,7 @@ public sealed class ArchitectureGuardrailTests
     {
         var codeAltaRoot = GetCodeAltaSourceRoot();
         var sourceFiles = Directory.EnumerateFiles(codeAltaRoot, "*.cs", SearchOption.AllDirectories).ToArray();
-        var workspaceSource = File.ReadAllText(Path.Combine(codeAltaRoot, "Views", "ThreadWorkspaceView.cs"));
+        var workspaceSource = File.ReadAllText(Path.Combine(codeAltaRoot, "Views", "QueuedPromptStripView.cs"));
 
         AssertSourceDoesNotContain(sourceFiles, "RegisterDynamicUpdate(");
         AssertSourceDoesNotContain(sourceFiles, "BindingManager.");

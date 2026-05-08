@@ -167,17 +167,15 @@ internal sealed class ThreadWorkspaceView
         var usageIndicator = buildSessionUsageIndicatorVisual();
         var statusLine = new ThreadStatusLineView(shellViewModel, thinkingAnimationPhase01).Root;
 
-        var queuedPromptList = new ComputedVisual(
-            () =>
-                QueuedPromptListView.Build(
-                    workspaceViewModel.PromptStripItems,
-                    markdown => (ThreadPaneLayout?.App)?.Terminal.Clipboard.TrySetText(markdown),
-                    convertQueuedPromptToSteer,
-                    deletePendingSteer,
-                    deleteQueuedPrompt,
-                    updateQueuedPromptCount,
-                    updateQueuedPromptText,
-                    (onAccepted, placeholder) => CreateStyledPromptEditor(onAccepted, openHelp, openCommandPalette, projectFileSearchService, getPromptReferenceProjectRoot, placeholder)));
+        var queuedPromptList = new QueuedPromptStripView(
+            workspaceViewModel,
+            markdown => (ThreadPaneLayout?.App)?.Terminal.Clipboard.TrySetText(markdown),
+            convertQueuedPromptToSteer,
+            deletePendingSteer,
+            deleteQueuedPrompt,
+            updateQueuedPromptCount,
+            updateQueuedPromptText,
+            (onAccepted, placeholder) => CreateStyledPromptEditor(onAccepted, openHelp, openCommandPalette, projectFileSearchService, getPromptReferenceProjectRoot, placeholder)).Root;
 
         var promptImageStrip = new ComputedVisual(BuildPromptImageAttachmentStrip);
 
