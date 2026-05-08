@@ -187,11 +187,11 @@ public sealed class ThreadRuntimeStateReducerTests
                 DateTimeOffset.UtcNow,
                 new AgentRunId("run-1"),
                 AgentSessionUpdateKind.Info,
-                "Waiting for ChatGPT/Codex response..."),
+                "Backend notice."),
             isSelectedThread: true);
 
         Assert.IsNotNull(reduction.ThreadStatus);
-        Assert.AreEqual("Waiting for ChatGPT/Codex response...", reduction.ThreadStatus.Value.Message);
+        Assert.AreEqual("Backend notice.", reduction.ThreadStatus.Value.Message);
         Assert.IsTrue(reduction.ThreadStatus.Value.ShowSpinner);
         Assert.AreEqual(StatusTone.Info, reduction.ThreadStatus.Value.Tone);
     }

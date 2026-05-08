@@ -1743,13 +1743,10 @@ public sealed class OpenAIRawApiAgentBackendTests
     }
 
     [TestMethod]
-    public async Task OpenAIResponsesTurnExecutor_CodexSlowResponsePublishesPendingStatus()
+    public async Task OpenAIResponsesTurnExecutor_CodexSlowResponseDoesNotPublishPendingStatus()
     {
-        var previousDelay = OpenAIResponsesTurnExecutor.CodexPendingStatusDelay;
-        OpenAIResponsesTurnExecutor.CodexPendingStatusDelay = TimeSpan.FromMilliseconds(10);
         var releaseResponse = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var statusPublished = new TaskCompletionSource<LocalAgentTurnSessionUpdate>(
-            TaskCreationOptions.RunContinuationsAsynchronously);
+        var sessionUpdates = new List<LocalAgentTurnSessionUpdate>();
         var responsesClient = new DelayedOpenAIResponseClient(
             releaseResponse.Task,
             [
@@ -1769,32 +1766,22 @@ public sealed class OpenAIRawApiAgentBackendTests
             },
         });
 
-        try
-        {
-            var turnTask = executor.ExecuteTurnAsync(
-                CreateCodexTurnRequest(),
-                static (_, _) => ValueTask.CompletedTask,
-                (update, _) =>
-                {
-                    if (update.Kind == AgentSessionUpdateKind.Info)
-                    {
-                        statusPublished.TrySetResult(update);
-                    }
+        var turnTask = executor.ExecuteTurnAsync(
+            CreateCodexTurnRequest(),
+            static (_, _) => ValueTask.CompletedTask,
+            (update, _) =>
+            {
+                sessionUpdates.Add(update);
+                return ValueTask.CompletedTask;
+            });
 
-                    return ValueTask.CompletedTask;
-                });
+        releaseResponse.SetResult();
 
-            var pendingStatus = await statusPublished.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
-            StringAssert.Contains(pendingStatus.Message, "Waiting for ChatGPT/Codex response");
-            releaseResponse.SetResult();
-
-            var response = await turnTask.ConfigureAwait(false);
-            Assert.AreEqual("Slow answer.", response.AssistantMessage.Parts.OfType<LocalAgentMessagePart.Text>().Single().Value);
-        }
-        finally
-        {
-            OpenAIResponsesTurnExecutor.CodexPendingStatusDelay = previousDelay;
-        }
+        var response = await turnTask.ConfigureAwait(false);
+        Assert.AreEqual("Slow answer.", response.AssistantMessage.Parts.OfType<LocalAgentMessagePart.Text>().Single().Value);
+        Assert.IsFalse(sessionUpdates.Any(static update =>
+            update.Kind == AgentSessionUpdateKind.Info &&
+            update.Message?.Contains("Waiting for ChatGPT/Codex response", StringComparison.Ordinal) == true));
     }
 
     [TestMethod]

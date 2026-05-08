@@ -23,7 +23,6 @@ internal sealed class OpenAIResponsesTurnExecutor(
     private static readonly Logger Logger = LogManager.GetLogger("CodeAlta.Agent.OpenAI");
     private static readonly ResponseReasoningEffortLevel XHighReasoningEffortLevel = new("xhigh");
     private static readonly TimeSpan CodexBaseRetryDelay = TimeSpan.FromMilliseconds(250);
-    internal static TimeSpan CodexPendingStatusDelay { get; set; } = TimeSpan.FromSeconds(1);
     private static readonly TimeSpan DefaultWebSocketIdleTimeout = TimeSpan.FromMinutes(5);
     private static readonly Random SharedRandom = Random.Shared;
     private const string WebSocketErrorCodeDataKey = "OpenAI.WebSocketErrorCode";
@@ -100,8 +99,6 @@ internal sealed class OpenAIResponsesTurnExecutor(
                     Attempt: attempt,
                     DraftAttemptId: CreateDraftAttemptId(request, attempt));
                 var initialTransport = ResolveInitialTransport(request);
-                using var pendingStatusCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                var pendingStatusTask = Task.CompletedTask;
                 try
                 {
                     var turnState = GetCodexTurnState(request);
@@ -109,12 +106,6 @@ internal sealed class OpenAIResponsesTurnExecutor(
                         request,
                         onSessionUpdate,
                         cancellationToken).ConfigureAwait(false);
-                    pendingStatusTask = PublishCodexPendingStatusAsync(
-                        request,
-                        initialTransport,
-                        attempt,
-                        onSessionUpdate,
-                        pendingStatusCts.Token);
                     var client = OpenAIProviderSdkFactory.CreateResponsesClient(
                         provider,
                         new OpenAIResponsesClientFactoryContext(
@@ -368,10 +359,6 @@ internal sealed class OpenAIResponsesTurnExecutor(
                         .ConfigureAwait(false);
                     await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
                 }
-                finally
-                {
-                    await StopCodexPendingStatusAsync(pendingStatusCts, pendingStatusTask).ConfigureAwait(false);
-                }
             }
         }
         catch (OperationCanceledException ex) when (IsTransportAbortedOperationCanceled(ex))
@@ -413,39 +400,6 @@ internal sealed class OpenAIResponsesTurnExecutor(
                _webSocketHttpFallbackSessions.ContainsKey(request.SessionId)
             ? OpenAIResponsesTransport.Http
             : transport;
-    }
-
-    private async Task PublishCodexPendingStatusAsync(
-        LocalAgentTurnRequest request,
-        OpenAIResponsesTransport transport,
-        int attempt,
-        Func<LocalAgentTurnSessionUpdate, CancellationToken, ValueTask> onSessionUpdate,
-        CancellationToken cancellationToken)
-    {
-        if (provider.CodexSubscription is null)
-        {
-            return;
-        }
-
-        await Task.Delay(CodexPendingStatusDelay, cancellationToken).ConfigureAwait(false);
-        await onSessionUpdate(
-                CreateCodexPendingSessionUpdate(request, transport, attempt),
-                cancellationToken)
-            .ConfigureAwait(false);
-    }
-
-    private static async Task StopCodexPendingStatusAsync(
-        CancellationTokenSource pendingStatusCts,
-        Task pendingStatusTask)
-    {
-        pendingStatusCts.Cancel();
-        try
-        {
-            await pendingStatusTask.ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
-        }
     }
 
     private static OpenAIResponsesTransport ResolveConfiguredInitialTransport(OpenAIProviderOptions provider)
@@ -2047,22 +2001,6 @@ internal sealed class OpenAIResponsesTurnExecutor(
         };
     }
 
-    private static LocalAgentTurnSessionUpdate CreateCodexPendingSessionUpdate(
-        LocalAgentTurnRequest request,
-        OpenAIResponsesTransport transport,
-        int attempt)
-    {
-        var transportText = transport == OpenAIResponsesTransport.WebSocket
-            ? " via WebSocket"
-            : string.Empty;
-        return new LocalAgentTurnSessionUpdate
-        {
-            Kind = AgentSessionUpdateKind.Info,
-            Message = $"Waiting for ChatGPT/Codex response{transportText}...",
-            Details = CreateCodexPendingDetails(request, transport, attempt),
-        };
-    }
-
     private static JsonElement CreateCodexReconnectDetails(
         LocalAgentTurnRequest request,
         CodexStreamAttemptState attemptState,
@@ -2097,25 +2035,6 @@ internal sealed class OpenAIResponsesTurnExecutor(
             writer.WriteBoolean("reasoningDelta", attemptState.EmittedReasoningDelta);
             writer.WriteBoolean("observedOutputItemDone", attemptState.ObservedOutputItemDone);
             writer.WriteBoolean("observedToolCallItem", attemptState.ObservedToolCallItem);
-            writer.WriteEndObject();
-        }
-
-        return JsonDocument.Parse(stream.ToArray()).RootElement.Clone();
-    }
-
-    private static JsonElement CreateCodexPendingDetails(
-        LocalAgentTurnRequest request,
-        OpenAIResponsesTransport transport,
-        int attempt)
-    {
-        using var stream = new MemoryStream();
-        using (var writer = new Utf8JsonWriter(stream))
-        {
-            writer.WriteStartObject();
-            writer.WriteString("provider", "codex_subscription");
-            writer.WriteString("transport", transport.ToString().ToLowerInvariant());
-            writer.WriteNumber("attempt", attempt);
-            writer.WriteString("runId", request.RunId.Value);
             writer.WriteEndObject();
         }
 
