@@ -13,28 +13,22 @@ namespace CodeAlta.Views;
 internal sealed class NavigatorSettingsDialog
 {
     private readonly NavigatorSettingsDialogViewModel _viewModel;
-    private readonly Func<NavigatorSettings, Task> _onSaveAsync;
-    private readonly Func<Visual?> _getFocusTarget;
+    private readonly INavigatorSettingsDialogService _dialogService;
     private readonly Dialog _dialog;
 
     public NavigatorSettingsDialog(
         NavigatorSettings settings,
-        Func<NavigatorSettings, Task> onSaveAsync,
-        Func<Rectangle?> getBounds,
-        Func<Visual?> getFocusTarget)
+        INavigatorSettingsDialogService dialogService)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        ArgumentNullException.ThrowIfNull(onSaveAsync);
-        ArgumentNullException.ThrowIfNull(getBounds);
-        ArgumentNullException.ThrowIfNull(getFocusTarget);
+        ArgumentNullException.ThrowIfNull(dialogService);
 
         _viewModel = new NavigatorSettingsDialogViewModel
         {
             SortMode = settings.SortMode,
             RecentThreadsPerProject = settings.RecentThreadsPerProject,
         };
-        _onSaveAsync = onSaveAsync;
-        _getFocusTarget = getFocusTarget;
+        _dialogService = dialogService;
 
         var closeButton = new Button(new TextBlock($"{NerdFont.MdClose} Close"))
         {
@@ -112,7 +106,7 @@ internal sealed class NavigatorSettingsDialog
             .IsModal(true)
             .Padding(1)
             .Content(content);
-        ResponsiveDialogSize.Apply(_dialog, getBounds(), minWidth: 54, minHeight: 12, widthFactor: 0.65, heightFactor: 0.45);
+        ResponsiveDialogSize.Apply(_dialog, _dialogService.GetDialogBounds(), minWidth: 54, minHeight: 12, widthFactor: 0.65, heightFactor: 0.45);
         _dialog.AddCommand(new Command
         {
             Id = "CodeAlta.NavigatorSettings.Close",
@@ -145,14 +139,14 @@ internal sealed class NavigatorSettingsDialog
         }
 
         Close();
-        await _onSaveAsync(settings);
+        await _dialogService.SaveNavigatorSettingsAsync(settings);
     }
 
     private void Close()
     {
         var app = _dialog.App;
         _dialog.Close();
-        if (_getFocusTarget() is { } focusTarget)
+        if (_dialogService.GetDialogFocusTarget() is { } focusTarget)
         {
             app?.Focus(focusTarget);
         }

@@ -421,6 +421,18 @@ public sealed class ArchitectureGuardrailTests
     }
 
     [TestMethod]
+    public void NavigatorSettingsDialog_UsesNamedServiceInsteadOfDomainCallbackList()
+    {
+        var constructor = typeof(NavigatorSettingsDialog)
+            .GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+            .Single();
+        var parameters = constructor.GetParameters();
+
+        Assert.IsTrue(parameters.Any(static parameter => parameter.ParameterType == typeof(INavigatorSettingsDialogService)));
+        Assert.IsFalse(parameters.Any(static parameter => typeof(Delegate).IsAssignableFrom(parameter.ParameterType)));
+    }
+
+    [TestMethod]
     public void FrontendShellContracts_DoNotAddBackendTerminologyOutsideLegacyAdapters()
     {
         var codeAltaRoot = GetCodeAltaSourceRoot();

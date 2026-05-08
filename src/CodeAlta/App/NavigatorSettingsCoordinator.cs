@@ -6,7 +6,7 @@ using XenoAtom.Terminal.UI.Geometry;
 
 namespace CodeAlta.App;
 
-internal sealed class NavigatorSettingsCoordinator
+internal sealed class NavigatorSettingsCoordinator : INavigatorSettingsDialogService
 {
     private readonly ShellThreadStateCoordinator _threadStateCoordinator;
     private readonly Func<Rectangle?> _getDialogBounds;
@@ -38,9 +38,7 @@ internal sealed class NavigatorSettingsCoordinator
     {
         new NavigatorSettingsDialog(
             _threadStateCoordinator.GetNavigatorSettingsSnapshot(),
-            SaveAsync,
-            _getDialogBounds,
-            _getFocusTarget)
+            this)
             .Show();
     }
 
@@ -56,4 +54,13 @@ internal sealed class NavigatorSettingsCoordinator
             _setStatus($"Failed to save navigator settings: {ex.Message}", false, StatusTone.Error);
         }
     }
+
+    Rectangle? INavigatorSettingsDialogService.GetDialogBounds()
+        => _getDialogBounds();
+
+    Visual? INavigatorSettingsDialogService.GetDialogFocusTarget()
+        => _getFocusTarget();
+
+    Task INavigatorSettingsDialogService.SaveNavigatorSettingsAsync(NavigatorSettings settings)
+        => SaveAsync(settings);
 }
