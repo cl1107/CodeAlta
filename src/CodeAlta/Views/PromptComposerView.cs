@@ -39,11 +39,7 @@ internal sealed class PromptComposerView
         Binding<string?> promptText,
         PromptImageAttachmentStripView promptImageAttachmentStripView,
         Func<Rectangle?> getDialogBounds,
-        Action<string> acceptPrompt,
-        Action sendPrompt,
-        Action abortThread,
-        Action openHelp,
-        Action openCommandPalette)
+        PromptComposerViewController controller)
     {
         ArgumentNullException.ThrowIfNull(viewModel);
         ArgumentNullException.ThrowIfNull(commandBindings);
@@ -51,26 +47,22 @@ internal sealed class PromptComposerView
         ArgumentNullException.ThrowIfNull(getPromptReferenceProjectRoot);
         ArgumentNullException.ThrowIfNull(promptImageAttachmentStripView);
         ArgumentNullException.ThrowIfNull(getDialogBounds);
-        ArgumentNullException.ThrowIfNull(acceptPrompt);
-        ArgumentNullException.ThrowIfNull(sendPrompt);
-        ArgumentNullException.ThrowIfNull(abortThread);
-        ArgumentNullException.ThrowIfNull(openHelp);
-        ArgumentNullException.ThrowIfNull(openCommandPalette);
+        ArgumentNullException.ThrowIfNull(controller);
 
         _viewModel = viewModel;
         _promptText = promptText;
-        _openHelp = openHelp;
-        _openCommandPalette = openCommandPalette;
+        _openHelp = controller.OpenHelp;
+        _openCommandPalette = controller.OpenCommandPalette;
         _projectFileSearchService = projectFileSearchService;
         _getPromptReferenceProjectRoot = getPromptReferenceProjectRoot;
         _getDialogBounds = getDialogBounds;
         _promptImageAttachmentStripView = promptImageAttachmentStripView;
 
-        Editor = CreatePromptEditor(viewModel, openHelp, openCommandPalette, projectFileSearchService, getPromptReferenceProjectRoot, acceptPrompt, commandBindings, promptText)
+        Editor = CreatePromptEditor(viewModel, controller.OpenHelp, controller.OpenCommandPalette, projectFileSearchService, getPromptReferenceProjectRoot, controller.AcceptPrompt, commandBindings, promptText)
             .IsEnabled(viewModel.Bind.IsEnabled);
         _promptImageAttachmentStripView.ConfigurePromptImagePasteHandler(Editor);
         EditorView = Editor.Scrollable();
-        SendButton = CreatePromptActionButton(viewModel, sendPrompt, abortThread);
+        SendButton = CreatePromptActionButton(viewModel, controller.SendPrompt, controller.AbortThread);
         ExpandButton = CreateIconButton(
             $"{NerdFont.MdSquareEditOutline}",
             "Open the current prompt in a large editor window (F6).",

@@ -96,11 +96,7 @@ internal sealed class ThreadWorkspaceView
             promptText,
             _promptImageAttachmentStripView,
             () => ThreadPaneLayout?.GetAbsoluteBounds(),
-            acceptPrompt,
-            sendPrompt,
-            abortThread,
-            openHelp,
-            openCommandPalette);
+            PromptComposerViewController.Create(acceptPrompt, sendPrompt, abortThread, openHelp, openCommandPalette));
         ThreadInput = _promptComposerView.Editor;
         ThreadInputView = _promptComposerView.EditorView;
 
