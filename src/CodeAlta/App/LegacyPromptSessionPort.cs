@@ -8,6 +8,7 @@ internal sealed class LegacyPromptSessionPort : IPromptSessionPort
 {
     private readonly IUiDispatcher _uiDispatcher;
     private readonly Func<bool> _isPromptEmpty;
+    private readonly Func<string?> _getPromptText;
     private readonly Action _clearPrompt;
     private readonly Action<string> _restorePromptText;
     private readonly Func<IReadOnlyList<PromptImageAttachment>> _snapshotPromptImages;
@@ -23,6 +24,7 @@ internal sealed class LegacyPromptSessionPort : IPromptSessionPort
         Action<string> restorePromptText,
         Func<IReadOnlyList<PromptImageAttachment>> snapshotPromptImages,
         Action<IReadOnlyList<PromptImageAttachment>> restorePromptImages,
+        Func<string?>? getPromptText = null,
         Action? updatePromptAvailability = null,
         Action? updatePromptAttachments = null)
     {
@@ -35,6 +37,7 @@ internal sealed class LegacyPromptSessionPort : IPromptSessionPort
 
         _uiDispatcher = uiDispatcher;
         _isPromptEmpty = isPromptEmpty;
+        _getPromptText = getPromptText ?? (static () => null);
         _clearPrompt = clearPrompt;
         _restorePromptText = restorePromptText;
         _snapshotPromptImages = snapshotPromptImages;
@@ -57,7 +60,7 @@ internal sealed class LegacyPromptSessionPort : IPromptSessionPort
     public PromptSubmission CapturePrompt(PromptSessionId promptSessionId, string? submittedText)
     {
         ValidatePromptSessionId(promptSessionId);
-        return _uiDispatcher.Invoke(() => PromptSubmission.Create(submittedText, _snapshotPromptImages()));
+        return _uiDispatcher.Invoke(() => PromptSubmission.Create(submittedText ?? _getPromptText(), _snapshotPromptImages()));
     }
 
     public bool IsPromptEmpty(PromptSessionId promptSessionId)

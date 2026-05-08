@@ -621,6 +621,9 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
     internal bool IsPromptTextEmpty()
         => ReadBindableState(() => string.IsNullOrWhiteSpace(_promptDraftUiCoordinator!.PromptText) && !_promptDraftUiCoordinator.HasCurrentPromptImages);
 
+    internal string? GetPromptText()
+        => ReadBindableState(() => _promptDraftUiCoordinator!.PromptText);
+
     internal void RestorePromptText(string prompt)
         => DispatchToUi(() => _promptDraftUiCoordinator!.PromptText = prompt);
 

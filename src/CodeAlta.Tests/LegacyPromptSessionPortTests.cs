@@ -36,6 +36,25 @@ public sealed class LegacyPromptSessionPortTests
     }
 
     [TestMethod]
+    public void CapturePrompt_UsesCurrentPromptTextWhenSubmittedTextIsNull()
+    {
+        var port = new LegacyPromptSessionPort(
+            new RecordingUiDispatcher(),
+            static () => false,
+            static () => { },
+            static _ => { },
+            static () => [],
+            static _ => { },
+            static () => "steer immediately");
+        var promptSessionId = new PromptSessionId("prompt-1");
+
+        var submission = port.CapturePrompt(promptSessionId, submittedText: null);
+
+        Assert.AreEqual("steer immediately", submission.Text);
+        Assert.IsTrue(submission.HasContent);
+    }
+
+    [TestMethod]
     public void PromptOperations_RejectDefaultPromptSessionId()
     {
         var port = new LegacyPromptSessionPort(

@@ -91,6 +91,7 @@ internal sealed class CodeAltaFrontendComposition
             frontend.RestorePromptText,
             frontend.SnapshotPromptImages,
             frontend.RestorePromptImages,
+            frontend.GetPromptText,
             () => frontendEvents.Publish(new PromptAvailabilityChangedEvent()),
             frontend.UpdatePromptImageAttachmentsUi);
         var sessionLoadableBackendIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
