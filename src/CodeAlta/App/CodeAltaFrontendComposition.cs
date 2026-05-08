@@ -88,7 +88,7 @@ internal sealed class CodeAltaFrontendComposition
             frontend.RestorePromptText,
             frontend.SnapshotPromptImages,
             frontend.RestorePromptImages,
-            frontend.UpdatePromptAvailabilityUi,
+            () => frontendEvents.Publish(new PromptAvailabilityChangedEvent()),
             frontend.UpdatePromptImageAttachmentsUi);
         var sessionLoadableBackendIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var sessionLoadableBackendIdsGate = new object();
@@ -298,8 +298,8 @@ internal sealed class CodeAltaFrontendComposition
                     frontend.GetAutoApproveEnabled,
                     frontend.ClearDraftPromptText,
                     frontend.SetReadyStatusForCurrentSelection,
-                    frontend.RefreshHeaderAndThreadWorkspace,
-                    frontend.RefreshCatalogAndThreadWorkspace,
+                    () => frontendEvents.Publish(new HeaderChangedEvent()),
+                    () => frontendEvents.Publish(new CatalogChangedEvent()),
                     threadRuntimeEventCoordinator.TryRenderInteraction),
                 promptSessionPort,
                 () => legacyPromptSessionId,
