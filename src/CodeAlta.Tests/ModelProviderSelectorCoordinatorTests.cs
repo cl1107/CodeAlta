@@ -14,7 +14,7 @@ using CodeAlta.ViewModels;
 namespace CodeAlta.Tests;
 
 [TestClass]
-public sealed class ChatSelectorCoordinatorTests
+public sealed class ModelProviderSelectorCoordinatorTests
 {
     [TestMethod]
     public void RefreshForDraftScope_SwitchingBackend_UpdatesModelOptionsAndSyncsSelectors()
@@ -53,7 +53,7 @@ public sealed class ChatSelectorCoordinatorTests
         var workspaceRefresh = new WorkspaceRefreshContext(static _ => { });
         var threadSelection = CreateThreadSelectionContext();
         var syncCallCount = 0;
-        var coordinator = new ChatSelectorCoordinator(
+        var coordinator = new ModelProviderSelectorCoordinator(
             workspaceViewModel,
             promptComposerViewModel,
             backendStates,
@@ -198,7 +198,7 @@ public sealed class ChatSelectorCoordinatorTests
             static (_, _, _) => { },
             static (_, _, _, _) => { });
         var workspaceRefresh = new WorkspaceRefreshContext(static _ => { });
-        var coordinator = new ChatSelectorCoordinator(
+        var coordinator = new ModelProviderSelectorCoordinator(
             backendDescriptors,
             workspaceViewModel,
             promptComposerViewModel,
@@ -245,7 +245,7 @@ public sealed class ChatSelectorCoordinatorTests
             static (_, _, _) => { },
             static (_, _, _, _) => { });
         var workspaceRefresh = new WorkspaceRefreshContext(static _ => { });
-        var coordinator = new ChatSelectorCoordinator(
+        var coordinator = new ModelProviderSelectorCoordinator(
             backendDescriptors,
             workspaceViewModel,
             promptComposerViewModel,
@@ -302,7 +302,7 @@ public sealed class ChatSelectorCoordinatorTests
         var workspaceRefresh = new WorkspaceRefreshContext(static _ => { });
         var switchCallCount = 0;
         var refreshedSelectionCount = 0;
-        var coordinator = new ChatSelectorCoordinator(
+        var coordinator = new ModelProviderSelectorCoordinator(
             backendDescriptors,
             workspaceViewModel,
             promptComposerViewModel,
@@ -360,7 +360,7 @@ public sealed class ChatSelectorCoordinatorTests
             static (_, _, _) => { },
             static (_, _, _, _) => { });
         var workspaceRefresh = new WorkspaceRefreshContext(static _ => { });
-        var coordinator = new ChatSelectorCoordinator(
+        var coordinator = new ModelProviderSelectorCoordinator(
             backendDescriptors,
             workspaceViewModel,
             promptComposerViewModel,
@@ -410,7 +410,7 @@ public sealed class ChatSelectorCoordinatorTests
             static (_, _, _) => { },
             static (_, _, _, _) => { });
         var workspaceRefresh = new WorkspaceRefreshContext(static _ => { });
-        var coordinator = new ChatSelectorCoordinator(
+        var coordinator = new ModelProviderSelectorCoordinator(
             backendDescriptors,
             workspaceViewModel,
             promptComposerViewModel,
@@ -430,7 +430,7 @@ public sealed class ChatSelectorCoordinatorTests
         Assert.AreEqual(1, draftPreferenceApplyCount);
     }
 
-    private static ChatSelectorCoordinator CreateCoordinator(
+    private static ModelProviderSelectorCoordinator CreateCoordinator(
         IReadOnlyList<AgentBackendDescriptor> backendDescriptors,
         ThreadWorkspaceViewModel workspaceViewModel,
         PromptComposerViewModel promptComposerViewModel,
@@ -446,7 +446,7 @@ public sealed class ChatSelectorCoordinatorTests
             static (_, _, _, _) => { });
         var workspaceRefresh = new WorkspaceRefreshContext(static _ => { });
         var threadSelection = CreateThreadSelectionContext();
-        return new ChatSelectorCoordinator(
+        return new ModelProviderSelectorCoordinator(
             backendDescriptors,
             workspaceViewModel,
             promptComposerViewModel,

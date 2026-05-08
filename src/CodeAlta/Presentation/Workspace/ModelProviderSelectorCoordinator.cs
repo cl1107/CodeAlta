@@ -12,7 +12,7 @@ using XenoAtom.Terminal.UI.Controls;
 
 namespace CodeAlta.Presentation.Workspace;
 
-internal sealed class ChatSelectorCoordinator
+internal sealed class ModelProviderSelectorCoordinator
 {
     private readonly IReadOnlyList<AgentBackendDescriptor> _backendDescriptors;
     private readonly ThreadWorkspaceViewModel _workspaceViewModel;
@@ -30,7 +30,7 @@ internal sealed class ChatSelectorCoordinator
     private readonly Func<IReadOnlyList<string>>? _getConfiguredProviderKeys;
     private bool _selectorsRefreshing;
 
-    public ChatSelectorCoordinator(
+    public ModelProviderSelectorCoordinator(
         ThreadWorkspaceViewModel workspaceViewModel,
         PromptComposerViewModel promptComposerViewModel,
         Dictionary<string, ChatBackendState> chatBackendStates,
@@ -64,7 +64,7 @@ internal sealed class ChatSelectorCoordinator
     {
     }
 
-    public ChatSelectorCoordinator(
+    public ModelProviderSelectorCoordinator(
         IReadOnlyList<AgentBackendDescriptor> backendDescriptors,
         ThreadWorkspaceViewModel workspaceViewModel,
         PromptComposerViewModel promptComposerViewModel,

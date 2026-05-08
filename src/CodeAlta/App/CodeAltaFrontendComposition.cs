@@ -35,7 +35,7 @@ internal sealed class CodeAltaFrontendComposition
     public required Dictionary<string, ChatBackendState> ChatBackendStates { get; init; }
     public required SidebarCoordinator SidebarCoordinator { get; init; }
     public required NavigatorActionCoordinator NavigatorActionCoordinator { get; init; }
-    public required ChatSelectorCoordinator ChatSelectorCoordinator { get; init; }
+    public required ModelProviderSelectorCoordinator ModelProviderSelectorCoordinator { get; init; }
     public required IModelProviderPreferencePort ModelProviderPreferencePort { get; init; }
     public required ChatSelectorStateStore ChatSelectorStateStore { get; init; }
     public required ShellStateStore ShellStateStore { get; init; }
@@ -179,7 +179,7 @@ internal sealed class CodeAltaFrontendComposition
             threadStateCoordinator.RekeyThreadIdentity,
             frontend.PersistViewStateAsync,
             runtimeService.GetHistoryAsync);
-        var chatSelectorCoordinator = new ChatSelectorCoordinator(
+        var chatSelectorCoordinator = new ModelProviderSelectorCoordinator(
             backendDescriptors,
             threadWorkspaceViewModel,
             promptComposerViewModel,
@@ -333,7 +333,7 @@ internal sealed class CodeAltaFrontendComposition
             ChatBackendStates = chatBackendStates,
             SidebarCoordinator = sidebarCoordinator,
             NavigatorActionCoordinator = navigatorActionCoordinator,
-            ChatSelectorCoordinator = chatSelectorCoordinator,
+            ModelProviderSelectorCoordinator = chatSelectorCoordinator,
             ModelProviderPreferencePort = modelProviderPreferencePort,
             ChatSelectorStateStore = chatSelectorStateContext,
             ShellStateStore = shellStateStore,

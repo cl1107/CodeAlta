@@ -61,7 +61,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
     private readonly Dictionary<string, ChatBackendState> _chatBackendStates;
     private readonly SidebarCoordinator _sidebarCoordinator;
     private readonly NavigatorActionCoordinator _navigatorActionCoordinator;
-    private readonly ChatSelectorCoordinator _chatSelectorCoordinator;
+    private readonly ModelProviderSelectorCoordinator _chatSelectorCoordinator;
     private readonly ThreadTabStripCoordinator _threadTabStripCoordinator;
     private readonly IShellTabService _shellTabService = new InMemoryShellTabService();
     private readonly ShellAnimationRuntime _shellAnimationRuntime = new();
@@ -192,7 +192,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
         _chatBackendStates = composition.ChatBackendStates;
         _sidebarCoordinator = composition.SidebarCoordinator;
         _navigatorActionCoordinator = composition.NavigatorActionCoordinator;
-        _chatSelectorCoordinator = composition.ChatSelectorCoordinator;
+        _chatSelectorCoordinator = composition.ModelProviderSelectorCoordinator;
         _shellWorkspaceContext = composition.ShellWorkspaceContext;
         _threadSelectionContext = composition.ThreadSelectionContext;
         _workspaceRefreshContext = composition.WorkspaceRefreshContext;
