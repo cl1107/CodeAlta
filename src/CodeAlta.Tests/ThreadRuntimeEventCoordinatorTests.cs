@@ -69,6 +69,29 @@ public sealed class ThreadRuntimeEventCoordinatorTests
     }
 
     [TestMethod]
+    public void ApplyRuntimeEvent_ForwardsAgentEventsToPluginObserver()
+    {
+        var thread = CreateThread();
+        var tab = CreateOpenThreadState(thread);
+        var observer = new RecordingPluginAgentEventObserver();
+        var coordinator = CreateCoordinator(thread, tab, pluginAgentEventObserver: observer);
+        var agentEvent = new AgentContentCompletedEvent(
+            AgentBackendIds.Copilot,
+            "session-1",
+            DateTimeOffset.UtcNow,
+            null,
+            AgentContentKind.Assistant,
+            "assistant-1",
+            null,
+            "Final answer");
+
+        coordinator.ApplyRuntimeEvent(new WorkThreadAgentEvent(thread.ThreadId, agentEvent));
+
+        Assert.AreSame(thread, observer.ObservedThread);
+        Assert.AreSame(agentEvent, observer.ObservedEvent);
+    }
+
+    [TestMethod]
     public void HandleAgentEvent_KeepsManualCompactionStatusWhileProgressEventsArrive()
     {
         var thread = CreateThread();
@@ -440,6 +463,7 @@ public sealed class ThreadRuntimeEventCoordinatorTests
         WorkThreadDescriptor thread,
         OpenThreadState tab,
         IProjectFileSearchService? projectFileSearchService = null,
+        IPluginAgentEventObserver? pluginAgentEventObserver = null,
         FrontendEventPublisher? frontendEvents = null)
     {
         var stateStore = new ShellStateStore(new InlineUiDispatcher());
@@ -452,7 +476,22 @@ public sealed class ThreadRuntimeEventCoordinatorTests
             statusPort: new TestShellStatusPort(),
             drainQueuedPromptAsync: static (_, _) => Task.CompletedTask,
             projectFileSearchService: projectFileSearchService ?? NullProjectFileSearchService.Instance,
+            pluginAgentEventObserver: pluginAgentEventObserver,
             frontendEvents: frontendEvents);
+    }
+
+    private sealed class RecordingPluginAgentEventObserver : IPluginAgentEventObserver
+    {
+        public WorkThreadDescriptor? ObservedThread { get; private set; }
+
+        public AgentEvent? ObservedEvent { get; private set; }
+
+        public Task ObserveAgentEventAsync(WorkThreadDescriptor thread, AgentEvent agentEvent, CancellationToken cancellationToken = default)
+        {
+            ObservedThread = thread;
+            ObservedEvent = agentEvent;
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class TestShellStatusPort : IShellStatusPort

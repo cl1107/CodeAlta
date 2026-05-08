@@ -18,7 +18,7 @@ internal sealed class ThreadRuntimeEventCoordinator
     private readonly IShellStatusPort _statusPort;
     private readonly Func<OpenThreadState, CancellationToken, Task> _drainQueuedPromptAsync;
     private readonly IProjectFileSearchService _projectFileSearchService;
-    private readonly PluginHostBridge? _pluginHostBridge;
+    private readonly IPluginAgentEventObserver _pluginAgentEventObserver;
     private readonly FrontendEventPublisher? _frontendEvents;
     private readonly ThreadRuntimeStateReducer _stateReducer;
     private readonly ThreadRuntimeTimelineRenderer _timelineRenderer;
@@ -31,7 +31,7 @@ internal sealed class ThreadRuntimeEventCoordinator
         IShellStatusPort statusPort,
         Func<OpenThreadState, CancellationToken, Task> drainQueuedPromptAsync,
         IProjectFileSearchService projectFileSearchService,
-        PluginHostBridge? pluginHostBridge = null,
+        IPluginAgentEventObserver? pluginAgentEventObserver = null,
         FrontendEventPublisher? frontendEvents = null)
     {
         ArgumentNullException.ThrowIfNull(stateStore);
@@ -48,7 +48,7 @@ internal sealed class ThreadRuntimeEventCoordinator
         _statusPort = statusPort;
         _drainQueuedPromptAsync = drainQueuedPromptAsync;
         _projectFileSearchService = projectFileSearchService;
-        _pluginHostBridge = pluginHostBridge;
+        _pluginAgentEventObserver = pluginAgentEventObserver ?? new PluginAgentEventObserver(null);
         _frontendEvents = frontendEvents;
         _stateReducer = new ThreadRuntimeStateReducer();
         _timelineRenderer = new ThreadRuntimeTimelineRenderer(getAutoApproveEnabled);
@@ -91,7 +91,7 @@ internal sealed class ThreadRuntimeEventCoordinator
         if (runtimeEvent is WorkThreadAgentEvent agentRuntimeEvent)
         {
             InvalidateProjectFileSearchIfNeeded(thread, agentRuntimeEvent.Event);
-            _ = ObservePluginAgentEventAsync(thread, agentRuntimeEvent.Event);
+            ObservePluginAgentEvent(thread, agentRuntimeEvent.Event);
         }
 
         ApplyReduction(tab, reduction);
@@ -107,7 +107,7 @@ internal sealed class ThreadRuntimeEventCoordinator
         TryRenderInteraction(tab, () => _timelineRenderer.RenderAgentEvent(tab, @event), "agent event");
         _frontendEvents?.Publish(new RuntimeTimelineChangedEvent(thread.ThreadId));
         InvalidateProjectFileSearchIfNeeded(thread, @event);
-        _ = ObservePluginAgentEventAsync(thread, @event);
+        ObservePluginAgentEvent(thread, @event);
         ApplyReduction(tab, reduction);
     }
 
@@ -133,25 +133,10 @@ internal sealed class ThreadRuntimeEventCoordinator
         }
     }
 
-    private async Task ObservePluginAgentEventAsync(WorkThreadDescriptor thread, AgentEvent @event)
-    {
-        if (_pluginHostBridge is null)
-        {
-            return;
-        }
-
-        try
-        {
-            await _pluginHostBridge.ObserveAgentEventAsync(thread, @event);
-        }
-        catch (Exception ex)
-        {
-            if (LogManager.IsInitialized && CodeAltaApp.UiLogger.IsEnabled(LogLevel.Error))
-            {
-                CodeAltaApp.UiLogger.Error(ex, $"Plugin agent event observer failed for thread {thread.ThreadId}");
-            }
-        }
-    }
+    private void ObservePluginAgentEvent(WorkThreadDescriptor thread, AgentEvent @event)
+        => global::CodeAlta.CodeAltaTaskMonitor.Observe(
+            _pluginAgentEventObserver.ObserveAgentEventAsync(thread, @event),
+            $"Plugin agent event observer for thread {thread.ThreadId}");
 
     public static bool ShouldPromoteAgentEventToThinking(AgentEvent @event)
         => ThreadRuntimeStateReducer.ShouldPromoteAgentEventToThinking(@event);

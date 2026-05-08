@@ -267,7 +267,7 @@ internal sealed class CodeAltaFrontendComposition
             shellStatusPort,
             (tab, cancellationToken) => threadCommandCoordinator!.DrainQueuedPromptAsync(tab, cancellationToken),
             projectFileSearchService,
-            pluginHostBridge,
+            new PluginAgentEventObserver(pluginHostBridge),
             frontendEvents);
         var threadCreationCoordinator = new ThreadCreationCoordinator(
             runtimeService,
