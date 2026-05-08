@@ -1213,6 +1213,24 @@ public sealed class ArchitectureGuardrailTests
     }
 
     [TestMethod]
+    public void ShellStateStore_DocumentsBoundedSnapshotOwnership()
+    {
+        var stateRoot = Path.Combine(GetCodeAltaSourceRoot(), "App", "State");
+        var source = File.ReadAllText(Path.Combine(stateRoot, "ShellStateStore.cs"));
+
+        Assert.IsFalse(File.Exists(Path.Combine(stateRoot, "ShellFrontendStateStore.cs")));
+        Assert.IsFalse(source.Contains("class ShellFrontendStateStore", StringComparison.Ordinal));
+        Assert.IsTrue(source.Contains("Frontend state ownership remains split by domain owner", StringComparison.Ordinal));
+        Assert.IsTrue(source.Contains("Catalog and selection restore", StringComparison.Ordinal));
+        Assert.IsTrue(source.Contains("Live logical tabs", StringComparison.Ordinal));
+        Assert.IsTrue(source.Contains("Prompt draft text and images", StringComparison.Ordinal));
+        Assert.IsTrue(source.Contains("Model-provider selection and runtime state", StringComparison.Ordinal));
+        Assert.IsTrue(source.Contains("Shell and thread status", StringComparison.Ordinal));
+        Assert.IsTrue(source.Contains("File editor tabs", StringComparison.Ordinal));
+        Assert.IsTrue(source.Contains("Plugin projections", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public void CodeAltaApp_DelegatesWorkspaceRefreshWorkflow()
     {
         var appSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "App", "CodeAltaApp.cs"));

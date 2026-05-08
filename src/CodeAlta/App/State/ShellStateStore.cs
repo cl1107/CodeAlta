@@ -7,6 +7,20 @@ namespace CodeAlta.App.State;
 /// <summary>
 /// UI-thread-owned immutable state store for shell frontend projections.
 /// </summary>
+/// <remarks>
+/// Frontend state ownership remains split by domain owner; this store is authoritative only
+/// for immutable projection snapshots consumed across coordinator boundaries.
+///
+/// | State slice | Authoritative live owner | ShellStateStore role |
+/// | --- | --- | --- |
+/// | Catalog and selection restore | <c>ShellThreadStateCoordinator</c> and catalog/view-state persistence | Snapshot selected target, catalog lists, open thread ids, and navigator settings. |
+/// | Live logical tabs | <c>IShellTabService</c> | Snapshot projected tab identity/order/selection only. |
+/// | Prompt draft text and images | <c>PromptDraftUiCoordinator</c> plus prompt composer view models and prompt-draft persistence | No live ownership; consumers read the dedicated prompt services/view models. |
+/// | Model-provider selection and runtime state | <c>ModelProviderSelectorCoordinator</c>, <c>ModelProviderSelectorStateStore</c>, and backend runtime state | No live ownership; projections read the dedicated provider state. |
+/// | Shell and thread status | <c>ShellStatusProjectionController</c> and selected <c>OpenThreadState</c> status fields | Snapshot shell-level status text when needed across boundaries. |
+/// | File editor tabs | <c>FileEditorWorkspaceCoordinator</c> and <c>IShellTabService</c> | Snapshot logical tab projection only. |
+/// | Plugin projections | <c>PluginHostBridge</c> and plugin-owned surfaces/events | No live ownership; plugins enter through explicit bridge/events. |
+/// </remarks>
 internal class ShellStateStore
 {
     private readonly int _ownerThreadId = Environment.CurrentManagedThreadId;
@@ -56,11 +70,6 @@ internal class ShellStateStore
         }
     }
 }
-
-/// <summary>
-/// Compatibility name for the frontend shell state store while callers migrate to <see cref="ShellStateStore"/>.
-/// </summary>
-internal sealed class ShellFrontendStateStore : ShellStateStore;
 
 /// <summary>
 /// Immutable shell frontend state snapshot.
@@ -186,7 +195,7 @@ internal sealed record ShellFrontendStateSnapshot(
 }
 
 /// <summary>
-/// Immutable shell tab projection stored by <see cref="ShellFrontendStateStore"/>.
+/// Immutable shell tab projection stored by <see cref="ShellStateStore"/>.
 /// </summary>
 /// <param name="TabId">The stable tab identifier.</param>
 /// <param name="Title">The tab title.</param>

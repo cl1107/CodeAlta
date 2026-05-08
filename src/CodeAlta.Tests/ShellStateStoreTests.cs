@@ -7,7 +7,7 @@ using CodeAlta.ViewModels;
 namespace CodeAlta.Tests;
 
 [TestClass]
-public sealed class ShellFrontendStateStoreTests
+public sealed class ShellStateStoreTests
 {
     [TestMethod]
     public void Mutate_PublishesImmutableSnapshots()
@@ -54,14 +54,6 @@ public sealed class ShellFrontendStateStoreTests
         var store = new ShellStateStore();
 
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => Task.Run(() => _ = store.Snapshot));
-    }
-
-    [TestMethod]
-    public void ShellFrontendStateStore_RemainsCompatibilityAlias()
-    {
-        var store = new ShellFrontendStateStore();
-
-        Assert.IsInstanceOfType<ShellStateStore>(store);
     }
 
     [TestMethod]
