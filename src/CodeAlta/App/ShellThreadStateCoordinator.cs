@@ -18,7 +18,10 @@ internal sealed class ShellThreadStateCoordinator
     private readonly IUiDispatcher _uiDispatcher;
     private readonly ShellStateStore _stateStore;
     private readonly FrontendEventPublisher? _frontendEvents;
-    private readonly IThreadStateFrontendPort _frontendPort;
+    private readonly IThreadPromptDraftService _promptDrafts;
+    private readonly IThreadModelProviderReadinessService _modelProviderReadiness;
+    private readonly IThreadHistoryLoaderService _historyLoader;
+    private readonly IThreadStateTabLifecycleService _tabLifecycle;
     private readonly ShellCatalogStateCoordinator _catalogStateCoordinator;
     private readonly OpenThreadStateStore _OpenThreadStateStore;
     private readonly ThreadViewStateCoordinator _viewStateCoordinator;
@@ -28,25 +31,38 @@ internal sealed class ShellThreadStateCoordinator
         WorkThreadCatalog threadCatalog,
         IUiDispatcher uiDispatcher,
         ShellStateStore stateStore,
-        IThreadStateFrontendPort frontendPort,
+        IThreadTimelineSurface timelineSurface,
+        IThreadPromptDraftService promptDrafts,
+        IThreadModelProviderPreferenceService modelProviderPreferences,
+        IThreadModelProviderReadinessService modelProviderReadiness,
+        IThreadHistoryLoaderService historyLoader,
+        IThreadStateTabLifecycleService tabLifecycle,
         FrontendEventPublisher? frontendEvents = null)
     {
         ArgumentNullException.ThrowIfNull(projectCatalog);
         ArgumentNullException.ThrowIfNull(threadCatalog);
         ArgumentNullException.ThrowIfNull(uiDispatcher);
         ArgumentNullException.ThrowIfNull(stateStore);
-        ArgumentNullException.ThrowIfNull(frontendPort);
+        ArgumentNullException.ThrowIfNull(timelineSurface);
+        ArgumentNullException.ThrowIfNull(promptDrafts);
+        ArgumentNullException.ThrowIfNull(modelProviderPreferences);
+        ArgumentNullException.ThrowIfNull(modelProviderReadiness);
+        ArgumentNullException.ThrowIfNull(historyLoader);
+        ArgumentNullException.ThrowIfNull(tabLifecycle);
 
         _uiDispatcher = uiDispatcher;
         _stateStore = stateStore;
         _frontendEvents = frontendEvents;
-        _frontendPort = frontendPort;
+        _promptDrafts = promptDrafts;
+        _modelProviderReadiness = modelProviderReadiness;
+        _historyLoader = historyLoader;
+        _tabLifecycle = tabLifecycle;
         _viewStateCoordinator = new ThreadViewStateCoordinator(threadCatalog);
         var threadSessionFactory = new ThreadSessionFactory(
             uiDispatcher,
-            new ThreadTimelineSurface(frontendPort.GetTimelineBounds),
-            new ThreadPromptDraftService(frontendPort.LoadPromptDraft),
-            new ThreadModelProviderPreferenceService(frontendPort.ApplyThreadPreference, frontendPort.RememberThreadPreference),
+            timelineSurface,
+            promptDrafts,
+            modelProviderPreferences,
             new ThreadProjectRootResolver(GetSelectedProject, GetProjectById));
         _OpenThreadStateStore = new OpenThreadStateStore(threadSessionFactory);
         _catalogStateCoordinator = new ShellCatalogStateCoordinator(projectCatalog, threadCatalog, _viewStateCoordinator, _OpenThreadStateStore);
@@ -168,7 +184,7 @@ internal sealed class ShellThreadStateCoordinator
         }
 
         _OpenThreadStateStore.RekeyThreadTab(oldThreadId, thread);
-        _frontendPort.RemoveThreadTabPage(oldThreadId, ShellTabCloseReason.Replaced);
+        _tabLifecycle.RemoveThreadTabPage(oldThreadId, ShellTabCloseReason.Replaced);
 
         for (var index = 0; index < ViewState.OpenThreadIds.Count; index++)
         {
@@ -235,7 +251,7 @@ internal sealed class ShellThreadStateCoordinator
         }
 
         var thread = FindThread(PendingStartupThreadRestoreId);
-        if (thread is null || !_frontendPort.IsModelProviderReady(thread))
+        if (thread is null || !_modelProviderReadiness.IsModelProviderReady(thread))
         {
             return;
         }
@@ -247,7 +263,7 @@ internal sealed class ShellThreadStateCoordinator
 
     public void SelectGlobalScope()
     {
-        _frontendPort.ResetPendingThreadTabSelection();
+        _tabLifecycle.ResetPendingThreadTabSelection();
         _selectionCoordinator.SelectGlobalScope(Projects);
         ViewState.SelectedThreadId = null;
         ViewState.UpdatedAt = DateTimeOffset.UtcNow;
@@ -260,7 +276,7 @@ internal sealed class ShellThreadStateCoordinator
         ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
 
         var previousSelection = Selection;
-        _frontendPort.ResetPendingThreadTabSelection();
+        _tabLifecycle.ResetPendingThreadTabSelection();
         _selectionCoordinator.SelectProjectScope(projectId, Projects);
         ViewState.SelectedThreadId = null;
         ViewState.UpdatedAt = DateTimeOffset.UtcNow;
@@ -293,7 +309,7 @@ internal sealed class ShellThreadStateCoordinator
                 OpenThread(thread.ThreadId);
             });
 
-        await _frontendPort.EnsureThreadHistoryLoadedAsync(thread, CancellationToken.None);
+        await _historyLoader.EnsureThreadHistoryLoadedAsync(thread, CancellationToken.None);
     }
 
     public OpenThreadResult OpenThread(string threadId)
@@ -307,7 +323,7 @@ internal sealed class ShellThreadStateCoordinator
         }
 
         var alreadyOpen = ViewState.OpenThreadIds.Contains(threadId, StringComparer.OrdinalIgnoreCase);
-        _frontendPort.ResetPendingThreadTabSelection();
+        _tabLifecycle.ResetPendingThreadTabSelection();
         EnsureThreadTab(thread);
         if (!alreadyOpen)
         {
@@ -317,14 +333,14 @@ internal sealed class ShellThreadStateCoordinator
         ViewState.SelectedThreadId = threadId;
         ViewState.UpdatedAt = DateTimeOffset.UtcNow;
         _selectionCoordinator.SelectThread(thread);
-        if (ThreadHistoryCoordinator.CanLoadThreadHistory(thread) && !_frontendPort.IsModelProviderReady(thread))
+        if (ThreadHistoryCoordinator.CanLoadThreadHistory(thread) && !_modelProviderReadiness.IsModelProviderReady(thread))
         {
             PendingStartupThreadRestoreId = thread.ThreadId;
         }
 
         _ = PersistViewStateAsync();
         SyncStateStore(selectionChanged: true);
-        _ = _frontendPort.EnsureThreadHistoryLoadedAsync(thread, CancellationToken.None);
+        _ = _historyLoader.EnsureThreadHistoryLoadedAsync(thread, CancellationToken.None);
         return alreadyOpen
             ? OpenThreadResult.AlreadyOpen
             : OpenThreadResult.Opened;
@@ -335,11 +351,11 @@ internal sealed class ShellThreadStateCoordinator
         ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
 
         var wasOpen = ViewState.OpenThreadIds.Contains(threadId, StringComparer.OrdinalIgnoreCase);
-        _frontendPort.ResetPendingThreadTabSelection();
+        _tabLifecycle.ResetPendingThreadTabSelection();
         var removedSelectedThread = string.Equals(SelectedThreadId, threadId, StringComparison.OrdinalIgnoreCase);
         var removedThread = FindThread(threadId);
         ViewState.OpenThreadIds.RemoveAll(id => string.Equals(id, threadId, StringComparison.OrdinalIgnoreCase));
-        _frontendPort.RemoveThreadTabPage(threadId, ShellTabCloseReason.UserDetached);
+        _tabLifecycle.RemoveThreadTabPage(threadId, ShellTabCloseReason.UserDetached);
         if (removedSelectedThread)
         {
             var nextThreadId = ViewState.OpenThreadIds.FirstOrDefault();
@@ -367,7 +383,7 @@ internal sealed class ShellThreadStateCoordinator
                 continue;
             }
 
-            _frontendPort.DeletePromptDraft(threadId);
+            _promptDrafts.DeletePromptDraft(threadId);
             PendingStartupThreadRestoreId = string.Equals(PendingStartupThreadRestoreId, threadId, StringComparison.OrdinalIgnoreCase)
                 ? null
                 : PendingStartupThreadRestoreId;
@@ -387,12 +403,12 @@ internal sealed class ShellThreadStateCoordinator
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
 
-        _frontendPort.ResetPendingThreadTabSelection();
+        _tabLifecycle.ResetPendingThreadTabSelection();
         var removedSelectedThread = string.Equals(SelectedThreadId, threadId, StringComparison.OrdinalIgnoreCase);
         ViewState.OpenThreadIds.RemoveAll(id => string.Equals(id, threadId, StringComparison.OrdinalIgnoreCase));
-        _frontendPort.RemoveThreadTabPage(threadId, ShellTabCloseReason.ThreadDeleted);
+        _tabLifecycle.RemoveThreadTabPage(threadId, ShellTabCloseReason.ThreadDeleted);
         _OpenThreadStateStore.RemoveThreadTab(threadId);
-        _frontendPort.DeletePromptDraft(threadId);
+        _promptDrafts.DeletePromptDraft(threadId);
 
         if (string.Equals(ViewState.SelectedThreadId, threadId, StringComparison.OrdinalIgnoreCase))
         {
@@ -414,7 +430,7 @@ internal sealed class ShellThreadStateCoordinator
         ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
         ArgumentNullException.ThrowIfNull(deletedThreadIds);
 
-        _frontendPort.ResetPendingThreadTabSelection();
+        _tabLifecycle.ResetPendingThreadTabSelection();
         var removedSelectedThread = deletedThreadIds.Contains(SelectedThreadId, StringComparer.OrdinalIgnoreCase);
         var removedSelectedProject = !GlobalScopeSelected &&
             string.Equals(SelectedProjectId, projectId, StringComparison.OrdinalIgnoreCase);
@@ -422,9 +438,9 @@ internal sealed class ShellThreadStateCoordinator
         foreach (var threadId in deletedThreadIds)
         {
             ViewState.OpenThreadIds.RemoveAll(id => string.Equals(id, threadId, StringComparison.OrdinalIgnoreCase));
-            _frontendPort.RemoveThreadTabPage(threadId, ShellTabCloseReason.ProjectClosed);
+            _tabLifecycle.RemoveThreadTabPage(threadId, ShellTabCloseReason.ProjectClosed);
             _OpenThreadStateStore.RemoveThreadTab(threadId);
-            _frontendPort.DeletePromptDraft(threadId);
+            _promptDrafts.DeletePromptDraft(threadId);
 
             if (string.Equals(ViewState.SelectedThreadId, threadId, StringComparison.OrdinalIgnoreCase))
             {
@@ -515,7 +531,7 @@ internal sealed class ShellThreadStateCoordinator
             return;
         }
 
-        await _frontendPort.EnsureThreadHistoryLoadedAsync(thread, cancellationToken);
+        await _historyLoader.EnsureThreadHistoryLoadedAsync(thread, cancellationToken);
     }
 
 }

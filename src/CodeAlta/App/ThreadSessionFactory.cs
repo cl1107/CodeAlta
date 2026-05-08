@@ -18,6 +18,8 @@ internal interface IThreadTimelineSurface
 internal interface IThreadPromptDraftService
 {
     string? LoadPromptDraft(string threadId);
+
+    void DeletePromptDraft(string threadId);
 }
 
 internal interface IThreadModelProviderPreferenceService
@@ -53,17 +55,26 @@ internal sealed class ThreadTimelineSurface : IThreadTimelineSurface
 internal sealed class ThreadPromptDraftService : IThreadPromptDraftService
 {
     private readonly Func<string, string?> _loadPromptDraft;
+    private readonly Action<string> _deletePromptDraft;
 
-    public ThreadPromptDraftService(Func<string, string?> loadPromptDraft)
+    public ThreadPromptDraftService(Func<string, string?> loadPromptDraft, Action<string> deletePromptDraft)
     {
         ArgumentNullException.ThrowIfNull(loadPromptDraft);
+        ArgumentNullException.ThrowIfNull(deletePromptDraft);
         _loadPromptDraft = loadPromptDraft;
+        _deletePromptDraft = deletePromptDraft;
     }
 
     public string? LoadPromptDraft(string threadId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
         return _loadPromptDraft(threadId);
+    }
+
+    public void DeletePromptDraft(string threadId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
+        _deletePromptDraft(threadId);
     }
 }
 

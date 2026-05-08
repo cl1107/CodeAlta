@@ -475,12 +475,11 @@ public sealed class ModelProviderSelectorCoordinatorTests
     private static ShellThreadStateCoordinator CreateThreadStateCoordinator(string rootPath, out WorkThreadDescriptor thread)
     {
         var options = new CatalogOptions { GlobalRoot = rootPath };
-        var coordinator = new ShellThreadStateCoordinator(
+        var coordinator = TestThreadStateServices.CreateCoordinator(
             new ProjectCatalog(options),
             new WorkThreadCatalog(options),
             new InlineUiDispatcher(),
-            new ShellStateStore(new InlineUiDispatcher()),
-            new TestThreadStateFrontendPort());
+            new ShellStateStore(new InlineUiDispatcher()));
 
         var project = new ProjectDescriptor
         {

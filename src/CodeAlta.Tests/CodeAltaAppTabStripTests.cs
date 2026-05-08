@@ -229,12 +229,11 @@ public sealed class CodeAltaAppTabStripTests
             GlobalRoot = Path.Combine(Path.GetTempPath(), "CodeAltaTests", Guid.NewGuid().ToString("N")),
         };
         var dispatcher = new InlineUiDispatcher();
-        var threadState = new ShellThreadStateCoordinator(
+        var threadState = TestThreadStateServices.CreateCoordinator(
             new ProjectCatalog(options),
             new WorkThreadCatalog(options),
             dispatcher,
-            new ShellStateStore(dispatcher),
-            new TestThreadStateFrontendPort());
+            new ShellStateStore(dispatcher));
 
         var selection = new ThreadSelectionContext(
             threadState,

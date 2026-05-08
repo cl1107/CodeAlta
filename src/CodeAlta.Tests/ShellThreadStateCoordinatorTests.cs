@@ -487,16 +487,15 @@ public sealed class ShellThreadStateCoordinatorTests
         FrontendEventPublisher? frontendEvents = null)
     {
         threadCatalog ??= new WorkThreadCatalog(options);
-        return new ShellThreadStateCoordinator(
+        return TestThreadStateServices.CreateCoordinator(
             new ProjectCatalog(options),
             threadCatalog,
             new InlineUiDispatcher(),
             stateStore ?? new ShellStateStore(new InlineUiDispatcher()),
-            new TestThreadStateFrontendPort(
-                loadPromptDraft: loadPromptDraft,
-                deletePromptDraft: deletePromptDraft,
-                removeThreadTabPage: removeThreadTabPage),
-            frontendEvents);
+            loadPromptDraft: loadPromptDraft,
+            deletePromptDraft: deletePromptDraft,
+            removeThreadTabPage: removeThreadTabPage,
+            frontendEvents: frontendEvents);
     }
 
     private static WorkThreadDescriptor CreateThread(string threadId)

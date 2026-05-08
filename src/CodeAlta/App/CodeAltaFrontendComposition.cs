@@ -56,7 +56,6 @@ internal sealed class CodeAltaFrontendComposition
         ICodeAltaShell shell,
         KnownProjectImporter knownProjectImporter,
         State<float> welcomePhase01,
-        ThreadStateFrontendPort threadStateFrontend,
         CodeAltaApp frontend,
         CodexInstallProgressReporter? codexInstallProgress = null,
         PluginHostBridge? pluginHostBridge = null)
@@ -71,7 +70,6 @@ internal sealed class CodeAltaFrontendComposition
         ArgumentNullException.ThrowIfNull(shell);
         ArgumentNullException.ThrowIfNull(knownProjectImporter);
         ArgumentNullException.ThrowIfNull(welcomePhase01);
-        ArgumentNullException.ThrowIfNull(threadStateFrontend);
         ArgumentNullException.ThrowIfNull(frontend);
 
         var shellViewModel = new CodeAltaShellViewModel();
@@ -98,6 +96,8 @@ internal sealed class CodeAltaFrontendComposition
         knownProjectImporter.ShouldLoadProviderSessions = ShouldLoadProviderSessions;
         var configStore = new CodeAltaConfigStore(catalogOptions);
         var modelProviderPreferences = new ModelProviderPreferenceCoordinator(configStore, CodeAlta.Views.CodeAltaApp.UiLogger);
+        var threadPromptDraftService = new ThreadPromptDraftService(frontend.LoadPromptDraft, frontend.DeletePromptDraft);
+        var threadModelProviderPreferenceService = new ThreadModelProviderPreferenceService(frontend.ApplyThreadPreference, frontend.RememberThreadPreference);
         var shellController = new CodeAltaShellController(
             shell,
             knownProjectImporter,
@@ -116,7 +116,12 @@ internal sealed class CodeAltaFrontendComposition
             threadCatalog,
             uiDispatcher,
             shellStateStore,
-            threadStateFrontend,
+            new ThreadTimelineSurface(() => frontend.ThreadPaneLayout?.GetAbsoluteBounds()),
+            threadPromptDraftService,
+            threadModelProviderPreferenceService,
+            new ThreadModelProviderReadinessService(thread => frontend.IsModelProviderReady(new AgentBackendId(thread.BackendId))),
+            new ThreadHistoryLoaderService(frontend.EnsureThreadHistoryLoadedAsync),
+            new ThreadStateTabLifecycleService(frontend.ResetPendingThreadTabSelection, frontend.RemoveThreadTabPage),
             frontendEvents);
         var threadSelectionContext = new ThreadSelectionContext(
             threadStateCoordinator,

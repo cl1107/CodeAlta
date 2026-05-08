@@ -90,12 +90,11 @@ public sealed class ThreadPromptQueueCoordinatorTests
     private static ThreadSelectionContext CreateThreadSelectionContext(string rootPath)
     {
         var catalogOptions = new CatalogOptions { GlobalRoot = rootPath };
-        var threadState = new ShellThreadStateCoordinator(
+        var threadState = TestThreadStateServices.CreateCoordinator(
             new ProjectCatalog(catalogOptions),
             new WorkThreadCatalog(catalogOptions),
             new InlineUiDispatcher(),
-            new ShellStateStore(new InlineUiDispatcher()),
-            new TestThreadStateFrontendPort());
+            new ShellStateStore(new InlineUiDispatcher()));
         threadState.ViewState = new WorkThreadViewState();
 
         return new ThreadSelectionContext(

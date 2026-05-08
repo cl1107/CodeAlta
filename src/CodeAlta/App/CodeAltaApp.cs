@@ -169,7 +169,6 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
             new CodeAltaShellBridge(this),
             _knownProjectImporter,
             _shellAnimationRuntime.WelcomePhase01,
-            new(this),
             this,
             codexInstallProgress,
             ownedServices?.PluginHostBridge);

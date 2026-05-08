@@ -226,12 +226,11 @@ public sealed class ShellWorkspaceCoordinatorTests
             uiDispatcher);
 
     private static ShellThreadStateCoordinator CreateThreadStateCoordinator(CatalogOptions options)
-        => new(
+        => TestThreadStateServices.CreateCoordinator(
             new ProjectCatalog(options),
             new WorkThreadCatalog(options),
             new InlineUiDispatcher(),
-            new ShellStateStore(new InlineUiDispatcher()),
-            new TestThreadStateFrontendPort());
+            new ShellStateStore(new InlineUiDispatcher()));
 
     private static Dictionary<string, ChatBackendState> CreateChatBackendStates()
         => new(StringComparer.Ordinal)

@@ -72,7 +72,7 @@ public sealed class ThreadTimelineMarkdownRootTests
         var registry = new OpenThreadStateStore(new ThreadSessionFactory(
             new InlineUiDispatcher(),
             new ThreadTimelineSurface(static () => null),
-            new ThreadPromptDraftService(static _ => null),
+            new ThreadPromptDraftService(static _ => null, static _ => { }),
             new ThreadModelProviderPreferenceService(static _ => { }, static (_, _, _, _) => { }),
             new ThreadProjectRootResolver(
                 () => project,
