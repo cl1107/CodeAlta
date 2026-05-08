@@ -271,11 +271,12 @@ public sealed class ThreadWorkspaceViewTests
             shellViewModel,
             workspaceViewModel,
             promptComposerViewModel,
-            actions: ThreadWorkspaceViewActions.Empty with
-            {
-                OpenHelp = () => helpCount++,
-                OpenCommandPalette = () => commandPaletteCount++,
-            });
+            promptComposerController: PromptComposerViewController.Create(
+                static _ => { },
+                static () => { },
+                static () => { },
+                () => helpCount++,
+                () => commandPaletteCount++));
 
         using var terminalSession = Terminal.Open(new InMemoryTerminalBackend(new TerminalSize(120, 40)), new TerminalOptions { ImplicitStartInput = true }, force: true);
         var app = new TerminalApp(
@@ -364,7 +365,11 @@ public sealed class ThreadWorkspaceViewTests
         ThreadWorkspaceViewModel? workspaceViewModel = null,
         PromptComposerViewModel? promptComposerViewModel = null,
         IReadOnlyList<ThreadWorkspaceCommandBinding>? commandBindings = null,
-        ThreadWorkspaceViewActions? actions = null,
+        ThreadWorkspaceChromeController? chromeController = null,
+        PromptComposerViewController? promptComposerController = null,
+        QueuedPromptStripController? queuedPromptController = null,
+        ModelProviderSelectorController? modelProviderSelectorController = null,
+        ThreadTabHostController? threadTabHostController = null,
         IProjectFileSearchService? projectFileSearchService = null,
         Func<string?>? getPromptReferenceProjectRoot = null,
         State<string?>? promptText = null)
@@ -373,7 +378,18 @@ public sealed class ThreadWorkspaceViewTests
             workspaceViewModel ?? new ThreadWorkspaceViewModel(),
             promptComposerViewModel ?? new PromptComposerViewModel(),
             commandBindings ?? [],
-            actions ?? ThreadWorkspaceViewActions.Empty,
+            chromeController ?? ThreadWorkspaceChromeController.Empty,
+            promptComposerController ?? PromptComposerViewController.Create(static _ => { }, static () => { }, static () => { }, static () => { }, static () => { }),
+            queuedPromptController ?? QueuedPromptStripController.Create(
+                static _ => { },
+                static _ => { },
+                static _ => { },
+                static _ => { },
+                static (_, _) => { },
+                static (_, _) => { },
+                static (onAccepted, placeholder) => ThreadWorkspaceView.CreateStyledPromptEditor(onAccepted, null, null, placeholder)),
+            modelProviderSelectorController ?? ModelProviderSelectorController.Create(static _ => { }, static _ => { }, static _ => { }, static () => { }),
+            threadTabHostController ?? ThreadTabHostController.Create(static _ => { }),
             projectFileSearchService ?? NullProjectFileSearchService.Instance,
             getPromptReferenceProjectRoot ?? (static () => null),
             promptText ?? new State<string?>(string.Empty),

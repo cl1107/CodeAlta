@@ -7,7 +7,7 @@ using XenoAtom.Terminal.UI.Controls;
 
 namespace CodeAlta.Views;
 
-internal sealed class CodeAltaShellSurfaceOptions
+internal sealed class CodeAltaAppSurfaceRequest
 {
     public required CodeAltaShellViewModel ShellViewModel { get; init; }
 
@@ -54,4 +54,38 @@ internal sealed class CodeAltaShellSurfaceOptions
     public Func<CommandBar, Visual?>? ComposePluginFooter { get; init; }
 
     public bool CommandBarMultiLine { get; init; }
+}
+
+internal static class CodeAltaAppSurfaceFactory
+{
+    public static CodeAltaShellSurface Create(CodeAltaAppSurfaceRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return CodeAltaShellViewFactory.CreateSurface(new CodeAltaShellSurfaceOptions
+        {
+            ShellViewModel = request.ShellViewModel,
+            WorkspaceViewModel = request.WorkspaceViewModel,
+            PromptComposerViewModel = request.PromptComposerViewModel,
+            WorkspaceCommandBindings = request.WorkspaceCommandBindings,
+            WorkspaceChromeController = request.WorkspaceChromeController,
+            PromptComposerController = request.PromptComposerController,
+            QueuedPromptController = request.QueuedPromptController,
+            ModelProviderSelectorController = request.ModelProviderSelectorController,
+            ThreadTabHostController = request.ThreadTabHostController,
+            ProjectFileSearchService = request.ProjectFileSearchService,
+            GetPromptReferenceProjectRoot = request.GetPromptReferenceProjectRoot,
+            PromptText = request.PromptText,
+            ThinkingAnimationPhase01 = request.ThinkingAnimationPhase01,
+            PromptImageCallbacks = request.PromptImageCallbacks,
+            Sidebar = request.Sidebar,
+            ShellCommandSurfaceCoordinator = request.ShellCommandSurfaceCoordinator,
+            OpenAcpManager = request.OpenAcpManager,
+            ToggleTerminalLoopCallback = request.ToggleTerminalLoopCallback,
+            FocusSidebar = request.FocusSidebar,
+            FocusPromptEditor = request.FocusPromptEditor,
+            CanUseCommandPalette = request.CanUseCommandPalette,
+            ComposePluginFooter = request.ComposePluginFooter,
+            CommandBarMultiLine = request.CommandBarMultiLine,
+        });
+    }
 }

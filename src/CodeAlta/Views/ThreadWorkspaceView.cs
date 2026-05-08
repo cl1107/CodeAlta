@@ -35,7 +35,11 @@ internal sealed class ThreadWorkspaceView
         ThreadWorkspaceViewModel workspaceViewModel,
         PromptComposerViewModel promptComposerViewModel,
         IReadOnlyList<ThreadWorkspaceCommandBinding> commandBindings,
-        ThreadWorkspaceViewActions actions,
+        ThreadWorkspaceChromeController chromeController,
+        PromptComposerViewController promptComposerController,
+        QueuedPromptStripController queuedPromptController,
+        ModelProviderSelectorController modelProviderController,
+        ThreadTabHostController tabHostController,
         IProjectFileSearchService projectFileSearchService,
         Func<string?> getPromptReferenceProjectRoot,
         Binding<string?> promptText,
@@ -46,34 +50,14 @@ internal sealed class ThreadWorkspaceView
         ArgumentNullException.ThrowIfNull(workspaceViewModel);
         ArgumentNullException.ThrowIfNull(promptComposerViewModel);
         ArgumentNullException.ThrowIfNull(commandBindings);
-        ArgumentNullException.ThrowIfNull(actions);
+        ArgumentNullException.ThrowIfNull(chromeController);
+        ArgumentNullException.ThrowIfNull(promptComposerController);
+        ArgumentNullException.ThrowIfNull(queuedPromptController);
+        ArgumentNullException.ThrowIfNull(modelProviderController);
+        ArgumentNullException.ThrowIfNull(tabHostController);
         ArgumentNullException.ThrowIfNull(projectFileSearchService);
         ArgumentNullException.ThrowIfNull(getPromptReferenceProjectRoot);
         ArgumentNullException.ThrowIfNull(thinkingAnimationPhase01);
-
-        ValidateActions(actions);
-        var buildSessionUsageIndicatorVisual = actions.BuildSessionUsageIndicatorVisual;
-        var openSessionUsagePopup = actions.OpenSessionUsagePopup;
-        var toggleThreadInfoPopup = actions.ToggleThreadInfoPopup;
-        var openHelp = actions.OpenHelp;
-        var openCommandPalette = actions.OpenCommandPalette;
-        var openModelProviders = actions.OpenModelProviders;
-        var acceptPrompt = actions.AcceptPrompt;
-        var sendPrompt = actions.SendPrompt;
-        var steerPrompt = actions.SteerPrompt;
-        var clearQueuedPrompts = actions.ClearQueuedPrompts;
-        var convertQueuedPromptToSteer = actions.ConvertQueuedPromptToSteer;
-        var deletePendingSteer = actions.DeletePendingSteer;
-        var deleteQueuedPrompt = actions.DeleteQueuedPrompt;
-        var updateQueuedPromptCount = actions.UpdateQueuedPromptCount;
-        var updateQueuedPromptText = actions.UpdateQueuedPromptText;
-        var abortThread = actions.AbortThread;
-        var compactThread = actions.CompactThread;
-        var closeTab = actions.CloseTab;
-        var onChatBackendSelectionChanged = actions.OnChatBackendSelectionChanged;
-        var onChatModelSelectionChanged = actions.OnChatModelSelectionChanged;
-        var onChatReasoningSelectionChanged = actions.OnChatReasoningSelectionChanged;
-        var onSelectedTabChanged = actions.OnSelectedTabChanged;
 
         _promptImageAttachmentStripView = new PromptImageAttachmentStripView(
             promptComposerViewModel,
@@ -96,7 +80,7 @@ internal sealed class ThreadWorkspaceView
             promptText,
             _promptImageAttachmentStripView,
             () => ThreadPaneLayout?.GetAbsoluteBounds(),
-            PromptComposerViewController.Create(acceptPrompt, sendPrompt, abortThread, openHelp, openCommandPalette));
+            promptComposerController);
         ThreadInput = _promptComposerView.Editor;
         ThreadInputView = _promptComposerView.EditorView;
 
@@ -105,16 +89,12 @@ internal sealed class ThreadWorkspaceView
         threadInfoButton = CreateIconButton(
                 $"{NerdFont.MdInformationOutline}",
                 $"Show information about the selected thread ({ThreadInfoShortcutSequence}).",
-                () => toggleThreadInfoPopup(threadInfoButton!),
+                () => chromeController.ToggleThreadInfoPopup(threadInfoButton!),
                 button => button.IsEnabled(workspaceViewModel.Bind.CanShowThreadInfo));
         _modelProviderSelectorView = new ModelProviderSelectorView(
             workspaceViewModel,
             promptComposerViewModel,
-            ModelProviderSelectorController.Create(
-                onChatBackendSelectionChanged,
-                onChatModelSelectionChanged,
-                onChatReasoningSelectionChanged,
-                compactThread));
+            modelProviderController);
         var providerSummaryButton = new Button(
             new Markup(() => workspaceViewModel.ProviderSummaryMarkup)
             {
@@ -125,22 +105,15 @@ internal sealed class ThreadWorkspaceView
                 Normal = Style.None,
                 Padding = Thickness.Zero,
             })
-            .Click(openModelProviders)
+            .Click(chromeController.OpenModelProviders)
             .Tooltip(new TextBlock($"Configure model providers ({ModelProvidersShortcutSequence})."));
 
-        var usageIndicator = buildSessionUsageIndicatorVisual();
+        var usageIndicator = chromeController.BuildSessionUsageIndicatorVisual();
         var statusLine = new ThreadStatusLineView(shellViewModel, thinkingAnimationPhase01).Root;
 
         var queuedPromptList = new QueuedPromptStripView(
             workspaceViewModel,
-            QueuedPromptStripController.Create(
-                markdown => (ThreadPaneLayout?.App)?.Terminal.Clipboard.TrySetText(markdown),
-                convertQueuedPromptToSteer,
-                deletePendingSteer,
-                deleteQueuedPrompt,
-                updateQueuedPromptCount,
-                updateQueuedPromptText,
-                (onAccepted, placeholder) => CreateStyledPromptEditor(onAccepted, openHelp, openCommandPalette, projectFileSearchService, getPromptReferenceProjectRoot, placeholder))).Root;
+            queuedPromptController).Root;
 
         var promptImageStrip = _promptImageAttachmentStripView.Root;
 
@@ -169,7 +142,7 @@ internal sealed class ThreadWorkspaceView
             VerticalAlignment = Align.Stretch,
         };
 
-        _threadTabHostView = new ThreadTabHostView(ThreadBottomPanel, ThreadTabHostController.Create(onSelectedTabChanged));
+        _threadTabHostView = new ThreadTabHostView(ThreadBottomPanel, tabHostController);
         ThreadPaneLayout = _threadTabHostView.Root;
         Root = ThreadPaneLayout;
         foreach (var binding in commandBindings)
@@ -179,32 +152,6 @@ internal sealed class ThreadWorkspaceView
                 Root.AddCommand(BuildCommand(binding));
             }
         }
-    }
-
-    private static void ValidateActions(ThreadWorkspaceViewActions actions)
-    {
-        ArgumentNullException.ThrowIfNull(actions.BuildSessionUsageIndicatorVisual);
-        ArgumentNullException.ThrowIfNull(actions.OpenSessionUsagePopup);
-        ArgumentNullException.ThrowIfNull(actions.ToggleThreadInfoPopup);
-        ArgumentNullException.ThrowIfNull(actions.OpenHelp);
-        ArgumentNullException.ThrowIfNull(actions.OpenCommandPalette);
-        ArgumentNullException.ThrowIfNull(actions.OpenModelProviders);
-        ArgumentNullException.ThrowIfNull(actions.AcceptPrompt);
-        ArgumentNullException.ThrowIfNull(actions.SendPrompt);
-        ArgumentNullException.ThrowIfNull(actions.SteerPrompt);
-        ArgumentNullException.ThrowIfNull(actions.ClearQueuedPrompts);
-        ArgumentNullException.ThrowIfNull(actions.ConvertQueuedPromptToSteer);
-        ArgumentNullException.ThrowIfNull(actions.DeletePendingSteer);
-        ArgumentNullException.ThrowIfNull(actions.DeleteQueuedPrompt);
-        ArgumentNullException.ThrowIfNull(actions.UpdateQueuedPromptCount);
-        ArgumentNullException.ThrowIfNull(actions.UpdateQueuedPromptText);
-        ArgumentNullException.ThrowIfNull(actions.AbortThread);
-        ArgumentNullException.ThrowIfNull(actions.CompactThread);
-        ArgumentNullException.ThrowIfNull(actions.CloseTab);
-        ArgumentNullException.ThrowIfNull(actions.OnChatBackendSelectionChanged);
-        ArgumentNullException.ThrowIfNull(actions.OnChatModelSelectionChanged);
-        ArgumentNullException.ThrowIfNull(actions.OnChatReasoningSelectionChanged);
-        ArgumentNullException.ThrowIfNull(actions.OnSelectedTabChanged);
     }
 
     public Visual Root { get; }

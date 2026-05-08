@@ -477,45 +477,28 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
     private CodeAltaShellView EnsureShellView()
     {
         if (_shellView is not null) return _shellView;
+
+        var projectFileSearch = _ownedServices?.ProjectFileSearchService ?? NullProjectFileSearchService.Instance;
+        var promptRoot = () => PromptReferenceProjectRootResolver.Resolve(GetSelectedThread(), GetProjectById, GetSelectedProject);
         var imageCallbacks = PromptImageWorkspaceCallbackFactory.Create(
             _promptDraftUiCoordinator,
-            new PromptImageCapabilityContext(
-                GetSelectedThread,
-                threadId => _threadStateCoordinator.FindOpenThread(threadId),
-                GetPreferredBackendId,
-                _chatBackendStates),
+            new PromptImageCapabilityContext(GetSelectedThread, threadId => _threadStateCoordinator.FindOpenThread(threadId), GetPreferredBackendId, _chatBackendStates),
             (message, tone) => SetStatus(message, tone: tone));
-        var shellSurface = CodeAltaShellViewFactory.CreateSurface(new()
+        var openHelp = () => ObserveUiTask(() => _shellCommandSurfaceCoordinator.ShowHelpAsync(), "show help");
+        var showPalette = () => _shellCommandSurfaceCoordinator.ShowCommandPalette();
+        var shellSurface = CodeAltaAppSurfaceFactory.Create(new CodeAltaAppSurfaceRequest
         {
             ShellViewModel = _shellViewModel,
             WorkspaceViewModel = _threadWorkspaceViewModel,
             PromptComposerViewModel = _promptComposerViewModel,
             WorkspaceCommandBindings = _shellCommandSurfaceCoordinator.BuildWorkspaceCommandBindings(),
-            WorkspaceActions = new(
-                () => CreateUsageComputedVisual(EnsureSessionUsagePresenter().BuildIndicatorVisual),
-                () => EnsureSessionUsagePresenter().TogglePopupFromIndicator(),
-                anchor => EnsureThreadInfoPresenter().TogglePopup(anchor),
-                () => ObserveUiTask(() => _shellCommandSurfaceCoordinator.ShowHelpAsync(), "show help"),
-                () => _shellCommandSurfaceCoordinator.ShowCommandPalette(),
-                () => ObserveUiTask(OpenModelProvidersAsync, "open model providers"),
-                acceptedPrompt => ObserveUiTask(() => _shellCommandSurfaceCoordinator.HandleAcceptedPromptAsync(acceptedPrompt), "submit the current prompt"),
-                () => ObserveUiTask(() => _shellCommandSurfaceCoordinator.SubmitCurrentPromptAsync(steer: false), "submit the current prompt"),
-                () => ObserveUiTask(() => _shellCommandSurfaceCoordinator.SubmitCurrentPromptAsync(steer: true), "steer the current thread"),
-                () => ObserveUiTask(_threadCommandCoordinator.ClearSelectedThreadQueueAsync, "clear the thread queue"),
-                queuedPromptId => ObserveUiTask(() => _threadCommandCoordinator.ConvertSelectedThreadQueuedPromptToSteerAsync(queuedPromptId), "convert the queued prompt to steer"),
-                pendingSteerId => _threadCommandCoordinator.DeleteSelectedThreadPendingSteer(pendingSteerId),
-                queuedPromptId => _threadCommandCoordinator.DeleteSelectedThreadQueuedPrompt(queuedPromptId),
-                (queuedPromptId, remainingCount) => _threadCommandCoordinator.UpdateSelectedThreadQueuedPromptCount(queuedPromptId, remainingCount),
-                (queuedPromptId, text) => _threadCommandCoordinator.UpdateSelectedThreadQueuedPromptText(queuedPromptId, text),
-                () => ObserveUiTask(() => _shellCommandSurfaceCoordinator.AbortSelectedThreadAsync(), "abort the selected thread"),
-                () => ObserveUiTask(() => _shellCommandSurfaceCoordinator.CompactSelectedThreadAsync(), "compact the selected thread"),
-                () => ObserveUiTask(() => _shellCommandSurfaceCoordinator.CloseCurrentTabAsync(), "close the current tab"),
-                OnChatBackendSelectionChanged,
-                OnChatModelSelectionChanged,
-                OnChatReasoningSelectionChanged,
-                selectedIndex => _threadTabStripCoordinator.ObserveBoundSelection(selectedIndex)),
-            ProjectFileSearchService = _ownedServices?.ProjectFileSearchService ?? NullProjectFileSearchService.Instance,
-            GetPromptReferenceProjectRoot = () => PromptReferenceProjectRootResolver.Resolve(GetSelectedThread(), GetProjectById, GetSelectedProject),
+            WorkspaceChromeController = ThreadWorkspaceChromeController.Create(() => CreateUsageComputedVisual(EnsureSessionUsagePresenter().BuildIndicatorVisual), anchor => EnsureThreadInfoPresenter().TogglePopup(anchor), () => ObserveUiTask(OpenModelProvidersAsync, "open model providers")),
+            PromptComposerController = PromptComposerViewController.Create(acceptedPrompt => ObserveUiTask(() => _shellCommandSurfaceCoordinator.HandleAcceptedPromptAsync(acceptedPrompt), "submit the current prompt"), () => ObserveUiTask(() => _shellCommandSurfaceCoordinator.SubmitCurrentPromptAsync(steer: false), "submit the current prompt"), () => ObserveUiTask(() => _shellCommandSurfaceCoordinator.AbortSelectedThreadAsync(), "abort the selected thread"), openHelp, showPalette),
+            QueuedPromptController = QueuedPromptStripController.Create(markdown => (_threadWorkspaceView?.ThreadPaneLayout.App)?.Terminal.Clipboard.TrySetText(markdown), queuedPromptId => ObserveUiTask(() => _threadCommandCoordinator.ConvertSelectedThreadQueuedPromptToSteerAsync(queuedPromptId), "convert the queued prompt to steer"), pendingSteerId => _threadCommandCoordinator.DeleteSelectedThreadPendingSteer(pendingSteerId), queuedPromptId => _threadCommandCoordinator.DeleteSelectedThreadQueuedPrompt(queuedPromptId), (queuedPromptId, remainingCount) => _threadCommandCoordinator.UpdateSelectedThreadQueuedPromptCount(queuedPromptId, remainingCount), (queuedPromptId, text) => _threadCommandCoordinator.UpdateSelectedThreadQueuedPromptText(queuedPromptId, text), (onAccepted, placeholder) => ThreadWorkspaceView.CreateStyledPromptEditor(onAccepted, openHelp, showPalette, projectFileSearch, promptRoot, placeholder)),
+            ModelProviderSelectorController = ModelProviderSelectorController.Create(OnChatBackendSelectionChanged, OnChatModelSelectionChanged, OnChatReasoningSelectionChanged, () => ObserveUiTask(() => _shellCommandSurfaceCoordinator.CompactSelectedThreadAsync(), "compact the selected thread")),
+            ThreadTabHostController = ThreadTabHostController.Create(selectedIndex => _threadTabStripCoordinator.ObserveBoundSelection(selectedIndex)),
+            ProjectFileSearchService = projectFileSearch,
+            GetPromptReferenceProjectRoot = promptRoot,
             PromptText = _promptDraftUiCoordinator.PromptTextBinding,
             ThinkingAnimationPhase01 = _shellAnimationRuntime.ThinkingPhase01,
             PromptImageCallbacks = imageCallbacks,
@@ -532,7 +515,6 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
         _threadWorkspaceView = shellSurface.WorkspaceView;
         _shellView = shellSurface.ShellView;
         RefreshCatalogAndThreadWorkspace();
-
         return _shellView;
     }
 
@@ -799,5 +781,3 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
 
 
 }
-
-

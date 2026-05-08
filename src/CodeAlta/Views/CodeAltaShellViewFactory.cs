@@ -16,7 +16,11 @@ internal static class CodeAltaShellViewFactory
         ArgumentNullException.ThrowIfNull(options.WorkspaceViewModel);
         ArgumentNullException.ThrowIfNull(options.PromptComposerViewModel);
         ArgumentNullException.ThrowIfNull(options.WorkspaceCommandBindings);
-        ArgumentNullException.ThrowIfNull(options.WorkspaceActions);
+        ArgumentNullException.ThrowIfNull(options.WorkspaceChromeController);
+        ArgumentNullException.ThrowIfNull(options.PromptComposerController);
+        ArgumentNullException.ThrowIfNull(options.QueuedPromptController);
+        ArgumentNullException.ThrowIfNull(options.ModelProviderSelectorController);
+        ArgumentNullException.ThrowIfNull(options.ThreadTabHostController);
         ArgumentNullException.ThrowIfNull(options.ProjectFileSearchService);
         ArgumentNullException.ThrowIfNull(options.GetPromptReferenceProjectRoot);
         ArgumentNullException.ThrowIfNull(options.ThinkingAnimationPhase01);
@@ -33,7 +37,11 @@ internal static class CodeAltaShellViewFactory
             options.WorkspaceViewModel,
             options.PromptComposerViewModel,
             options.WorkspaceCommandBindings,
-            options.WorkspaceActions,
+            options.WorkspaceChromeController,
+            options.PromptComposerController,
+            options.QueuedPromptController,
+            options.ModelProviderSelectorController,
+            options.ThreadTabHostController,
             options.ProjectFileSearchService,
             options.GetPromptReferenceProjectRoot,
             options.PromptText,
