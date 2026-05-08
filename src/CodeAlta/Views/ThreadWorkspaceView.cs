@@ -39,6 +39,7 @@ internal sealed class ThreadWorkspaceView
     private readonly Func<string> _getPromptImageUnsupportedMessage;
     private readonly Action<string, StatusTone> _setPromptImageStatus;
     private readonly Dictionary<string, VSplitter> _threadTabContentSplitters = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ModelProviderSelectorView _modelProviderSelectorView;
     private Dialog? _expandedPromptDialog;
     private string? _activeThreadTabContentId;
 
@@ -143,32 +144,13 @@ internal sealed class ThreadWorkspaceView
                 $"Show information about the selected thread ({ThreadInfoShortcutSequence}).",
                 () => toggleThreadInfoPopup(threadInfoButton!),
                 button => button.IsEnabled(workspaceViewModel.Bind.CanShowThreadInfo));
-        ChatBackendSelect = new Select<ChatBackendOption>()
-            .SelectionChanged((_, e) => onChatBackendSelectionChanged(e.NewIndex))
-            .SelectedIndex(workspaceViewModel.Bind.SelectedBackendIndex)
-            .MinWidth(14)
-            .MaxWidth(22)
-            .IsEnabled(workspaceViewModel.Bind.CanSelectBackend);
-        ChatModelSelect = new Select<ChatModelOption>()
-            .SelectionChanged((_, e) => onChatModelSelectionChanged(e.NewIndex))
-            .SelectedIndex(workspaceViewModel.Bind.SelectedModelIndex)
-            .MinWidth(18)
-            .MaxWidth(36)
-            .IsEnabled(workspaceViewModel.Bind.CanSelectModel);
-        ChatReasoningSelect = new Select<ChatReasoningOption>()
-            .SelectionChanged((_, e) => onChatReasoningSelectionChanged(e.NewIndex))
-            .SelectedIndex(workspaceViewModel.Bind.SelectedReasoningIndex)
-            .MinWidth(12)
-            .MaxWidth(22)
-            .IsEnabled(workspaceViewModel.Bind.CanSelectReasoning);
-        AlwaysEnqueueCheckBox = new CheckBox("AlwaysQueue")
-            .IsChecked(promptComposerViewModel.Bind.AlwaysEnqueue)
-            .IsEnabled(promptComposerViewModel.Bind.CanAlwaysEnqueue);
-        var compactThreadButton = CreateIconButton(
-                $"{NerdFont.MdSelectCompare}",
-                "Compact the selected thread session when it is idle (F11).",
-                compactThread,
-                button => button.IsEnabled(promptComposerViewModel.Bind.CanCompact));
+        _modelProviderSelectorView = new ModelProviderSelectorView(
+            workspaceViewModel,
+            promptComposerViewModel,
+            onChatBackendSelectionChanged,
+            onChatModelSelectionChanged,
+            onChatReasoningSelectionChanged,
+            compactThread);
         var providerSummaryButton = new Button(
             new Markup(() => workspaceViewModel.ProviderSummaryMarkup)
             {
@@ -199,18 +181,6 @@ internal sealed class ThreadWorkspaceView
 
         var promptImageStrip = new ComputedVisual(BuildPromptImageAttachmentStrip);
 
-        var selectionControls = new HStack(
-        [
-            ChatBackendSelect,
-            ChatModelSelect,
-            ChatReasoningSelect,
-            compactThreadButton,
-            AlwaysEnqueueCheckBox,
-        ])
-        {
-            Spacing = 2,
-        };
-
         var selectionRight = new HStack(
         [
             providerSummaryButton,
@@ -224,7 +194,7 @@ internal sealed class ThreadWorkspaceView
         };
 
         var selectionLine = new StatusBar()
-            .LeftText(selectionControls)
+            .LeftText(_modelProviderSelectorView.Root)
             .RightText(selectionRight);
 
         ThreadBottomPanel = new DockLayout(
@@ -300,13 +270,17 @@ internal sealed class ThreadWorkspaceView
 
     public CommandBar ThreadCommandBar { get; }
 
-    private Select<ChatBackendOption> ChatBackendSelect { get; }
+    private Select<ChatBackendOption> ChatBackendSelect
+        => _modelProviderSelectorView.ChatBackendSelect;
 
-    private Select<ChatModelOption> ChatModelSelect { get; }
+    private Select<ChatModelOption> ChatModelSelect
+        => _modelProviderSelectorView.ChatModelSelect;
 
-    private Select<ChatReasoningOption> ChatReasoningSelect { get; }
+    private Select<ChatReasoningOption> ChatReasoningSelect
+        => _modelProviderSelectorView.ChatReasoningSelect;
 
-    public CheckBox AlwaysEnqueueCheckBox { get; }
+    public CheckBox AlwaysEnqueueCheckBox
+        => _modelProviderSelectorView.AlwaysEnqueueCheckBox;
 
     public TabControl ThreadTabControl { get; }
 
@@ -410,9 +384,7 @@ internal sealed class ThreadWorkspaceView
     {
         ArgumentNullException.ThrowIfNull(workspaceViewModel);
 
-        ChatBackendPresentation.ReplaceSelectItems(ChatBackendSelect, workspaceViewModel.BackendOptions);
-        ChatBackendPresentation.ReplaceSelectItems(ChatModelSelect, workspaceViewModel.ModelOptions);
-        ChatBackendPresentation.ReplaceSelectItems(ChatReasoningSelect, workspaceViewModel.ReasoningOptions);
+        _modelProviderSelectorView.SyncItems(workspaceViewModel);
     }
 
     private Visual BuildPromptImageAttachmentStrip()
