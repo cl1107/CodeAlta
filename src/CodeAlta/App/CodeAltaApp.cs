@@ -224,13 +224,14 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
             GetDialogAnchor);
         _fileEditorWorkspaceCoordinator = new FileEditorWorkspaceCoordinator(
             projectFileSearchService,
+            _shellTabService,
             () => PromptReferenceProjectRootResolver.Resolve(GetSelectedThread(), GetProjectById, GetSelectedProject),
             () => ThreadInput,
             () => _threadWorkspaceView,
+            build => CreateComputedVisual(build),
             DispatchToUiDeferred,
             SyncThreadTabControl,
-            SetStatus,
-            (tabId, cancellationToken) => _shellTabService.CloseTabAsync(new ShellTabId(tabId), ShellTabCloseReason.User, cancellationToken));
+            SetStatus);
         _threadTabContext = new ThreadTabContext(
             new DelegatingThreadTabSurfacePort(
                 () => ThreadTabControl,

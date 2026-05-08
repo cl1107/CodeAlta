@@ -347,23 +347,7 @@ internal sealed class ThreadTabStripCoordinator
             return existingShellPage;
         }
 
-        var fileTab = _threadTabs.GetFileTab(tabId)
-            ?? throw new InvalidOperationException($"File tab '{tabId}' was not found when creating a tab page.");
-
-        var shellTab = _shellTabs.OpenOrGetTab(new ShellTabDescriptor
-        {
-            TabId = new ShellTabId(tabId),
-            Kind = ShellTabKind.Editor,
-            Association = new ShellTabAssociation.Editor(ProjectId.NewVersion7(), fileTab.FullPath),
-            Header = fileTab.CreateTabHeader(_threadTabs.CreateComputedVisual),
-            Content = fileTab.Root,
-            ViewModel = fileTab,
-        });
-
-        var page = CreateFilePage(tabId, shellTab);
-
-        workspaceView.RememberTabPage(tabId, page);
-        return page;
+        throw new InvalidOperationException($"File shell tab '{tabId}' was not found when creating a tab page.");
     }
 
     private TabPage EnsureDraftPage(bool canClose)
@@ -545,7 +529,6 @@ internal sealed class ThreadTabStripCoordinator
             }
 
             e.Cancel = true;
-            _ = _shellTabs.CloseTabAsync(new ShellTabId(currentTabId), ShellTabCloseReason.User);
             _threadTabs.CloseFileTab(currentTabId);
         };
 

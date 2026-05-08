@@ -1,8 +1,10 @@
+using CodeAlta.App;
+using CodeAlta.Catalog;
 using CodeAlta.Models;
 using CodeAlta.Presentation.Editing;
 using CodeAlta.Presentation.Prompting;
-using CodeAlta.Catalog;
 using XenoAtom.Terminal.UI;
+using XenoAtom.Terminal.UI.Controls;
 
 namespace CodeAlta.Views;
 
@@ -13,37 +15,41 @@ internal sealed class FileEditorWorkspaceCoordinator : IAsyncDisposable
     private readonly Action<Action> _dispatchToUiDeferred;
     private readonly Action _syncThreadTabControl;
     private readonly Action<string, bool, StatusTone> _setStatus;
-    private readonly Func<string, CancellationToken, Task> _closeShellTabAsync;
+    private readonly IShellTabService _shellTabs;
+    private readonly Func<Func<Visual>, ComputedVisual> _createComputedVisual;
     private readonly ProjectFileOpenDialogController _filePickerController;
     private readonly Dictionary<string, FileEditorTab> _fileTabsById = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, FileEditorTab> _fileTabsByPath = new(StringComparer.OrdinalIgnoreCase);
-    private readonly List<string> _openFileTabIds = [];
     private string? _selectedTabId;
 
     public FileEditorWorkspaceCoordinator(
         IProjectFileSearchService projectFileSearchService,
+        IShellTabService shellTabs,
         Func<string?> resolveProjectRoot,
         Func<Visual?> getThreadFocusTarget,
         Func<ThreadWorkspaceView?> getWorkspaceView,
+        Func<Func<Visual>, ComputedVisual> createComputedVisual,
         Action<Action> dispatchToUiDeferred,
         Action syncThreadTabControl,
-        Action<string, bool, StatusTone> setStatus,
-        Func<string, CancellationToken, Task>? closeShellTabAsync = null)
+        Action<string, bool, StatusTone> setStatus)
     {
         ArgumentNullException.ThrowIfNull(projectFileSearchService);
+        ArgumentNullException.ThrowIfNull(shellTabs);
         ArgumentNullException.ThrowIfNull(resolveProjectRoot);
         ArgumentNullException.ThrowIfNull(getThreadFocusTarget);
         ArgumentNullException.ThrowIfNull(getWorkspaceView);
+        ArgumentNullException.ThrowIfNull(createComputedVisual);
         ArgumentNullException.ThrowIfNull(dispatchToUiDeferred);
         ArgumentNullException.ThrowIfNull(syncThreadTabControl);
         ArgumentNullException.ThrowIfNull(setStatus);
 
+        _shellTabs = shellTabs;
         _getWorkspaceView = getWorkspaceView;
         _getThreadFocusTarget = getThreadFocusTarget;
+        _createComputedVisual = createComputedVisual;
         _dispatchToUiDeferred = dispatchToUiDeferred;
         _syncThreadTabControl = syncThreadTabControl;
         _setStatus = setStatus;
-        _closeShellTabAsync = closeShellTabAsync ?? ((_, _) => Task.CompletedTask);
         _filePickerController = new ProjectFileOpenDialogController(
             projectFileSearchService,
             ProjectFileAppearanceRegistry.Default,
@@ -53,9 +59,14 @@ internal sealed class FileEditorWorkspaceCoordinator : IAsyncDisposable
             setStatus);
     }
 
-    public IReadOnlyList<string> OpenTabIds => _openFileTabIds;
+    public IReadOnlyList<string> OpenTabIds => GetOpenEditorTabIds();
 
-    public string? SelectedTabId => _selectedTabId;
+    public string? SelectedTabId
+        => _selectedTabId is { Length: > 0 } selectedTabId &&
+           _shellTabs.TryGetTab(new ShellTabId(selectedTabId), out var shellTab) &&
+           shellTab.Kind == ShellTabKind.Editor
+            ? selectedTabId
+            : null;
 
     public async ValueTask DisposeAsync()
     {
@@ -117,7 +128,7 @@ internal sealed class FileEditorWorkspaceCoordinator : IAsyncDisposable
     }
 
     public FileEditorTab? GetSelectedFileTab()
-        => !string.IsNullOrWhiteSpace(_selectedTabId) && _fileTabsById.TryGetValue(_selectedTabId, out var fileTab)
+        => SelectedTabId is { Length: > 0 } selectedTabId && _fileTabsById.TryGetValue(selectedTabId, out var fileTab)
             ? fileTab
             : null;
 
@@ -132,6 +143,7 @@ internal sealed class FileEditorWorkspaceCoordinator : IAsyncDisposable
         }
 
         _selectedTabId = tabId;
+        _shellTabs.SelectTabAsync(new ShellTabId(tabId)).GetAwaiter().GetResult();
         _syncThreadTabControl();
         if (_fileTabsById.TryGetValue(tabId, out var fileTab))
         {
@@ -146,17 +158,18 @@ internal sealed class FileEditorWorkspaceCoordinator : IAsyncDisposable
             return;
         }
 
-        var removedIndex = _openFileTabIds.FindIndex(candidate => string.Equals(candidate, tabId, StringComparison.OrdinalIgnoreCase));
+        var openTabIds = GetOpenEditorTabIds();
+        var removedIndex = openTabIds.FindIndex(candidate => string.Equals(candidate, tabId, StringComparison.OrdinalIgnoreCase));
+        var wasSelected = string.Equals(SelectedTabId, tabId, StringComparison.OrdinalIgnoreCase);
         await fileTab.RequestCloseAsync(
             async () =>
             {
                 await fileTab.DisposeAsync();
                 _fileTabsById.Remove(tabId);
                 _fileTabsByPath.Remove(fileTab.FullPath);
-                _openFileTabIds.Remove(tabId);
-                await _closeShellTabAsync(tabId, CancellationToken.None);
+                await _shellTabs.CloseTabAsync(new ShellTabId(tabId), ShellTabCloseReason.User);
                 _getWorkspaceView()?.RemoveTabPage(tabId);
-                if (string.Equals(_selectedTabId, tabId, StringComparison.OrdinalIgnoreCase))
+                if (wasSelected)
                 {
                     SelectRemainingFileTabOrThreadSurface(removedIndex);
                 }
@@ -198,7 +211,15 @@ internal sealed class FileEditorWorkspaceCoordinator : IAsyncDisposable
             var fileTab = await FileEditorTab.CreateAsync(item, appearance, (message, showSpinner, tone) => _setStatus(message, showSpinner, tone), cancellationToken);
             _fileTabsById[fileTab.TabId] = fileTab;
             _fileTabsByPath[fileTab.FullPath] = fileTab;
-            _openFileTabIds.Add(fileTab.TabId);
+            _shellTabs.OpenOrGetTab(new ShellTabDescriptor
+            {
+                TabId = new ShellTabId(fileTab.TabId),
+                Kind = ShellTabKind.Editor,
+                Association = new ShellTabAssociation.Editor(ProjectId.NewVersion7(), fileTab.FullPath),
+                Header = fileTab.CreateTabHeader(_createComputedVisual),
+                Content = fileTab.Root,
+                ViewModel = fileTab,
+            });
             SelectFileTab(fileTab.TabId);
             _dispatchToUiDeferred(fileTab.Focus);
             _setStatus($"Opened '{item.Basename}' for editing.", false, StatusTone.Ready);
@@ -211,7 +232,8 @@ internal sealed class FileEditorWorkspaceCoordinator : IAsyncDisposable
 
     private void SelectRemainingFileTabOrThreadSurface(int removedIndex)
     {
-        if (_openFileTabIds.Count == 0)
+        var openTabIds = GetOpenEditorTabIds();
+        if (openTabIds.Count == 0)
         {
             ActivateThreadSurface();
             return;
@@ -219,7 +241,13 @@ internal sealed class FileEditorWorkspaceCoordinator : IAsyncDisposable
 
         var nextIndex = removedIndex <= 0
             ? 0
-            : Math.Min(removedIndex - 1, _openFileTabIds.Count - 1);
-        SelectFileTab(_openFileTabIds[nextIndex]);
+            : Math.Min(removedIndex - 1, openTabIds.Count - 1);
+        SelectFileTab(openTabIds[nextIndex]);
     }
+
+    private List<string> GetOpenEditorTabIds()
+        => _shellTabs.GetTabs()
+            .Where(static tab => tab.Kind == ShellTabKind.Editor)
+            .Select(static tab => tab.TabId.Value)
+            .ToList();
 }
