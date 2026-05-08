@@ -5,12 +5,12 @@ using XenoAtom.Terminal.UI.Controls;
 namespace CodeAlta.Tests;
 
 [TestClass]
-public sealed class ShellCommandSurfaceCoordinatorTests
+public sealed class ShellCommandPalettePresenterTests
 {
     [TestMethod]
     public void CommandPalettePopupStyle_IsBottomCenteredHalfWidth()
     {
-        var style = ShellCommandSurfaceCoordinator.CommandPalettePopupStyle;
+        var style = ShellCommandPalettePresenter.CommandPalettePopupStyle;
 
         Assert.AreEqual(50d, style.PopupWidthPercent.GetValueOrDefault());
         Assert.AreEqual(int.MaxValue, style.MaxWidth);
@@ -22,7 +22,7 @@ public sealed class ShellCommandSurfaceCoordinatorTests
     [TestMethod]
     public void DialogCommandPalettePopupStyle_IsCentered()
     {
-        var style = ShellCommandSurfaceCoordinator.DialogCommandPalettePopupStyle;
+        var style = ShellCommandPalettePresenter.DialogCommandPalettePopupStyle;
 
         Assert.AreEqual(50d, style.PopupWidthPercent.GetValueOrDefault());
         Assert.AreEqual(int.MaxValue, style.MaxWidth);
@@ -37,9 +37,9 @@ public sealed class ShellCommandSurfaceCoordinatorTests
         var editor = new TextBox();
         var dialog = new Dialog(editor);
 
-        var style = ShellCommandSurfaceCoordinator.ResolveCommandPalettePopupStyle(editor);
+        var style = ShellCommandPalettePresenter.ResolveCommandPalettePopupStyle(editor);
 
-        Assert.AreSame(ShellCommandSurfaceCoordinator.DialogCommandPalettePopupStyle, style);
+        Assert.AreSame(ShellCommandPalettePresenter.DialogCommandPalettePopupStyle, style);
         Assert.AreSame(dialog, editor.Parent);
     }
 }

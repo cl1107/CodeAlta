@@ -365,17 +365,27 @@ public sealed class ArchitectureGuardrailTests
         Assert.IsTrue(delegateParameters <= 1, $"ShellCommandSurfaceCoordinator has {delegateParameters} delegate parameters.");
         Assert.IsTrue(parameters.Any(static parameter => parameter.Name == "toggleCommandBarMultiLine" && typeof(Delegate).IsAssignableFrom(parameter.ParameterType)));
         Assert.IsTrue(parameters.Any(static parameter => parameter.ParameterType == typeof(IShellPromptInputService)));
-        Assert.IsTrue(parameters.Any(static parameter => parameter.ParameterType == typeof(IShellThreadCommandService)));
-        Assert.IsTrue(parameters.Any(static parameter => parameter.ParameterType == typeof(IShellDialogCommandService)));
-        Assert.IsTrue(parameters.Any(static parameter => parameter.ParameterType == typeof(IShellNavigationCommandService)));
-        Assert.IsTrue(parameters.Any(static parameter => parameter.ParameterType == typeof(IShellTabCommandService)));
+        Assert.IsTrue(parameters.Any(static parameter => parameter.ParameterType == typeof(IShellCommandDispatcher)));
+        Assert.IsTrue(parameters.Any(static parameter => parameter.ParameterType == typeof(ShellCommandBindingProjector)));
+        Assert.IsTrue(parameters.Any(static parameter => parameter.ParameterType == typeof(IShellCommandSurfacePresenter)));
 
+        var compositionSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Frontend", "Commands", "ShellCommandSurfaceComposition.cs"));
         var source = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Frontend", "Commands", "ShellCommandSurfaceCoordinator.cs"));
         var factorySource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Frontend", "Commands", "ShellCommandRegistryFactory.cs"));
+        var projectorSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Frontend", "Commands", "ShellCommandBindingProjector.cs"));
+        var paletteSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Frontend", "Commands", "ShellCommandPalettePresenter.cs"));
+        var serviceSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Frontend", "Commands", "ShellCommandServices.cs"));
         var viewFactorySource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "CodeAltaShellViewFactory.cs"));
-        Assert.IsTrue(source.Contains("new ShellCommandRegistryFactory(", StringComparison.Ordinal));
+        Assert.IsFalse(source.Contains("new ShellCommandRegistryFactory(", StringComparison.Ordinal));
+        Assert.IsTrue(compositionSource.Contains("new ShellCommandRegistryFactory(", StringComparison.Ordinal));
+        Assert.IsTrue(compositionSource.Contains("new ShellCommandDispatcher(", StringComparison.Ordinal));
+        Assert.IsTrue(compositionSource.Contains("new ShellCommandBindingProjector(", StringComparison.Ordinal));
+        Assert.IsTrue(compositionSource.Contains("new ShellCommandPalettePresenter(", StringComparison.Ordinal));
         Assert.IsFalse(source.Contains("registry.RegisterFactory(", StringComparison.Ordinal));
         Assert.IsTrue(factorySource.Contains("registry.RegisterFactory(", StringComparison.Ordinal));
+        Assert.IsTrue(projectorSource.Contains("ShellCommandCatalog.Get(", StringComparison.Ordinal));
+        Assert.IsTrue(paletteSource.Contains("new CommandPalette()", StringComparison.Ordinal));
+        Assert.IsTrue(serviceSource.Contains("internal interface IPluginCommandService", StringComparison.Ordinal));
         Assert.IsFalse(source.Contains("Func<Task> scrollToPreviousMessageAsync", StringComparison.Ordinal));
         Assert.IsFalse(source.Contains("Func<Task> openModelProvidersAsync", StringComparison.Ordinal));
         Assert.IsFalse(source.Contains("Func<WorkThreadDescriptor?> getSelectedThread", StringComparison.Ordinal));
@@ -441,8 +451,8 @@ public sealed class ArchitectureGuardrailTests
         {
             "App/CodeAltaShellController.cs:71:_initializationTask = Task.Run(",
             "App/CodeAltaShellController.cs:356:var startupProviderLoadTask = Task.Run(",
-            "App/CodeAltaApp.cs:347:_ = PersistViewStateAsync();",
-            "App/CodeAltaApp.cs:428:_ = OpenModelProvidersAsync();",
+            "App/CodeAltaApp.cs:343:_ = PersistViewStateAsync();",
+            "App/CodeAltaApp.cs:424:_ = OpenModelProvidersAsync();",
             "App/RuntimeEventPump.cs:34:_pumpTask = Task.Run(",
             "App/ShellThreadStateCoordinator.cs:261:_ = RestoreStartupThreadHistoryAsync(threadId, cancellationToken);",
             "App/ShellThreadStateCoordinator.cs:270:_ = PersistViewStateAsync();",
@@ -1648,10 +1658,10 @@ public sealed class ArchitectureGuardrailTests
     public void HelpAndWorkspaceCommands_ShareShellCommandCatalog()
     {
         var helpSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Frontend", "Help", "ShellHelpContentBuilder.cs"));
-        var surfaceSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Frontend", "Commands", "ShellCommandSurfaceCoordinator.cs"));
+        var projectorSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Frontend", "Commands", "ShellCommandBindingProjector.cs"));
 
         Assert.IsTrue(helpSource.Contains("ShellCommandCatalog.Commands", StringComparison.Ordinal));
-        Assert.IsTrue(surfaceSource.Contains("ShellCommandCatalog.Get(", StringComparison.Ordinal));
+        Assert.IsTrue(projectorSource.Contains("ShellCommandCatalog.Get(", StringComparison.Ordinal));
     }
 
     [TestMethod]

@@ -180,16 +180,17 @@ internal static class PluginCommandHandlers
 {
     public static void Register(
         ShellCommandRegistry registry,
-        PluginHostBridge? pluginHostBridge,
+        IPluginCommandService pluginCommandService,
         ThreadCommandCoordinator threadCommands,
         IShellStatusService statusService)
     {
         ArgumentNullException.ThrowIfNull(registry);
+        ArgumentNullException.ThrowIfNull(pluginCommandService);
         ArgumentNullException.ThrowIfNull(threadCommands);
         ArgumentNullException.ThrowIfNull(statusService);
 
         registry.Register<ExecutePluginTextCommand>((command, cancellationToken) => ToValueTask(ExecutePluginTextCommandAsync(
-            pluginHostBridge,
+            pluginCommandService,
             threadCommands,
             statusService,
             command.CommandName,
@@ -198,30 +199,27 @@ internal static class PluginCommandHandlers
     }
 
     private static async Task ExecutePluginTextCommandAsync(
-        PluginHostBridge? pluginHostBridge,
+        IPluginCommandService pluginCommandService,
         ThreadCommandCoordinator threadCommands,
         IShellStatusService statusService,
         string name,
         string? arguments,
         CancellationToken cancellationToken)
     {
-        if (pluginHostBridge is not null)
+        var result = await pluginCommandService.ExecuteCommandAsync(name, arguments, cancellationToken);
+        if (result.Disposition != PluginCommandDisposition.NotHandled)
         {
-            var result = await pluginHostBridge.ExecuteCommandAsync(name, arguments, cancellationToken);
-            if (result.Disposition != PluginCommandDisposition.NotHandled)
+            if (!string.IsNullOrWhiteSpace(result.UserMessage))
             {
-                if (!string.IsNullOrWhiteSpace(result.UserMessage))
-                {
-                    statusService.SetStatus(result.UserMessage);
-                }
-
-                if (!string.IsNullOrWhiteSpace(result.PromptText))
-                {
-                    await threadCommands.SendPromptAsync(result.PromptText, steer: false, cancellationToken);
-                }
-
-                return;
+                statusService.SetStatus(result.UserMessage);
             }
+
+            if (!string.IsNullOrWhiteSpace(result.PromptText))
+            {
+                await threadCommands.SendPromptAsync(result.PromptText, steer: false, cancellationToken);
+            }
+
+            return;
         }
 
         statusService.SetStatus(ShellCommandSurfaceCoordinator.BuildUnknownCommandStatus(name), tone: StatusTone.Warning);

@@ -1,5 +1,4 @@
 using CodeAlta.App;
-using CodeAlta.Plugins.Abstractions;
 
 namespace CodeAlta.Frontend.Commands;
 
@@ -20,7 +19,7 @@ internal sealed class ShellCommandRegistryFactory
     private readonly IShellNavigationCommandService _navigationCommandService;
     private readonly IShellTabCommandService _tabCommandService;
     private readonly IShellStatusService _statusService;
-    private readonly PluginHostBridge? _pluginHostBridge;
+    private readonly IPluginCommandService _pluginCommandService;
 
     public ShellCommandRegistryFactory(
         ThreadCommandCoordinator threadCommands,
@@ -29,7 +28,7 @@ internal sealed class ShellCommandRegistryFactory
         IShellNavigationCommandService navigationCommandService,
         IShellTabCommandService tabCommandService,
         IShellStatusService statusService,
-        PluginHostBridge? pluginHostBridge)
+        IPluginCommandService pluginCommandService)
     {
         ArgumentNullException.ThrowIfNull(threadCommands);
         ArgumentNullException.ThrowIfNull(threadCommandService);
@@ -37,13 +36,14 @@ internal sealed class ShellCommandRegistryFactory
         ArgumentNullException.ThrowIfNull(navigationCommandService);
         ArgumentNullException.ThrowIfNull(tabCommandService);
         ArgumentNullException.ThrowIfNull(statusService);
+        ArgumentNullException.ThrowIfNull(pluginCommandService);
         _threadCommands = threadCommands;
         _threadCommandService = threadCommandService;
         _dialogCommandService = dialogCommandService;
         _navigationCommandService = navigationCommandService;
         _tabCommandService = tabCommandService;
         _statusService = statusService;
-        _pluginHostBridge = pluginHostBridge;
+        _pluginCommandService = pluginCommandService;
     }
 
     public ShellCommandRegistry Create(IShellCommandSurfacePresenter presenter)
@@ -60,6 +60,7 @@ internal sealed class ShellCommandRegistryFactory
         registry.RegisterFactory("CodeAlta.Thread.SessionUsage", static () => new OpenSessionUsageCommand());
         registry.RegisterFactory("CodeAlta.Thread.Info", static () => new OpenThreadInfoCommand());
         registry.RegisterFactory("CodeAlta.Thread.ExpandPrompt", static () => new OpenExpandedPromptCommand());
+        registry.RegisterFactory("CodeAlta.Thread.Steer", static () => new SubmitPromptCommand(null, Steer: true));
         registry.RegisterFactory("CodeAlta.Thread.Abort", static () => new AbortSelectedThreadCommand());
         registry.RegisterFactory("CodeAlta.Thread.ClearQueue", static () => new ClearSelectedThreadQueueCommand());
         registry.RegisterFactory("CodeAlta.Thread.Compact", static () => new CompactSelectedThreadCommand());
@@ -81,7 +82,7 @@ internal sealed class ShellCommandRegistryFactory
             presenter.ShowOpenFolderDialog,
             _dialogCommandService);
         TabCommandHandlers.Register(registry, _tabCommandService);
-        PluginCommandHandlers.Register(registry, _pluginHostBridge, _threadCommands, _statusService);
+        PluginCommandHandlers.Register(registry, _pluginCommandService, _threadCommands, _statusService);
         return registry;
     }
 }

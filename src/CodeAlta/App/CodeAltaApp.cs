@@ -261,30 +261,26 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
             _threadSelectionContext,
             _threadTabContext,
             _shellTabService);
-        _shellCommandSurfaceCoordinator = new ShellCommandSurfaceCoordinator(
-            _promptComposerViewModel,
-            _threadWorkspaceViewModel,
-            _threadCommandCoordinator,
-            new DelegatingShellPromptInputService(() => ReadBindableState(() => _promptDraftUiCoordinator.PromptText), _threadCommandCoordinator.IsCurrentPromptEmpty),
-            new DelegatingShellThreadCommandService(GetSelectedThread, EnsureThreadTab),
-            new DelegatingShellDialogCommandService(
-                () => DialogBoundsResolver.ResolveAppBounds(ThreadInput), () => ThreadInput, () => _threadStateCoordinator.Projects,
-                OpenFolderAsync, OpenModelProvidersAsync, _fileEditorWorkspaceCoordinator.ShowOpenFilePickerAsync,
-                SkillsManagementCoordinatorFactory.Create(_ownedServices, _catalogOptions, GetSelectedProject, GetDialogAnchor, path => _fileEditorWorkspaceCoordinator.OpenFilePathAsync(path), skillName => _threadCommandCoordinator.ActivateSelectedSkillAsync(skillName), SetStatus),
-                PluginManagementCoordinatorFactory.Create(_catalogOptions, GetSelectedProject, GetDialogAnchor, SetStatus),
-                () => EnsureSessionUsagePresenter().TogglePopupFromIndicator(),
-                () => { if (ThreadInput is not null) EnsureThreadInfoPresenter().TogglePopup(ThreadInput); },
-                () => _threadWorkspaceView?.OpenExpandedPromptDialog()),
-            new DelegatingShellNavigationCommandService(
-                FocusSidebar, FocusPromptEditor,
-                () => { _ = _threadTabStripCoordinator.TrySelectRelativeTab(-1); return Task.CompletedTask; },
-                () => { _ = _threadTabStripCoordinator.TrySelectRelativeTab(1); return Task.CompletedTask; },
-                () => ScrollSelectedThreadMessageAsync(static tab => tab.Timeline.ScrollToPreviousMessage()), () => ScrollSelectedThreadMessageAsync(static tab => tab.Timeline.ScrollToNextMessage()),
-                () => ScrollSelectedThreadMessageAsync(static tab => tab.Timeline.ScrollToFirstMessage()), () => ScrollSelectedThreadMessageAsync(static tab => tab.Timeline.ScrollToLastMessage())),
-            new DelegatingShellTabCommandService(() => _threadTabStripCoordinator.CloseSelectedTabAsync()),
-            new DelegatingShellStatusService(SetStatus),
-            ToggleCommandBarMultiLine,
-            _ownedServices?.PluginHostBridge);
+        var input = new DelegatingShellPromptInputService(() => ReadBindableState(() => _promptDraftUiCoordinator.PromptText), _threadCommandCoordinator.IsCurrentPromptEmpty);
+        var threadSvc = new DelegatingShellThreadCommandService(GetSelectedThread, EnsureThreadTab);
+        var dialogs = new DelegatingShellDialogCommandService(
+            () => DialogBoundsResolver.ResolveAppBounds(ThreadInput), () => ThreadInput, () => _threadStateCoordinator.Projects,
+            OpenFolderAsync, OpenModelProvidersAsync, _fileEditorWorkspaceCoordinator.ShowOpenFilePickerAsync,
+            SkillsManagementCoordinatorFactory.Create(_ownedServices, _catalogOptions, GetSelectedProject, GetDialogAnchor, path => _fileEditorWorkspaceCoordinator.OpenFilePathAsync(path), skillName => _threadCommandCoordinator.ActivateSelectedSkillAsync(skillName), SetStatus),
+            PluginManagementCoordinatorFactory.Create(_catalogOptions, GetSelectedProject, GetDialogAnchor, SetStatus),
+            () => EnsureSessionUsagePresenter().TogglePopupFromIndicator(),
+            () => { if (ThreadInput is not null) EnsureThreadInfoPresenter().TogglePopup(ThreadInput); },
+            () => _threadWorkspaceView?.OpenExpandedPromptDialog());
+        var navigation = new DelegatingShellNavigationCommandService(
+            FocusSidebar, FocusPromptEditor,
+            () => { _ = _threadTabStripCoordinator.TrySelectRelativeTab(-1); return Task.CompletedTask; },
+            () => { _ = _threadTabStripCoordinator.TrySelectRelativeTab(1); return Task.CompletedTask; },
+            () => ScrollSelectedThreadMessageAsync(static tab => tab.Timeline.ScrollToPreviousMessage()), () => ScrollSelectedThreadMessageAsync(static tab => tab.Timeline.ScrollToNextMessage()),
+            () => ScrollSelectedThreadMessageAsync(static tab => tab.Timeline.ScrollToFirstMessage()), () => ScrollSelectedThreadMessageAsync(static tab => tab.Timeline.ScrollToLastMessage()));
+        var tabCommands = new DelegatingShellTabCommandService(() => _threadTabStripCoordinator.CloseSelectedTabAsync());
+        var status = new DelegatingShellStatusService(SetStatus);
+        var plugins = new PluginHostCommandService(_ownedServices?.PluginHostBridge);
+        _shellCommandSurfaceCoordinator = ShellCommandSurfaceComposition.Create(_promptComposerViewModel, _threadWorkspaceViewModel, _threadCommandCoordinator, input, threadSvc, dialogs, navigation, tabCommands, status, plugins, ToggleCommandBarMultiLine);
         _threadHistoryCoordinator = new ThreadHistoryCoordinator(
             _runtimeService,
             EnsureThreadTab,

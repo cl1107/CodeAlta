@@ -2,6 +2,7 @@ using CodeAlta.App;
 using CodeAlta.App.State;
 using CodeAlta.Catalog;
 using CodeAlta.Models;
+using CodeAlta.Plugins.Abstractions;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Geometry;
 
@@ -247,4 +248,30 @@ internal sealed class DelegatingShellTabCommandService : IShellTabCommandService
     }
 
     public Task CloseCurrentTabAsync() => _closeCurrentTabAsync();
+}
+
+internal interface IPluginCommandService
+{
+    IReadOnlyList<PluginCommandContribution> GetCommandContributions();
+
+    Task<PluginCommandResult> ExecuteCommandAsync(string name, string? arguments, CancellationToken cancellationToken = default);
+}
+
+internal sealed class PluginHostCommandService : IPluginCommandService
+{
+    private readonly PluginHostBridge? _pluginHostBridge;
+
+    public PluginHostCommandService(PluginHostBridge? pluginHostBridge)
+        => _pluginHostBridge = pluginHostBridge;
+
+    public IReadOnlyList<PluginCommandContribution> GetCommandContributions()
+        => _pluginHostBridge?.GetCommandContributions() ?? Array.Empty<PluginCommandContribution>();
+
+    public Task<PluginCommandResult> ExecuteCommandAsync(string name, string? arguments, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        return _pluginHostBridge is null
+            ? Task.FromResult(PluginCommandResult.NotHandled)
+            : _pluginHostBridge.ExecuteCommandAsync(name, arguments, cancellationToken);
+    }
 }
