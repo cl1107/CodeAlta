@@ -138,7 +138,7 @@ internal sealed class CodeAltaFrontendComposition
             switch (request.Reason)
             {
                 case WorkspaceRefreshReason.SelectedSessionUsageInvalidated:
-                    frontend.InvalidateSelectedSessionUsage();
+                    frontend.ApplySessionUsageProjection();
                     break;
                 case WorkspaceRefreshReason.HeaderAndThreadWorkspace:
                     frontendEvents.Publish(new HeaderChangedEvent());
@@ -218,7 +218,7 @@ internal sealed class CodeAltaFrontendComposition
                 frontend.RefreshModelProviderSelectorsForDraftScope,
                 frontend.RefreshModelProviderSelectorsForThread,
                 frontend.SyncPromptText,
-                frontend.UpdatePromptAvailabilityUi,
+                frontend.ApplyPromptAvailabilityProjection,
                 frontend.SyncThreadTabControl),
             uiDispatcher);
         var workspaceCoordinator = new ShellWorkspaceCoordinator(

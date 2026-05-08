@@ -77,11 +77,11 @@ internal sealed class ThreadCommandContext
         _promptSessionPort.RestorePrompt(GetCurrentPromptSessionId(), prompt);
     }
 
-    public void RefreshHeaderAndThreadWorkspace()
-        => _uiPort.RefreshHeaderAndThreadWorkspace();
+    public void ApplyHeaderProjection()
+        => _uiPort.ApplyHeaderProjection();
 
-    public void RefreshCatalogAndThreadWorkspace()
-        => _uiPort.RefreshCatalogAndThreadWorkspace();
+    public void ApplyCatalogProjection()
+        => _uiPort.ApplyCatalogProjection();
 
     public void RekeyThreadIdentity(string oldThreadId, WorkThreadDescriptor thread)
     {

@@ -11,8 +11,8 @@ public sealed class WorkspaceRefreshContextTests
         var requests = new List<WorkspaceRefreshRequest>();
         var context = new WorkspaceRefreshContext(requests.Add);
 
-        context.InvalidateSelectedSessionUsage();
-        context.RefreshHeaderAndThreadWorkspace();
+        context.ApplySessionUsageProjection();
+        context.ApplyHeaderProjection();
 
         CollectionAssert.AreEqual(
             new[]

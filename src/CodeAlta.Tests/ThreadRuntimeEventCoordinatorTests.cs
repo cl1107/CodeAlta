@@ -33,7 +33,7 @@ public sealed class ThreadRuntimeEventCoordinatorTests
     }
 
     [TestMethod]
-    public void ShouldRefreshShellChromeAfterRuntimeEvent_IgnoresToolOutputDeltas()
+    public void ShouldApplyShellChromeProjectionAfterRuntimeEvent_IgnoresToolOutputDeltas()
     {
         var runtimeEvent = new WorkThreadAgentEvent(
             "thread-1",
@@ -47,11 +47,11 @@ public sealed class ThreadRuntimeEventCoordinatorTests
                 "activity-1",
                 "line 1"));
 
-        Assert.IsFalse(ThreadRuntimeEventCoordinator.ShouldRefreshShellChromeAfterRuntimeEvent(runtimeEvent));
+        Assert.IsFalse(ThreadRuntimeEventCoordinator.ShouldApplyShellChromeProjectionAfterRuntimeEvent(runtimeEvent));
     }
 
     [TestMethod]
-    public void ShouldRefreshShellChromeAfterRuntimeEvent_RefreshesForAssistantCompletion()
+    public void ShouldApplyShellChromeProjectionAfterRuntimeEvent_RefreshesForAssistantCompletion()
     {
         var runtimeEvent = new WorkThreadAgentEvent(
             "thread-1",
@@ -65,7 +65,7 @@ public sealed class ThreadRuntimeEventCoordinatorTests
                 null,
                 "Final answer"));
 
-        Assert.IsTrue(ThreadRuntimeEventCoordinator.ShouldRefreshShellChromeAfterRuntimeEvent(runtimeEvent));
+        Assert.IsTrue(ThreadRuntimeEventCoordinator.ShouldApplyShellChromeProjectionAfterRuntimeEvent(runtimeEvent));
     }
 
     [TestMethod]

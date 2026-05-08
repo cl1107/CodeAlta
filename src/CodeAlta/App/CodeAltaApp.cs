@@ -451,10 +451,10 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
     private bool TryGetPromptUnavailableStatus(out string message, out StatusTone tone)
         => _modelProviderSelectorCoordinator.TryGetPromptUnavailableStatus(out message, out tone);
     internal bool TrySetPromptUnavailableStatus() { if (!TryGetPromptUnavailableStatus(out var message, out var tone)) return false; SetStatus(message, tone: tone); return true; }
-    internal void UpdatePromptAvailabilityUi()
-        => _modelProviderSelectorCoordinator.UpdatePromptAvailabilityUi();
+    internal void ApplyPromptAvailabilityProjection()
+        => _modelProviderSelectorCoordinator.ApplyPromptAvailabilityProjection();
 
-    internal void RefreshQueuedPromptList() => _threadPromptQueueCoordinator.RefreshSelectedThreadQueueUi();
+    internal void ApplyQueuedPromptProjection() => _threadPromptQueueCoordinator.RefreshSelectedThreadQueueUi();
 
     internal void UpdatePromptImageAttachmentsUi() { _promptComposerViewModel.PromptImageAttachmentVersion++; RefreshSidebarProjection(); }
     internal void SyncThreadTabControl()
@@ -506,16 +506,16 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
         return _shellView;
     }
 
-    internal void RefreshShellChrome() => _workspaceCoordinator.RefreshShellChrome();
+    internal void ApplyShellChromeProjection() => _workspaceCoordinator.ApplyShellChromeProjection();
 
-    internal void RefreshCatalogAndThreadWorkspace() { _threadInfoPresenter?.InvalidateSelection(); _workspaceCoordinator.RefreshCatalogAndThreadWorkspace(); }
+    internal void ApplyCatalogProjection() { _threadInfoPresenter?.InvalidateSelection(); _workspaceCoordinator.ApplyCatalogProjection(); }
 
     internal void PublishStartupCatalogProjectionReady()
         => _frontendEvents.Publish(new StartupCatalogProjectionReadyEvent());
 
-    internal void RefreshHeaderAndThreadWorkspace() => _workspaceCoordinator.RefreshHeaderAndThreadWorkspace();
+    internal void ApplyHeaderProjection() => _workspaceCoordinator.ApplyHeaderProjection();
 
-    internal void RefreshSelectionAndThreadWorkspace() { _threadInfoPresenter?.InvalidateSelection(); _workspaceCoordinator.RefreshSelectionAndThreadWorkspace(); }
+    internal void ApplySelectionProjection() { _threadInfoPresenter?.InvalidateSelection(); _workspaceCoordinator.ApplySelectionProjection(); }
 
     internal void SelectGlobalScope() { _threadStateCoordinator.SelectGlobalScope(); ActivateThreadSurface(); }
 
@@ -532,8 +532,8 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
         => _workspaceCoordinator.SetThreadStatus(tab, message, showSpinner, tone, hasCustomStatus);
     internal void ClearThreadStatus(OpenThreadState tab)
         => _workspaceCoordinator.ClearThreadStatus(tab);
-    internal void InvalidateSelectedSessionUsage() => _workspaceCoordinator.InvalidateSelectedSessionUsage();
-    internal void InvalidateThreadChrome() => _workspaceCoordinator.InvalidateThreadChrome();
+    internal void ApplySessionUsageProjection() => _workspaceCoordinator.ApplySessionUsageProjection();
+    internal void ApplyThreadChromeProjection() => _workspaceCoordinator.ApplyThreadChromeProjection();
 
     internal bool IsSelectedThread(string threadId)
         => !string.IsNullOrWhiteSpace(threadId) &&

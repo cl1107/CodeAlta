@@ -51,26 +51,14 @@ internal sealed class WorkspaceProjectionController
             });
     }
 
-    public void RefreshShellChrome()
-        => ApplyShellChromeProjection();
-
     public void ApplyShellChromeProjection()
         => _workspaceContext.DispatchToUi(ApplyShellChromeProjectionCore);
-
-    public void RefreshCatalogAndThreadWorkspace()
-        => ApplyCatalogProjection();
 
     public void ApplyCatalogProjection()
         => _workspaceContext.DispatchToUi(ApplyCatalogProjectionCore);
 
-    public void RefreshHeaderAndThreadWorkspace()
-        => ApplyHeaderProjection();
-
     public void ApplyHeaderProjection()
         => _workspaceContext.DispatchToUi(ApplyHeaderProjectionCore);
-
-    public void RefreshSelectionAndThreadWorkspace()
-        => ApplySelectionProjection();
 
     public void ApplySelectionProjection()
         => _workspaceContext.DispatchToUi(ApplySelectionProjectionCore);
@@ -89,7 +77,7 @@ internal sealed class WorkspaceProjectionController
                 _viewRefreshState.Value++;
             });
 
-    public void InvalidateThreadChrome()
+    public void ApplyThreadChromeProjection()
         => _workspaceContext.DispatchToUi(() => _viewRefreshState.Value++);
 
     private void ApplyHeaderProjectionCore()
@@ -151,10 +139,10 @@ internal sealed class WorkspaceProjectionController
         }
 
         var tab = _threadSelection.EnsureThreadTab(selectedThread);
-        _workspaceContext.RefreshQueuedPromptList();
+        _workspaceContext.ApplyQueuedPromptProjection();
         _workspaceContext.RefreshModelProviderSelectorsForThread(tab);
         _workspaceContext.SyncPromptDraftText(tab.Session);
-        _workspaceContext.UpdatePromptAvailabilityUi();
+        _workspaceContext.ApplyPromptAvailabilityProjection();
         if (!string.Equals(_displayedThreadId, selectedThread.ThreadId, StringComparison.OrdinalIgnoreCase))
         {
             _displayedThreadId = selectedThread.ThreadId;
@@ -168,10 +156,10 @@ internal sealed class WorkspaceProjectionController
     private void RefreshDraftThreadPaneContent()
     {
         _displayedThreadId = null;
-        _workspaceContext.RefreshQueuedPromptList();
+        _workspaceContext.ApplyQueuedPromptProjection();
         _workspaceContext.RefreshModelProviderSelectorsForDraftScope();
         _workspaceContext.SyncPromptDraftText(session: null);
-        _workspaceContext.UpdatePromptAvailabilityUi();
+        _workspaceContext.ApplyPromptAvailabilityProjection();
         _statusProjection.SetReadyStatusForCurrentSelection();
     }
 }

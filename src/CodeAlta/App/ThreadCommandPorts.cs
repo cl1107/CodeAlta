@@ -66,9 +66,9 @@ internal interface IThreadCommandUiPort
 
     void SetReadyStatusForCurrentSelection();
 
-    void RefreshHeaderAndThreadWorkspace();
+    void ApplyHeaderProjection();
 
-    void RefreshCatalogAndThreadWorkspace();
+    void ApplyCatalogProjection();
 
     void TryRenderInteraction(OpenThreadState tab, Action action, string context);
 }
@@ -125,10 +125,10 @@ internal sealed class ThreadCommandUiPort : IThreadCommandUiPort
     public void SetReadyStatusForCurrentSelection()
         => _uiDispatcher.Invoke(_setReadyStatusForCurrentSelection);
 
-    public void RefreshHeaderAndThreadWorkspace()
+    public void ApplyHeaderProjection()
         => _uiDispatcher.Invoke(_refreshHeaderAndThreadWorkspace);
 
-    public void RefreshCatalogAndThreadWorkspace()
+    public void ApplyCatalogProjection()
         => _uiDispatcher.Invoke(_refreshCatalogAndThreadWorkspace);
 
     public void TryRenderInteraction(OpenThreadState tab, Action action, string context)

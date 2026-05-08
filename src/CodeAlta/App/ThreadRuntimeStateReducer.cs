@@ -14,8 +14,8 @@ internal readonly record struct ThreadRuntimeStatusUpdate(
     StatusTone Tone);
 
 internal readonly record struct ThreadRuntimeReductionResult(
-    bool RefreshShellChrome,
-    bool InvalidateSelectedSessionUsage,
+    bool ApplyShellChromeProjection,
+    bool ApplySessionUsageProjection,
     bool ClearThreadStatus,
     bool DrainQueuedPrompt,
     bool RefreshPromptStrip,
@@ -34,7 +34,7 @@ internal sealed class ThreadRuntimeStateReducer
 
         return runtimeEvent switch
         {
-            WorkThreadAgentEvent agentEvent => ReduceAgentEvent(thread, tab, agentEvent.Event, isSelectedThread, ShouldRefreshShellChromeAfterRuntimeEvent(runtimeEvent)),
+            WorkThreadAgentEvent agentEvent => ReduceAgentEvent(thread, tab, agentEvent.Event, isSelectedThread, ShouldApplyShellChromeProjectionAfterRuntimeEvent(runtimeEvent)),
             WorkThreadHostEvent hostEvent => ReduceHostEvent(thread, tab, hostEvent),
             _ => default,
         };
@@ -80,7 +80,7 @@ internal sealed class ThreadRuntimeStateReducer
         };
     }
 
-    public static bool ShouldRefreshShellChromeAfterRuntimeEvent(WorkThreadRuntimeEvent runtimeEvent)
+    public static bool ShouldApplyShellChromeProjectionAfterRuntimeEvent(WorkThreadRuntimeEvent runtimeEvent)
     {
         ArgumentNullException.ThrowIfNull(runtimeEvent);
 
@@ -146,8 +146,8 @@ internal sealed class ThreadRuntimeStateReducer
         }
 
         return new ThreadRuntimeReductionResult(
-            RefreshShellChrome: true,
-            InvalidateSelectedSessionUsage: false,
+            ApplyShellChromeProjection: true,
+            ApplySessionUsageProjection: false,
             ClearThreadStatus: clearThreadStatus,
             DrainQueuedPrompt: false,
             RefreshPromptStrip: false,
@@ -272,8 +272,8 @@ internal sealed class ThreadRuntimeStateReducer
         }
 
         return new ThreadRuntimeReductionResult(
-            RefreshShellChrome: refreshShellChrome,
-            InvalidateSelectedSessionUsage: invalidateSelectedUsage,
+            ApplyShellChromeProjection: refreshShellChrome,
+            ApplySessionUsageProjection: invalidateSelectedUsage,
             ClearThreadStatus: clearThreadStatus,
             DrainQueuedPrompt: drainQueuedPrompt,
             RefreshPromptStrip: refreshPromptStrip,

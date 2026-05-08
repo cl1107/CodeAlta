@@ -29,8 +29,8 @@ internal sealed class CodeAltaFrontendServicesAdapter : ICodeAltaFrontendService
     public void ApplyThreadPreference(OpenThreadState thread) => _app.ApplyThreadPreference(thread);
     public void RememberThreadPreference(string threadId, string? modelId, AgentReasoningEffort? reasoningEffort, bool persistNow) => _app.RememberThreadPreference(threadId, modelId, reasoningEffort, persistNow);
     public Task EnsureThreadHistoryLoadedAsync(WorkThreadDescriptor thread, CancellationToken cancellationToken) => _app.EnsureThreadHistoryLoadedAsync(thread, cancellationToken);
-    public void RefreshSelectionAndThreadWorkspace() => _app.RefreshSelectionAndThreadWorkspace();
-    public void RefreshCatalogAndThreadWorkspace() => _app.RefreshCatalogAndThreadWorkspace();
+    public void ApplySelectionProjection() => _app.ApplySelectionProjection();
+    public void ApplyCatalogProjection() => _app.ApplyCatalogProjection();
     public void ResetPendingThreadTabSelection() => _app.ResetPendingThreadTabSelection();
     public void RemoveThreadTabPage(string threadId, ShellTabCloseReason reason) => _app.RemoveThreadTabPage(threadId, reason);
     public void SetStatus(string message, bool showSpinner, StatusTone tone) => _app.SetStatus(message, showSpinner, tone);
@@ -38,8 +38,8 @@ internal sealed class CodeAltaFrontendServicesAdapter : ICodeAltaFrontendService
     public bool IsSelectedThread(string threadId) => _app.IsSelectedThread(threadId);
     public void ApplyDraftModelProviderPreference(ChatBackendState backendState) => _app.ApplyDraftModelProviderPreference(backendState);
     public void RememberGlobalModelProviderPreference(AgentBackendId backendId, string? modelId, AgentReasoningEffort? reasoningEffort) => _app.RememberGlobalModelProviderPreference(backendId, modelId, reasoningEffort);
-    public void InvalidateSelectedSessionUsage() => _app.InvalidateSelectedSessionUsage();
-    public void RefreshHeaderAndThreadWorkspace() => _app.RefreshHeaderAndThreadWorkspace();
+    public void ApplySessionUsageProjection() => _app.ApplySessionUsageProjection();
+    public void ApplyHeaderProjection() => _app.ApplyHeaderProjection();
     public void RekeyThreadIdentity(string oldThreadId, WorkThreadDescriptor thread) => _app.RekeyThreadIdentity(oldThreadId, thread);
     public bool HasWorkspaceSurface() => _app.HasWorkspaceSurface();
     public void EnsureSelectionDefaults() => _app.EnsureSelectionDefaults();
@@ -49,7 +49,7 @@ internal sealed class CodeAltaFrontendServicesAdapter : ICodeAltaFrontendService
     public void RefreshModelProviderSelectorsForThread(OpenThreadState thread) => _app.RefreshModelProviderSelectorsForThread(thread);
     public void SyncModelProviderSelectorItems() => _app.SyncModelProviderSelectorItems();
     public void SyncPromptText(ThreadSessionState? session) => _app.SyncPromptText(session);
-    public void UpdatePromptAvailabilityUi() => _app.UpdatePromptAvailabilityUi();
+    public void ApplyPromptAvailabilityProjection() => _app.ApplyPromptAvailabilityProjection();
     public void UpdatePromptImageAttachmentsUi() => _app.UpdatePromptImageAttachmentsUi();
     public void SyncThreadTabControl() => _app.SyncThreadTabControl();
     public void DispatchToUi(Action action) => _app.DispatchToUi(action);
@@ -57,7 +57,7 @@ internal sealed class CodeAltaFrontendServicesAdapter : ICodeAltaFrontendService
     public void FocusPromptTarget() => _app.FocusPromptTarget();
     public void VerifyBindableAccess() => _app.VerifyBindableAccess();
     public bool GetAutoApproveEnabled() => _app.GetAutoApproveEnabled();
-    public void RefreshShellChrome() => _app.RefreshShellChrome();
+    public void ApplyShellChromeProjection() => _app.ApplyShellChromeProjection();
     public void SetThreadStatus(OpenThreadState thread, string message, bool showSpinner, StatusTone tone) => _app.SetThreadStatus(thread, message, showSpinner, tone);
     public void ClearThreadStatus(OpenThreadState thread) => _app.ClearThreadStatus(thread);
     public bool TrySetPromptUnavailableStatus() => _app.TrySetPromptUnavailableStatus();

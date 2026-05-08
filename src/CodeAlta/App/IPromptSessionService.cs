@@ -14,7 +14,7 @@ internal interface IPromptSessionService
 
     void RestorePromptImages(IReadOnlyList<PromptImageAttachment> images);
 
-    void UpdatePromptAvailabilityUi();
+    void ApplyPromptAvailabilityProjection();
 
     void UpdatePromptImageAttachmentsUi();
 }

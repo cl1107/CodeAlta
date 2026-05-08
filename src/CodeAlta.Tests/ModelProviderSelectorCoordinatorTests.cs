@@ -217,7 +217,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
     }
 
     [TestMethod]
-    public void UpdatePromptAvailabilityUi_RefreshesThreadModelProviderSelectionCapability()
+    public void ApplyPromptAvailabilityProjection_RefreshesThreadModelProviderSelectionCapability()
     {
         using var temp = TempDirectory.Create();
         var threadStateCoordinator = CreateThreadStateCoordinator(temp.Path, out var thread);
@@ -262,11 +262,11 @@ public sealed class ModelProviderSelectorCoordinatorTests
         Assert.IsTrue(workspaceViewModel.CanSelectModelProvider);
 
         tab.StatusBusy = true;
-        coordinator.UpdatePromptAvailabilityUi();
+        coordinator.ApplyPromptAvailabilityProjection();
         Assert.IsFalse(workspaceViewModel.CanSelectModelProvider);
 
         tab.StatusBusy = false;
-        coordinator.UpdatePromptAvailabilityUi();
+        coordinator.ApplyPromptAvailabilityProjection();
 
         Assert.IsTrue(workspaceViewModel.CanSelectModelProvider);
     }

@@ -251,7 +251,7 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
         if (thread is null)
         {
             RefreshForDraftScope(options[newIndex].BackendId);
-            _workspaceRefresh.InvalidateSelectedSessionUsage();
+            _workspaceRefresh.ApplySessionUsageProjection();
             return;
         }
 
@@ -300,7 +300,7 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
             draftBackendState.SelectedReasoningEffort = ChatBackendPresentation.ResolvePreferredReasoningEffort(preferredModel, preferredReasoningEffort: null);
             UpdateModelSelectorState(draftOptions, newIndex, preferredModel, draftBackendState.SelectedReasoningEffort);
             _preferences.RememberGlobalPreference(CreatePreference(backendId, draftBackendState.SelectedModelId, draftBackendState.SelectedReasoningEffort));
-            _workspaceRefresh.InvalidateSelectedSessionUsage();
+            _workspaceRefresh.ApplySessionUsageProjection();
             return;
         }
 
@@ -320,7 +320,7 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
         backendState.SelectedModelId = tab.ModelId;
         backendState.SelectedReasoningEffort = tab.ReasoningEffort;
         _preferences.RememberGlobalPreference(CreatePreference(tab.BackendId, tab.ModelId, tab.ReasoningEffort));
-        _workspaceRefresh.RefreshHeaderAndThreadWorkspace();
+        _workspaceRefresh.ApplyHeaderProjection();
     }
 
     public void OnReasoningSelectionChanged(int newIndex)
@@ -344,7 +344,7 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
 
             draftBackendState.SelectedReasoningEffort = draftOptions[newIndex].Effort;
             _preferences.RememberGlobalPreference(CreatePreference(backendId, draftBackendState.SelectedModelId, draftBackendState.SelectedReasoningEffort));
-            _workspaceRefresh.InvalidateSelectedSessionUsage();
+            _workspaceRefresh.ApplySessionUsageProjection();
             return;
         }
 
@@ -417,9 +417,6 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
         tone = projection.UnavailableStatusTone;
         return true;
     }
-
-    public void UpdatePromptAvailabilityUi()
-        => ApplyPromptAvailabilityProjection();
 
     public void ApplyPromptAvailabilityProjection()
     {

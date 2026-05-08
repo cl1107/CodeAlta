@@ -19,10 +19,10 @@ internal sealed class WorkspaceRefreshContext
         _publishRefreshRequest = publishRefreshRequest;
     }
 
-    public void InvalidateSelectedSessionUsage()
+    public void ApplySessionUsageProjection()
         => Publish(WorkspaceRefreshReason.SelectedSessionUsageInvalidated);
 
-    public void RefreshHeaderAndThreadWorkspace()
+    public void ApplyHeaderProjection()
         => Publish(WorkspaceRefreshReason.HeaderAndThreadWorkspace);
 
     private void Publish(WorkspaceRefreshReason reason)

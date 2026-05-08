@@ -51,26 +51,14 @@ internal sealed class ShellWorkspaceCoordinator : IWorkspaceProjectionController
     public ComputedVisual CreateUsageComputedVisual(Func<Visual> build)
         => _sessionUsageProjection.CreateComputedVisual(build);
 
-    public void RefreshShellChrome()
-        => _workspaceProjection.RefreshShellChrome();
-
     public void ApplyShellChromeProjection()
         => _workspaceProjection.ApplyShellChromeProjection();
-
-    public void RefreshCatalogAndThreadWorkspace()
-        => _workspaceProjection.RefreshCatalogAndThreadWorkspace();
 
     public void ApplyCatalogProjection()
         => _workspaceProjection.ApplyCatalogProjection();
 
-    public void RefreshHeaderAndThreadWorkspace()
-        => _workspaceProjection.RefreshHeaderAndThreadWorkspace();
-
     public void ApplyHeaderProjection()
         => _workspaceProjection.ApplyHeaderProjection();
-
-    public void RefreshSelectionAndThreadWorkspace()
-        => _workspaceProjection.RefreshSelectionAndThreadWorkspace();
 
     public void ApplySelectionProjection()
         => _workspaceProjection.ApplySelectionProjection();
@@ -98,14 +86,11 @@ internal sealed class ShellWorkspaceCoordinator : IWorkspaceProjectionController
     public void ClearThreadStatus(OpenThreadState tab)
         => _statusProjection.ClearThreadStatus(tab);
 
-    public void InvalidateSelectedSessionUsage()
-        => _sessionUsageProjection.InvalidateSelectedSessionUsage();
-
     public void ApplySessionUsageProjection()
         => _sessionUsageProjection.ApplySessionUsageProjection();
 
-    public void InvalidateThreadChrome()
-        => _workspaceProjection.InvalidateThreadChrome();
+    public void ApplyThreadChromeProjection()
+        => _workspaceProjection.ApplyThreadChromeProjection();
 
     public void ApplyThreadStatusProjection()
         => _workspaceProjection.ApplyThreadStatusProjection();

@@ -19,15 +19,15 @@ internal interface ICodeAltaFrontendServices : IShellStatusService, IPromptSessi
     void ApplyThreadPreference(OpenThreadState thread);
     void RememberThreadPreference(string threadId, string? modelId, AgentReasoningEffort? reasoningEffort, bool persistNow);
     Task EnsureThreadHistoryLoadedAsync(WorkThreadDescriptor thread, CancellationToken cancellationToken);
-    void RefreshSelectionAndThreadWorkspace();
-    void RefreshCatalogAndThreadWorkspace();
+    void ApplySelectionProjection();
+    void ApplyCatalogProjection();
     void ResetPendingThreadTabSelection();
     void RemoveThreadTabPage(string threadId, ShellTabCloseReason reason);
     void SetProviderSessionLoadStatus(string? message);
     void ApplyDraftModelProviderPreference(ChatBackendState backendState);
     void RememberGlobalModelProviderPreference(AgentBackendId backendId, string? modelId, AgentReasoningEffort? reasoningEffort);
-    void InvalidateSelectedSessionUsage();
-    void RefreshHeaderAndThreadWorkspace();
+    void ApplySessionUsageProjection();
+    void ApplyHeaderProjection();
     void RekeyThreadIdentity(string oldThreadId, WorkThreadDescriptor thread);
     bool HasWorkspaceSurface();
     void EnsureSelectionDefaults();
@@ -43,7 +43,7 @@ internal interface ICodeAltaFrontendServices : IShellStatusService, IPromptSessi
     void FocusPromptTarget();
     void VerifyBindableAccess();
     bool GetAutoApproveEnabled();
-    void RefreshShellChrome();
+    void ApplyShellChromeProjection();
     void SetThreadStatus(OpenThreadState thread, string message, bool showSpinner, StatusTone tone);
     void ClearThreadStatus(OpenThreadState thread);
     bool TrySetPromptUnavailableStatus();

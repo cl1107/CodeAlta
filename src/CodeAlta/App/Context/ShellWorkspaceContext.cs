@@ -48,8 +48,8 @@ internal sealed class ShellWorkspaceContext
     public void SyncSidebarSelectionToCurrentState()
         => _projection.SyncSidebarSelectionToCurrentState();
 
-    public void RefreshQueuedPromptList()
-        => _projection.RefreshQueuedPromptList();
+    public void ApplyQueuedPromptProjection()
+        => _projection.ApplyQueuedPromptProjection();
 
     public void RefreshModelProviderSelectorsForDraftScope()
         => _projection.RefreshModelProviderSelectorsForDraftScope();
@@ -63,8 +63,8 @@ internal sealed class ShellWorkspaceContext
     public void SyncPromptDraftText(ThreadSessionState? session)
         => _projection.SyncPromptDraftText(session);
 
-    public void UpdatePromptAvailabilityUi()
-        => _projection.UpdatePromptAvailabilityUi();
+    public void ApplyPromptAvailabilityProjection()
+        => _projection.ApplyPromptAvailabilityProjection();
 
     public void SyncThreadTabControl()
         => _projection.SyncThreadTabControl();

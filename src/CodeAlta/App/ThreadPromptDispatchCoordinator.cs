@@ -216,7 +216,7 @@ internal sealed class ThreadPromptDispatchCoordinator
 
             thread.MarkStarted(DateTimeOffset.UtcNow);
             tab.HistoryLoaded = true;
-            _commandContext.RefreshHeaderAndThreadWorkspace();
+            _commandContext.ApplyHeaderProjection();
         }
         catch (NotSupportedException ex) when (steer)
         {

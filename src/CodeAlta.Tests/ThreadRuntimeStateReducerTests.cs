@@ -143,7 +143,7 @@ public sealed class ThreadRuntimeStateReducerTests
             isSelectedThread: true);
 
         Assert.IsNotNull(tab.Usage);
-        Assert.IsTrue(reduction.InvalidateSelectedSessionUsage);
+        Assert.IsTrue(reduction.ApplySessionUsageProjection);
     }
 
     [TestMethod]
@@ -216,7 +216,7 @@ public sealed class ThreadRuntimeStateReducerTests
 
         Assert.IsFalse(tab.PendingManualCompaction);
         Assert.IsTrue(reduction.ClearThreadStatus);
-        Assert.IsTrue(reduction.RefreshShellChrome);
+        Assert.IsTrue(reduction.ApplyShellChromeProjection);
     }
 
     [TestMethod]

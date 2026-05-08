@@ -86,7 +86,7 @@ internal sealed class ShellStatusProjectionController
 
                 if (_threadSelection.IsSelectedThread(tab.Thread.ThreadId))
                 {
-                    _workspaceContext.UpdatePromptAvailabilityUi();
+                    _workspaceContext.ApplyPromptAvailabilityProjection();
                     SetReadyStatusForCurrentSelection();
                 }
 

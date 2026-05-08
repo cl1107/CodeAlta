@@ -659,7 +659,7 @@ public sealed class CodeAltaAppTests
     }
 
     [TestMethod]
-    public void ShouldRefreshShellChromeAfterRuntimeEvent_SkipsUsageOnlySessionUpdates()
+    public void ShouldApplyShellChromeProjectionAfterRuntimeEvent_SkipsUsageOnlySessionUpdates()
     {
         var runtimeEvent = new WorkThreadAgentEvent(
             "thread-1",
@@ -671,11 +671,11 @@ public sealed class CodeAltaAppTests
                 AgentSessionUpdateKind.UsageUpdated,
                 "usage updated"));
 
-        Assert.IsFalse(ThreadRuntimeEventCoordinator.ShouldRefreshShellChromeAfterRuntimeEvent(runtimeEvent));
+        Assert.IsFalse(ThreadRuntimeEventCoordinator.ShouldApplyShellChromeProjectionAfterRuntimeEvent(runtimeEvent));
     }
 
     [TestMethod]
-    public void ShouldRefreshShellChromeAfterRuntimeEvent_KeepsShellRefreshForNonUsageEvents()
+    public void ShouldApplyShellChromeProjectionAfterRuntimeEvent_KeepsShellRefreshForNonUsageEvents()
     {
         var runtimeEvent = new WorkThreadAgentEvent(
             "thread-1",
@@ -687,7 +687,7 @@ public sealed class CodeAltaAppTests
                 AgentSessionUpdateKind.Warning,
                 "warning"));
 
-        Assert.IsTrue(ThreadRuntimeEventCoordinator.ShouldRefreshShellChromeAfterRuntimeEvent(runtimeEvent));
+        Assert.IsTrue(ThreadRuntimeEventCoordinator.ShouldApplyShellChromeProjectionAfterRuntimeEvent(runtimeEvent));
     }
 
     [TestMethod]

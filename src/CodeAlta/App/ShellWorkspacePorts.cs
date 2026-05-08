@@ -19,7 +19,7 @@ internal interface IShellWorkspaceProjectionPort
 
     void SyncSidebarSelectionToCurrentState();
 
-    void RefreshQueuedPromptList();
+    void ApplyQueuedPromptProjection();
 
     void RefreshModelProviderSelectorsForDraftScope();
 
@@ -27,7 +27,7 @@ internal interface IShellWorkspaceProjectionPort
 
     void SyncPromptDraftText(ThreadSessionState? session);
 
-    void UpdatePromptAvailabilityUi();
+    void ApplyPromptAvailabilityProjection();
 
     void SyncThreadTabControl();
 }
@@ -108,7 +108,7 @@ internal sealed class DelegatingShellWorkspaceProjectionPort : IShellWorkspacePr
     public void SyncSidebarSelectionToCurrentState()
         => _syncSidebarSelectionToCurrentState();
 
-    public void RefreshQueuedPromptList()
+    public void ApplyQueuedPromptProjection()
         => _refreshQueuedPromptList();
 
     public void RefreshModelProviderSelectorsForDraftScope()
@@ -123,7 +123,7 @@ internal sealed class DelegatingShellWorkspaceProjectionPort : IShellWorkspacePr
     public void SyncPromptDraftText(ThreadSessionState? session)
         => _syncPromptDraftText(session);
 
-    public void UpdatePromptAvailabilityUi()
+    public void ApplyPromptAvailabilityProjection()
         => _updatePromptAvailabilityUi();
 
     public void SyncThreadTabControl()

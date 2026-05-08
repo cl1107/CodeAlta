@@ -515,10 +515,10 @@ public sealed class ArchitectureGuardrailTests
         };
         var forbiddenCalls = new[]
         {
-            "RefreshCatalogAndThreadWorkspace(",
-            "RefreshSelectionAndThreadWorkspace(",
-            "RefreshHeaderAndThreadWorkspace(",
-            "UpdatePromptAvailabilityUi(",
+            "ApplyCatalogProjection(",
+            "ApplySelectionProjection(",
+            "ApplyHeaderProjection(",
+            "ApplyPromptAvailabilityProjection(",
         };
 
         var violations = mutationCoordinatorFiles
@@ -537,10 +537,10 @@ public sealed class ArchitectureGuardrailTests
         var compositionSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "App", "CodeAltaFrontendComposition.cs"));
         var forbiddenCallbacks = new[]
         {
-            "frontend.RefreshCatalogAndThreadWorkspace",
-            "frontend.RefreshHeaderAndThreadWorkspace",
-            "frontend.RefreshSelectionAndThreadWorkspace",
-            "frontend.RefreshShellChrome",
+            "frontend.ApplyCatalogProjection",
+            "frontend.ApplyHeaderProjection",
+            "frontend.ApplySelectionProjection",
+            "frontend.ApplyShellChromeProjection",
         };
 
         foreach (var callback in forbiddenCallbacks)
@@ -1133,7 +1133,7 @@ public sealed class ArchitectureGuardrailTests
         Assert.IsFalse(runtimeSource.Contains("tab.Timeline.UpsertInteraction(", StringComparison.Ordinal));
         Assert.IsFalse(runtimeSource.Contains("tab.Timeline.AddStatus(", StringComparison.Ordinal));
         Assert.IsFalse(appSource.Contains("internal static bool ShouldPromoteAgentEventToThinking(", StringComparison.Ordinal));
-        Assert.IsFalse(appSource.Contains("internal static bool ShouldRefreshShellChromeAfterRuntimeEvent(", StringComparison.Ordinal));
+        Assert.IsFalse(appSource.Contains("internal static bool ShouldApplyShellChromeProjectionAfterRuntimeEvent(", StringComparison.Ordinal));
         Assert.IsFalse(appSource.Contains("private void UpdateThreadFromAgentEvent(", StringComparison.Ordinal));
         Assert.IsFalse(appSource.Contains("private void UpdateThreadSummary(", StringComparison.Ordinal));
         Assert.IsFalse(appSource.Contains("private static string SummarizeThreadContent(", StringComparison.Ordinal));
@@ -1201,7 +1201,7 @@ public sealed class ArchitectureGuardrailTests
     {
         var appSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "App", "CodeAltaApp.cs"));
 
-        Assert.IsTrue(appSource.Contains("_workspaceCoordinator.RefreshShellChrome", StringComparison.Ordinal));
+        Assert.IsTrue(appSource.Contains("_workspaceCoordinator.ApplyShellChromeProjection", StringComparison.Ordinal));
         Assert.IsTrue(appSource.Contains("_workspaceCoordinator.SetThreadStatus", StringComparison.Ordinal));
         Assert.IsTrue(appSource.Contains("_workspaceCoordinator.CreateComputedVisual", StringComparison.Ordinal));
         Assert.IsFalse(appSource.Contains("private readonly State<int> _viewRefreshState", StringComparison.Ordinal));

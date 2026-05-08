@@ -141,8 +141,8 @@ internal sealed class ThreadRuntimeEventCoordinator
     public static bool ShouldPromoteAgentEventToThinking(AgentEvent @event)
         => ThreadRuntimeStateReducer.ShouldPromoteAgentEventToThinking(@event);
 
-    public static bool ShouldRefreshShellChromeAfterRuntimeEvent(WorkThreadRuntimeEvent runtimeEvent)
-        => ThreadRuntimeStateReducer.ShouldRefreshShellChromeAfterRuntimeEvent(runtimeEvent);
+    public static bool ShouldApplyShellChromeProjectionAfterRuntimeEvent(WorkThreadRuntimeEvent runtimeEvent)
+        => ThreadRuntimeStateReducer.ShouldApplyShellChromeProjectionAfterRuntimeEvent(runtimeEvent);
 
     public static string SummarizeContent(string content)
         => ThreadRuntimeStateReducer.SummarizeContent(content);
@@ -217,12 +217,12 @@ internal sealed class ThreadRuntimeEventCoordinator
             _frontendEvents?.Publish(new QueuedPromptListChangedEvent(tab.Thread.ThreadId));
         }
 
-        if (reduction.InvalidateSelectedSessionUsage && tab is not null)
+        if (reduction.ApplySessionUsageProjection && tab is not null)
         {
             _frontendEvents?.Publish(new SessionUsageChangedEvent(tab.Thread.ThreadId));
         }
 
-        if (reduction.RefreshShellChrome)
+        if (reduction.ApplyShellChromeProjection)
         {
             _frontendEvents?.Publish(new ShellChromeChangedEvent());
         }

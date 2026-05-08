@@ -15,7 +15,7 @@ namespace CodeAlta.Tests;
 public sealed class ShellWorkspaceCoordinatorTests
 {
     [TestMethod]
-    public void RefreshSelectionAndThreadWorkspace_FocusesPromptWhenDisplayingThread()
+    public void ApplySelectionProjection_FocusesPromptWhenDisplayingThread()
     {
         using var temp = TempDirectory.Create();
         var options = new CatalogOptions { GlobalRoot = temp.Path };
@@ -64,7 +64,7 @@ public sealed class ShellWorkspaceCoordinatorTests
             workspaceContext,
             new State<float>(0));
 
-        workspace.RefreshSelectionAndThreadWorkspace();
+        workspace.ApplySelectionProjection();
 
         var tab = threadStateCoordinator.FindOpenThread(thread.ThreadId);
         Assert.IsNotNull(tab);
@@ -80,7 +80,7 @@ public sealed class ShellWorkspaceCoordinatorTests
     }
 
     [TestMethod]
-    public void RefreshSelectionAndThreadWorkspace_DraftScopeWithoutConfiguredProviders_DoesNotThrow()
+    public void ApplySelectionProjection_DraftScopeWithoutConfiguredProviders_DoesNotThrow()
     {
         using var temp = TempDirectory.Create();
         var options = new CatalogOptions { GlobalRoot = temp.Path };
@@ -98,7 +98,7 @@ public sealed class ShellWorkspaceCoordinatorTests
             new Dictionary<string, ChatBackendState>(StringComparer.OrdinalIgnoreCase),
             static () => AgentBackendIds.Codex);
 
-        workspace.RefreshSelectionAndThreadWorkspace();
+        workspace.ApplySelectionProjection();
 
         Assert.AreEqual("Codex", sessionUsage.BackendName);
         Assert.IsNull(sessionUsage.ModelName);
@@ -106,7 +106,7 @@ public sealed class ShellWorkspaceCoordinatorTests
     }
 
     [TestMethod]
-    public void RefreshSelectionAndThreadWorkspace_SelectedThreadWithMissingProvider_DoesNotThrow()
+    public void ApplySelectionProjection_SelectedThreadWithMissingProvider_DoesNotThrow()
     {
         using var temp = TempDirectory.Create();
         var options = new CatalogOptions { GlobalRoot = temp.Path };
@@ -125,7 +125,7 @@ public sealed class ShellWorkspaceCoordinatorTests
             new Dictionary<string, ChatBackendState>(StringComparer.OrdinalIgnoreCase),
             static () => AgentBackendIds.Codex);
 
-        workspace.RefreshSelectionAndThreadWorkspace();
+        workspace.ApplySelectionProjection();
 
         Assert.AreEqual("Codex", sessionUsage.BackendName);
         Assert.IsNull(sessionUsage.ModelName);
