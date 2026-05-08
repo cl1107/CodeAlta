@@ -23,7 +23,6 @@ namespace CodeAlta.Views;
 
 internal sealed class ThreadWorkspaceView
 {
-    private Markup? _statusIconVisual;
     private readonly Dictionary<string, TabPage> _tabPages = new(StringComparer.OrdinalIgnoreCase);
     private readonly PromptComposerViewModel _promptComposerViewModel;
     private readonly Binding<string?> _promptTextBinding;
@@ -183,48 +182,8 @@ internal sealed class ThreadWorkspaceView
             .Click(openModelProviders)
             .Tooltip(new TextBlock($"Configure model providers ({ModelProvidersShortcutSequence})."));
 
-        var statusSpinner = new Spinner().Style(SpinnerStyles.Dots);
-        statusSpinner.IsActive(() => shellViewModel.StatusBusy);
-        statusSpinner.IsVisible(() => shellViewModel.StatusBusy);
-
         var usageIndicator = buildSessionUsageIndicatorVisual();
-        var statusPrefix = new Center(
-            new ComputedVisual(
-                () => shellViewModel.StatusBusy
-                    ? statusSpinner
-                    : _statusIconVisual ??= new Markup(() => shellViewModel.StatusIconMarkup)
-                    {
-                        Wrap = false,
-                    }))
-        {
-            MinWidth = 2,
-            MaxWidth = 2,
-        };
-
-        var statusText = new TextBlock
-            {
-                Wrap = true,
-                IsSelectable = false,
-            }.Text(() => shellViewModel.StatusText)
-            .Style(() => StatusVisualFormatter.BuildStatusTextStyle(shellViewModel.StatusText, shellViewModel.StatusBusy, shellViewModel.StatusTone, thinkingAnimationPhase01.Value));
-        var statusLineLeft = new HStack(
-            [
-                statusPrefix,
-                statusText,
-            ])
-            {
-                Spacing = 1,
-                HorizontalAlignment = Align.Stretch,
-            };
-        var providerSessionLoadStatus = new TextBlock
-            {
-                Wrap = false,
-                IsSelectable = false,
-            }.Text(() => shellViewModel.ProviderSessionLoadStatusText)
-            .Style(TextBlockStyle.Default with { Foreground = UiPalette.WelcomeGuidanceColor });
-        var statusLine = new StatusBar()
-            .LeftText(statusLineLeft)
-            .RightText(providerSessionLoadStatus);
+        var statusLine = new ThreadStatusLineView(shellViewModel, thinkingAnimationPhase01).Root;
 
         var queuedPromptList = new ComputedVisual(
             () =>
