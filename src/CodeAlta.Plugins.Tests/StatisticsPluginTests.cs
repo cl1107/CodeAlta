@@ -31,11 +31,13 @@ public sealed class StatisticsPluginTests
 
         Assert.AreEqual(1, result.Count);
         Assert.AreEqual("statistics:thread-1:run-run-1", result[0].EventId);
-        StringAssert.Contains(result[0].Markdown, "**Turn statistics**");
-        StringAssert.Contains(result[0].Markdown, "estimated ≈ chars/4");
-        Assert.AreEqual(1, result[0].DetailSections.Count);
-        StringAssert.Contains(result[0].DetailSections[0].Markdown, "shell");
-        StringAssert.Contains(result[0].DetailSections[0].Markdown, "Assistant | 11 chars");
+        StringAssert.Contains(result[0].Markdown, "computing");
+        var completed = await WaitForDynamicProjectionAsync(result[0]);
+        StringAssert.Contains(completed.Markdown, "**Turn statistics**");
+        StringAssert.Contains(completed.Markdown, "estimated ≈ chars/4");
+        Assert.AreEqual(1, completed.DetailSections.Count);
+        StringAssert.Contains(completed.DetailSections[0].Markdown, "shell");
+        StringAssert.Contains(completed.DetailSections[0].Markdown, "Assistant | 11 chars");
     }
 
     [TestMethod]
@@ -48,8 +50,9 @@ public sealed class StatisticsPluginTests
 
         var result = await contribution.ProjectAsync(CreateContext(events), CancellationToken.None);
 
-        StringAssert.Contains(result.Single().DetailSections.Single().Markdown, "Assistant | 11 chars");
-        Assert.IsFalse(result.Single().DetailSections.Single().Markdown.Contains("22 chars", StringComparison.Ordinal));
+        var completed = await WaitForDynamicProjectionAsync(result.Single());
+        StringAssert.Contains(completed.DetailSections.Single().Markdown, "Assistant | 11 chars");
+        Assert.IsFalse(completed.DetailSections.Single().Markdown.Contains("22 chars", StringComparison.Ordinal));
     }
 
     [TestMethod]
@@ -62,9 +65,10 @@ public sealed class StatisticsPluginTests
 
         var result = await contribution.ProjectAsync(CreateContext(events), CancellationToken.None);
 
-        StringAssert.Contains(result.Single().Markdown, "reported");
-        StringAssert.Contains(result.Single().Markdown, "1,234 in / 567 out");
-        StringAssert.Contains(result.Single().DetailSections.Single().Markdown, "Cached input");
+        var completed = await WaitForDynamicProjectionAsync(result.Single());
+        StringAssert.Contains(completed.Markdown, "reported");
+        StringAssert.Contains(completed.Markdown, "1,234 in / 567 out");
+        StringAssert.Contains(completed.DetailSections.Single().Markdown, "Cached input");
     }
 
     [TestMethod]
@@ -124,7 +128,7 @@ public sealed class StatisticsPluginTests
 
         var result = await contribution.ProjectAsync(CreateContext(events), CancellationToken.None);
 
-        var card = result.Single();
+        var card = await WaitForDynamicProjectionAsync(result.Single());
         StringAssert.Contains(card.Markdown, "2 in / 7 out");
         var detailsMarkdown = card.DetailSections.Single().Markdown;
         StringAssert.Contains(detailsMarkdown, "Tool input (model generated) | 16 chars");
@@ -151,7 +155,7 @@ public sealed class StatisticsPluginTests
 
         var result = await contribution.ProjectAsync(CreateContext(events), CancellationToken.None);
 
-        var card = result.Single();
+        var card = await WaitForDynamicProjectionAsync(result.Single());
         StringAssert.Contains(card.Markdown, "compactions 1 / 2.0s");
         StringAssert.Contains(card.DetailSections.Single().Markdown, "Compactions | 1 / 2.0s");
     }
@@ -170,6 +174,43 @@ public sealed class StatisticsPluginTests
             Events = events,
             IsCompleteBatch = true,
         };
+
+    private static async Task<(string Markdown, IReadOnlyList<PluginDerivedThreadEventDetailSection> DetailSections)> WaitForDynamicProjectionAsync(PluginDerivedThreadEvent derivedEvent)
+    {
+        if (derivedEvent.DynamicContent is not { } dynamicContent)
+        {
+            return (derivedEvent.Markdown ?? string.Empty, derivedEvent.DetailSections);
+        }
+
+        for (var attempt = 0; attempt < 10; attempt++)
+        {
+            if (!dynamicContent.Markdown.Contains("computing", StringComparison.OrdinalIgnoreCase))
+            {
+                return (dynamicContent.Markdown, dynamicContent.DetailSections);
+            }
+
+            var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            void OnChanged(object? _, EventArgs __) => completion.TrySetResult();
+
+            dynamicContent.Changed += OnChanged;
+            try
+            {
+                if (!dynamicContent.Markdown.Contains("computing", StringComparison.OrdinalIgnoreCase))
+                {
+                    return (dynamicContent.Markdown, dynamicContent.DetailSections);
+                }
+
+                await completion.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            }
+            finally
+            {
+                dynamicContent.Changed -= OnChanged;
+            }
+        }
+
+        Assert.Fail("Timed out waiting for dynamic statistics projection.");
+        return (string.Empty, []);
+    }
 
     private static JsonElement ParseDetails(string json)
     {

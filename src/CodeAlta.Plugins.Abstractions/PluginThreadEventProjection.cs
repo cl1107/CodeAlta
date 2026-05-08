@@ -86,8 +86,35 @@ public sealed record PluginDerivedThreadEvent
     /// <summary>Gets optional Markdown detail sections that the frontend may render collapsed by default.</summary>
     public IReadOnlyList<PluginDerivedThreadEventDetailSection> DetailSections { get; init; } = [];
 
+    /// <summary>
+    /// Gets optional dynamic Markdown content for projections that complete asynchronously after the event is first rendered.
+    /// </summary>
+    public PluginDynamicDerivedThreadEventContent? DynamicContent { get; init; }
+
     /// <summary>Gets a value indicating whether an existing transient event should be removed.</summary>
     public bool Remove { get; init; }
+}
+
+/// <summary>
+/// Provides mutable Markdown content for a plugin-derived transient thread event.
+/// </summary>
+/// <remarks>
+/// Implementations may update <see cref="Markdown"/> and <see cref="DetailSections"/> from background work and call
+/// <see cref="NotifyChanged"/> so hosts can refresh the existing transient card without replaying canonical history.
+/// </remarks>
+public abstract class PluginDynamicDerivedThreadEventContent
+{
+    /// <summary>Raised when the dynamic Markdown content has changed.</summary>
+    public event EventHandler? Changed;
+
+    /// <summary>Gets the current Markdown text.</summary>
+    public abstract string Markdown { get; }
+
+    /// <summary>Gets the current detail sections.</summary>
+    public virtual IReadOnlyList<PluginDerivedThreadEventDetailSection> DetailSections => [];
+
+    /// <summary>Raises the <see cref="Changed"/> event.</summary>
+    protected void NotifyChanged() => Changed?.Invoke(this, EventArgs.Empty);
 }
 
 /// <summary>

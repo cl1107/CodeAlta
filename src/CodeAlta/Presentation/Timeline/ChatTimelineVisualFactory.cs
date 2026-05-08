@@ -271,6 +271,7 @@ internal static class ChatTimelineVisualFactory
         var timestampText = new Markup(string.Empty);
 
         var contentItems = new List<Visual> { markdownControl };
+        var detailMarkdownControls = new List<MarkdownControl>();
         if (imageAttachments is { Count: > 0 })
         {
             contentItems.Add(CreateImageAttachmentStrip(imageAttachments, getDialogBounds));
@@ -291,6 +292,7 @@ internal static class ChatTimelineVisualFactory
                     VerticalAlignment = Align.Start,
                     Options = CreateThreadMarkdownOptions(maxCodeBlockHeight, localFileRootPath),
                 };
+                detailMarkdownControls.Add(detailsMarkdown);
                 contentItems.Add(new Collapsible()
                     .Header(section.Header)
                     .Content(detailsMarkdown)
@@ -317,7 +319,10 @@ internal static class ChatTimelineVisualFactory
             },
             markdownControl,
             timestampText,
-            headerText);
+            headerText)
+        {
+            DetailMarkdownControls = detailMarkdownControls,
+        };
     }
 
     internal static string BuildCopyMarkdown(string markdown, IReadOnlyList<ChatCollapsibleMarkdownSection>? collapsibleSections = null)

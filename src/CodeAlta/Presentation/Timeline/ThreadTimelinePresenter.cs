@@ -359,7 +359,7 @@ internal sealed class ThreadTimelinePresenter
             _pluginProjectionStates[key] = stateEntry;
             AppendTimelineItem(stateEntry.Item);
         }
-        else if (!stateEntry.DetailSections.SequenceEqual(detailSections))
+        else if (RequiresPluginProjectionRecreate(stateEntry.DetailSections, detailSections))
         {
             RemoveTimelineItems([stateEntry.Item]);
             stateEntry = CreateChatStatusState(markdown, ChatTimelineTone.Notice, timestamp, "Plugin", headerSecondary, detailSections);
@@ -368,10 +368,15 @@ internal sealed class ThreadTimelinePresenter
         }
 
         stateEntry.BaseMarkdown = markdown;
+        stateEntry.DetailSections = detailSections;
         UiDispatch.Post(_uiDispatcher, () =>
         {
             ChatTimelineVisualFactory.ApplyTimestamp(stateEntry.TimestampText, timestamp);
             stateEntry.Markdown.Markdown = stateEntry.MarkdownValue;
+            for (var index = 0; index < stateEntry.DetailMarkdownControls.Count && index < detailSections.Count; index++)
+            {
+                stateEntry.DetailMarkdownControls[index].Markdown = detailSections[index].Markdown.Trim();
+            }
         });
     }
 
@@ -741,11 +746,31 @@ internal sealed class ThreadTimelinePresenter
             ? ChatTimelineVisualFactory.CreateCollapsibleMarkdownItem(markdown, detailSections, tone, headerOverride, headerSecondary, localFileRootPath: _localFileRootPath)
             : ChatTimelineVisualFactory.CreateMarkdownItem(markdown, tone, headerOverride, headerSecondary, localFileRootPath: _localFileRootPath);
         ChatTimelineVisualFactory.ApplyTimestamp(entry.TimestampText, timestamp);
-        return new ChatStatusState(entry.Item, entry.Markdown, entry.TimestampText)
+        return new ChatStatusState(entry.Item, entry.Markdown, entry.TimestampText, entry.DetailMarkdownControls)
         {
             BaseMarkdown = markdown,
             DetailSections = detailSections ?? [],
         };
+    }
+
+    private static bool RequiresPluginProjectionRecreate(
+        IReadOnlyList<ChatCollapsibleMarkdownSection> existing,
+        IReadOnlyList<ChatCollapsibleMarkdownSection> updated)
+    {
+        if (existing.Count != updated.Count)
+        {
+            return true;
+        }
+
+        for (var index = 0; index < existing.Count; index++)
+        {
+            if (!string.Equals(existing[index].Header, updated[index].Header, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void AppendTimelineItem(DocumentFlowItem item, bool resetActiveToolCallGroup = true)

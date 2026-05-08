@@ -151,11 +151,12 @@ internal sealed class ThreadRuntimeEventCoordinator
         }
 
         TryRenderInteraction(tab, () => _timelineRenderer.RenderAgentEvent(tab, @event), "agent event");
-        await ProjectPluginThreadEventsAsync(thread, tab, projectionEvents.ToArray(), isReplay: tab.HistoryLoading);
+        ProjectPluginThreadEvents(thread, tab, projectionEvents, isReplay: tab.HistoryLoading);
         _frontendEvents?.Publish(new RuntimeTimelineChangedEvent(thread.ThreadId));
         InvalidateProjectFileSearchIfNeeded(thread, @event);
         ObservePluginAgentEvent(thread, @event);
         ApplyReduction(tab, reduction);
+        await Task.CompletedTask;
     }
 
     public void TryRenderInteraction(OpenThreadState tab, Action action, string context)
@@ -190,17 +191,36 @@ internal sealed class ThreadRuntimeEventCoordinator
         OpenThreadState tab,
         IReadOnlyList<AgentEvent> events,
         bool isReplay)
-        => global::CodeAlta.CodeAltaTaskMonitor.Observe(
-            ProjectPluginThreadEventsAsync(thread, tab, events.ToArray(), isReplay),
+    {
+        var projectionEvents = events.ToArray();
+        var version = Interlocked.Increment(ref tab.Session.PluginProjectionVersion);
+        global::CodeAlta.CodeAltaTaskMonitor.Observe(
+            Task.Run(async () =>
+            {
+                await Task.Delay(25);
+                if (Volatile.Read(ref tab.Session.PluginProjectionVersion) != version)
+                {
+                    return;
+                }
+
+                await ProjectPluginThreadEventsAsync(thread, tab, projectionEvents, isReplay, version);
+            }),
             $"Plugin thread event projection for thread {thread.ThreadId}");
+    }
 
     private async Task ProjectPluginThreadEventsAsync(
         WorkThreadDescriptor thread,
         OpenThreadState tab,
         IReadOnlyList<AgentEvent> events,
-        bool isReplay)
+        bool isReplay,
+        long version)
     {
         var result = await _pluginAgentEventObserver.ProjectThreadEventsAsync(thread, tab, events, isReplay);
+        if (Volatile.Read(ref tab.Session.PluginProjectionVersion) != version)
+        {
+            return;
+        }
+
         if (result.Events.Count == 0)
         {
             return;
@@ -208,38 +228,107 @@ internal sealed class ThreadRuntimeEventCoordinator
 
         foreach (var derivedEvent in result.Events)
         {
-            var changed = tab.PluginTransientEvents.Apply(derivedEvent);
-            if (!changed)
+            lock (tab.Session.PluginProjectionSyncRoot)
             {
-                continue;
-            }
+                var changed = tab.PluginTransientEvents.Apply(derivedEvent);
+                if (!changed)
+                {
+                    if (!derivedEvent.Remove)
+                    {
+                        var unchangedProjection = tab.PluginTransientEvents.Get(derivedEvent.EventId);
+                        if (unchangedProjection is not null)
+                        {
+                            UpdateDynamicProjectionSubscription(thread, tab, unchangedProjection);
+                        }
+                    }
 
-            if (derivedEvent.Remove)
-            {
-                TryRenderInteraction(tab, () => tab.Timeline.RemovePluginProjection(derivedEvent.EventId), "plugin projection");
-                continue;
-            }
+                    continue;
+                }
 
-            var projection = tab.PluginTransientEvents.Snapshot.FirstOrDefault(item => string.Equals(item.EventId, derivedEvent.EventId, StringComparison.Ordinal));
-            if (projection is null)
-            {
-                continue;
-            }
+                if (derivedEvent.Remove)
+                {
+                    RemoveDynamicProjectionSubscription(tab, derivedEvent.EventId);
+                    TryRenderInteraction(tab, () => tab.Timeline.RemovePluginProjection(derivedEvent.EventId), "plugin projection");
+                    continue;
+                }
 
-            TryRenderInteraction(
-                tab,
-                () => tab.Timeline.UpsertPluginProjection(
-                    projection.EventId,
-                    projection.Timestamp ?? DateTimeOffset.UtcNow,
-                    projection.Markdown,
-                    projection.RenderTarget,
-                    projection.DetailSections
-                        .Select(static section => new ChatCollapsibleMarkdownSection(section.Header, section.Markdown))
-                        .ToArray()),
-                "plugin projection");
+                var projection = tab.PluginTransientEvents.Get(derivedEvent.EventId);
+                if (projection is null)
+                {
+                    continue;
+                }
+
+                UpdateDynamicProjectionSubscription(thread, tab, projection);
+                RenderPluginProjection(tab, projection);
+            }
         }
 
         _frontendEvents?.Publish(new RuntimeTimelineChangedEvent(thread.ThreadId));
+    }
+
+    private void RenderPluginProjection(OpenThreadState tab, PluginTransientEventProjection projection)
+        => TryRenderInteraction(
+            tab,
+            () => tab.Timeline.UpsertPluginProjection(
+                projection.EventId,
+                projection.Timestamp ?? DateTimeOffset.UtcNow,
+                projection.Markdown,
+                projection.RenderTarget,
+                projection.DetailSections
+                    .Select(static section => new ChatCollapsibleMarkdownSection(section.Header, section.Markdown))
+                    .ToArray()),
+            "plugin projection");
+
+    private void UpdateDynamicProjectionSubscription(
+        WorkThreadDescriptor thread,
+        OpenThreadState tab,
+        PluginTransientEventProjection projection)
+    {
+        if (projection.DynamicContent is not { } dynamicContent)
+        {
+            RemoveDynamicProjectionSubscription(tab, projection.EventId);
+            return;
+        }
+
+        if (tab.Session.PluginDynamicProjectionSubscriptions.TryGetValue(projection.EventId, out var existing) &&
+            ReferenceEquals(existing.Content, dynamicContent))
+        {
+            return;
+        }
+
+        RemoveDynamicProjectionSubscription(tab, projection.EventId);
+        EventHandler handler = (_, _) => global::CodeAlta.CodeAltaTaskMonitor.Observe(
+            RefreshDynamicPluginProjectionAsync(thread, tab, projection.EventId),
+            $"Dynamic plugin projection update for thread {thread.ThreadId}");
+        tab.Session.PluginDynamicProjectionSubscriptions[projection.EventId] = new PluginDynamicProjectionSubscription(dynamicContent, handler);
+    }
+
+    private void RemoveDynamicProjectionSubscription(OpenThreadState tab, string eventId)
+    {
+        if (tab.Session.PluginDynamicProjectionSubscriptions.Remove(eventId, out var subscription))
+        {
+            subscription.Dispose();
+        }
+    }
+
+    private Task RefreshDynamicPluginProjectionAsync(WorkThreadDescriptor thread, OpenThreadState tab, string eventId)
+    {
+        lock (tab.Session.PluginProjectionSyncRoot)
+        {
+            if (!tab.PluginTransientEvents.RefreshDynamic(eventId))
+            {
+                return Task.CompletedTask;
+            }
+
+            var projection = tab.PluginTransientEvents.Get(eventId);
+            if (projection is not null)
+            {
+                RenderPluginProjection(tab, projection);
+                _frontendEvents?.Publish(new RuntimeTimelineChangedEvent(thread.ThreadId));
+            }
+        }
+
+        return Task.CompletedTask;
     }
 
     public static bool ShouldPromoteAgentEventToThinking(AgentEvent @event)

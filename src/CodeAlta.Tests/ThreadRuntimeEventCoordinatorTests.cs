@@ -121,6 +121,7 @@ public sealed class ThreadRuntimeEventCoordinatorTests
         var coordinator = CreateCoordinator(thread, tab, pluginAgentEventObserver: observer);
 
         await coordinator.HandleAgentEventAsync(thread, tab, displayedEvent);
+        await observer.WaitForProjectionAsync();
 
         CollectionAssert.AreEqual(new[] { displayedEvent }, observer.ProjectedEvents?.ToArray());
         Assert.IsTrue(observer.ProjectedIsReplay);
@@ -164,6 +165,7 @@ public sealed class ThreadRuntimeEventCoordinatorTests
         var coordinator = CreateCoordinator(thread, tab, pluginAgentEventObserver: observer);
 
         coordinator.ApplyRuntimeEvent(new WorkThreadAgentEvent(thread.ThreadId, liveEvent));
+        observer.WaitForProjectionAsync().GetAwaiter().GetResult();
 
         CollectionAssert.AreEqual(new AgentEvent[] { displayedEvent, liveEvent }, observer.ProjectedEvents?.ToArray());
         Assert.IsFalse(observer.ProjectedIsReplay);
@@ -596,6 +598,8 @@ public sealed class ThreadRuntimeEventCoordinatorTests
 
         public bool ProjectedIsReplay { get; private set; }
 
+        private TaskCompletionSource _projectionCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public Task ObserveAgentEventAsync(WorkThreadDescriptor thread, AgentEvent agentEvent, CancellationToken cancellationToken = default)
         {
             ObservedThread = thread;
@@ -612,8 +616,12 @@ public sealed class ThreadRuntimeEventCoordinatorTests
         {
             ProjectedEvents = events;
             ProjectedIsReplay = isReplay;
+            _projectionCompletion.TrySetResult();
             return Task.FromResult(new WorkThreadPluginDerivedEventProjectionResult([], []));
         }
+
+        public Task WaitForProjectionAsync()
+            => _projectionCompletion.Task.WaitAsync(TimeSpan.FromSeconds(2));
     }
 
     private sealed class TestShellStatusPort : IShellStatusPort

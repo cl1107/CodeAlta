@@ -37,7 +37,17 @@ internal sealed class OpenThreadStateStore
         tab.UserInputRequests.Clear();
         tab.Session.LastRenderedSystemPromptEvent = null;
         tab.RenderedHistoryEvents.Clear();
-        tab.PluginTransientEvents.Clear();
+        lock (tab.Session.PluginProjectionSyncRoot)
+        {
+            tab.PluginTransientEvents.Clear();
+            Interlocked.Increment(ref tab.Session.PluginProjectionVersion);
+            foreach (var subscription in tab.Session.PluginDynamicProjectionSubscriptions.Values)
+            {
+                subscription.Dispose();
+            }
+
+            tab.Session.PluginDynamicProjectionSubscriptions.Clear();
+        }
     }
 
     public OpenThreadState? FindOpenThread(string threadId)

@@ -49,4 +49,10 @@ internal sealed class ThreadSessionState
     public AgentSystemPromptEvent? LastRenderedSystemPromptEvent { get; set; }
 
     public PluginTransientEventProjectionStore PluginTransientEvents { get; } = new();
+
+    public object PluginProjectionSyncRoot { get; } = new();
+
+    public Dictionary<string, PluginDynamicProjectionSubscription> PluginDynamicProjectionSubscriptions { get; } = new(StringComparer.Ordinal);
+
+    public long PluginProjectionVersion;
 }

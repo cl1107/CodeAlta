@@ -45,7 +45,10 @@ namespace CodeAlta.Models
         public override string ToString() => Label;
     }
 
-    internal sealed record ChatMarkdownEntry(DocumentFlowItem Item, MarkdownControl Markdown, Markup TimestampText, Markup HeaderText);
+    internal sealed record ChatMarkdownEntry(DocumentFlowItem Item, MarkdownControl Markdown, Markup TimestampText, Markup HeaderText)
+    {
+        public IReadOnlyList<MarkdownControl> DetailMarkdownControls { get; init; } = [];
+    }
 
     internal sealed record ChatCollapsibleMarkdownSection(string Header, string Markdown);
 
@@ -117,13 +120,15 @@ namespace CodeAlta.Models
         public string? EchoContentId { get; set; }
     }
 
-    internal sealed class ChatStatusState(DocumentFlowItem item, MarkdownControl markdown, Markup timestampText)
+    internal sealed class ChatStatusState(DocumentFlowItem item, MarkdownControl markdown, Markup timestampText, IReadOnlyList<MarkdownControl> detailMarkdownControls)
     {
         public DocumentFlowItem Item { get; } = item;
 
         public MarkdownControl Markdown { get; } = markdown;
 
         public Markup TimestampText { get; } = timestampText;
+
+        public IReadOnlyList<MarkdownControl> DetailMarkdownControls { get; } = detailMarkdownControls;
 
         public string BaseMarkdown { get; set; } = string.Empty;
 

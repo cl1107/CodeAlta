@@ -53,4 +53,45 @@ public sealed class PluginTransientEventProjectionStoreTests
         StringAssert.Contains(store.Snapshot.Single().Markdown, "plugin:event-1");
         StringAssert.Contains(store.Snapshot.Single().Markdown, "stats");
     }
+
+    [TestMethod]
+    public void RefreshDynamic_UpdatesStoredMarkdownAndDetails()
+    {
+        var store = new PluginTransientEventProjectionStore();
+        var dynamicContent = new TestDynamicContent("computing", []);
+        store.Apply(new PluginDerivedThreadEvent
+        {
+            EventId = "plugin:event-1",
+            DynamicContent = dynamicContent,
+        });
+
+        dynamicContent.Update(
+            "done",
+            [new PluginDerivedThreadEventDetailSection { Header = "Details", Markdown = "ready" }]);
+        var changed = store.RefreshDynamic("plugin:event-1");
+
+        Assert.IsTrue(changed);
+        var projection = store.Snapshot.Single();
+        Assert.AreEqual("done", projection.Markdown);
+        Assert.AreEqual("ready", projection.DetailSections.Single().Markdown);
+    }
+
+    private sealed class TestDynamicContent(
+        string markdown,
+        IReadOnlyList<PluginDerivedThreadEventDetailSection> detailSections) : PluginDynamicDerivedThreadEventContent
+    {
+        private string _markdown = markdown;
+        private IReadOnlyList<PluginDerivedThreadEventDetailSection> _detailSections = detailSections;
+
+        public override string Markdown => _markdown;
+
+        public override IReadOnlyList<PluginDerivedThreadEventDetailSection> DetailSections => _detailSections;
+
+        public void Update(string newMarkdown, IReadOnlyList<PluginDerivedThreadEventDetailSection> newDetailSections)
+        {
+            _markdown = newMarkdown;
+            _detailSections = newDetailSections;
+            NotifyChanged();
+        }
+    }
 }

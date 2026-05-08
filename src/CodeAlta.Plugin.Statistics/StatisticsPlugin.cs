@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -13,6 +14,8 @@ namespace CodeAlta.Plugin.Statistics;
 public sealed class StatisticsPlugin : PluginBase
 {
     private const string ProjectionName = "statistics";
+    private const string RenderTarget = "codealta.statistics.turn.v1";
+    private static readonly ConcurrentDictionary<string, AsyncTurnStatisticsProjection> s_turnProjections = new(StringComparer.Ordinal);
 
     /// <inheritdoc />
     public override IEnumerable<PluginThreadEventProjectionContribution> GetThreadEventProjections()
@@ -36,7 +39,7 @@ public sealed class StatisticsPlugin : PluginBase
             return ValueTask.FromResult<IReadOnlyList<PluginDerivedThreadEvent>>([]);
         }
 
-        var turns = TurnStatisticsBuilder.BuildTurns(context.Events).ToArray();
+        var turns = PendingTurnBuilder.BuildTurns(context.Events).ToArray();
         if (turns.Length == 0)
         {
             return ValueTask.FromResult<IReadOnlyList<PluginDerivedThreadEvent>>([]);
@@ -45,40 +48,31 @@ public sealed class StatisticsPlugin : PluginBase
         var projected = new List<PluginDerivedThreadEvent>(turns.Length);
         foreach (var turn in turns.Where(static item => item.IsComplete))
         {
+            var state = GetOrCreateProjectionState(context.ThreadId, turn);
             projected.Add(new PluginDerivedThreadEvent
             {
                 EventId = $"statistics:{EscapeEventId(context.ThreadId)}:{EscapeEventId(turn.Key)}",
-                Timestamp = turn.EndedAt ?? turn.LastEventAt ?? turn.StartedAt ?? DateTimeOffset.UtcNow,
-                Markdown = StatisticsMarkdownRenderer.RenderTurnSummary(turn),
-                DetailSections =
-                [
-                    new PluginDerivedThreadEventDetailSection
-                    {
-                        Header = "Detailed statistics",
-                        Markdown = StatisticsMarkdownRenderer.RenderTurnDetails(turn),
-                    },
-                ],
-                RenderTarget = "codealta.statistics.turn.v1",
-                Payload = new
-                {
-                    turn.Key,
-                    turn.SessionId,
-                    turn.RunId,
-                    turn.Duration,
-                    ToolCalls = turn.Tools.Count,
-                    turn.ReportedInputTokens,
-                    turn.ReportedOutputTokens,
-                    turn.EstimatedInputTokens,
-                    turn.EstimatedOutputTokens,
-                    ToolInputCharacters = turn.ToolInput.Characters,
-                    GeneratedOutputCharacters = turn.GeneratedOutput.Characters,
-                    turn.CompactionCount,
-                    turn.CompactionDuration,
-                },
+                Timestamp = turn.Timestamp,
+                Markdown = state.Markdown,
+                DetailSections = state.DetailSections,
+                DynamicContent = state,
+                RenderTarget = RenderTarget,
+                Payload = state.Payload,
             });
         }
 
         return ValueTask.FromResult<IReadOnlyList<PluginDerivedThreadEvent>>(projected);
+    }
+
+    private static AsyncTurnStatisticsProjection GetOrCreateProjectionState(string threadId, PendingTurn turn)
+    {
+        var cacheKey = FormattableString.Invariant($"{threadId}:{turn.Key}:{turn.Fingerprint}");
+        return s_turnProjections.GetOrAdd(cacheKey, _ =>
+        {
+            var state = new AsyncTurnStatisticsProjection(turn);
+            state.Start();
+            return state;
+        });
     }
 
     /// <summary>
@@ -202,6 +196,21 @@ public sealed class StatisticsPlugin : PluginBase
                 .ToArray();
         }
 
+        public static TurnStatistics BuildTurn(string key, string sessionId, string? runId, IReadOnlyList<AgentEvent> events)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(key);
+            ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
+            ArgumentNullException.ThrowIfNull(events);
+
+            var turn = new TurnBuilder(key, sessionId, runId);
+            foreach (var @event in events.OrderBy(static item => item.Timestamp))
+            {
+                turn.Add(@event);
+            }
+
+            return turn.Build();
+        }
+
         private void Add(AgentEvent @event)
         {
             var turn = GetTurn(@event);
@@ -239,6 +248,309 @@ public sealed class StatisticsPlugin : PluginBase
 
         private static bool StartsFallbackTurn(AgentEvent @event, TurnBuilder current)
             => @event is AgentActivityEvent { Kind: AgentActivityKind.Turn, Phase: AgentActivityPhase.Started } && current.HasEvents;
+    }
+
+    private sealed class PendingTurnBuilder
+    {
+        private readonly Dictionary<string, PendingTurnAccumulator> _turns = new(StringComparer.Ordinal);
+        private PendingTurnAccumulator? _fallbackTurn;
+        private int _fallbackOrdinal;
+
+        public static IReadOnlyList<PendingTurn> BuildTurns(IReadOnlyList<AgentEvent> events)
+        {
+            ArgumentNullException.ThrowIfNull(events);
+            var builder = new PendingTurnBuilder();
+            foreach (var @event in events.OrderBy(static item => item.Timestamp))
+            {
+                builder.Add(@event);
+            }
+
+            return builder._turns.Values
+                .Select(static item => item.Build())
+                .OrderBy(static item => item.Timestamp)
+                .ToArray();
+        }
+
+        private void Add(AgentEvent @event)
+        {
+            var turn = GetTurn(@event);
+            turn.Add(@event);
+        }
+
+        private PendingTurnAccumulator GetTurn(AgentEvent @event)
+        {
+            if (@event.RunId is { } runId)
+            {
+                var key = "run-" + runId.Value;
+                return GetOrCreate(key, @event.SessionId, runId.Value);
+            }
+
+            if (_fallbackTurn is null || StartsFallbackTurn(@event, _fallbackTurn))
+            {
+                var key = FormattableString.Invariant($"session-{@event.SessionId}-turn-{++_fallbackOrdinal}");
+                _fallbackTurn = GetOrCreate(key, @event.SessionId, null);
+            }
+
+            return _fallbackTurn;
+        }
+
+        private PendingTurnAccumulator GetOrCreate(string key, string sessionId, string? runId)
+        {
+            if (_turns.TryGetValue(key, out var turn))
+            {
+                return turn;
+            }
+
+            turn = new PendingTurnAccumulator(key, sessionId, runId);
+            _turns.Add(key, turn);
+            return turn;
+        }
+
+        private static bool StartsFallbackTurn(AgentEvent @event, PendingTurnAccumulator current)
+            => @event is AgentActivityEvent { Kind: AgentActivityKind.Turn, Phase: AgentActivityPhase.Started } && current.HasEvents;
+    }
+
+    private sealed class PendingTurnAccumulator(string key, string sessionId, string? runId)
+    {
+        private readonly List<AgentEvent> _events = [];
+        private HashCode _fingerprint = new();
+        private DateTimeOffset? _startedAt;
+        private DateTimeOffset? _endedAt;
+        private DateTimeOffset? _firstEventAt;
+        private DateTimeOffset? _lastEventAt;
+
+        public bool HasEvents => _events.Count > 0;
+
+        public void Add(AgentEvent @event)
+        {
+            _events.Add(@event);
+            _firstEventAt = Min(_firstEventAt, @event.Timestamp);
+            _lastEventAt = Max(_lastEventAt, @event.Timestamp);
+            AddFingerprint(@event);
+
+            switch (@event)
+            {
+                case AgentActivityEvent { Kind: AgentActivityKind.Turn, Phase: AgentActivityPhase.Started } activity:
+                    _startedAt = Min(_startedAt, activity.Timestamp);
+                    break;
+                case AgentActivityEvent { Kind: AgentActivityKind.Turn } activity when IsTerminalPhase(activity.Phase):
+                    _endedAt = Max(_endedAt, activity.Timestamp);
+                    break;
+                case AgentSessionUpdateEvent { Kind: AgentSessionUpdateKind.Idle or AgentSessionUpdateKind.Shutdown or AgentSessionUpdateKind.TaskCompleted } update:
+                    _endedAt = Max(_endedAt, update.Timestamp);
+                    break;
+                case AgentErrorEvent error:
+                    _endedAt = Max(_endedAt, error.Timestamp);
+                    break;
+            }
+        }
+
+        public PendingTurn Build()
+            => new(
+                key,
+                sessionId,
+                runId,
+                _endedAt is not null,
+                _endedAt ?? _lastEventAt ?? _startedAt ?? _firstEventAt ?? DateTimeOffset.UtcNow,
+                _fingerprint.ToHashCode().ToString("x8", CultureInfo.InvariantCulture),
+                _events.ToArray());
+
+        private void AddFingerprint(AgentEvent @event)
+        {
+            _fingerprint.Add(@event.GetType().FullName, StringComparer.Ordinal);
+            _fingerprint.Add(@event.Timestamp.UtcTicks);
+            _fingerprint.Add(@event.RunId?.Value, StringComparer.Ordinal);
+            switch (@event)
+            {
+                case AgentContentDeltaEvent delta:
+                    _fingerprint.Add(delta.Kind);
+                    _fingerprint.Add(delta.ContentId, StringComparer.Ordinal);
+                    _fingerprint.Add(delta.ParentActivityId, StringComparer.Ordinal);
+                    _fingerprint.Add(delta.Delta, StringComparer.Ordinal);
+                    break;
+                case AgentContentCompletedEvent completed:
+                    _fingerprint.Add(completed.Kind);
+                    _fingerprint.Add(completed.ContentId, StringComparer.Ordinal);
+                    _fingerprint.Add(completed.ParentActivityId, StringComparer.Ordinal);
+                    _fingerprint.Add(completed.Content, StringComparer.Ordinal);
+                    break;
+                case AgentActivityEvent activity:
+                    _fingerprint.Add(activity.Kind);
+                    _fingerprint.Add(activity.Phase);
+                    _fingerprint.Add(activity.ActivityId, StringComparer.Ordinal);
+                    _fingerprint.Add(activity.ParentActivityId, StringComparer.Ordinal);
+                    _fingerprint.Add(activity.Name, StringComparer.Ordinal);
+                    _fingerprint.Add(activity.Message, StringComparer.Ordinal);
+                    _fingerprint.Add(activity.Details?.GetRawText(), StringComparer.Ordinal);
+                    break;
+                case AgentSessionUpdateEvent update:
+                    _fingerprint.Add(update.Kind);
+                    _fingerprint.Add(update.Message, StringComparer.Ordinal);
+                    _fingerprint.Add(update.Details?.GetRawText(), StringComparer.Ordinal);
+                    break;
+            }
+        }
+
+        private static DateTimeOffset? Min(DateTimeOffset? left, DateTimeOffset right)
+            => left is null || right < left.Value ? right : left;
+
+        private static DateTimeOffset? Max(DateTimeOffset? left, DateTimeOffset right)
+            => left is null || right > left.Value ? right : left;
+    }
+
+    private sealed record PendingTurn(
+        string Key,
+        string SessionId,
+        string? RunId,
+        bool IsComplete,
+        DateTimeOffset Timestamp,
+        string Fingerprint,
+        IReadOnlyList<AgentEvent> Events);
+
+    private sealed class AsyncTurnStatisticsProjection : PluginDynamicDerivedThreadEventContent
+    {
+        private readonly object _gate = new();
+        private readonly PendingTurn _turn;
+        private string _markdown;
+        private IReadOnlyList<PluginDerivedThreadEventDetailSection> _detailSections = [];
+        private object? _payload;
+        private bool _started;
+
+        public AsyncTurnStatisticsProjection(PendingTurn turn)
+        {
+            _turn = turn;
+            _markdown = "**Turn statistics** · computing...";
+            _payload = new
+            {
+                turn.Key,
+                turn.SessionId,
+                turn.RunId,
+                Status = "computing",
+            };
+            _detailSections =
+            [
+                new PluginDerivedThreadEventDetailSection
+                {
+                    Header = "Detailed statistics",
+                    Markdown = "Computing detailed statistics...",
+                },
+            ];
+        }
+
+        public override string Markdown
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    return _markdown;
+                }
+            }
+        }
+
+        public override IReadOnlyList<PluginDerivedThreadEventDetailSection> DetailSections
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    return _detailSections;
+                }
+            }
+        }
+
+        public object? Payload
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    return _payload;
+                }
+            }
+        }
+
+        public void Start()
+        {
+            lock (_gate)
+            {
+                if (_started)
+                {
+                    return;
+                }
+
+                _started = true;
+            }
+
+            _ = Task.Run(Compute);
+        }
+
+        private void Compute()
+        {
+            try
+            {
+                var turn = TurnStatisticsBuilder.BuildTurn(_turn.Key, _turn.SessionId, _turn.RunId, _turn.Events);
+                UpdateCompleted(turn);
+            }
+            catch (Exception ex)
+            {
+                UpdateFailed(ex);
+            }
+        }
+
+        private void UpdateCompleted(TurnStatistics turn)
+        {
+            lock (_gate)
+            {
+                _markdown = StatisticsMarkdownRenderer.RenderTurnSummary(turn);
+                _detailSections =
+                [
+                    new PluginDerivedThreadEventDetailSection
+                    {
+                        Header = "Detailed statistics",
+                        Markdown = StatisticsMarkdownRenderer.RenderTurnDetails(turn),
+                    },
+                ];
+                _payload = new
+                {
+                    turn.Key,
+                    turn.SessionId,
+                    turn.RunId,
+                    turn.Duration,
+                    ToolCalls = turn.Tools.Count,
+                    turn.ReportedInputTokens,
+                    turn.ReportedOutputTokens,
+                    turn.EstimatedInputTokens,
+                    turn.EstimatedOutputTokens,
+                    ToolInputCharacters = turn.ToolInput.Characters,
+                    GeneratedOutputCharacters = turn.GeneratedOutput.Characters,
+                    turn.CompactionCount,
+                    turn.CompactionDuration,
+                    Status = "ready",
+                };
+            }
+
+            NotifyChanged();
+        }
+
+        private void UpdateFailed(Exception ex)
+        {
+            lock (_gate)
+            {
+                _markdown = $"**Turn statistics** · failed: {ex.Message}";
+                _detailSections = [];
+                _payload = new
+                {
+                    _turn.Key,
+                    _turn.SessionId,
+                    _turn.RunId,
+                    Status = "failed",
+                    Error = ex.Message,
+                };
+            }
+
+            NotifyChanged();
+        }
     }
 
     private sealed class TurnBuilder(string key, string sessionId, string? runId)

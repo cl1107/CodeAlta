@@ -32,15 +32,46 @@ internal sealed class PluginTransientEventProjectionStore
 
             var projection = new PluginTransientEventProjection(
                 derivedEvent.EventId,
-                string.IsNullOrWhiteSpace(derivedEvent.Markdown)
-                    ? BuildDefaultMarkdown(derivedEvent)
-                    : derivedEvent.Markdown,
+                ResolveMarkdown(derivedEvent),
                 derivedEvent.Timestamp,
                 derivedEvent.RenderTarget,
                 derivedEvent.Payload,
-                derivedEvent.DetailSections);
+                ResolveDetailSections(derivedEvent),
+                derivedEvent.DynamicContent);
             var changed = !_events.TryGetValue(derivedEvent.EventId, out var existing) || !Equals(existing, projection);
             _events[derivedEvent.EventId] = projection;
+            return changed;
+        }
+    }
+
+    public PluginTransientEventProjection? Get(string eventId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(eventId);
+
+        lock (_gate)
+        {
+            return _events.GetValueOrDefault(eventId);
+        }
+    }
+
+    public bool RefreshDynamic(string eventId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(eventId);
+
+        lock (_gate)
+        {
+            if (!_events.TryGetValue(eventId, out var existing) || existing.DynamicContent is null)
+            {
+                return false;
+            }
+
+            var updated = existing with
+            {
+                Markdown = ResolveMarkdown(existing),
+                DetailSections = existing.DynamicContent.DetailSections,
+            };
+            var changed = !Equals(existing, updated);
+            _events[eventId] = updated;
             return changed;
         }
     }
@@ -69,6 +100,19 @@ internal sealed class PluginTransientEventProjectionStore
         => string.IsNullOrWhiteSpace(derivedEvent.RenderTarget)
             ? $"Plugin event `{derivedEvent.EventId}`"
             : $"Plugin event `{derivedEvent.EventId}` ({derivedEvent.RenderTarget})";
+
+    private static string ResolveMarkdown(PluginDerivedThreadEvent derivedEvent)
+        => derivedEvent.DynamicContent is { } dynamicContent
+            ? dynamicContent.Markdown
+            : string.IsNullOrWhiteSpace(derivedEvent.Markdown)
+                ? BuildDefaultMarkdown(derivedEvent)
+                : derivedEvent.Markdown;
+
+    private static string ResolveMarkdown(PluginTransientEventProjection projection)
+        => projection.DynamicContent?.Markdown ?? projection.Markdown;
+
+    private static IReadOnlyList<PluginDerivedThreadEventDetailSection> ResolveDetailSections(PluginDerivedThreadEvent derivedEvent)
+        => derivedEvent.DynamicContent?.DetailSections ?? derivedEvent.DetailSections;
 }
 
 internal sealed record PluginTransientEventProjection(
@@ -77,4 +121,23 @@ internal sealed record PluginTransientEventProjection(
     DateTimeOffset? Timestamp,
     string? RenderTarget,
     object? Payload,
-    IReadOnlyList<PluginDerivedThreadEventDetailSection> DetailSections);
+    IReadOnlyList<PluginDerivedThreadEventDetailSection> DetailSections,
+    PluginDynamicDerivedThreadEventContent? DynamicContent);
+
+internal sealed class PluginDynamicProjectionSubscription : IDisposable
+{
+    private readonly EventHandler _handler;
+
+    public PluginDynamicProjectionSubscription(PluginDynamicDerivedThreadEventContent content, EventHandler handler)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        ArgumentNullException.ThrowIfNull(handler);
+        Content = content;
+        _handler = handler;
+        Content.Changed += _handler;
+    }
+
+    public PluginDynamicDerivedThreadEventContent Content { get; }
+
+    public void Dispose() => Content.Changed -= _handler;
+}
