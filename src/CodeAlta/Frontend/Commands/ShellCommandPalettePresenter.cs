@@ -54,11 +54,12 @@ internal sealed class ShellCommandPalettePresenter : IShellCommandSurfacePresent
             "Open Project",
             "Type a project name from the sidebar or a rooted folder path.",
             "Open",
-            _dialogCommandService.OpenFolderAsync,
-            _dialogCommandService.GetDialogBounds,
-            _dialogCommandService.GetDialogFocusTarget,
-            _dialogCommandService.GetDialogFocusTarget,
-            _dialogCommandService.GetProjects,
+            new DirectoryPathDialogService(
+                _dialogCommandService.GetDialogBounds,
+                _dialogCommandService.GetDialogFocusTarget,
+                _dialogCommandService.OpenFolderAsync,
+                _dialogCommandService.GetDialogFocusTarget,
+                _dialogCommandService.GetProjects),
             initialPath,
             placeholder: "CodeAlta or C:\\code\\SomeFolder")
             .Show();

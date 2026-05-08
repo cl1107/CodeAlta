@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Text.RegularExpressions;
 using CodeAlta.Frontend.Commands;
 using CodeAlta.Orchestration.Runtime;
+using CodeAlta.Views;
 
 namespace CodeAlta.Tests;
 
@@ -393,6 +394,18 @@ public sealed class ArchitectureGuardrailTests
         Assert.IsFalse(viewFactorySource.Contains("Action focusPromptEditor", StringComparison.Ordinal));
         Assert.IsTrue(viewFactorySource.Contains("shellCommandSurfaceCoordinator.FocusSidebarAsync", StringComparison.Ordinal));
         Assert.IsTrue(viewFactorySource.Contains("shellCommandSurfaceCoordinator.FocusPromptAsync", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void DirectoryPathDialog_UsesNamedServiceInsteadOfDomainCallbackList()
+    {
+        var constructor = typeof(DirectoryPathDialog)
+            .GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+            .Single();
+        var parameters = constructor.GetParameters();
+
+        Assert.IsTrue(parameters.Any(static parameter => parameter.ParameterType == typeof(IDirectoryPathDialogService)));
+        Assert.IsFalse(parameters.Any(static parameter => typeof(Delegate).IsAssignableFrom(parameter.ParameterType)));
     }
 
     [TestMethod]

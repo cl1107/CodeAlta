@@ -130,10 +130,7 @@ public sealed class DirectoryPathCompletionProviderTests
             "Open Project",
             "Type a project name from the sidebar or a rooted folder path.",
             "Open",
-            (_, _) => Task.CompletedTask,
-            () => new XenoAtom.Terminal.UI.Geometry.Rectangle(0, 0, 120, 40),
-            () => null,
-            getProjects: () => [CreateProject("codealta", "CodeAlta", projectPath)]);
+            CreateDialogService(() => [CreateProject("codealta", "CodeAlta", projectPath)]));
 
         using var terminalSession = Terminal.Open(new InMemoryTerminalBackend(new TerminalSize(120, 40)), new TerminalOptions { ImplicitStartInput = true }, force: true);
         var app = new TerminalApp(
@@ -171,9 +168,7 @@ public sealed class DirectoryPathCompletionProviderTests
             "Open Project",
             "Type a project name from the sidebar or a rooted folder path.",
             "Open",
-            (_, _) => Task.CompletedTask,
-            () => new XenoAtom.Terminal.UI.Geometry.Rectangle(0, 0, 120, 40),
-            () => null);
+            CreateDialogService());
 
         using var terminalSession = Terminal.Open(new InMemoryTerminalBackend(new TerminalSize(120, 40)), new TerminalOptions { ImplicitStartInput = true }, force: true);
         var app = new TerminalApp(
@@ -213,10 +208,7 @@ public sealed class DirectoryPathCompletionProviderTests
             "Open Project",
             "Type a project name from the sidebar or a rooted folder path.",
             "Open",
-            (_, _) => Task.CompletedTask,
-            () => new XenoAtom.Terminal.UI.Geometry.Rectangle(0, 0, 120, 40),
-            () => null,
-            getProjects: () => [visibleProject, hiddenProject]);
+            CreateDialogService(() => [visibleProject, hiddenProject]));
 
         using var terminalSession = Terminal.Open(new InMemoryTerminalBackend(new TerminalSize(120, 40)), new TerminalOptions { ImplicitStartInput = true }, force: true);
         var app = new TerminalApp(
@@ -267,6 +259,13 @@ public sealed class DirectoryPathCompletionProviderTests
         Assert.IsNotNull(method);
         method.Invoke(app, [null]);
     }
+
+    private static DirectoryPathDialogService CreateDialogService(Func<IEnumerable<ProjectDescriptor>>? getProjects = null)
+        => new(
+            () => new XenoAtom.Terminal.UI.Geometry.Rectangle(0, 0, 120, 40),
+            static () => null,
+            static (_, _) => Task.CompletedTask,
+            getProjects: getProjects);
 
     private static ProjectDescriptor CreateProject(string slug, string displayName, string? projectPath = null)
     {

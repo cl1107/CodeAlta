@@ -184,11 +184,12 @@ internal sealed class NavigatorActionCoordinator
             "Open Project",
             "Type a project name from the sidebar or a rooted folder path.",
             "Open",
-            OpenFolderAsync,
-            _getDialogBounds,
-            _getFocusTarget,
-            _getPromptFocusTarget,
-            () => _threadStateCoordinator.Projects,
+            new DirectoryPathDialogService(
+                _getDialogBounds,
+                _getFocusTarget,
+                OpenFolderAsync,
+                _getPromptFocusTarget,
+                () => _threadStateCoordinator.Projects),
             placeholder: "CodeAlta or C:\\code\\SomeFolder")
             .Show();
     }

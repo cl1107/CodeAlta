@@ -1,5 +1,4 @@
 using CodeAlta.App;
-using CodeAlta.Catalog;
 using CodeAlta.Presentation.Prompting;
 using CodeAlta.Presentation.Sidebar;
 using CodeAlta.Presentation.Styling;
@@ -18,10 +17,7 @@ namespace CodeAlta.Views;
 internal sealed class DirectoryPathDialog
 {
     private const int ProjectPathMaxLength = 72;
-    private readonly Func<string, bool, Task> _onSubmitAsync;
-    private readonly Func<Visual?> _getFocusTarget;
-    private readonly Func<Visual?> _getSubmitFocusTarget;
-    private readonly Func<IEnumerable<ProjectDescriptor>>? _getProjects;
+    private readonly IDirectoryPathDialogService _dialogService;
     private readonly State<ValidationMessage?> _validationMessage = new(null);
     private readonly DirectoryPathCompletionProvider _suggestionProvider;
     private readonly TextBox _editor;
@@ -35,31 +31,22 @@ internal sealed class DirectoryPathDialog
         string title,
         string description,
         string submitText,
-        Func<string, bool, Task> onSubmitAsync,
-        Func<Rectangle?> getBounds,
-        Func<Visual?> getFocusTarget,
-        Func<Visual?>? getSubmitFocusTarget = null,
-        Func<IEnumerable<ProjectDescriptor>>? getProjects = null,
+        IDirectoryPathDialogService dialogService,
         string? initialPath = null,
         string? placeholder = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
         ArgumentException.ThrowIfNullOrWhiteSpace(description);
         ArgumentException.ThrowIfNullOrWhiteSpace(submitText);
-        ArgumentNullException.ThrowIfNull(onSubmitAsync);
-        ArgumentNullException.ThrowIfNull(getBounds);
-        ArgumentNullException.ThrowIfNull(getFocusTarget);
+        ArgumentNullException.ThrowIfNull(dialogService);
 
-        _onSubmitAsync = onSubmitAsync;
-        _getFocusTarget = getFocusTarget;
-        _getSubmitFocusTarget = getSubmitFocusTarget ?? getFocusTarget;
-        _getProjects = getProjects;
+        _dialogService = dialogService;
         _includeHiddenCheckBox = new CheckBox("Include hidden", false);
         _includeHiddenCheckBox.KeyDown((_, e) => RefreshSuggestionsAfterToggle(e));
         _includeHiddenCheckBox.PointerPressed((_, e) => RefreshSuggestionsAfterPointerToggle(e));
         _suggestionProvider = new DirectoryPathCompletionProvider(
             includeHidden: () => _includeHiddenCheckBox.IsChecked,
-            projects: getProjects);
+            projects: () => _dialogService.GetProjects() ?? []);
 
         var placeholderText = placeholder ?? "Project name from the sidebar or C:\\code\\SomeFolder";
         _editor = new TextBox()
@@ -153,7 +140,7 @@ internal sealed class DirectoryPathDialog
             .Padding(1)
             .Content(content)
             .Style(DialogStyle.Rounded);
-        ResponsiveDialogSize.Apply(_dialog, getBounds(), minWidth: 72, minHeight: 18, widthFactor: 0.56, heightFactor: 0.50);
+        ResponsiveDialogSize.Apply(_dialog, _dialogService.GetDialogBounds(), minWidth: 72, minHeight: 18, widthFactor: 0.56, heightFactor: 0.50);
         _dialog.AddCommand(new Command
         {
             Id = "CodeAlta.DirectoryPathDialog.Close",
@@ -354,8 +341,8 @@ internal sealed class DirectoryPathDialog
 
         try
         {
-            await _onSubmitAsync(input.Trim(), _includeHiddenCheckBox.IsChecked);
-            Close(_getSubmitFocusTarget);
+            await _dialogService.OpenFolderAsync(input.Trim(), _includeHiddenCheckBox.IsChecked);
+            Close(_dialogService.GetSubmitFocusTarget);
         }
         catch (Exception ex)
         {
@@ -376,7 +363,7 @@ internal sealed class DirectoryPathDialog
     }
 
     private void Close()
-        => Close(_getFocusTarget);
+        => Close(_dialogService.GetDialogFocusTarget);
 
     private void Close(Func<Visual?> getFocusTarget)
     {
@@ -434,12 +421,13 @@ internal sealed class DirectoryPathDialog
             return new ValidationMessage(ValidationSeverity.Error, $"Folder '{normalizedPath}' was not found.");
         }
 
-        if (_getProjects is null)
+        var projects = _dialogService.GetProjects();
+        if (projects is null)
         {
             return null;
         }
 
-        var availableProjects = _getProjects()
+        var availableProjects = projects
             .Where(project => _includeHiddenCheckBox.IsChecked || !project.Archived)
             .ToArray();
         var exactMatches = availableProjects
