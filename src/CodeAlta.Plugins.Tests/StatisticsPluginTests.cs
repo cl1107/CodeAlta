@@ -3,6 +3,8 @@ using CodeAlta.Agent;
 using CodeAlta.Plugin.Statistics;
 using CodeAlta.Plugins.Abstractions;
 using XenoAtom.Terminal.UI.Controls;
+using XenoAtom.Terminal.UI.Extensions.Markdown;
+using XenoAtom.Terminal.UI.Styling;
 
 namespace CodeAlta.Plugins.Tests;
 
@@ -49,6 +51,8 @@ public sealed class StatisticsPluginTests
         });
         var detailWrap = Assert.IsInstanceOfType<WrapHStack>(detailVisual);
         Assert.AreEqual(2, detailWrap.Children.Count);
+        var firstTable = Assert.IsInstanceOfType<MarkdownControl>(detailWrap.Children[0]);
+        Assert.AreEqual(TableStyle.Minimal, firstTable.Options.TableStyle);
     }
 
     [TestMethod]

@@ -1486,18 +1486,17 @@ public sealed class StatisticsPlugin : PluginBase
         }
 
         private static Visual CreateTable(string markdown)
-            => new Border(new MarkdownControl(markdown.Trim())
+            => new MarkdownControl(markdown.Trim())
+            {
+                HorizontalAlignment = Align.Start,
+                VerticalAlignment = Align.Start,
+                Options = MarkdownRenderOptions.Default with
                 {
-                    HorizontalAlignment = Align.Start,
-                    VerticalAlignment = Align.Start,
-                    Options = MarkdownRenderOptions.Default with
-                    {
-                        WrapCodeBlocks = true,
-                        MaxCodeBlockHeight = 14,
-                    },
-                })
-                .Padding(new Thickness(1, 0, 1, 0))
-                .Style(BorderStyle.Rounded);
+                    TableStyle = TableStyle.Minimal,
+                    WrapCodeBlocks = true,
+                    MaxCodeBlockHeight = 14,
+                },
+            };
     }
 
     private static class StatisticsMarkdownRenderer
