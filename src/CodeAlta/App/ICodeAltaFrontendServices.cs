@@ -2,14 +2,13 @@ using CodeAlta.Agent;
 using CodeAlta.App.State;
 using CodeAlta.Catalog;
 using CodeAlta.Models;
-using CodeAlta.Presentation.Prompting;
 using CodeAlta.Threading;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Geometry;
 
 namespace CodeAlta.App;
 
-internal interface ICodeAltaFrontendServices
+internal interface ICodeAltaFrontendServices : IShellStatusService, IPromptSessionService, ISelectionQuery
 {
     void ApplyPendingSidebarSelection();
     IUiDispatcher GetUiDispatcher();
@@ -24,9 +23,7 @@ internal interface ICodeAltaFrontendServices
     void RefreshCatalogAndThreadWorkspace();
     void ResetPendingThreadTabSelection();
     void RemoveThreadTabPage(string threadId);
-    void SetStatus(string message, bool showSpinner, StatusTone tone);
     void SetProviderSessionLoadStatus(string? message);
-    bool IsSelectedThread(string threadId);
     void ApplyDraftModelProviderPreference(ChatBackendState backendState);
     void RememberGlobalModelProviderPreference(AgentBackendId backendId, string? modelId, AgentReasoningEffort? reasoningEffort);
     void InvalidateSelectedSessionUsage();
@@ -40,8 +37,6 @@ internal interface ICodeAltaFrontendServices
     void RefreshModelProviderSelectorsForThread(OpenThreadState thread);
     void SyncModelProviderSelectorItems();
     void SyncPromptText(ThreadSessionState? session);
-    void UpdatePromptAvailabilityUi();
-    void UpdatePromptImageAttachmentsUi();
     void SyncThreadTabControl();
     void DispatchToUi(Action action);
     void DispatchToUiDeferred(Action action);
@@ -54,11 +49,6 @@ internal interface ICodeAltaFrontendServices
     bool TrySetPromptUnavailableStatus();
     void SetReadyStatusForCurrentSelection();
     void ClearDraftPromptText();
-    void ClearPromptText();
-    bool IsPromptTextEmpty();
-    void RestorePromptText(string prompt);
-    IReadOnlyList<PromptImageAttachment> SnapshotPromptImages();
-    void RestorePromptImages(IReadOnlyList<PromptImageAttachment> images);
     Task PersistViewStateAsync();
     Task RegisterCreatedThreadAsync(WorkThreadDescriptor thread);
     Visual? GetPromptFocusTarget();
