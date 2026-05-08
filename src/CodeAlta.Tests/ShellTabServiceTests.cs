@@ -1,6 +1,8 @@
 using CodeAlta.App;
+using CodeAlta.App.Events;
 using CodeAlta.Catalog;
 using CodeAlta.Models;
+using CodeAlta.Threading;
 using XenoAtom.Terminal.UI.Controls;
 
 namespace CodeAlta.Tests;
@@ -42,6 +44,48 @@ public sealed class ShellTabServiceTests
         Assert.IsTrue(service.TryGetTab(new ShellTabId("tab-1"), out var previous));
         Assert.IsFalse(previous.IsSelected);
         Assert.AreEqual(1, changes);
+    }
+
+    [TestMethod]
+    public async Task TabsChanged_ReportsOpenAndSelectionMutationKinds()
+    {
+        var service = new InMemoryShellTabService();
+        var changes = new List<ShellTabChangedEventArgs>();
+        service.TabsChanged += (_, args) => changes.Add(args);
+
+        service.OpenOrGetTab(CreateDescriptor("tab-1"));
+        service.OpenOrGetTab(CreateDescriptor("tab-2"));
+        await service.SelectTabAsync(new ShellTabId("tab-2"));
+        await service.CloseTabAsync(new ShellTabId("tab-1"), ShellTabCloseReason.User);
+
+        Assert.IsTrue(changes[0].OpenTabsChanged);
+        Assert.IsTrue(changes[0].SelectedTabChanged);
+        Assert.IsTrue(changes[1].OpenTabsChanged);
+        Assert.IsFalse(changes[1].SelectedTabChanged);
+        Assert.IsFalse(changes[2].OpenTabsChanged);
+        Assert.IsTrue(changes[2].SelectedTabChanged);
+        Assert.IsTrue(changes[3].OpenTabsChanged);
+        Assert.IsFalse(changes[3].SelectedTabChanged);
+    }
+
+    [TestMethod]
+    public async Task Mutations_PublishFrontendTabEventsWhenConfigured()
+    {
+        var publisher = new FrontendEventPublisher(new InlineUiDispatcher());
+        var events = new List<ShellFrontendEvent>();
+        using var subscription = publisher.Subscribe(events.Add);
+        var service = new InMemoryShellTabService();
+        service.SetFrontendEvents(publisher);
+
+        service.OpenOrGetTab(CreateDescriptor("tab-1"));
+        service.OpenOrGetTab(CreateDescriptor("tab-2"));
+        await service.SelectTabAsync(new ShellTabId("tab-2"));
+
+        Assert.IsInstanceOfType<OpenTabsChangedEvent>(events[0]);
+        Assert.IsInstanceOfType<SelectedTabChangedEvent>(events[1]);
+        Assert.IsInstanceOfType<OpenTabsChangedEvent>(events[2]);
+        Assert.IsInstanceOfType<SelectedTabChangedEvent>(events[3]);
+        Assert.AreEqual("tab-2", ((SelectedTabChangedEvent)events[3]).SelectedTab?.TabId.Value);
     }
 
     [TestMethod]
@@ -183,5 +227,29 @@ public sealed class ShellTabServiceTests
             Content = new TextBlock("content"),
             ViewModel = viewModel ?? new object(),
         };
+    }
+
+    private sealed class InlineUiDispatcher : IUiDispatcher
+    {
+        public bool CheckAccess() => true;
+
+        public void Post(Action action)
+        {
+            ArgumentNullException.ThrowIfNull(action);
+            action();
+        }
+
+        public Task InvokeAsync(Action action)
+        {
+            ArgumentNullException.ThrowIfNull(action);
+            action();
+            return Task.CompletedTask;
+        }
+
+        public Task<T> InvokeAsync<T>(Func<T> action)
+        {
+            ArgumentNullException.ThrowIfNull(action);
+            return Task.FromResult(action());
+        }
     }
 }

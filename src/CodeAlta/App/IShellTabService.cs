@@ -1,3 +1,4 @@
+using CodeAlta.App.Events;
 using CodeAlta.Catalog;
 using CodeAlta.Models;
 using XenoAtom.Terminal.UI;
@@ -174,9 +175,16 @@ internal sealed record ShellTabSnapshot(
     bool IsSelected,
     bool CanClose);
 
-internal sealed class ShellTabChangedEventArgs(IReadOnlyList<ShellTabSnapshot> tabs) : EventArgs
+internal sealed class ShellTabChangedEventArgs(
+    IReadOnlyList<ShellTabSnapshot> tabs,
+    bool openTabsChanged,
+    bool selectedTabChanged) : EventArgs
 {
     public IReadOnlyList<ShellTabSnapshot> Tabs { get; } = tabs;
+
+    public bool OpenTabsChanged { get; } = openTabsChanged;
+
+    public bool SelectedTabChanged { get; } = selectedTabChanged;
 }
 
 internal interface IShellTabService
@@ -198,8 +206,15 @@ internal sealed class InMemoryShellTabService : IShellTabService
 {
     private readonly Dictionary<ShellTabId, ShellTabEntry> _tabs = new();
     private ShellTabId? _selectedTabId;
+    private FrontendEventPublisher? _frontendEvents;
 
     public event EventHandler<ShellTabChangedEventArgs>? TabsChanged;
+
+    public void SetFrontendEvents(FrontendEventPublisher frontendEvents)
+    {
+        ArgumentNullException.ThrowIfNull(frontendEvents);
+        _frontendEvents = frontendEvents;
+    }
 
     public IReadOnlyList<ShellTabSnapshot> GetTabs()
         => _tabs.Values.Select(CreateSnapshot).ToArray();
@@ -214,10 +229,11 @@ internal sealed class InMemoryShellTabService : IShellTabService
             return CreateSnapshot(existing);
         }
 
+        var selectedChanged = _selectedTabId is null;
         var entry = new ShellTabEntry(descriptor);
         _tabs.Add(descriptor.TabId, entry);
         _selectedTabId ??= descriptor.TabId;
-        RaiseTabsChanged();
+        RaiseTabsChanged(openTabsChanged: true, selectedTabChanged: selectedChanged);
         return CreateSnapshot(entry);
     }
 
@@ -230,8 +246,13 @@ internal sealed class InMemoryShellTabService : IShellTabService
             throw new KeyNotFoundException($"Shell tab '{tabId.Value}' is not open.");
         }
 
+        if (_selectedTabId == tabId)
+        {
+            return Task.CompletedTask;
+        }
+
         _selectedTabId = tabId;
-        RaiseTabsChanged();
+        RaiseTabsChanged(openTabsChanged: false, selectedTabChanged: true);
         return Task.CompletedTask;
     }
 
@@ -249,13 +270,14 @@ internal sealed class InMemoryShellTabService : IShellTabService
             return false;
         }
 
+        var selectedChanged = _selectedTabId == tabId;
         _tabs.Remove(tabId);
-        if (_selectedTabId == tabId)
+        if (selectedChanged)
         {
             _selectedTabId = _tabs.Keys.FirstOrDefault();
         }
 
-        RaiseTabsChanged();
+        RaiseTabsChanged(openTabsChanged: true, selectedTabChanged: selectedChanged);
         if (entry.Descriptor.OnClosedAsync is not null)
         {
             await entry.Descriptor.OnClosedAsync(reason);
@@ -288,8 +310,20 @@ internal sealed class InMemoryShellTabService : IShellTabService
             _selectedTabId == entry.Descriptor.TabId,
             entry.Descriptor.CanClose);
 
-    private void RaiseTabsChanged()
-        => TabsChanged?.Invoke(this, new ShellTabChangedEventArgs(GetTabs()));
+    private void RaiseTabsChanged(bool openTabsChanged, bool selectedTabChanged)
+    {
+        var tabs = GetTabs();
+        TabsChanged?.Invoke(this, new ShellTabChangedEventArgs(tabs, openTabsChanged, selectedTabChanged));
+        if (openTabsChanged)
+        {
+            _frontendEvents?.Publish(new OpenTabsChangedEvent(tabs));
+        }
+
+        if (selectedTabChanged)
+        {
+            _frontendEvents?.Publish(new SelectedTabChangedEvent(tabs.FirstOrDefault(static tab => tab.IsSelected)));
+        }
+    }
 
     private static void EnsureTabId(ShellTabId tabId)
     {

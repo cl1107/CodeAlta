@@ -8,6 +8,10 @@ internal sealed record CatalogChangedEvent : ShellFrontendEvent;
 
 internal sealed record SelectionChangedEvent(ShellFrontendStateSnapshot? Snapshot = null) : ShellFrontendEvent;
 
+internal sealed record OpenTabsChangedEvent(IReadOnlyList<ShellTabSnapshot> Tabs) : ShellFrontendEvent;
+
+internal sealed record SelectedTabChangedEvent(ShellTabSnapshot? SelectedTab) : ShellFrontendEvent;
+
 internal sealed record HeaderChangedEvent : ShellFrontendEvent;
 
 internal sealed record ShellChromeChangedEvent : ShellFrontendEvent;

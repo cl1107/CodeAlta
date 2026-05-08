@@ -31,6 +31,19 @@ public sealed class ShellProjectionCoordinatorTests
     }
 
     [TestMethod]
+    public void Publish_TabChangedEvents_RefreshSelectionWorkspace()
+    {
+        var invalidator = new CapturingProjectionInvalidator();
+        var publisher = new FrontendEventPublisher(new InlineUiDispatcher());
+        using var coordinator = new ShellProjectionCoordinator(publisher, invalidator);
+
+        publisher.Publish(new OpenTabsChangedEvent([]));
+        publisher.Publish(new SelectedTabChangedEvent(null));
+
+        CollectionAssert.AreEqual(new[] { "selection", "selection" }, invalidator.Calls);
+    }
+
+    [TestMethod]
     public void Publish_ThreadStatusChanged_RefreshesChromeAndPromptAvailability()
     {
         var invalidator = new CapturingProjectionInvalidator();

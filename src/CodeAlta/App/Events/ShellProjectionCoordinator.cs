@@ -48,6 +48,10 @@ internal sealed class ShellProjectionCoordinator : IDisposable
             case SelectionChangedEvent:
                 _invalidator.RefreshSelectionAndThreadWorkspace();
                 break;
+            case OpenTabsChangedEvent:
+            case SelectedTabChangedEvent:
+                _invalidator.RefreshSelectionAndThreadWorkspace();
+                break;
             case HeaderChangedEvent:
                 _invalidator.RefreshHeaderAndThreadWorkspace();
                 break;

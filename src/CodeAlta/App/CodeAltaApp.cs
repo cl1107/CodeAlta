@@ -64,7 +64,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
     private readonly NavigatorActionCoordinator _navigatorActionCoordinator;
     private readonly ModelProviderSelectorCoordinator _modelProviderSelectorCoordinator;
     private readonly ThreadTabStripCoordinator _threadTabStripCoordinator;
-    private readonly IShellTabService _shellTabService = new InMemoryShellTabService();
+    private readonly InMemoryShellTabService _shellTabService = new();
     private readonly ShellAnimationRuntime _shellAnimationRuntime = new();
     private readonly DeferredUiActionQueue _deferredUiActionQueue = new();
     private readonly ShellWorkspaceContext _shellWorkspaceContext;
@@ -178,6 +178,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
         _runtimeEventPump = composition.RuntimeEventPump;
         _terminalLoopCoordinator = composition.TerminalLoopCoordinator;
         _frontendEvents = composition.FrontendEvents;
+        _shellTabService.SetFrontendEvents(_frontendEvents);
         _projectionCoordinator = new ShellProjectionCoordinator(_frontendEvents, new CodeAltaProjectionInvalidator(this));
         _chatBackendInitializationCoordinator = composition.ChatBackendInitializationCoordinator;
         _threadStateCoordinator = composition.ThreadStateCoordinator;
@@ -286,7 +287,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
         _threadHistoryCoordinator = new ThreadHistoryCoordinator(
             _runtimeService,
             EnsureThreadTab,
-            threadId => FindThread(threadId),
+            _threadStateCoordinator.FindThread,
             threadId => _threadStateCoordinator.FindOpenThread(threadId),
             thread => ThreadHistoryCoordinator.CanLoadThreadHistory(thread) && IsModelProviderReady(new AgentBackendId(thread.BackendId)),
             _threadCommandCoordinator.BuildExecutionOptions,
@@ -764,6 +765,4 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
     private WorkThreadDescriptor? GetSelectedThread()
         => _threadStateCoordinator.GetSelectedThread();
 
-    private WorkThreadDescriptor? FindThread(string? threadId)
-        => _threadStateCoordinator.FindThread(threadId);
 }
