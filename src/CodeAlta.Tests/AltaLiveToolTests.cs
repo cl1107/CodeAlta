@@ -42,6 +42,32 @@ public sealed class AltaLiveToolTests
     }
 
     [TestMethod]
+    public async Task Dispatcher_InvalidUsageScenarios_ReturnJsonlDiagnostics()
+    {
+        (string[] Args, string Code, string Message)[] cases =
+        [
+            (["session", "list", "--stat", "all"], "usage.invalid", "--stat"),
+            (["session", "list", "--state", "sleeping"], "usage.invalid", "State must be running"),
+            (["session", "show"], "usage.invalid", "Missing required argument"),
+            (["session", "create", "--global", "--project", "sample"], "usage.projectAndGlobal", "Use either --project or --global"),
+        ];
+
+        foreach (var testCase in cases)
+        {
+            var result = await CreateDispatcher().InvokeAsync(testCase.Args, caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+
+            Assert.AreEqual(AltaExitCodes.Usage, result.ExitCode, string.Join(' ', testCase.Args));
+            var lines = ReadJsonLines(result.Stdout);
+            Assert.AreEqual(AltaExitCodes.Usage, lines[0].GetProperty("exitCode").GetInt32());
+            var error = lines.Single(static line => line.GetProperty("type").GetString() == "alta.error");
+            Assert.AreEqual(testCase.Code, error.GetProperty("code").GetString(), string.Join(' ', testCase.Args));
+            StringAssert.Contains(error.GetProperty("message").GetString(), testCase.Message);
+            Assert.IsTrue(error.TryGetProperty("usageHint", out var usageHint), string.Join(' ', testCase.Args));
+            StringAssert.Contains(usageHint.GetString(), "--help");
+        }
+    }
+
+    [TestMethod]
     public async Task Dispatcher_HelpInvocations_CanRunConcurrentlyWithFreshCommandTrees()
     {
         var tasks = Enumerable.Range(0, 24)

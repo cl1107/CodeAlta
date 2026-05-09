@@ -980,12 +980,6 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
     private static async ValueTask<int> HandleSessionCreateAsync(AltaCommandContext context, SessionCreateOptions options)
     {
-        if (!context.TryGetRequired<WorkThreadRuntimeService>(nameof(WorkThreadRuntimeService), out var runtime) ||
-            !context.TryGetRequired<ProjectCatalog>(nameof(ProjectCatalog), out var catalog))
-        {
-            return AltaExitCodes.ServiceUnavailable;
-        }
-
         if (options.Global && !string.IsNullOrWhiteSpace(options.Project))
         {
             return UsageError(context, "usage.projectAndGlobal", "Use either --project or --global, not both.", "alta session create");
@@ -999,6 +993,12 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         if (!string.IsNullOrWhiteSpace(options.ParentThreadId) && options.NoParent)
         {
             return UsageError(context, "usage.parentConflict", "Use either --parent or --no-parent, not both.", "alta session create");
+        }
+
+        if (!context.TryGetRequired<WorkThreadRuntimeService>(nameof(WorkThreadRuntimeService), out var runtime) ||
+            !context.TryGetRequired<ProjectCatalog>(nameof(ProjectCatalog), out var catalog))
+        {
+            return AltaExitCodes.ServiceUnavailable;
         }
 
         ProjectDescriptor? project = null;

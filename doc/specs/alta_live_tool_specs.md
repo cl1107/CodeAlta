@@ -1025,7 +1025,7 @@ Before considering the feature complete:
 - add sidebar/timeline projection tests for parent/child sessions and agent-created prompts;
 - document unsupported backend behavior explicitly.
 
-Current completion evidence: user-facing examples are documented in `readme.md`, `doc/readme.md#alta-live-tool`, `doc/skills.md#live-tool-commands`, and `doc/plugins.md#alta-live-tool-integration`; coordinator/skill instruction templates advertise `alta` only when it is available; regression coverage lives in `AltaLiveToolTests`, `ThreadRuntimeEventCoordinatorTests`, `ArchitectureGuardrailTests`, and catalog/plugin infrastructure tests for the command registry, JSONL transcripts, invalid usage diagnostics, visibility, provenance, explicit parent validation, queue draining, plugin contributions/invocation, and timeline/sidebar projections.
+Current completion evidence: user-facing examples are documented in `readme.md`, `doc/readme.md#alta-live-tool`, `doc/skills.md#live-tool-commands`, and `doc/plugins.md#alta-live-tool-integration`; coordinator/skill instruction templates advertise `alta` only when it is available; regression coverage lives in `AltaLiveToolTests`, `ThreadRuntimeEventCoordinatorTests`, `ArchitectureGuardrailTests`, and catalog/plugin infrastructure tests for the command registry, JSONL transcripts, invalid usage diagnostics (unknown options, bad values, missing arguments, mutually exclusive flags, plugin validation), visibility, provenance, explicit parent validation, queue draining, plugin contributions/invocation, and timeline/sidebar projections.
 
 ## 13. Resolved v1 decisions
 
