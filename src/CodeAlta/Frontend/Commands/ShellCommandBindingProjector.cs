@@ -43,29 +43,11 @@ internal sealed class ShellCommandBindingProjector
 
     public IReadOnlyList<ThreadWorkspaceCommandBinding> BuildWorkspaceCommandBindings()
     {
-        var bindings = new List<ThreadWorkspaceCommandBinding>
-        {
-            CreateRegisteredCommandBinding("CodeAlta.Shell.Help"),
-            CreateRegisteredCommandBinding("CodeAlta.Project.OpenFolder"),
-            CreateRegisteredCommandBinding("CodeAlta.Providers.Manage"),
-            CreateRegisteredCommandBinding("CodeAlta.File.Edit"),
-            CreateRegisteredCommandBinding("CodeAlta.Skills.Manage"),
-            CreateRegisteredCommandBinding("CodeAlta.Plugins.Manage"),
-            CreateRegisteredCommandBinding("CodeAlta.Thread.SessionUsage"),
-            CreateRegisteredCommandBinding("CodeAlta.Thread.Info"),
-            CreateRegisteredCommandBinding("CodeAlta.Thread.ExpandPrompt"),
-            CreateRegisteredCommandBinding("CodeAlta.Thread.Steer"),
-            CreateRegisteredCommandBinding("CodeAlta.Thread.Abort"),
-            CreateRegisteredCommandBinding("CodeAlta.Thread.ClearQueue"),
-            CreateRegisteredCommandBinding("CodeAlta.Thread.Compact"),
-            CreateRegisteredCommandBinding("CodeAlta.Thread.CloseTab"),
-            CreateRegisteredCommandBinding("CodeAlta.Thread.TabLeft"),
-            CreateRegisteredCommandBinding("CodeAlta.Thread.TabRight"),
-            CreateRegisteredCommandBinding("CodeAlta.Thread.MessagePrevious"),
-            CreateRegisteredCommandBinding("CodeAlta.Thread.MessageNext"),
-            CreateRegisteredCommandBinding("CodeAlta.Thread.MessageFirst"),
-            CreateRegisteredCommandBinding("CodeAlta.Thread.MessageLast"),
-        };
+        var bindings = ShellCommandCatalog.Commands
+            .Where(static metadata => metadata.Scope != ShellCommandScope.AnyShell || metadata.Id == "CodeAlta.Shell.Help")
+            .Select(command => CreateRegisteredCommandBinding(command.Id))
+            .ToList();
+
         AddPluginCommandBindings(bindings);
         return bindings;
     }

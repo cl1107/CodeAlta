@@ -62,8 +62,10 @@ internal sealed class ShellCommandRegistryFactory
         registry.RegisterFactory("CodeAlta.Thread.SessionUsage", static () => new OpenSessionUsageCommand());
         registry.RegisterFactory("CodeAlta.Thread.Info", static () => new OpenThreadInfoCommand());
         registry.RegisterFactory("CodeAlta.Thread.ExpandPrompt", static () => new OpenExpandedPromptCommand());
+        registry.RegisterFactory("CodeAlta.Thread.Send", static () => new SubmitPromptCommand(null, Steer: false));
         registry.RegisterFactory("CodeAlta.Thread.Steer", static () => new SubmitPromptCommand(null, Steer: true));
         registry.RegisterFactory("CodeAlta.Thread.Abort", static () => new AbortSelectedThreadCommand());
+        registry.RegisterFactory("CodeAlta.Thread.Queue", static () => new ShowQueueStatusCommand());
         registry.RegisterFactory("CodeAlta.Thread.ClearQueue", static () => new ClearSelectedThreadQueueCommand());
         registry.RegisterFactory("CodeAlta.Thread.Compact", static () => new CompactSelectedThreadCommand());
         registry.RegisterFactory("CodeAlta.Thread.CloseTab", static () => new CloseCurrentTabCommand());
