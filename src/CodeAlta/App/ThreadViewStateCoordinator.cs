@@ -56,6 +56,16 @@ internal sealed class ThreadViewStateCoordinator
             {
                 thread.MessageCount = messageCount;
             }
+
+            if (!string.IsNullOrWhiteSpace(localState.ParentThreadId))
+            {
+                thread.ParentThreadId = localState.ParentThreadId;
+            }
+
+            if (localState.CreatedBy is not null)
+            {
+                thread.CreatedBy = localState.CreatedBy;
+            }
         }
 
         return threads;
@@ -70,6 +80,8 @@ internal sealed class ThreadViewStateCoordinator
         {
             Archived = thread.Status == WorkThreadStatus.Archived,
             MessageCount = thread.MessageCount,
+            ParentThreadId = thread.ParentThreadId,
+            CreatedBy = thread.CreatedBy,
         };
         viewState.UpdatedAt = DateTimeOffset.UtcNow;
         await PersistViewStateAsync(viewState).ConfigureAwait(false);

@@ -266,6 +266,38 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
     }
 
     /// <summary>
+    /// Reads persisted CodeAlta-owned local-runtime history for a recoverable thread without resuming the session.
+    /// </summary>
+    /// <param name="thread">The thread descriptor.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The stored events when available; otherwise <see langword="null" />.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="thread" /> is <see langword="null" />.</exception>
+    public async Task<IReadOnlyList<AgentEvent>?> TryReadStoredHistoryAsync(
+        WorkThreadDescriptor thread,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(thread);
+        if (string.IsNullOrWhiteSpace(thread.BackendSessionId))
+        {
+            return null;
+        }
+
+        try
+        {
+            var store = new FileSystemLocalAgentSessionStore(new LocalAgentRuntimePathLayout(_catalogOptions.GlobalRoot));
+            return await store.ReadEventsAsync(thread.BackendSessionId, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or System.Text.Json.JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Creates a new global thread session and returns its descriptor.
     /// </summary>
     public async Task<WorkThreadDescriptor> CreateGlobalThreadAsync(
@@ -1124,6 +1156,8 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
         {
             Archived = thread.Status == WorkThreadStatus.Archived,
             MessageCount = thread.MessageCount,
+            ParentThreadId = thread.ParentThreadId,
+            CreatedBy = thread.CreatedBy,
         };
 
         viewState.UpdatedAt = DateTimeOffset.UtcNow;

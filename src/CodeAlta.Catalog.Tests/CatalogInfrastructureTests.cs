@@ -443,6 +443,16 @@ public sealed class CatalogInfrastructureTests
                 {
                     Archived = true,
                     MessageCount = 42,
+                    ParentThreadId = "codex:parent",
+                    CreatedBy = new AltaActorProvenance
+                    {
+                        Kind = "agent",
+                        SourceThreadId = "codex:parent",
+                        SourceProjectId = "project-1",
+                        SourceAgentId = "agent:parent",
+                        CorrelationId = "correlation-viewstate",
+                        CreatedAt = new DateTimeOffset(2026, 05, 09, 10, 15, 00, TimeSpan.Zero),
+                    },
                 },
             },
         };
@@ -461,6 +471,15 @@ public sealed class CatalogInfrastructureTests
         Assert.AreEqual(8, reloaded.Navigator.RecentThreadsPerProject);
         Assert.IsTrue(reloaded.ThreadStates["platform-search-review"].Archived);
         Assert.AreEqual(42, reloaded.ThreadStates["platform-search-review"].MessageCount);
+        Assert.AreEqual("codex:parent", reloaded.ThreadStates["platform-search-review"].ParentThreadId);
+        var createdBy = reloaded.ThreadStates["platform-search-review"].CreatedBy;
+        if (createdBy is null)
+        {
+            Assert.Fail("Expected thread provenance to round-trip through view state.");
+        }
+
+        Assert.AreEqual("agent", createdBy.Kind);
+        Assert.AreEqual("correlation-viewstate", createdBy.CorrelationId);
     }
 
     [TestMethod]

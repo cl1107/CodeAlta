@@ -81,6 +81,35 @@ public sealed class CodeAltaAppSidebarTests
     }
 
     [TestMethod]
+    public void Build_NestsSameProjectChildThreadsUnderParent()
+    {
+        var timestamp = DateTimeOffset.Parse("2026-03-29T10:00:00+00:00");
+        var project = CreateProject("project-1", "CodeAlta", @"C:\repo");
+        var parent = CreateThread("thread-parent", "Parent", WorkThreadKind.ProjectThread, project.Id, AgentBackendIds.Codex.Value, project.ProjectPath, timestamp);
+        var child = CreateThread("thread-child", "Child", WorkThreadKind.ProjectThread, project.Id, AgentBackendIds.Codex.Value, project.ProjectPath, timestamp.AddMinutes(1));
+        var crossProjectChild = CreateThread("thread-cross-project", "Cross project", WorkThreadKind.ProjectThread, "project-2", AgentBackendIds.Codex.Value, @"C:\other", timestamp.AddMinutes(2));
+        child.ParentThreadId = parent.ThreadId;
+        crossProjectChild.ParentThreadId = parent.ThreadId;
+
+        var projection = BuildProjection(
+            [project, CreateProject("project-2", "Other", @"C:\other")],
+            [parent, child, crossProjectChild],
+            [project.Id, "project-2"],
+            nowUtc: timestamp.AddMinutes(3));
+
+        var projectNode = projection.Roots[1].Children.Single(node => node.SelectionTarget == SidebarSelectionTarget.Project(project.Id));
+        Assert.AreEqual(1, projectNode.Children.Count);
+        var parentNode = projectNode.Children[0];
+        Assert.AreEqual(SidebarSelectionTarget.Thread(parent.ThreadId), parentNode.SelectionTarget);
+        Assert.IsTrue(parentNode.IsExpanded);
+        Assert.AreEqual(1, parentNode.Children.Count);
+        Assert.AreEqual(SidebarSelectionTarget.Thread(child.ThreadId), parentNode.Children[0].SelectionTarget);
+
+        var otherProjectNode = projection.Roots[1].Children.Single(node => node.SelectionTarget == SidebarSelectionTarget.Project("project-2"));
+        Assert.AreEqual(SidebarSelectionTarget.Thread(crossProjectChild.ThreadId), otherProjectNode.Children[0].SelectionTarget);
+    }
+
+    [TestMethod]
     public void Build_FiltersArchivedProjectsAndThreads()
     {
         var project = CreateProject("project-1", "CodeAlta", @"C:\repo");

@@ -51,8 +51,8 @@ internal static class SidebarTreeProjectionBuilder
         row.UpdateStateIndicator(iconMarkup: null, visibleThreads.Any(thread => getThreadVisualState(thread.ThreadId).IsRunning));
 
         var children = visibleThreads
-            .Take(settings.RecentThreadsPerProject)
-            .Select(thread => CreateThreadNode(thread, getThreadVisualState, getOrCreateRow, nowUtc))
+            .CreateThreadHierarchy(settings.RecentThreadsPerProject)
+            .Select(node => CreateThreadNode(node, getThreadVisualState, getOrCreateRow, nowUtc))
             .ToArray();
 
         return new SidebarTreeNodeProjection(
@@ -117,12 +117,12 @@ internal static class SidebarTreeProjectionBuilder
             .ToArray();
         var row = getOrCreateRow($"project:{project.Id}", SidebarNodeKind.Project, SidebarSelectionTarget.Project(project.Id));
         row.UpdateTitle(project.DisplayName);
-        row.UpdateActivity(projectThreads.FirstOrDefault()?.LastActiveAt, nowUtc);
+        row.UpdateActivity(projectThreads.OrderByDescending(static thread => thread.LastActiveAt).FirstOrDefault()?.LastActiveAt, nowUtc);
         row.UpdateStateIndicator(iconMarkup: null, projectThreads.Any(thread => getThreadVisualState(thread.ThreadId).IsRunning));
 
         var children = projectThreads
-            .Take(settings.RecentThreadsPerProject)
-            .Select(thread => CreateThreadNode(thread, getThreadVisualState, getOrCreateRow, nowUtc))
+            .CreateThreadHierarchy(settings.RecentThreadsPerProject)
+            .Select(node => CreateThreadNode(node, getThreadVisualState, getOrCreateRow, nowUtc))
             .ToArray();
 
         return new SidebarTreeNodeProjection(
@@ -138,11 +138,12 @@ internal static class SidebarTreeProjectionBuilder
     }
 
     private static SidebarTreeNodeProjection CreateThreadNode(
-        WorkThreadDescriptor thread,
+        ThreadHierarchyNode node,
         Func<string, ThreadVisualState> getThreadVisualState,
         Func<string, SidebarNodeKind, SidebarSelectionTarget?, SidebarNodeViewModel> getOrCreateRow,
         DateTimeOffset nowUtc)
     {
+        var thread = node.Thread;
         ArgumentNullException.ThrowIfNull(thread);
         ArgumentNullException.ThrowIfNull(getThreadVisualState);
         ArgumentNullException.ThrowIfNull(getOrCreateRow);
@@ -166,6 +167,10 @@ internal static class SidebarTreeProjectionBuilder
                     : null,
             visualState.IsRunning);
 
+        var childNodes = node.Children
+            .Select(child => CreateThreadNode(child, getThreadVisualState, getOrCreateRow, nowUtc))
+            .ToArray();
+
         return new SidebarTreeNodeProjection(
             row.NodeId,
             SidebarNodeKind.Thread,
@@ -173,10 +178,112 @@ internal static class SidebarTreeProjectionBuilder
             icon,
             SidebarThreadPresentation.ResolveThreadAccent(thread.BackendId, thread.Kind),
             SidebarSelectionTarget.Thread(thread.ThreadId),
-            false,
+            childNodes.Length > 0,
             CreateThreadActions(),
-            []);
+            childNodes);
     }
+
+    private static IReadOnlyList<ThreadHierarchyNode> CreateThreadHierarchy(
+        this IReadOnlyList<WorkThreadDescriptor> threads,
+        int rootLimit)
+    {
+        var byId = threads
+            .Where(static thread => !string.IsNullOrWhiteSpace(thread.ThreadId))
+            .GroupBy(static thread => thread.ThreadId, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(static group => group.Key, static group => group.First(), StringComparer.OrdinalIgnoreCase);
+        var children = threads
+            .Where(thread => IsValidChild(thread, byId))
+            .GroupBy(static thread => thread.ParentThreadId!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                static group => group.Key,
+                group => group
+                    .OrderByDescending(child => GetSubtreeLastActiveAt(child, byId))
+                    .ThenBy(static child => child.Title, StringComparer.OrdinalIgnoreCase)
+                    .ToArray(),
+                StringComparer.OrdinalIgnoreCase);
+
+        return threads
+            .Where(thread => !IsValidChild(thread, byId))
+            .OrderByDescending(thread => GetSubtreeLastActiveAt(thread, byId))
+            .ThenBy(static thread => thread.Title, StringComparer.OrdinalIgnoreCase)
+            .Take(rootLimit)
+            .Select(thread => BuildHierarchyNode(thread, children, new HashSet<string>(StringComparer.OrdinalIgnoreCase)))
+            .ToArray();
+    }
+
+    private static ThreadHierarchyNode BuildHierarchyNode(
+        WorkThreadDescriptor thread,
+        IReadOnlyDictionary<string, WorkThreadDescriptor[]> children,
+        HashSet<string> visiting)
+    {
+        if (!visiting.Add(thread.ThreadId))
+        {
+            return new ThreadHierarchyNode(thread, []);
+        }
+
+        var childNodes = children.TryGetValue(thread.ThreadId, out var directChildren)
+            ? directChildren
+                .Select(child => BuildHierarchyNode(child, children, visiting))
+                .ToArray()
+            : [];
+        visiting.Remove(thread.ThreadId);
+        return new ThreadHierarchyNode(thread, childNodes);
+    }
+
+    private static bool IsValidChild(
+        WorkThreadDescriptor thread,
+        IReadOnlyDictionary<string, WorkThreadDescriptor> byId)
+    {
+        if (string.IsNullOrWhiteSpace(thread.ParentThreadId) ||
+            !byId.TryGetValue(thread.ParentThreadId, out var parent) ||
+            !string.Equals(parent.ProjectRef, thread.ProjectRef, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return !HasLineageCycle(thread, byId);
+    }
+
+    private static bool HasLineageCycle(
+        WorkThreadDescriptor thread,
+        IReadOnlyDictionary<string, WorkThreadDescriptor> byId)
+    {
+        var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { thread.ThreadId };
+        var current = thread.ParentThreadId;
+        while (!string.IsNullOrWhiteSpace(current) && byId.TryGetValue(current, out var parent))
+        {
+            if (!visited.Add(parent.ThreadId))
+            {
+                return true;
+            }
+
+            current = parent.ParentThreadId;
+        }
+
+        return false;
+    }
+
+    private static DateTimeOffset GetSubtreeLastActiveAt(
+        WorkThreadDescriptor thread,
+        IReadOnlyDictionary<string, WorkThreadDescriptor> byId)
+    {
+        var latest = thread.LastActiveAt;
+        foreach (var child in byId.Values.Where(candidate =>
+                     string.Equals(candidate.ParentThreadId, thread.ThreadId, StringComparison.OrdinalIgnoreCase) &&
+                     string.Equals(candidate.ProjectRef, thread.ProjectRef, StringComparison.OrdinalIgnoreCase) &&
+                     !HasLineageCycle(candidate, byId)))
+        {
+            var childLatest = GetSubtreeLastActiveAt(child, byId);
+            if (childLatest > latest)
+            {
+                latest = childLatest;
+            }
+        }
+
+        return latest;
+    }
+
+    private sealed record ThreadHierarchyNode(WorkThreadDescriptor Thread, IReadOnlyList<ThreadHierarchyNode> Children);
 
     private static IReadOnlyList<SidebarRowActionDescriptor> CreateProjectActions()
         =>

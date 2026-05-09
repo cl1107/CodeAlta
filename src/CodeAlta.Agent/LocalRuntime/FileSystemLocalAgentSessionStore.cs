@@ -168,6 +168,22 @@ public sealed class FileSystemLocalAgentSessionStore : ILocalAgentSessionStore
         return projection.History;
     }
 
+    /// <summary>
+    /// Reads canonical session events by local session identifier without applying a provider-scope filter.
+    /// </summary>
+    /// <param name="sessionId">Local session identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The canonical event list when the session exists; otherwise an empty list.</returns>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="sessionId" /> is empty.</exception>
+    public async Task<IReadOnlyList<AgentEvent>> ReadEventsAsync(
+        string sessionId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
+        var projection = await TryProjectSessionAsync(sessionId, includeHistory: true, cancellationToken).ConfigureAwait(false);
+        return projection?.History ?? [];
+    }
+
     /// <inheritdoc />
     public async Task UpsertStateAsync(
         LocalAgentSessionState state,

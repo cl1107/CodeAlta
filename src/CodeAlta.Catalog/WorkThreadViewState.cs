@@ -259,6 +259,18 @@ public sealed class WorkThreadLocalState
     public int? MessageCount { get; set; }
 
     /// <summary>
+    /// Gets or sets the same-scope parent thread identifier used for durable sidebar lineage.
+    /// </summary>
+    [JsonPropertyName("parent_thread_id")]
+    public string? ParentThreadId { get; set; }
+
+    /// <summary>
+    /// Gets or sets durable attribution for the actor that created this thread.
+    /// </summary>
+    [JsonPropertyName("created_by")]
+    public AltaActorProvenance? CreatedBy { get; set; }
+
+    /// <summary>
     /// Validates the thread local state.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when the message count is negative.</exception>
@@ -267,6 +279,11 @@ public sealed class WorkThreadLocalState
         if (MessageCount is < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(MessageCount), MessageCount, "MessageCount cannot be negative.");
+        }
+
+        if (CreatedBy is not null && string.IsNullOrWhiteSpace(CreatedBy.Kind))
+        {
+            throw new ArgumentException("CreatedBy kind is required when thread provenance is present.", nameof(CreatedBy));
         }
     }
 }

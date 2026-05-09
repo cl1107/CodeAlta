@@ -918,14 +918,29 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return PermissionDenied(context, "policy.visibilityDenied", $"The caller is not allowed to inspect session '{threadId}'.");
         }
 
-        IReadOnlyList<AgentEvent> history;
+        IReadOnlyList<AgentEvent>? history;
+        Exception? activeHistoryException = null;
         try
         {
             history = await runtime.GetHistoryAsync(info.Thread.ThreadId, context.CancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is InvalidOperationException or KeyNotFoundException or IOException or UnauthorizedAccessException)
         {
-            AltaJsonlWriter.WriteWarning(context.Stderr, context.CorrelationId, "session.historyUnavailable", ex.Message);
+            activeHistoryException = ex;
+            history = await runtime.TryReadStoredHistoryAsync(info.Thread, context.CancellationToken).ConfigureAwait(false);
+        }
+
+        if (activeHistoryException is not null)
+        {
+            AltaJsonlWriter.WriteWarning(
+                context.Stderr,
+                context.CorrelationId,
+                history is { Count: > 0 } ? "session.activeHistoryUnavailable" : "session.historyUnavailable",
+                activeHistoryException.Message);
+        }
+
+        if (history is null)
+        {
             WriteSummary(context, fromTail ? "alta.session.tail.summary" : "alta.session.events.summary", 0, truncated: false);
             return AltaExitCodes.Success;
         }
@@ -1538,6 +1553,16 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             if (localState?.MessageCount is not null)
             {
                 thread.MessageCount = localState.MessageCount;
+            }
+
+            if (!string.IsNullOrWhiteSpace(localState?.ParentThreadId))
+            {
+                thread.ParentThreadId = localState.ParentThreadId;
+            }
+
+            if (localState?.CreatedBy is not null)
+            {
+                thread.CreatedBy = localState.CreatedBy;
             }
 
             results.Add(new SessionInfo(thread, localState, preference, isRunning, hasActiveSession, ResolveSessionState(thread, isRunning, hasActiveSession)));

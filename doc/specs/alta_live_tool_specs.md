@@ -571,6 +571,8 @@ public sealed record AltaPromptProvenance
 
 Implementation can choose whether these are embedded directly in catalog descriptors/view state or persisted as sidecar metadata, but they must be durable enough to restore sidebar hierarchy and timeline attribution after restart. Backend transcripts are not sufficient because provider history may not preserve CodeAlta-specific provenance.
 
+The current implementation stores `ParentThreadId` and `CreatedBy` on `WorkThreadDescriptor` YAML and mirrors both fields in `WorkThreadLocalState` for recoverable/live thread view-state restoration. Sidebar projections rebuild same-project parent/child trees from those durable fields, tolerate missing/cross-project parents by rendering the affected thread as a project/global root, and keep expanded/collapsed UI state separate from lineage metadata.
+
 ### 7.4 In-process dispatch
 
 The live tool handler should dispatch directly to `AltaCommandRegistry` with an `AltaCommandContext`. It should not spawn a process, open a local socket, write endpoint discovery files, or serialize requests through IPC.
@@ -851,6 +853,8 @@ Rules:
 - collapsed/expanded state belongs to the UI view state, while lineage/provenance belongs to durable thread metadata;
 - cycles or missing parents should be tolerated by rendering the affected session at the project root with a diagnostic/provenance marker.
 
+Implementation note: the sidebar projection currently expands thread nodes that have children and orders root sessions by the most recent activity in their subtree. It does not yet add a visible diagnostic/provenance marker for cycles or missing parents.
+
 ### 10.2 Timeline provenance
 
 Timeline items should visually distinguish at least:
@@ -918,7 +922,7 @@ If a backend cannot store metadata, CodeAlta should render a visible header and 
 - [x] Choose and test the command-graph concurrency strategy: fresh per-invocation trees.
 - [x] Implement catalog-only `project list/show/resolve/upsert` using `ProjectCatalog`.
 - [x] Add tests for parsing, help availability, JSONL output, invalid usage diagnostics, and exit codes.
-- [ ] Add focused tests for plugin/custom `CommandOptionException`/validator failures.
+- [x] Add focused tests for plugin/custom `CommandOptionException`/validator failures.
 
 ### Phase 2: Coordinator instruction bootstrap
 
@@ -933,15 +937,16 @@ If a backend cannot store metadata, CodeAlta should render a visible header and 
 - [x] Register the `AltaCommandRegistry` and built-in command contributors in the CodeAlta composition root.
 - [x] Build/freeze the final command catalog or contributor set after safe-mode/plugin bootstrap so plugin commands are available before sessions receive the live tool.
 - [x] Expose an in-process dispatcher service that session/tool composition, UI code, and tests can call.
-- [ ] Add tests for in-process dispatch, compact flat live-tool transcript formatting, output capture, cancellation, truncation, and missing-service diagnostics.
+- [x] Add tests for in-process dispatch, compact flat live-tool transcript formatting, output capture, cancellation, truncation, and missing-service diagnostics.
 
 ### Phase 4: Session discovery and status
 
 - [ ] Add a narrow query service that merges live runtime snapshots, recoverable threads, local thread metadata, and backend session metadata.
 - [ ] Implement `session list/show/status/children/model` with provider/model/reasoning, `parentThreadId`, and provenance fields when known.
 - [ ] Distinguish `running`, `idle`, `inactive`, and `archived` states.
-- [ ] Add same-project parent/child hierarchy reconstruction for durable session metadata.
-- [ ] Add JSONL record contract tests, same-project filtering tests, and hierarchy reconstruction tests.
+- [x] Add same-project parent/child hierarchy reconstruction for durable session metadata.
+- [ ] Add JSONL record contract tests and same-project filtering tests for session discovery/status commands.
+- [x] Add hierarchy reconstruction tests for durable sidebar/session metadata.
 
 ### Phase 5: Session content inspection
 

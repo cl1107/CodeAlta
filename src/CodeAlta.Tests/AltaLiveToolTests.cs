@@ -123,6 +123,70 @@ public sealed class AltaLiveToolTests
     }
 
     [TestMethod]
+    public async Task Dispatcher_MissingRuntimeService_ReturnsServiceUnavailableDiagnostic()
+    {
+        var result = await CreateDispatcher().InvokeAsync(["session", "list"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+
+        Assert.AreEqual(AltaExitCodes.ServiceUnavailable, result.ExitCode);
+        var lines = ReadJsonLines(result.Stdout);
+        Assert.AreEqual("alta.result", lines[0].GetProperty("type").GetString());
+        Assert.AreEqual(AltaExitCodes.ServiceUnavailable, lines[0].GetProperty("exitCode").GetInt32());
+        Assert.AreEqual("service.unavailable", lines[1].GetProperty("code").GetString());
+    }
+
+    [TestMethod]
+    public async Task Dispatcher_CancelledCommand_ReturnsCancellationDiagnostic()
+    {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync().ConfigureAwait(false);
+        var result = await CreateDispatcher(new CancellingContributor())
+            .InvokeAsync(["wait"], caller: AltaCallerIdentity.Cli, cancellationToken: cts.Token)
+            .ConfigureAwait(false);
+
+        Assert.AreEqual(AltaExitCodes.TimeoutOrCancellation, result.ExitCode);
+        var lines = ReadJsonLines(result.Stdout);
+        Assert.AreEqual(AltaExitCodes.TimeoutOrCancellation, lines[0].GetProperty("exitCode").GetInt32());
+        Assert.AreEqual("runtime.cancelled", lines[1].GetProperty("code").GetString());
+    }
+
+    [TestMethod]
+    public async Task PluginAltaCommandContribution_OptionValidationFailureReturnsUsageDiagnostic()
+    {
+        var catalog = new FakeAltaPluginCatalog(
+            new AltaPluginCommandContribution
+            {
+                Plugin = CreatePluginDescriptor("validator-plugin"),
+                Services = NoopPluginServices.Create(),
+                Scope = PluginScope.Global,
+                Command = new PluginAltaCommandContribution
+                {
+                    Path = "validator",
+                    Policy = new PluginAltaCommandPolicy { RequiresInProcessRuntime = true },
+                    CreateCommandNode = _ =>
+                    {
+                        var command = new Command("validator", "Validate custom plugin options.")
+                        {
+                            new CommandUsage(),
+                            new HelpOption(),
+                        };
+                        command.Add("mode=", "Validation mode.", _ => throw new CommandOptionException("Invalid custom mode.", "mode"));
+                        command.Add((_, _) => new ValueTask<int>(AltaExitCodes.Success));
+                        return command;
+                    },
+                },
+            });
+        var dispatcher = CreateDispatcher(catalog);
+
+        var result = await dispatcher.InvokeAsync(["validator", "--mode", "bad"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+
+        Assert.AreEqual(AltaExitCodes.Usage, result.ExitCode);
+        var lines = ReadJsonLines(result.Stdout);
+        Assert.AreEqual(AltaExitCodes.Usage, lines[0].GetProperty("exitCode").GetInt32());
+        Assert.AreEqual("alta.error", lines[1].GetProperty("type").GetString());
+        StringAssert.Contains(lines[1].GetProperty("message").GetString(), "Invalid custom mode");
+    }
+
+    [TestMethod]
     public async Task PluginAltaCommandContribution_AppearsInHelpAndRunsWithPluginContext()
     {
         var plugin = CreatePluginDescriptor("sample-plugin");
@@ -209,8 +273,11 @@ public sealed class AltaLiveToolTests
         Assert.IsFalse(factoryCalled);
     }
 
-    private static AltaCommandDispatcher CreateDispatcher()
-        => new(new AltaCommandRegistry(), new AltaServiceCollection());
+    private static AltaCommandDispatcher CreateDispatcher(params IAltaCommandContributor[] contributors)
+    {
+        var registry = contributors.Length == 0 ? new AltaCommandRegistry() : new AltaCommandRegistry(contributors);
+        return new AltaCommandDispatcher(registry, new AltaServiceCollection());
+    }
 
     private static AltaCommandDispatcher CreateDispatcher(IAltaPluginCatalog pluginCatalog)
     {
@@ -289,5 +356,24 @@ public sealed class AltaLiveToolTests
 
         public IReadOnlyList<AltaPluginCommandContribution> ListCommandContributions()
             => contributions;
+    }
+
+    private sealed class CancellingContributor : IAltaCommandContributor
+    {
+        public IEnumerable<CommandNode> CreateCommandLineNodes(AltaCommandContributionContext context)
+        {
+            var command = new Command("wait", "Wait until cancelled.");
+            command.Add((_, _) =>
+            {
+                context.Invocation.CancellationToken.ThrowIfCancellationRequested();
+                return new ValueTask<int>(AltaExitCodes.Success);
+            });
+            yield return command;
+        }
+
+        public IEnumerable<AltaCommandPolicy> GetCommandPolicies(AltaCommandContributionContext context)
+        {
+            yield return new AltaCommandPolicy { Path = "wait", RequiresInProcessRuntime = true };
+        }
     }
 }
