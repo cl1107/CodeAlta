@@ -354,6 +354,49 @@ public sealed class CodeAltaAppTabStripTests
     }
 
     [TestMethod]
+    public void ThreadTabSelection_AttachesPromptPanelImmediatelyAfterFileEditorTab()
+    {
+        using var temp = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = temp.Path };
+        var dispatcher = new InlineUiDispatcher();
+        ThreadTabStripCoordinator? coordinator = null;
+        var workspaceView = CreateThreadWorkspaceView(index => coordinator?.OnSelectionChanged(index));
+        var tabs = new InMemoryShellTabService();
+        var threadState = TestThreadStateServices.CreateCoordinator(
+            new ProjectCatalog(options),
+            new WorkThreadCatalog(options),
+            dispatcher,
+            new ShellStateStore(dispatcher));
+        var project = CreateProject("project-1", "CodeAlta");
+        threadState.ApplyRecoveredCatalogState([project], [CreateThread("thread-1", project.Id)]);
+        threadState.OpenThread("thread-1");
+        coordinator = CreateCoordinator(tabs, threadState, workspaceView, dispatcher);
+        coordinator.SyncControl();
+
+        var fileTabId = "file:C:/code/CodeAlta/readme.md";
+        tabs.OpenOrGetTab(CreateDescriptor(fileTabId, ShellTabKind.Editor));
+        tabs.SelectTabAsync(new ShellTabId(fileTabId)).GetAwaiter().GetResult();
+        coordinator.SyncControl();
+
+        Assert.IsTrue(workspaceView.TryGetTabPage("thread-1", out var threadPage));
+        var threadContent = Assert.IsInstanceOfType<VSplitter>(threadPage.Content);
+        Assert.IsNull(threadContent.Second, "The thread prompt panel should be detached while the file editor tab is active.");
+        var threadIndex = Array.FindIndex(
+            workspaceView.ThreadTabControl.Tabs.Select(GetTabPageId).ToArray(),
+            static tabId => string.Equals(tabId, "thread-1", StringComparison.Ordinal));
+        Assert.AreNotEqual(-1, threadIndex);
+
+        workspaceView.ThreadTabControl.SelectedIndex = threadIndex;
+
+        Assert.AreSame(
+            workspaceView.ThreadBottomPanel,
+            threadContent.Second,
+            "Selecting the already-open thread tab should restore the prompt panel on the first switch.");
+        Assert.IsTrue(tabs.TryGetTab(new ShellTabId("thread-1"), out var selectedThreadTab));
+        Assert.IsTrue(selectedThreadTab.IsSelected);
+    }
+
+    [TestMethod]
     public void GetAdjacentTabIndex_WrapsLeftFromFirstTab()
     {
         Assert.AreEqual(2, ThreadTabStripCoordinator.GetAdjacentTabIndex(selectedIndex: 0, tabCount: 3, delta: -1));
@@ -465,7 +508,7 @@ public sealed class CodeAltaAppTabStripTests
         return new ThreadTabStripCoordinator(selection, context, tabs);
     }
 
-    private static ThreadWorkspaceView CreateThreadWorkspaceView()
+    private static ThreadWorkspaceView CreateThreadWorkspaceView(Action<int>? selectTab = null)
         => new(
             new CodeAltaShellViewModel(),
             new ThreadWorkspaceViewModel(),
@@ -482,7 +525,7 @@ public sealed class CodeAltaAppTabStripTests
                 static (_, _) => { },
                 static (onAccepted, placeholder) => ThreadWorkspaceView.CreateStyledPromptEditor(onAccepted, null, null, placeholder)),
             ModelProviderSelectorController.Create(static _ => { }, static _ => { }, static _ => { }, static () => { }),
-            ThreadTabHostController.Create(static _ => { }),
+            ThreadTabHostController.Create(selectTab ?? (static _ => { })),
             NullProjectFileSearchService.Instance,
             static () => null,
             new State<string?>(string.Empty),

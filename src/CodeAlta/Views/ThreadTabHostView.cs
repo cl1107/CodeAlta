@@ -19,8 +19,7 @@ internal sealed class ThreadTabHostView
 
         _threadBottomPanel = threadBottomPanel;
         ThreadTabControl = new TabControl();
-        ThreadTabControl.KeyDown((_, _) => ThreadTabControl.Dispatcher.Post(() => controller.SelectTab(ThreadTabControl.SelectedIndex)));
-        ThreadTabControl.PointerReleased((_, _) => ThreadTabControl.Dispatcher.Post(() => controller.SelectTab(ThreadTabControl.SelectedIndex)));
+        ThreadTabControl.SelectionChanged((_, e) => controller.SelectTab(e.NewIndex));
 
         var threadPaneLayout = new Grid
             {
