@@ -24,6 +24,7 @@ public sealed class NoopPluginServices : IPluginServices
         Prompts = new NoopPluginPromptService();
         Agents = new NoopPluginAgentService();
         Tasks = new NoopPluginTaskService();
+        Alta = new NoopPluginAltaService();
     }
 
     /// <inheritdoc />
@@ -50,6 +51,9 @@ public sealed class NoopPluginServices : IPluginServices
     /// <inheritdoc />
     public IPluginTaskService Tasks { get; }
 
+    /// <inheritdoc />
+    public IPluginAltaService Alta { get; }
+
     /// <summary>
     /// Creates no-op services with a default logger.
     /// </summary>
@@ -57,6 +61,30 @@ public sealed class NoopPluginServices : IPluginServices
     public static NoopPluginServices Create()
     {
         return new NoopPluginServices(LogManager.GetLogger("CodeAlta.Plugin.Noop"));
+    }
+}
+
+/// <summary>
+/// No-op implementation of <see cref="IPluginAltaService"/>.
+/// </summary>
+public sealed class NoopPluginAltaService : IPluginAltaService
+{
+    /// <inheritdoc />
+    public ValueTask<PluginAltaCommandResult> InvokeAsync(
+        IReadOnlyList<string> args,
+        string? stdin = null,
+        PluginAltaInvocationOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(args);
+        cancellationToken.ThrowIfCancellationRequested();
+        var correlationId = Guid.CreateVersion7().ToString("N");
+        return new ValueTask<PluginAltaCommandResult>(new PluginAltaCommandResult
+        {
+            ExitCode = 5,
+            TranscriptJsonl = $"{{\"type\":\"alta.result\",\"version\":1,\"exitCode\":5,\"correlationId\":\"{correlationId}\",\"truncated\":false,\"recordCount\":0,\"diagnosticCount\":1}}\n{{\"type\":\"alta.error\",\"version\":1,\"correlationId\":\"{correlationId}\",\"code\":\"service.unavailable\",\"exitCode\":5,\"message\":\"The alta plugin service is not available in this host context.\"}}\n",
+            Error = "The alta plugin service is not available in this host context.",
+        });
     }
 }
 

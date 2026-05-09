@@ -50,6 +50,12 @@ public sealed class WorkThreadDescriptor
     public string? ParentThreadId { get; set; }
 
     /// <summary>
+    /// Gets or sets durable attribution for the actor that created this thread.
+    /// </summary>
+    [JsonPropertyName("created_by")]
+    public AltaActorProvenance? CreatedBy { get; set; }
+
+    /// <summary>
     /// Gets or sets the session working directory.
     /// </summary>
     [JsonPropertyName("working_directory")]

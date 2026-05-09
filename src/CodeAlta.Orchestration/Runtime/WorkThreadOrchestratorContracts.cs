@@ -296,6 +296,9 @@ public sealed record WorkThreadDescriptorSnapshot
     /// <summary>Gets the legacy parent thread identifier for internal thread metadata.</summary>
     public string? ParentThreadId { get; init; }
 
+    /// <summary>Gets durable attribution for the actor that created this thread.</summary>
+    public AltaActorProvenance? CreatedBy { get; init; }
+
     /// <summary>Gets the session working directory.</summary>
     public required string WorkingDirectory { get; init; }
 
@@ -348,6 +351,7 @@ public sealed record WorkThreadDescriptorSnapshot
             BackendSessionId = descriptor.BackendSessionId,
             ProjectRef = descriptor.ProjectRef,
             ParentThreadId = descriptor.ParentThreadId,
+            CreatedBy = descriptor.CreatedBy,
             WorkingDirectory = descriptor.WorkingDirectory,
             Title = descriptor.Title,
             Status = descriptor.Status,

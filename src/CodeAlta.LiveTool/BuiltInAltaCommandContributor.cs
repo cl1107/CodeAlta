@@ -71,6 +71,23 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         return Policies;
     }
 
+    private static IReadOnlyList<AltaCommandPolicy> GetEffectivePolicies(AltaCommandContext context)
+    {
+        if (context.Services.Get<AltaCommandRegistry>() is { } registry)
+        {
+            return registry.GetPolicies(context);
+        }
+
+        if (context.Services.Get<IAltaPluginCatalog>() is { } catalog)
+        {
+            return Policies.Concat(catalog.ListCommandPolicies())
+                .OrderBy(static policy => policy.Path, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+
+        return Policies;
+    }
+
     private static AltaCommandPolicy Read(string path, bool requiresRuntime = true, bool supportsCatalogOnlyContext = false)
         => new()
         {
@@ -459,12 +476,13 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         var command = Leaf("list", "List built-in alta command policy entries.");
         command.Add((_, _) =>
         {
-            foreach (var policy in Policies.OrderBy(static policy => policy.Path, StringComparer.OrdinalIgnoreCase))
+            var policies = GetEffectivePolicies(context);
+            foreach (var policy in policies.OrderBy(static policy => policy.Path, StringComparer.OrdinalIgnoreCase))
             {
                 WritePolicy(context, "alta.tool.item", policy);
             }
 
-            WriteSummary(context, "alta.tool.summary", Policies.Length, truncated: false);
+            WriteSummary(context, "alta.tool.summary", policies.Count, truncated: false);
             return ValueTask.FromResult(AltaExitCodes.Success);
         });
         return command;
@@ -475,12 +493,13 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         var command = Leaf("list", "List command capability classifications.");
         command.Add((_, _) =>
         {
-            foreach (var policy in Policies.OrderBy(static policy => policy.Path, StringComparer.OrdinalIgnoreCase))
+            var policies = GetEffectivePolicies(context);
+            foreach (var policy in policies.OrderBy(static policy => policy.Path, StringComparer.OrdinalIgnoreCase))
             {
                 WritePolicy(context, "alta.tool.capability", policy);
             }
 
-            WriteSummary(context, "alta.tool.capability.summary", Policies.Length, truncated: false);
+            WriteSummary(context, "alta.tool.capability.summary", policies.Count, truncated: false);
             return ValueTask.FromResult(AltaExitCodes.Success);
         });
         return command;
@@ -746,6 +765,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         var includeArchived = string.Equals(stateFilter, "archived", StringComparison.OrdinalIgnoreCase) ||
                               string.Equals(stateFilter, "all", StringComparison.OrdinalIgnoreCase);
         var filtered = infos
+            .Where(info => CanAccessThread(context, info.Thread))
             .Where(info => project is null || string.Equals(info.Thread.ProjectRef, project.Id, StringComparison.OrdinalIgnoreCase))
             .Where(info => string.IsNullOrWhiteSpace(backendFilter) || string.Equals(info.Thread.BackendId, backendFilter, StringComparison.OrdinalIgnoreCase))
             .Where(info => includeArchived || !string.Equals(info.State, "archived", StringComparison.OrdinalIgnoreCase))
@@ -785,6 +805,11 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return NotFound(context, "session.notFound", $"Session '{threadId}' was not found.");
         }
 
+        if (!CanAccessThread(context, info.Thread))
+        {
+            return PermissionDenied(context, "policy.visibilityDenied", $"The caller is not allowed to inspect session '{threadId}'.");
+        }
+
         WriteSession(context, recordType, info, includeChildren: true, infos);
         return AltaExitCodes.Success;
     }
@@ -808,7 +833,14 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return NotFound(context, "session.notFound", $"Session '{threadId}' was not found.");
         }
 
-        var children = GetChildren(infos, parent.Thread.ThreadId, recursive).ToArray();
+        if (!CanAccessThread(context, parent.Thread))
+        {
+            return PermissionDenied(context, "policy.visibilityDenied", $"The caller is not allowed to inspect session '{threadId}'.");
+        }
+
+        var children = GetChildren(infos, parent.Thread.ThreadId, recursive)
+            .Where(child => CanAccessThread(context, child.Thread))
+            .ToArray();
         foreach (var child in children)
         {
             WriteSession(context, "alta.session.item", child, includeChildren: false, infos);
@@ -835,6 +867,11 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         if (info is null)
         {
             return NotFound(context, "session.notFound", $"Session '{threadId}' was not found.");
+        }
+
+        if (!CanAccessThread(context, info.Thread))
+        {
+            return PermissionDenied(context, "policy.visibilityDenied", $"The caller is not allowed to inspect session '{threadId}'.");
         }
 
         WriteModelSelection(context, "alta.model.selection", CreateModelSelection(info.Thread, info.Preference), info.Thread.ThreadId);
@@ -874,6 +911,11 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         if (info is null)
         {
             return NotFound(context, "session.notFound", $"Session '{threadId}' was not found.");
+        }
+
+        if (!CanAccessThread(context, info.Thread))
+        {
+            return PermissionDenied(context, "policy.visibilityDenied", $"The caller is not allowed to inspect session '{threadId}'.");
         }
 
         IReadOnlyList<AgentEvent> history;
@@ -942,6 +984,11 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             {
                 return NotFound(context, "project.notFound", $"Project '{options.Project}' was not found.");
             }
+
+            if (!CanAccessProject(context, project.Id))
+            {
+                return PermissionDenied(context, "policy.visibilityDenied", $"The caller is not allowed to create sessions in project '{project.Id}'.");
+            }
         }
 
         var modelSelection = await ResolveModelSelectionAsync(context, options.Model).ConfigureAwait(false);
@@ -972,6 +1019,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
         createdThreadId = thread.ThreadId;
         thread.ParentThreadId = ResolveParentThreadId(context, thread, project, options);
+        thread.CreatedBy = CreateProvenance(context);
         await runtime.PersistThreadLocalStateAsync(thread, context.CancellationToken).ConfigureAwait(false);
 
         AltaJsonlWriter.WriteRecord(context.Stdout, new
@@ -986,7 +1034,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             projectId = thread.ProjectRef,
             title = thread.Title,
             parentThreadId = thread.ParentThreadId,
-            createdBy = CreateProvenance(context),
+            createdBy = thread.CreatedBy,
             modelSelection = ToModelSelectionPayload(modelSelection.Selection!),
         });
         return AltaExitCodes.Success;
@@ -1024,6 +1072,11 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         if (info is null)
         {
             return NotFound(context, "session.notFound", $"Session '{threadId}' was not found.");
+        }
+
+        if (!CanAccessThread(context, info.Thread))
+        {
+            return PermissionDenied(context, "policy.visibilityDenied", $"The caller is not allowed to mutate session '{threadId}'.");
         }
 
         if (kind == PromptDispatchKind.Queue)
@@ -1081,6 +1134,23 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return AltaExitCodes.ServiceUnavailable;
         }
 
+        var infos = await LoadSessionInfosAsync(context).ConfigureAwait(false);
+        if (infos is null)
+        {
+            return AltaExitCodes.ServiceUnavailable;
+        }
+
+        var info = FindThread(infos, threadId);
+        if (info is null)
+        {
+            return NotFound(context, "session.notFound", $"Session '{threadId}' was not found.");
+        }
+
+        if (!CanAccessThread(context, info.Thread))
+        {
+            return PermissionDenied(context, "policy.visibilityDenied", $"The caller is not allowed to abort session '{threadId}'.");
+        }
+
         try
         {
             await runtime.AbortAsync(threadId, context.CancellationToken).ConfigureAwait(false);
@@ -1131,6 +1201,11 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return NotFound(context, "session.notFound", $"Session '{threadId}' was not found.");
         }
 
+        if (!CanAccessThread(context, info.Thread))
+        {
+            return PermissionDenied(context, "policy.visibilityDenied", $"The caller is not allowed to compact session '{threadId}'.");
+        }
+
         var executionOptions = await BuildExecutionOptionsForThreadAsync(context, info).ConfigureAwait(false);
         await runtime.CompactAsync(info.Thread, executionOptions, context.CancellationToken).ConfigureAwait(false);
         AltaJsonlWriter.WriteRecord(context.Stdout, new
@@ -1139,6 +1214,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             version = 1,
             correlationId = context.CorrelationId,
             threadId = info.Thread.ThreadId,
+            compactedBy = CreateProvenance(context),
         });
         return AltaExitCodes.Success;
     }
@@ -1223,6 +1299,11 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return NotFound(context, "session.notFound", $"Session '{threadId}' was not found.");
         }
 
+        if (!CanAccessThread(context, info.Thread))
+        {
+            return PermissionDenied(context, "policy.visibilityDenied", $"The caller is not allowed to activate skills in session '{threadId}'.");
+        }
+
         var executionOptions = await BuildExecutionOptionsForThreadAsync(context, info).ConfigureAwait(false);
         try
         {
@@ -1235,6 +1316,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
                 skillName,
                 threadId = info.Thread.ThreadId,
                 runId = runId.Value,
+                activatedBy = CreateProvenance(context),
             });
             return AltaExitCodes.Success;
         }
@@ -1844,6 +1926,35 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             : null;
     }
 
+    private static bool CanAccessThread(AltaCommandContext context, WorkThreadDescriptor thread)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(thread);
+        if (!string.IsNullOrWhiteSpace(context.Caller.SourceThreadId) &&
+            string.Equals(context.Caller.SourceThreadId, thread.ThreadId, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return CanAccessProject(context, thread.ProjectRef);
+    }
+
+    private static bool CanAccessProject(AltaCommandContext context, string? projectId)
+    {
+        if (!CallerHasProjectScope(context))
+        {
+            return true;
+        }
+
+        return !string.IsNullOrWhiteSpace(projectId) &&
+               string.Equals(context.Caller.SourceProjectId, projectId, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool CallerHasProjectScope(AltaCommandContext context)
+        => (string.Equals(context.Caller.Kind, "agent", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(context.Caller.Kind, "plugin", StringComparison.OrdinalIgnoreCase)) &&
+           !string.IsNullOrWhiteSpace(context.Caller.SourceProjectId);
+
     private static string GetGlobalRootOrCwd(AltaCommandContext context)
         => context.Services.Get<CatalogOptions>()?.GlobalRoot ?? context.Cwd ?? Environment.CurrentDirectory;
 
@@ -1883,6 +1994,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             projectId = info.Thread.ProjectRef,
             projectRef = info.Thread.ProjectRef,
             parentThreadId = info.Thread.ParentThreadId,
+            createdBy = info.Thread.CreatedBy,
             title = info.Thread.Title,
             state = info.State,
             status = ThreadStatusWire(info.Thread.Status),
@@ -2137,23 +2249,29 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         return AltaExitCodes.NotFound;
     }
 
+    private static int PermissionDenied(AltaCommandContext context, string code, string message)
+    {
+        AltaJsonlWriter.WriteError(context.Stderr, context.CorrelationId, code, AltaExitCodes.PolicyDenied, message);
+        return AltaExitCodes.PolicyDenied;
+    }
+
     private static int Unsupported(AltaCommandContext context, string code, string message)
     {
         AltaJsonlWriter.WriteError(context.Stderr, context.CorrelationId, code, AltaExitCodes.Unsupported, message);
         return AltaExitCodes.Unsupported;
     }
 
-    private static object CreateProvenance(AltaCommandContext context)
-        => new
+    private static AltaActorProvenance CreateProvenance(AltaCommandContext context)
+        => new()
         {
-            context.Caller.Kind,
-            context.Caller.SourceThreadId,
-            context.Caller.SourceBackendSessionId,
-            context.Caller.SourceProjectId,
-            context.Caller.SourceAgentId,
-            context.Caller.PluginRuntimeKey,
-            context.CorrelationId,
-            createdAt = DateTimeOffset.UtcNow,
+            Kind = context.Caller.Kind,
+            SourceThreadId = context.Caller.SourceThreadId,
+            SourceBackendSessionId = context.Caller.SourceBackendSessionId,
+            SourceProjectId = context.Caller.SourceProjectId,
+            SourceAgentId = context.Caller.SourceAgentId,
+            PluginRuntimeKey = context.Caller.PluginRuntimeKey,
+            CorrelationId = context.CorrelationId,
+            CreatedAt = DateTimeOffset.UtcNow,
         };
 
     private static string? FirstNonEmpty(params string?[] values)

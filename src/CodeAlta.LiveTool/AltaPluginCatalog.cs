@@ -1,3 +1,5 @@
+using CodeAlta.Plugins.Abstractions;
+
 namespace CodeAlta.LiveTool;
 
 /// <summary>
@@ -13,6 +15,33 @@ public interface IAltaPluginCatalog
 
     /// <summary>Lists plugin-contributed command policies.</summary>
     IReadOnlyList<AltaCommandPolicy> ListCommandPolicies();
+
+    /// <summary>Lists plugin-contributed alta commands.</summary>
+    IReadOnlyList<AltaPluginCommandContribution> ListCommandContributions();
+}
+
+/// <summary>
+/// Describes a runtime-owned plugin alta command contribution.
+/// </summary>
+public sealed record AltaPluginCommandContribution
+{
+    /// <summary>Gets the plugin descriptor that owns the command.</summary>
+    public required PluginDescriptor Plugin { get; init; }
+
+    /// <summary>Gets the command contribution.</summary>
+    public required PluginAltaCommandContribution Command { get; init; }
+
+    /// <summary>Gets the host services visible to the owning plugin.</summary>
+    public required IPluginServices Services { get; init; }
+
+    /// <summary>Gets the runtime-assigned plugin scope.</summary>
+    public PluginScope Scope { get; init; }
+
+    /// <summary>Gets the scoped project identifier for project plugins, when known.</summary>
+    public string? ScopeProjectId { get; init; }
+
+    /// <summary>Gets the scoped project path for project plugins, when known.</summary>
+    public string? ScopeProjectPath { get; init; }
 }
 
 /// <summary>

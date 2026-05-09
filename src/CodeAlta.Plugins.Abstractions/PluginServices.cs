@@ -32,6 +32,9 @@ public interface IPluginServices
 
     /// <summary>Gets plugin-lifetime task services.</summary>
     IPluginTaskService Tasks { get; }
+
+    /// <summary>Gets in-process <c>alta</c> command services.</summary>
+    IPluginAltaService Alta { get; }
 }
 
 /// <summary>

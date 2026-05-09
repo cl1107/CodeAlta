@@ -4,11 +4,13 @@ using System.Text;
 using System.Text.Json;
 using CodeAlta.Agent;
 using CodeAlta.Plugins.Abstractions;
+using XenoAtom.CommandLine;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Controls;
 using XenoAtom.Terminal.UI.Extensions.Markdown;
 using XenoAtom.Terminal.UI.Geometry;
 using XenoAtom.Terminal.UI.Styling;
+using Command = XenoAtom.CommandLine.Command;
 
 namespace CodeAlta.Plugin.Statistics;
 
@@ -30,6 +32,62 @@ public sealed class StatisticsPlugin : PluginBase
             Name = ProjectionName,
             ProjectAsync = ProjectAsync,
         };
+    }
+
+    /// <inheritdoc />
+    public override IEnumerable<PluginAltaCommandContribution> GetAltaCommands()
+    {
+        yield return new PluginAltaCommandContribution
+        {
+            Path = "statistics estimate",
+            Description = "Estimate text bytes and tokens using CodeAlta's current statistics approximation.",
+            Policy = new PluginAltaCommandPolicy
+            {
+                RequiresInProcessRuntime = false,
+                SupportsCatalogOnlyContext = true,
+            },
+            CreateCommandNode = CreateAltaStatisticsCommand,
+        };
+    }
+
+    private static Command CreateAltaStatisticsCommand(PluginAltaCommandContext context)
+    {
+        var command = new Command("statistics", "Statistics plugin commands.")
+        {
+            new CommandUsage(),
+            new HelpOption(),
+        };
+        command.Add(CreateEstimateCommand(context));
+        return command;
+    }
+
+    private static Command CreateEstimateCommand(PluginAltaCommandContext context)
+    {
+        string? text = null;
+        var command = new Command("estimate", "Estimate UTF-8 bytes and approximate tokens for text.")
+        {
+            new CommandUsage(),
+            new HelpOption(),
+        };
+        command.Add("<text>", "Text to estimate.", value => text = value);
+        command.Add((_, _) =>
+        {
+            var value = text ?? string.Empty;
+            var bytes = ByteCount(value);
+            WriteAltaRecord(context.Stdout, new
+            {
+                type = "alta.statistics.estimate",
+                version = 1,
+                correlationId = context.CorrelationId,
+                pluginRuntimeKey = context.Plugin.RuntimeKey,
+                bytes,
+                formattedBytes = FormatBytes(bytes),
+                estimatedTokens = EstimateTokensFromCharacters(value.Length),
+                characterCount = value.Length,
+            });
+            return new ValueTask<int>(0);
+        });
+        return command;
     }
 
     private static ValueTask<IReadOnlyList<PluginDerivedThreadEvent>> ProjectAsync(
@@ -148,6 +206,12 @@ public sealed class StatisticsPlugin : PluginBase
                     span[index] = char.IsLetterOrDigit(ch) || ch is '-' or '_' or '.' ? ch : '_';
                 }
             });
+
+    private static void WriteAltaRecord(TextWriter writer, object record)
+    {
+        writer.Write(JsonSerializer.Serialize(record, JsonSerializerOptions.Web));
+        writer.WriteLine();
+    }
 
     private static long ByteCount(string? text)
         => string.IsNullOrEmpty(text) ? 0 : Encoding.UTF8.GetByteCount(text);

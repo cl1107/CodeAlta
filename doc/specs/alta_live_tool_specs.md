@@ -526,7 +526,7 @@ public interface IAltaCommandContributor
 
 The command registry should generate a `CommandApp` tree for in-process live-tool argument parsing and any future in-process UI/diagnostic command surfaces. Help is not a separate metadata service: every root command, command group, and leaf command that accepts options should include `HelpOption` so `XenoAtom.CommandLine` can render `alta --help`, `alta session --help`, `alta session tail --help`, and plugin command help automatically.
 
-The `alta` executable dispatches recognized live-tool root commands directly to `AltaCommandRegistry` before starting the terminal UI. Root help is rendered through the live registry and appends the process-level TUI/plugin bootstrap options; command-group and leaf help are rendered by the same registry. Catalog-only `project` commands use `CatalogOptions`/`ProjectCatalog` services without creating a headless runtime, while runtime-backed commands compose a headless `CodeAltaHost` with the real catalog, orchestration, plugin, provider, model, and skill services.
+The `alta` executable dispatches recognized live-tool root commands directly to `AltaCommandRegistry` before starting the terminal UI. Root help is rendered through the live registry and appends the process-level TUI/plugin bootstrap options; command-group and leaf help are rendered by the same registry. Catalog-only `project` commands use `CatalogOptions`/`ProjectCatalog` services without creating a headless runtime, while runtime-backed commands compose a headless `CodeAltaHost` with the real catalog, orchestration, plugin, provider, model, and skill services. Unknown non-option roots are treated as potential plugin command roots and therefore compose the headless runtime before parsing, allowing external invocations such as `alta statistics estimate ...` to discover trusted built-in/plugin commands.
 
 `XenoAtom.CommandLine` command graphs are intended for one invocation at a time: parsing mutates per-run option state, and concurrent `RunAsync`/`Parse` calls on the same command tree are not supported. The `alta` registry must therefore either create a fresh command tree with fresh, unattached `CommandNode` instances for each concurrent invocation, or serialize invocations through a single built tree. Prefer fresh per-invocation trees if multiple agents/plugins may call `alta` concurrently; if v1 starts with serialized dispatch, document the serialization and keep handlers non-blocking so the critical section stays short.
 
@@ -642,8 +642,11 @@ public sealed record PluginAltaInvocationOptions
     public string? SourceThreadId { get; init; }
     public string? SourceBackendSessionId { get; init; }
     public string? SourceProjectId { get; init; }
+    public string? SourceAgentId { get; init; }
+    public string? WorkingDirectory { get; init; }
     public int? MaxOutputRecords { get; init; }
     public int? MaxOutputBytes { get; init; }
+    public TimeSpan? Timeout { get; init; }
 }
 ```
 
@@ -653,6 +656,7 @@ The service should:
 
 - dispatch through `AltaCommandRegistry` with `AltaCallerIdentity.Kind = "plugin"`;
 - set `PluginRuntimeKey` from the calling plugin context, not from plugin-supplied text;
+- for project-scoped plugins, derive the effective source project id from the runtime-owned plugin scope before invoking `alta`;
 - return the same flat JSONL transcript and exit-code metadata used by the agent live tool, without escaped nested stdout/stderr JSONL;
 - apply the same safety policy, mutating/disruptive checks, output truncation, and non-blocking rules as agent calls;
 - record plugin provenance for created sessions, prompts, queued prompts, steering prompts, and inter-agent messages;
@@ -681,13 +685,32 @@ public virtual IEnumerable<PluginAltaCommandContribution> GetAltaCommands() => [
 
 public sealed record PluginAltaCommandContribution
 {
-    public required Func<AltaCommandContributionContext, CommandNode> CreateCommandNode { get; init; }
-    public required AltaCommandPolicy Policy { get; init; }
-    public required PluginAltaCommandHandler Handler { get; init; }
+    public required string Path { get; init; }
+    public string? Description { get; init; }
+    public PluginAltaCommandPolicy Policy { get; init; } = new();
+    public required PluginAltaCommandNodeFactory CreateCommandNode { get; init; }
+    public int Order { get; init; }
+}
+
+public delegate CommandNode PluginAltaCommandNodeFactory(PluginAltaCommandContext context);
+
+public sealed record PluginAltaCommandContext
+{
+    public required PluginDescriptor Plugin { get; init; }
+    public required IPluginServices Services { get; init; }
+    public PluginScope Scope { get; init; }
+    public string? ScopeProjectId { get; init; }
+    public string? ScopeProjectPath { get; init; }
+    public required string CorrelationId { get; init; }
+    public string? WorkingDirectory { get; init; }
+    public required TextReader Stdin { get; init; }
+    public required TextWriter Stdout { get; init; }
+    public required TextWriter Stderr { get; init; }
+    public CancellationToken CancellationToken { get; init; }
 }
 ```
 
-The runtime should reject or namespace plugin commands that collide with core command paths unless explicitly declared as aliases.
+The implemented v1 runtime rejects plugin command contributions whose top-level command name collides with a core command root (`project`, `session`, `skill`, `model`, `provider`, `plugin`, `tool`, `version`, or compatibility aliases) or with an earlier plugin root. Plugins that need multiple subcommands under one root should contribute one fresh root `Command` node containing those subcommands.
 
 Plugin commands must declare whether they are read-only, mutating, disruptive, require the in-process runtime, or can run with catalog-only services. These flags are enforced by the host and may be summarized by `alta tool capability list`; normal command discovery remains `--help`.
 
@@ -880,11 +903,11 @@ If a backend cannot store metadata, CodeAlta should render a visible header and 
 
 ### Phase 0: Finalize narrow contracts
 
-- [ ] Confirm command names, flat JSONL transcript/result-header contracts, parse/usage error diagnostics, and exit codes.
-- [ ] Decide whether `skill` or `skills` is canonical; keep compatibility aliases as needed.
-- [ ] Define policy defaults for cross-session inspection and mutation.
-- [ ] Add the `alta` spec to agent/global instructions after commands exist.
-- [ ] Define the shipped compact coordinator `AGENTS.md` template, managed markers, version/checksum metadata, and migration behavior.
+- [x] Confirm command names, flat JSONL transcript/result-header contracts, parse/usage error diagnostics, and exit codes.
+- [x] Decide whether `skill` or `skills` is canonical; keep compatibility aliases as needed.
+- [x] Define policy defaults for cross-session inspection and mutation.
+- [x] Add the `alta` spec to agent/global instructions after commands exist.
+- [x] Define the shipped compact coordinator `AGENTS.md` template, managed markers, version/checksum metadata, and migration behavior.
 
 ### Phase 1: Shared command registry and catalog-only commands
 
@@ -894,7 +917,8 @@ If a backend cannot store metadata, CodeAlta should render a visible header and 
 - [x] Implement `version` and ensure `--help` works at the root, command-group, and leaf-command levels.
 - [x] Choose and test the command-graph concurrency strategy: fresh per-invocation trees.
 - [x] Implement catalog-only `project list/show/resolve/upsert` using `ProjectCatalog`.
-- [ ] Add tests for parsing, help availability, JSONL output, invalid usage diagnostics, `CommandOptionException`/validator failures, and exit codes.
+- [x] Add tests for parsing, help availability, JSONL output, invalid usage diagnostics, and exit codes.
+- [ ] Add focused tests for plugin/custom `CommandOptionException`/validator failures.
 
 ### Phase 2: Coordinator instruction bootstrap
 
@@ -907,7 +931,7 @@ If a backend cannot store metadata, CodeAlta should render a visible header and 
 ### Phase 3: In-process live tool wiring
 
 - [x] Register the `AltaCommandRegistry` and built-in command contributors in the CodeAlta composition root.
-- [ ] Build/freeze the final command catalog or contributor set after safe-mode/plugin bootstrap so plugin commands are available before sessions receive the live tool.
+- [x] Build/freeze the final command catalog or contributor set after safe-mode/plugin bootstrap so plugin commands are available before sessions receive the live tool.
 - [x] Expose an in-process dispatcher service that session/tool composition, UI code, and tests can call.
 - [ ] Add tests for in-process dispatch, compact flat live-tool transcript formatting, output capture, cancellation, truncation, and missing-service diagnostics.
 
@@ -931,7 +955,9 @@ If a backend cannot store metadata, CodeAlta should render a visible header and 
 
 - [x] Implement provider/model/reasoning discovery and model-ref resolution (`provider model list`, `model list`, `model show`, `model resolve`).
 - [ ] Implement `session create`, `send`, `steer`, `queue`, `abort`, `compact`, and non-blocking `join` through `IWorkThreadOrchestrator` where possible.
-- [ ] Add caller attribution, plugin provenance, prompt provenance, and same-project parent-thread assignment to mutating commands.
+- [x] Add durable caller/plugin attribution and same-project parent-thread assignment for `session create`.
+- [x] Add JSONL caller/plugin attribution for prompt submission, steering, abort, compact, and inter-agent message command results.
+- [ ] Persist prompt/queue/steering provenance durably enough for restart-time timeline reconstruction.
 - [x] Handle unsupported backend capabilities with exit code 7 and clear messages.
 - [ ] Add regression tests for model-ref parsing, caller-session model inheritance, `--same-model-as` with reasoning override, child-session provenance, agent/plugin-created prompt provenance, plugin-created session provenance, busy-session queueing, and steering unsupported cases.
 
@@ -952,11 +978,12 @@ If a backend cannot store metadata, CodeAlta should render a visible header and 
 
 ### Phase 9: Plugin extension support
 
-- [ ] Add plugin `alta` command contribution abstractions with stable DTOs in `CodeAlta.Plugins.Abstractions` and fresh command-node factories/descriptors.
-- [ ] Add `IPluginAltaService` (or equivalent) to plugin services so plugins can invoke built-in and plugin-contributed `alta` commands without referencing `CodeAlta.LiveTool` directly.
-- [ ] Merge core and plugin command-node factories/descriptors so plugin commands appear in the relevant `--help` output.
-- [ ] Enforce collision rules and safety classifications.
-- [ ] Add tests with a sample plugin contributing a read-only command, a mutating command, and invoking `alta session create` through the plugin service.
+- [x] Add plugin `alta` command contribution abstractions with stable DTOs in `CodeAlta.Plugins.Abstractions` and fresh command-node factories/descriptors.
+- [x] Add `IPluginAltaService` (or equivalent) to plugin services so plugins can invoke built-in and plugin-contributed `alta` commands without referencing `CodeAlta.LiveTool` directly.
+- [x] Merge core and plugin command-node factories/descriptors so plugin commands appear in the relevant `--help` output.
+- [x] Enforce v1 collision rules and safety classifications.
+- [x] Add tests with a sample plugin/fake plugin catalog contributing a read-only command, command discovery/help, collision handling, and runtime-owned plugin service identity/scope.
+- [ ] Add tests with a mutating plugin command and plugin invocation of `alta session create` through the plugin service.
 
 ### Phase 10: Inter-agent communication and policies
 

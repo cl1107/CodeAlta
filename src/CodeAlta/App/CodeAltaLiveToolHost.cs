@@ -60,6 +60,7 @@ internal sealed class CodeAltaLiveToolHost : IAsyncDisposable
         var providerDefinitions = configStore.LoadGlobalProviderDefinitions(includeDisabled: true)
             .ToDictionary(static definition => definition.ProviderKey, StringComparer.OrdinalIgnoreCase);
         var altaToolBackendIds = ResolveAltaToolBackendIds(providerDefinitions.Values);
+        var pluginAltaService = new PluginAltaServiceBridge();
         CodeAltaHost host;
         try
         {
@@ -74,6 +75,7 @@ internal sealed class CodeAltaLiveToolHost : IAsyncDisposable
                     RawArguments = args,
                     WaitForEnterAfterPluginLiveOutput = false,
                     PluginBuiltIns = CodeAltaBuiltInPlugins.All,
+                    PluginServices = new CodeAltaPluginServices(pluginAltaService),
                     ConfigureAgentBackends = RegisterLiveToolBackends,
                 },
                 cancellationToken);
@@ -109,9 +111,11 @@ internal sealed class CodeAltaLiveToolHost : IAsyncDisposable
             .Add<IAltaPluginCatalog>(new RuntimeAltaPluginCatalog(host.PluginRuntime))
             .Add<IAltaSessionToolBackendPolicy>(new AltaSessionToolBackendPolicy(altaToolBackendIds));
         var registry = new AltaCommandRegistry();
+        var dispatcher = new AltaCommandDispatcher(registry, services);
+        pluginAltaService.SetDispatcher(dispatcher);
         services
             .Add(registry)
-            .Add(new AltaCommandDispatcher(registry, services));
+            .Add(dispatcher);
 
         return new CodeAltaLiveToolHost(host, modelsDevCatalogService, services, ownsLogging);
 

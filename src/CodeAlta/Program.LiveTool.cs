@@ -153,21 +153,37 @@ internal partial class Program
 
     private static bool RequiresRuntimeServices(IReadOnlyList<string> args)
     {
-        if (args.Count == 0 || IsHelpRequested(args))
+        if (args.Count == 0)
         {
             return false;
         }
 
-        if (!LiveToolRootCommands.Contains(args[0]) ||
-            string.Equals(args[0], "version", StringComparison.OrdinalIgnoreCase) ||
+        if (!LiveToolRootCommands.Contains(args[0]))
+        {
+            return !args[0].StartsWith("-", StringComparison.Ordinal);
+        }
+
+        if (string.Equals(args[0], "version", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(args[0], "tool", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(args[0], "project", StringComparison.OrdinalIgnoreCase))
+        {
+            return IsToolCapabilityList(args);
+        }
+
+        if (IsHelpRequested(args))
         {
             return false;
         }
 
         return true;
     }
+
+    private static bool IsToolCapabilityList(IReadOnlyList<string> args)
+        => args.Count >= 3 &&
+           string.Equals(args[0], "tool", StringComparison.OrdinalIgnoreCase) &&
+           string.Equals(args[1], "capability", StringComparison.OrdinalIgnoreCase) &&
+           string.Equals(args[2], "list", StringComparison.OrdinalIgnoreCase) &&
+           !IsHelpRequested(args);
 
     private static bool RequiresCatalogServices(IReadOnlyList<string> args)
         => args.Count > 0 && string.Equals(args[0], "project", StringComparison.OrdinalIgnoreCase);

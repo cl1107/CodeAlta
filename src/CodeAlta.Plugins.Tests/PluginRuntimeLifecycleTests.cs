@@ -88,6 +88,52 @@ public sealed class PluginRuntimeLifecycleTests
     }
 
     [TestMethod]
+    public async Task PluginAltaService_UsesRuntimeOwnedPluginKeyAndProjectScope()
+    {
+        var registry = new PluginContributionRegistry();
+        var activator = new PluginRuntimeActivator(registry);
+        var alta = new CapturingPluginAltaService();
+        AltaInvokingPlugin.Reset();
+        var discovered = new DiscoveredPluginType
+        {
+            Type = typeof(AltaInvokingPlugin),
+            Descriptor = PluginDescriptorFactory.FromType(typeof(AltaInvokingPlugin)),
+        };
+        var sourcePackage = new SourcePluginPackage
+        {
+            PackageId = "alta-invoker-package",
+            Root = new PluginRoot
+            {
+                RootPath = Path.Combine(Path.GetTempPath(), "project", ".alta", "plugins"),
+                Scope = PluginScope.Project,
+                ProjectId = "project-real",
+                ProjectPath = Path.Combine(Path.GetTempPath(), "project"),
+            },
+            PackageDirectory = Path.Combine(Path.GetTempPath(), "project", ".alta", "plugins", "alta-invoker-package"),
+            EntryFilePath = "Plugin.cs",
+        };
+
+        var result = await activator.ActivateAsync(
+            discovered,
+            sourcePackage,
+            null,
+            new PluginActivationOptions
+            {
+                HostInfo = CreateHostInfo(),
+                Services = new TestPluginServices(alta),
+            });
+
+        Assert.IsTrue(result.Succeeded, string.Join(Environment.NewLine, result.Diagnostics.Select(static diagnostic => diagnostic.Message)));
+        var commandResult = await AltaInvokingPlugin.Result.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.AreEqual(0, commandResult.ExitCode);
+        Assert.IsFalse(alta.UntrustedInvokeCalled);
+        Assert.AreEqual(discovered.Descriptor.RuntimeKey, alta.PluginRuntimeKey);
+        CollectionAssert.AreEqual(new[] { "version" }, alta.Args.ToArray());
+        Assert.AreEqual("project-real", alta.Options?.SourceProjectId);
+        await result.ActivePlugin!.DeactivateAsync(TimeSpan.FromSeconds(5));
+    }
+
+    [TestMethod]
     public async Task DeactivateReportsFailedUnloadDiagnosticsWhenLoadContextIsStillReferenced()
     {
         var registry = new PluginContributionRegistry();
@@ -146,6 +192,85 @@ public sealed class PluginRuntimeLifecycleTests
             });
             return ValueTask.CompletedTask;
         }
+    }
+
+    [Plugin("alta-invoker")]
+    public sealed class AltaInvokingPlugin : PluginBase
+    {
+        public static TaskCompletionSource<PluginAltaCommandResult> Result { get; private set; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public static void Reset()
+            => Result = new TaskCompletionSource<PluginAltaCommandResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public override async ValueTask InitializeAsync(CancellationToken cancellationToken = default)
+        {
+            var result = await Services.Alta.InvokeAsync(
+                ["version"],
+                options: new PluginAltaInvocationOptions { SourceProjectId = "forged-project" },
+                cancellationToken: cancellationToken);
+            Result.TrySetResult(result);
+        }
+    }
+
+    private sealed class CapturingPluginAltaService : IPluginAltaRuntimeService
+    {
+        public bool UntrustedInvokeCalled { get; private set; }
+
+        public string? PluginRuntimeKey { get; private set; }
+
+        public IReadOnlyList<string> Args { get; private set; } = [];
+
+        public PluginAltaInvocationOptions? Options { get; private set; }
+
+        public ValueTask<PluginAltaCommandResult> InvokeAsync(
+            IReadOnlyList<string> args,
+            string? stdin = null,
+            PluginAltaInvocationOptions? options = null,
+            CancellationToken cancellationToken = default)
+        {
+            UntrustedInvokeCalled = true;
+            return InvokeAsync(string.Empty, args, stdin, options, cancellationToken);
+        }
+
+        public ValueTask<PluginAltaCommandResult> InvokeAsync(
+            string pluginRuntimeKey,
+            IReadOnlyList<string> args,
+            string? stdin = null,
+            PluginAltaInvocationOptions? options = null,
+            CancellationToken cancellationToken = default)
+        {
+            PluginRuntimeKey = pluginRuntimeKey;
+            Args = args.ToArray();
+            Options = options;
+            return ValueTask.FromResult(new PluginAltaCommandResult
+            {
+                ExitCode = 0,
+                TranscriptJsonl = "{\"type\":\"alta.result\",\"version\":1,\"exitCode\":0}\n",
+            });
+        }
+    }
+
+    private sealed class TestPluginServices(IPluginAltaService alta) : IPluginServices
+    {
+        private readonly NoopPluginServices _inner = NoopPluginServices.Create();
+
+        public XenoAtom.Logging.Logger Logger => _inner.Logger;
+
+        public IPluginUiService Ui => _inner.Ui;
+
+        public IPluginStateStore State => _inner.State;
+
+        public IPluginWorkspaceService Workspace => _inner.Workspace;
+
+        public IPluginThreadService Threads => _inner.Threads;
+
+        public IPluginPromptService Prompts => _inner.Prompts;
+
+        public IPluginAgentService Agents => _inner.Agents;
+
+        public IPluginTaskService Tasks => _inner.Tasks;
+
+        public IPluginAltaService Alta { get; } = alta;
     }
 
     public sealed class FailingContributionPlugin : PluginBase

@@ -147,6 +147,7 @@ public sealed class CodeAltaHost : IAsyncDisposable
                         WaitForEnterAfterBuildLiveOutput = options.WaitForEnterAfterPluginLiveOutput,
                         RawArguments = options.RawArguments,
                         BuiltIns = options.PluginBuiltIns,
+                        Services = options.PluginServices,
                     },
                     cancellationToken)
                 .ConfigureAwait(false);

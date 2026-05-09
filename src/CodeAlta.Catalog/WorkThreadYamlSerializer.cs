@@ -32,6 +32,9 @@ public sealed class WorkThreadYamlSerializer
         [JsonPropertyName("parent_thread_id")]
         public string? ParentThreadId { get; set; }
 
+        [JsonPropertyName("created_by")]
+        public AltaActorProvenance? CreatedBy { get; set; }
+
         [JsonPropertyName("working_directory")]
         public string? WorkingDirectory { get; set; }
 
@@ -104,6 +107,7 @@ public sealed class WorkThreadYamlSerializer
             BackendSessionId = frontMatter.BackendSessionId ?? string.Empty,
             ProjectRef = frontMatter.ProjectRef,
             ParentThreadId = frontMatter.ParentThreadId,
+            CreatedBy = frontMatter.CreatedBy,
             WorkingDirectory = frontMatter.WorkingDirectory ?? string.Empty,
             Title = frontMatter.Title ?? string.Empty,
             Status = ParseStatus(frontMatter.Status),
@@ -141,6 +145,7 @@ public sealed class WorkThreadYamlSerializer
             BackendSessionId = descriptor.BackendSessionId,
             ProjectRef = descriptor.ProjectRef,
             ParentThreadId = descriptor.ParentThreadId,
+            CreatedBy = descriptor.CreatedBy,
             WorkingDirectory = descriptor.WorkingDirectory,
             Title = descriptor.Title,
             Status = descriptor.Status switch

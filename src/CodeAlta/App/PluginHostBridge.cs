@@ -18,20 +18,24 @@ internal sealed class PluginHostBridge
     private readonly PluginRuntimeManager _runtime;
     private readonly Func<ProjectDescriptor?> _getCurrentProject;
     private readonly PluginFrontendBridge _frontend;
+    private readonly PluginAltaServiceBridge? _alta;
     private readonly PluginPromptContributionScope _promptContributionScope = new();
 
-    public PluginHostBridge(PluginRuntimeManager runtime, Func<ProjectDescriptor?> getCurrentProject)
+    public PluginHostBridge(PluginRuntimeManager runtime, Func<ProjectDescriptor?> getCurrentProject, PluginAltaServiceBridge? alta = null)
     {
         ArgumentNullException.ThrowIfNull(runtime);
         ArgumentNullException.ThrowIfNull(getCurrentProject);
         _runtime = runtime;
         _getCurrentProject = getCurrentProject;
+        _alta = alta;
         _frontend = new PluginFrontendBridge(runtime, getCurrentProject);
     }
 
     public PluginFrontendBridge Frontend => _frontend;
 
     public PluginRuntimeManager Runtime => _runtime;
+
+    public PluginAltaServiceBridge? Alta => _alta;
 
     public IReadOnlyList<PluginResolvedResourceContribution> GetResources()
         => _frontend.GetResources();

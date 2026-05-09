@@ -20,6 +20,8 @@ public enum PluginPoint
     AgentTool,
     /// <summary>Agent backend/provider.</summary>
     AgentBackend,
+    /// <summary>Alta live command.</summary>
+    AltaCommand,
     /// <summary>System/developer prompt part.</summary>
     SystemPrompt,
     /// <summary>Prompt processor.</summary>

@@ -312,6 +312,17 @@ public sealed class CatalogInfrastructureTests
         var serializer = new WorkThreadYamlSerializer();
         var descriptor = CreateInternalThreadDescriptor();
         descriptor.MessageCount = 7;
+        descriptor.CreatedBy = new AltaActorProvenance
+        {
+            Kind = "plugin",
+            SourceThreadId = "codex:parent",
+            SourceBackendSessionId = "backend-parent",
+            SourceProjectId = descriptor.ProjectRef,
+            SourceAgentId = "agent:parent",
+            PluginRuntimeKey = "sample-plugin",
+            CorrelationId = "correlation-1",
+            CreatedAt = new DateTimeOffset(2026, 05, 09, 10, 15, 00, TimeSpan.Zero),
+        };
         descriptor.MarkdownBody = "# Review sqlitevec integration";
 
         var markdown = serializer.SerializeThreadMarkdown(descriptor);
@@ -326,6 +337,11 @@ public sealed class CatalogInfrastructureTests
         Assert.AreEqual(descriptor.ResolvedProviderKey, reloaded.ResolvedProviderKey);
         Assert.AreEqual(descriptor.BackendSessionId, reloaded.BackendSessionId);
         Assert.AreEqual(descriptor.StartedAt, reloaded.StartedAt);
+        Assert.IsNotNull(reloaded.CreatedBy);
+        Assert.AreEqual("plugin", reloaded.CreatedBy.Kind);
+        Assert.AreEqual("codex:parent", reloaded.CreatedBy.SourceThreadId);
+        Assert.AreEqual("sample-plugin", reloaded.CreatedBy.PluginRuntimeKey);
+        Assert.AreEqual(descriptor.CreatedBy.CreatedAt, reloaded.CreatedBy.CreatedAt);
         Assert.AreEqual(7, reloaded.MessageCount);
     }
 

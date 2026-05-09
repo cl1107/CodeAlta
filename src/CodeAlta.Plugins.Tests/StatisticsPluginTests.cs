@@ -1,7 +1,9 @@
+using System.Globalization;
 using System.Text.Json;
 using CodeAlta.Agent;
 using CodeAlta.Plugin.Statistics;
 using CodeAlta.Plugins.Abstractions;
+using XenoAtom.CommandLine;
 using XenoAtom.Terminal.UI.Controls;
 using XenoAtom.Terminal.UI.Extensions.Markdown;
 using XenoAtom.Terminal.UI.Styling;
@@ -20,6 +22,42 @@ public sealed class StatisticsPluginTests
         Assert.AreEqual("512 B", StatisticsPlugin.FormatBytes(512));
         Assert.AreEqual("1.5 KB", StatisticsPlugin.FormatBytes(1536));
         Assert.AreEqual("1.0s", StatisticsPlugin.FormatDuration(TimeSpan.FromSeconds(1)));
+    }
+
+    [TestMethod]
+    public async Task AltaCommand_Estimate_WritesJsonlEstimate()
+    {
+        var plugin = new StatisticsPlugin();
+        var contribution = plugin.GetAltaCommands().Single();
+        var stdout = new StringWriter(CultureInfo.InvariantCulture);
+        var stderr = new StringWriter(CultureInfo.InvariantCulture);
+        var app = new CommandApp("alta", "test") { contribution.CreateCommandNode(new PluginAltaCommandContext
+        {
+            Plugin = new PluginDescriptor
+            {
+                RuntimeKey = "statistics",
+                TypeName = typeof(StatisticsPlugin).FullName!,
+                AssemblyName = typeof(StatisticsPlugin).Assembly.GetName().Name!,
+                DisplayName = "Statistics",
+            },
+            Services = NoopPluginServices.Create(),
+            Scope = PluginScope.Global,
+            CorrelationId = "corr-1",
+            Stdin = TextReader.Null,
+            Stdout = stdout,
+            Stderr = stderr,
+        }) };
+
+        var exitCode = await app.RunAsync(["statistics", "estimate", "abcd"], new CommandRunConfig { Out = TextWriter.Null, Error = stderr });
+
+        Assert.AreEqual(0, exitCode);
+        Assert.AreEqual(string.Empty, stderr.ToString());
+        using var document = JsonDocument.Parse(stdout.ToString());
+        var root = document.RootElement;
+        Assert.AreEqual("alta.statistics.estimate", root.GetProperty("type").GetString());
+        Assert.AreEqual("statistics", root.GetProperty("pluginRuntimeKey").GetString());
+        Assert.AreEqual(4, root.GetProperty("bytes").GetInt64());
+        Assert.AreEqual(1, root.GetProperty("estimatedTokens").GetInt64());
     }
 
     [TestMethod]

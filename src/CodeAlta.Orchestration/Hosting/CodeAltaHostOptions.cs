@@ -1,5 +1,6 @@
 using CodeAlta.Agent;
 using CodeAlta.Plugins;
+using CodeAlta.Plugins.Abstractions;
 
 namespace CodeAlta.Orchestration.Hosting;
 
@@ -47,6 +48,11 @@ public sealed class CodeAltaHostOptions
     /// Gets built-in plugins to activate as part of shared host composition.
     /// </summary>
     public IReadOnlyList<BuiltInPluginDefinition> PluginBuiltIns { get; init; } = Array.Empty<BuiltInPluginDefinition>();
+
+    /// <summary>
+    /// Gets host services exposed to plugins started by this host.
+    /// </summary>
+    public IPluginServices? PluginServices { get; init; }
 
     /// <summary>
     /// Gets an optional callback that registers host-specific agent backends before the agent hub is created.

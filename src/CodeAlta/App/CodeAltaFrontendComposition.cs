@@ -117,9 +117,11 @@ internal sealed class CodeAltaFrontendComposition
         }
 
         var altaRegistry = new AltaCommandRegistry();
+        var altaDispatcher = new AltaCommandDispatcher(altaRegistry, altaServices);
+        pluginHostBridge?.Alta?.SetDispatcher(altaDispatcher);
         altaServices
             .Add(altaRegistry)
-            .Add(new AltaCommandDispatcher(altaRegistry, altaServices));
+            .Add(altaDispatcher);
 
         var threadPromptDraftService = new ThreadPromptDraftService(frontend.LoadPromptDraft, frontend.DeletePromptDraft);
         var threadModelProviderPreferenceService = new ThreadModelProviderPreferenceService(frontend.ApplyThreadPreference, frontend.RememberThreadPreference);

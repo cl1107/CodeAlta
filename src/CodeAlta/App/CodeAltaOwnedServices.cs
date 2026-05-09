@@ -124,6 +124,7 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
         var backendDescriptors = new List<AgentBackendDescriptor>();
         var codexPath = ResolveCodexExecutablePath(
             Environment.GetEnvironmentVariable(CodexPathOverrideEnvironmentVariable));
+        var pluginAltaServiceBridge = new PluginAltaServiceBridge();
         var sharedHost = await CodeAltaHost.CreateAsync(
                 new CodeAltaHostOptions
                 {
@@ -136,13 +137,14 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
                     WaitForEnterAfterPluginLiveOutput = pluginBootstrapOptions.WaitForEnterAfterPluginLiveOutput,
                     PrestartedPluginRuntime = prestartedPluginRuntime,
                     PluginBuiltIns = CodeAltaBuiltInPlugins.All,
+                    PluginServices = new CodeAltaPluginServices(pluginAltaServiceBridge),
                     ConfigureAgentBackends = RegisterFrontendBackends,
                 },
                 cancellationToken)
             .ConfigureAwait(false);
         var backendFactory = sharedHost.BackendFactory;
         var pluginRuntime = sharedHost.PluginRuntime;
-        var pluginHostBridge = new PluginHostBridge(pluginRuntime, () => sharedHost.CurrentProject);
+        var pluginHostBridge = new PluginHostBridge(pluginRuntime, () => sharedHost.CurrentProject, pluginAltaServiceBridge);
         backendDescriptors.AddRange(
             pluginRuntime.Adapter.GetAgentBackends(new PluginAdapterOperationOptions { HasInteractiveUi = true })
                 .Select(static pluginBackend => new AgentBackendDescriptor(

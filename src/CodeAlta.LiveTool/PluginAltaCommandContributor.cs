@@ -1,0 +1,121 @@
+using CodeAlta.Plugins.Abstractions;
+using XenoAtom.CommandLine;
+using Command = XenoAtom.CommandLine.Command;
+
+namespace CodeAlta.LiveTool;
+
+/// <summary>
+/// Adapts trusted plugin-provided alta command factories into the in-process command registry.
+/// </summary>
+public sealed class PluginAltaCommandContributor : IAltaCommandContributor
+{
+    private static readonly HashSet<string> ReservedRootCommands = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "version",
+        "project",
+        "session",
+        "skill",
+        "skills",
+        "skills_activate",
+        "provider",
+        "model",
+        "plugin",
+        "tool",
+    };
+
+    /// <inheritdoc />
+    public IEnumerable<CommandNode> CreateCommandLineNodes(AltaCommandContributionContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        var catalog = context.Invocation.Services.Get<IAltaPluginCatalog>();
+        if (catalog is null)
+        {
+            yield break;
+        }
+
+        var usedRoots = new HashSet<string>(ReservedRootCommands, StringComparer.OrdinalIgnoreCase);
+        foreach (var contribution in FilterContributions(catalog.ListCommandContributions(), usedRoots))
+        {
+            var pluginContext = CreatePluginContext(context.Invocation, contribution);
+            var node = contribution.Command.CreateCommandNode(pluginContext);
+            if (node is not Command command ||
+                !RootMatchesDeclaredPath(command.Name, contribution.Command.Path))
+            {
+                continue;
+            }
+
+            yield return command;
+        }
+    }
+
+    /// <inheritdoc />
+    public IEnumerable<AltaCommandPolicy> GetCommandPolicies(AltaCommandContributionContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        var catalog = context.Invocation.Services.Get<IAltaPluginCatalog>();
+        if (catalog is null)
+        {
+            yield break;
+        }
+
+        var usedRoots = new HashSet<string>(ReservedRootCommands, StringComparer.OrdinalIgnoreCase);
+        foreach (var contribution in FilterContributions(catalog.ListCommandContributions(), usedRoots))
+        {
+            yield return new AltaCommandPolicy
+            {
+                Path = contribution.Command.Path,
+                RequiresInProcessRuntime = contribution.Command.Policy.RequiresInProcessRuntime,
+                IsMutating = contribution.Command.Policy.IsMutating,
+                IsDisruptive = contribution.Command.Policy.IsDisruptive,
+                SupportsCatalogOnlyContext = contribution.Command.Policy.SupportsCatalogOnlyContext,
+            };
+        }
+    }
+
+    private static IEnumerable<AltaPluginCommandContribution> FilterContributions(
+        IEnumerable<AltaPluginCommandContribution> contributions,
+        HashSet<string> usedRoots)
+    {
+        foreach (var contribution in contributions
+                     .Where(static contribution => !string.IsNullOrWhiteSpace(contribution.Command.Path))
+                     .OrderBy(static contribution => contribution.Command.Order)
+                     .ThenBy(static contribution => contribution.Command.Path, StringComparer.OrdinalIgnoreCase)
+                     .ThenBy(static contribution => contribution.Plugin.RuntimeKey, StringComparer.OrdinalIgnoreCase))
+        {
+            var root = GetRoot(contribution.Command.Path);
+            if (root is null || !usedRoots.Add(root))
+            {
+                continue;
+            }
+
+            yield return contribution;
+        }
+    }
+
+    private static PluginAltaCommandContext CreatePluginContext(
+        AltaCommandContext invocation,
+        AltaPluginCommandContribution contribution)
+        => new()
+        {
+            Plugin = contribution.Plugin,
+            Services = contribution.Services,
+            Scope = contribution.Scope,
+            ScopeProjectId = contribution.ScopeProjectId,
+            ScopeProjectPath = contribution.ScopeProjectPath,
+            CorrelationId = invocation.CorrelationId,
+            WorkingDirectory = invocation.Cwd,
+            Stdin = invocation.Stdin,
+            Stdout = invocation.Stdout,
+            Stderr = invocation.Stderr,
+            CancellationToken = invocation.CancellationToken,
+        };
+
+    private static bool RootMatchesDeclaredPath(string commandName, string path)
+        => string.Equals(commandName, GetRoot(path), StringComparison.OrdinalIgnoreCase);
+
+    private static string? GetRoot(string path)
+    {
+        var segments = path.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return segments.Length == 0 ? null : segments[0];
+    }
+}

@@ -246,6 +246,9 @@ public sealed class PluginRuntimeActivator
             var taskService = new PluginRuntimeTaskService(lifetime.Token);
             var services = new PluginRuntimeServices(
                 logger,
+                discoveredType.Descriptor.RuntimeKey,
+                sourcePackage?.Root.Scope ?? PluginScope.Global,
+                sourcePackage?.Root.ProjectId,
                 options.Services ?? new NoopPluginServices(logger),
                 taskService);
             var context = new PluginRuntimeContext
@@ -316,6 +319,7 @@ public sealed class PluginRuntimeActivator
         Add(PluginPoint.Command, instance.GetCommands());
         Add(PluginPoint.AgentTool, instance.GetAgentTools());
         Add(PluginPoint.AgentBackend, instance.GetAgentBackends());
+        Add(PluginPoint.AltaCommand, instance.GetAltaCommands());
         Add(PluginPoint.SystemPrompt, instance.GetSystemPromptContributions());
         Add(PluginPoint.PromptProcessor, instance.GetPromptProcessors());
         Add(PluginPoint.Compaction, instance.GetCompactionContributions());

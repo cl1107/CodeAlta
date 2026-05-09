@@ -15,7 +15,7 @@ public sealed class AltaCommandRegistry
     /// <param name="contributors">Command contributors. When omitted, built-in commands are registered.</param>
     public AltaCommandRegistry(IEnumerable<IAltaCommandContributor>? contributors = null)
     {
-        _contributors = (contributors ?? [new BuiltInAltaCommandContributor()]).ToArray();
+        _contributors = (contributors ?? [new BuiltInAltaCommandContributor(), new PluginAltaCommandContributor()]).ToArray();
     }
 
     /// <summary>Gets policies contributed by the registered command contributors.</summary>

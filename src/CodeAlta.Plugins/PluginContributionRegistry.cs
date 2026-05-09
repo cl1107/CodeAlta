@@ -312,6 +312,9 @@ public sealed class PluginContributionRegistry
             case PluginAgentBackendContribution backend:
                 yield return new ContributionConflictKey("provider", $"provider:{backend.Name}", backend.Name);
                 yield break;
+            case PluginAltaCommandContribution alta:
+                yield return new ContributionConflictKey("alta-command", $"alta:{alta.Path}", alta.Path);
+                yield break;
             case PluginSystemPromptContribution prompt when !string.IsNullOrWhiteSpace(prompt.Title):
                 yield return new ContributionConflictKey("prompt-part", $"prompt:{prompt.Channel}:{prompt.Title}", prompt.Title!);
                 yield break;
@@ -358,6 +361,7 @@ public sealed class PluginContributionRegistry
             PluginPromptProcessorContribution processor => processor.Order,
             PluginUiContribution ui => ui.Order,
             PluginResourceContribution resource => resource.Precedence,
+            PluginAltaCommandContribution alta => alta.Order,
             PluginCompactionContribution compaction => compaction.Order,
             _ => 0,
         };
@@ -369,6 +373,7 @@ public sealed class PluginContributionRegistry
             PluginCommandContribution command => command.Name,
             PluginAgentToolContribution tool => tool.Definition.Spec.Name,
             PluginAgentBackendContribution backend => backend.Name,
+            PluginAltaCommandContribution alta => alta.Path,
             PluginProviderConfigurationContribution provider => provider.DisplayName,
             PluginSystemPromptContribution prompt => prompt.Title,
             PluginPromptProcessorContribution _ => null,

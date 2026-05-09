@@ -192,14 +192,22 @@ internal sealed class PluginRuntimeServices : IPluginServices
 {
     private readonly IPluginServices _inner;
 
-    public PluginRuntimeServices(Logger logger, IPluginServices inner, IPluginTaskService tasks)
+    public PluginRuntimeServices(
+        Logger logger,
+        string pluginRuntimeKey,
+        PluginScope scope,
+        string? scopeProjectId,
+        IPluginServices inner,
+        IPluginTaskService tasks)
     {
         ArgumentNullException.ThrowIfNull(logger);
+        ArgumentException.ThrowIfNullOrWhiteSpace(pluginRuntimeKey);
         ArgumentNullException.ThrowIfNull(inner);
         ArgumentNullException.ThrowIfNull(tasks);
         Logger = logger;
         _inner = inner;
         Tasks = tasks;
+        Alta = new PluginRuntimeAltaService(pluginRuntimeKey, scope, scopeProjectId, inner.Alta);
     }
 
     public Logger Logger { get; }
@@ -217,4 +225,28 @@ internal sealed class PluginRuntimeServices : IPluginServices
     public IPluginAgentService Agents => _inner.Agents;
 
     public IPluginTaskService Tasks { get; }
+
+    public IPluginAltaService Alta { get; }
+
+    private sealed class PluginRuntimeAltaService(
+        string pluginRuntimeKey,
+        PluginScope scope,
+        string? scopeProjectId,
+        IPluginAltaService inner) : IPluginAltaService
+    {
+        public ValueTask<PluginAltaCommandResult> InvokeAsync(
+            IReadOnlyList<string> args,
+            string? stdin = null,
+            PluginAltaInvocationOptions? options = null,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(args);
+            var effectiveOptions = scope == PluginScope.Project && !string.IsNullOrWhiteSpace(scopeProjectId)
+                ? (options ?? new PluginAltaInvocationOptions()) with { SourceProjectId = scopeProjectId }
+                : options;
+            return inner is IPluginAltaRuntimeService runtime
+                ? runtime.InvokeAsync(pluginRuntimeKey, args, stdin, effectiveOptions, cancellationToken)
+                : inner.InvokeAsync(args, stdin, effectiveOptions, cancellationToken);
+        }
+    }
 }

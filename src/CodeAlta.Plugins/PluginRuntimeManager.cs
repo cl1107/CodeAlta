@@ -27,6 +27,9 @@ public sealed record PluginRuntimeManagerOptions
     /// <summary>Gets additional built-in plugins to activate before dynamic plugins.</summary>
     public IReadOnlyList<BuiltInPluginDefinition> BuiltIns { get; init; } = [];
 
+    /// <summary>Gets host services exposed to activated plugins.</summary>
+    public IPluginServices? Services { get; init; }
+
     /// <summary>Gets the maximum number of source plugin builds that can run in parallel.</summary>
     public int MaxParallelBuilds { get; init; } = Math.Min(Environment.ProcessorCount, 4);
 
@@ -130,7 +133,7 @@ public sealed class PluginRuntimeManager : IAsyncDisposable
                     discovered,
                     sourcePackage: null,
                     loadContext: null,
-                    new PluginActivationOptions { HostInfo = hostInfo, ActivationGeneration = ++_activationGeneration },
+                    new PluginActivationOptions { HostInfo = hostInfo, Services = options.Services, ActivationGeneration = ++_activationGeneration },
                     cancellationToken)
                 .ConfigureAwait(false);
             diagnostics.AddRange(activation.Diagnostics);
@@ -254,7 +257,7 @@ public sealed class PluginRuntimeManager : IAsyncDisposable
                             discovered,
                             buildResult.Package,
                             load.LoadContext,
-                            new PluginActivationOptions { HostInfo = hostInfo, ActivationGeneration = ++_activationGeneration },
+                            new PluginActivationOptions { HostInfo = hostInfo, Services = options.Services, ActivationGeneration = ++_activationGeneration },
                             token)
                         .ConfigureAwait(false);
                     diagnostics.AddRange(activation.Diagnostics);

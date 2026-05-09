@@ -1,6 +1,9 @@
 using System.Text.Json;
 using CodeAlta.Agent;
 using CodeAlta.LiveTool;
+using CodeAlta.Plugins.Abstractions;
+using XenoAtom.CommandLine;
+using Command = XenoAtom.CommandLine.Command;
 
 namespace CodeAlta.Tests;
 
@@ -119,8 +122,114 @@ public sealed class AltaLiveToolTests
         StringAssert.Contains(AssertTextItem(result), "usage.invalidToolArguments");
     }
 
+    [TestMethod]
+    public async Task PluginAltaCommandContribution_AppearsInHelpAndRunsWithPluginContext()
+    {
+        var plugin = CreatePluginDescriptor("sample-plugin");
+        var catalog = new FakeAltaPluginCatalog(
+            new AltaPluginCommandContribution
+            {
+                Plugin = plugin,
+                Services = NoopPluginServices.Create(),
+                Scope = PluginScope.Global,
+                Command = new PluginAltaCommandContribution
+                {
+                    Path = "statistics",
+                    Description = "Sample statistics command.",
+                    Policy = new PluginAltaCommandPolicy { RequiresInProcessRuntime = true },
+                    CreateCommandNode = pluginContext =>
+                    {
+                        var command = new Command("statistics", "Plugin statistics.")
+                        {
+                            new CommandUsage(),
+                            new HelpOption(),
+                        };
+                        command.Add((_, _) =>
+                        {
+                            AltaJsonlWriter.WriteRecord(pluginContext.Stdout, new
+                            {
+                                type = "alta.plugin.sample",
+                                version = 1,
+                                correlationId = pluginContext.CorrelationId,
+                                pluginRuntimeKey = pluginContext.Plugin.RuntimeKey,
+                            });
+                            return new ValueTask<int>(AltaExitCodes.Success);
+                        });
+                        return command;
+                    },
+                },
+            });
+        var dispatcher = CreateDispatcher(catalog);
+
+        var help = await dispatcher.InvokeAsync(["statistics", "--help"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var result = await dispatcher.InvokeAsync(["statistics"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+
+        Assert.AreEqual(AltaExitCodes.Success, help.ExitCode);
+        Assert.IsTrue(help.IsHelp);
+        StringAssert.Contains(help.Stdout, "Usage: alta statistics");
+        Assert.AreEqual(AltaExitCodes.Success, result.ExitCode);
+        var lines = ReadJsonLines(result.Stdout);
+        Assert.AreEqual("alta.result", lines[0].GetProperty("type").GetString());
+        Assert.AreEqual("alta.plugin.sample", lines[1].GetProperty("type").GetString());
+        Assert.AreEqual("sample-plugin", lines[1].GetProperty("pluginRuntimeKey").GetString());
+
+        var capabilities = await dispatcher.InvokeAsync(["tool", "capability", "list"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        Assert.AreEqual(AltaExitCodes.Success, capabilities.ExitCode);
+        Assert.IsTrue(ReadJsonLines(capabilities.Stdout).Any(line =>
+            line.GetProperty("type").GetString() == "alta.tool.capability" &&
+            line.GetProperty("path").GetString() == "statistics"));
+    }
+
+    [TestMethod]
+    public async Task PluginAltaCommandContribution_CoreRootCollisionIsSkipped()
+    {
+        var factoryCalled = false;
+        var catalog = new FakeAltaPluginCatalog(
+            new AltaPluginCommandContribution
+            {
+                Plugin = CreatePluginDescriptor("collision-plugin"),
+                Services = NoopPluginServices.Create(),
+                Scope = PluginScope.Global,
+                Command = new PluginAltaCommandContribution
+                {
+                    Path = "session",
+                    CreateCommandNode = _ =>
+                    {
+                        factoryCalled = true;
+                        return new Command("session", "Collision");
+                    },
+                },
+            });
+        var dispatcher = CreateDispatcher(catalog);
+
+        var result = await dispatcher.InvokeAsync(["session", "--help"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+
+        Assert.AreEqual(AltaExitCodes.Success, result.ExitCode);
+        StringAssert.Contains(result.Stdout, "list                       List recoverable/live sessions as JSONL.");
+        Assert.IsFalse(factoryCalled);
+    }
+
     private static AltaCommandDispatcher CreateDispatcher()
         => new(new AltaCommandRegistry(), new AltaServiceCollection());
+
+    private static AltaCommandDispatcher CreateDispatcher(IAltaPluginCatalog pluginCatalog)
+    {
+        var registry = new AltaCommandRegistry();
+        var services = new AltaServiceCollection()
+            .Add(pluginCatalog)
+            .Add(registry);
+        return new AltaCommandDispatcher(registry, services);
+    }
+
+    private static PluginDescriptor CreatePluginDescriptor(string runtimeKey)
+        => new()
+        {
+            RuntimeKey = runtimeKey,
+            TypeName = "Sample.Plugin",
+            AssemblyName = "Sample.Plugin",
+            DisplayName = "Sample Plugin",
+            Version = "1.0.0",
+        };
 
     private static AgentToolInvocation CreateInvocation(JsonElement arguments)
         => new(
@@ -147,5 +256,38 @@ public sealed class AltaLiveToolTests
         }
 
         return values;
+    }
+
+    private sealed class FakeAltaPluginCatalog(params AltaPluginCommandContribution[] contributions) : IAltaPluginCatalog
+    {
+        public IReadOnlyList<AltaPluginSummary> ListPlugins()
+            => contributions
+                .Select(static contribution => new AltaPluginSummary
+                {
+                    RuntimeKey = contribution.Plugin.RuntimeKey,
+                    DisplayName = contribution.Plugin.DisplayName,
+                    Version = contribution.Plugin.Version,
+                    Scope = contribution.Scope.ToString().ToLowerInvariant(),
+                    State = "active",
+                })
+                .ToArray();
+
+        public AltaPluginSummary? GetPlugin(string runtimeKey)
+            => ListPlugins().FirstOrDefault(plugin => string.Equals(plugin.RuntimeKey, runtimeKey, StringComparison.OrdinalIgnoreCase));
+
+        public IReadOnlyList<AltaCommandPolicy> ListCommandPolicies()
+            => contributions
+                .Select(static contribution => new AltaCommandPolicy
+                {
+                    Path = contribution.Command.Path,
+                    RequiresInProcessRuntime = contribution.Command.Policy.RequiresInProcessRuntime,
+                    IsMutating = contribution.Command.Policy.IsMutating,
+                    IsDisruptive = contribution.Command.Policy.IsDisruptive,
+                    SupportsCatalogOnlyContext = contribution.Command.Policy.SupportsCatalogOnlyContext,
+                })
+                .ToArray();
+
+        public IReadOnlyList<AltaPluginCommandContribution> ListCommandContributions()
+            => contributions;
     }
 }
