@@ -1,5 +1,6 @@
 using System.Text.Json;
 using CodeAlta.Agent;
+using CodeAlta.Catalog;
 using CodeAlta.LiveTool;
 using CodeAlta.Plugins.Abstractions;
 using XenoAtom.CommandLine;
@@ -273,10 +274,115 @@ public sealed class AltaLiveToolTests
         Assert.IsFalse(factoryCalled);
     }
 
+    [TestMethod]
+    public async Task SessionDiscovery_CatalogStateEmitsModelProvenanceAndSameProjectChildren()
+    {
+        using var root = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = root.Path };
+        var projectCatalog = new ProjectCatalog(options);
+        var threadCatalog = new WorkThreadCatalog(options);
+        var projectPath = Path.Combine(root.Path, "CodeAltaProject");
+        var otherProjectPath = Path.Combine(root.Path, "OtherProject");
+        Directory.CreateDirectory(projectPath);
+        Directory.CreateDirectory(otherProjectPath);
+        var project = await projectCatalog.UpsertFromPathAsync(projectPath).ConfigureAwait(false);
+        var otherProject = await projectCatalog.UpsertFromPathAsync(otherProjectPath).ConfigureAwait(false);
+        var createdAt = new DateTimeOffset(2026, 05, 09, 10, 00, 00, TimeSpan.Zero);
+        var parent = CreateThreadDescriptor("thread-parent", "Parent", project.Id, projectPath, createdAt);
+        var child = CreateThreadDescriptor("thread-child", "Child", project.Id, projectPath, createdAt.AddMinutes(1));
+        var crossProjectChild = CreateThreadDescriptor("thread-cross", "Cross", otherProject.Id, otherProjectPath, createdAt.AddMinutes(2));
+        var archived = CreateThreadDescriptor("thread-archived", "Archived", project.Id, projectPath, createdAt.AddMinutes(3));
+        child.ParentThreadId = parent.ThreadId;
+        crossProjectChild.ParentThreadId = parent.ThreadId;
+
+        await threadCatalog.SaveInternalAsync(parent).ConfigureAwait(false);
+        await threadCatalog.SaveInternalAsync(child).ConfigureAwait(false);
+        await threadCatalog.SaveInternalAsync(crossProjectChild).ConfigureAwait(false);
+        await threadCatalog.SaveInternalAsync(archived).ConfigureAwait(false);
+        await threadCatalog.SaveViewStateAsync(new WorkThreadViewState
+        {
+            ThreadPreferences =
+            {
+                [parent.ThreadId] = new WorkThreadPreference
+                {
+                    ModelId = "gpt-test",
+                    ReasoningEffort = AgentReasoningEffort.Low,
+                },
+            },
+            ThreadStates =
+            {
+                [child.ThreadId] = new WorkThreadLocalState
+                {
+                    ParentThreadId = parent.ThreadId,
+                    CreatedBy = new AltaActorProvenance
+                    {
+                        Kind = "agent",
+                        SourceThreadId = parent.ThreadId,
+                        SourceProjectId = project.Id,
+                        SourceAgentId = "agent:parent",
+                        CorrelationId = "correlation-child",
+                        CreatedAt = createdAt.AddMinutes(1),
+                    },
+                    MessageCount = 7,
+                },
+                [archived.ThreadId] = new WorkThreadLocalState { Archived = true },
+            },
+        }).ConfigureAwait(false);
+        var dispatcher = CreateDispatcher(new AltaServiceCollection()
+            .Add(options)
+            .Add(projectCatalog)
+            .Add(threadCatalog));
+
+        var list = await dispatcher.InvokeAsync(["session", "list", "--project", project.Id, "--state", "all", "--limit", "10"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var show = await dispatcher.InvokeAsync(["session", "show", parent.ThreadId], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var status = await dispatcher.InvokeAsync(["session", "status", parent.ThreadId], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var children = await dispatcher.InvokeAsync(["session", "children", parent.ThreadId, "--recursive"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var model = await dispatcher.InvokeAsync(["session", "model", parent.ThreadId], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+
+        Assert.AreEqual(AltaExitCodes.Success, list.ExitCode);
+        var listRecords = ReadJsonLines(list.Stdout).Where(static line => line.GetProperty("type").GetString() == "alta.session.item").ToArray();
+        CollectionAssert.AreEquivalent(
+            new[] { parent.ThreadId, child.ThreadId, archived.ThreadId },
+            listRecords.Select(static line => line.GetProperty("threadId").GetString()).ToArray());
+        Assert.IsTrue(listRecords.Any(line =>
+            line.GetProperty("threadId").GetString() == child.ThreadId &&
+            line.GetProperty("parentThreadId").GetString() == parent.ThreadId &&
+            line.GetProperty("createdBy").GetProperty("kind").GetString() == "agent" &&
+            line.GetProperty("messageCount").GetInt32() == 7));
+        Assert.IsTrue(listRecords.Any(line =>
+            line.GetProperty("threadId").GetString() == archived.ThreadId &&
+            line.GetProperty("state").GetString() == "archived"));
+
+        var detail = ReadJsonLines(show.Stdout).Single(line => line.GetProperty("type").GetString() == "alta.session.detail");
+        Assert.AreEqual(1, detail.GetProperty("childCount").GetInt32());
+        Assert.AreEqual(child.ThreadId, detail.GetProperty("childThreadIds")[0].GetString());
+
+        var statusRecord = ReadJsonLines(status.Stdout).Single(line => line.GetProperty("type").GetString() == "alta.session.status");
+        Assert.AreEqual(parent.ThreadId, statusRecord.GetProperty("threadId").GetString());
+        Assert.AreEqual("inactive", statusRecord.GetProperty("state").GetString());
+
+        var childRecords = ReadJsonLines(children.Stdout).Where(static line => line.GetProperty("type").GetString() == "alta.session.item").ToArray();
+        Assert.AreEqual(1, childRecords.Length);
+        Assert.AreEqual(child.ThreadId, childRecords[0].GetProperty("threadId").GetString());
+
+        var modelRecord = ReadJsonLines(model.Stdout).Single(line => line.GetProperty("type").GetString() == "alta.model.selection");
+        Assert.AreEqual("codex", modelRecord.GetProperty("providerKey").GetString());
+        Assert.AreEqual("gpt-test", modelRecord.GetProperty("modelId").GetString());
+        Assert.AreEqual("low", modelRecord.GetProperty("reasoningEffort").GetString());
+        Assert.AreEqual("codex:gpt-test@low", modelRecord.GetProperty("modelRef").GetString());
+    }
+
     private static AltaCommandDispatcher CreateDispatcher(params IAltaCommandContributor[] contributors)
     {
         var registry = contributors.Length == 0 ? new AltaCommandRegistry() : new AltaCommandRegistry(contributors);
         return new AltaCommandDispatcher(registry, new AltaServiceCollection());
+    }
+
+    private static AltaCommandDispatcher CreateDispatcher(AltaServiceCollection services)
+    {
+        var registry = new AltaCommandRegistry();
+        services.Add(registry);
+        return new AltaCommandDispatcher(registry, services);
     }
 
     private static AltaCommandDispatcher CreateDispatcher(IAltaPluginCatalog pluginCatalog)
@@ -305,6 +411,28 @@ public sealed class AltaLiveToolTests
             "call-1",
             "alta",
             arguments.Clone());
+
+    private static WorkThreadDescriptor CreateThreadDescriptor(
+        string threadId,
+        string title,
+        string projectId,
+        string workingDirectory,
+        DateTimeOffset timestamp)
+        => new()
+        {
+            ThreadId = threadId,
+            Kind = WorkThreadKind.InternalThread,
+            BackendId = AgentBackendIds.Codex.Value,
+            ProviderKey = AgentBackendIds.Codex.Value,
+            BackendSessionId = $"session-{threadId}",
+            ProjectRef = projectId,
+            WorkingDirectory = workingDirectory,
+            Title = title,
+            Status = WorkThreadStatus.Active,
+            CreatedAt = timestamp.AddMinutes(-1),
+            UpdatedAt = timestamp,
+            LastActiveAt = timestamp,
+        };
 
     private static string AssertTextItem(AgentToolResult result)
     {
@@ -374,6 +502,31 @@ public sealed class AltaLiveToolTests
         public IEnumerable<AltaCommandPolicy> GetCommandPolicies(AltaCommandContributionContext context)
         {
             yield return new AltaCommandPolicy { Path = "wait", RequiresInProcessRuntime = true };
+        }
+    }
+
+    private sealed class TempDirectory : IDisposable
+    {
+        private TempDirectory(string path)
+        {
+            Path = path;
+        }
+
+        public string Path { get; }
+
+        public static TempDirectory Create()
+        {
+            var path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "CodeAlta.AltaLiveToolTests", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(path);
+            return new TempDirectory(path);
+        }
+
+        public void Dispose()
+        {
+            if (Directory.Exists(Path))
+            {
+                Directory.Delete(Path, recursive: true);
+            }
         }
     }
 }

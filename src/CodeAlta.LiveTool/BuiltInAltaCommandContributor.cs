@@ -838,7 +838,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return PermissionDenied(context, "policy.visibilityDenied", $"The caller is not allowed to inspect session '{threadId}'.");
         }
 
-        var children = GetChildren(infos, parent.Thread.ThreadId, recursive)
+        var children = GetChildren(infos, parent, recursive)
             .Where(child => CanAccessThread(context, child.Thread))
             .ToArray();
         foreach (var child in children)
@@ -1501,104 +1501,20 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         return ValueTask.FromResult(AltaExitCodes.Success);
     }
 
-    private static async Task<IReadOnlyList<SessionInfo>?> LoadSessionInfosAsync(AltaCommandContext context)
+    private static async Task<IReadOnlyList<AltaSessionInfo>?> LoadSessionInfosAsync(AltaCommandContext context)
     {
-        var runtime = context.Services.Get<WorkThreadRuntimeService>();
-        var threadCatalog = context.Services.Get<WorkThreadCatalog>();
-        IReadOnlyList<WorkThreadDescriptor> threads;
-        if (runtime is not null)
-        {
-            threads = await runtime.ListRecoverableThreadsAsync(context.CancellationToken).ConfigureAwait(false);
-        }
-        else if (threadCatalog is not null)
-        {
-            threads = await threadCatalog.LoadInternalAsync(context.CancellationToken).ConfigureAwait(false);
-        }
-        else
-        {
-            AltaJsonlWriter.WriteError(
-                context.Stderr,
-                context.CorrelationId,
-                "service.unavailable",
-                AltaExitCodes.ServiceUnavailable,
-                $"Required in-process service '{nameof(WorkThreadRuntimeService)}' or '{nameof(WorkThreadCatalog)}' is unavailable.");
-            return null;
-        }
-
-        WorkThreadViewState? viewState = null;
-        if (threadCatalog is not null)
-        {
-            try
-            {
-                viewState = await threadCatalog.LoadViewStateAsync(context.CancellationToken).ConfigureAwait(false);
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
-            {
-                AltaJsonlWriter.WriteWarning(context.Stderr, context.CorrelationId, "thread.viewStateUnavailable", ex.Message);
-            }
-        }
-
-        var results = new List<SessionInfo>(threads.Count);
-        foreach (var thread in threads)
-        {
-            var localState = TryGetLocalState(viewState, thread.ThreadId);
-            var preference = TryGetPreference(viewState, thread.ThreadId);
-            var isRunning = runtime is not null && await runtime.HasActiveRunAsync(thread, context.CancellationToken).ConfigureAwait(false);
-            var hasActiveSession = isRunning || (runtime is not null && await runtime.HasActiveCoordinatorSessionAsync(thread.ThreadId, context.CancellationToken).ConfigureAwait(false));
-            if (localState?.Archived == true)
-            {
-                thread.Status = WorkThreadStatus.Archived;
-            }
-
-            if (localState?.MessageCount is not null)
-            {
-                thread.MessageCount = localState.MessageCount;
-            }
-
-            if (!string.IsNullOrWhiteSpace(localState?.ParentThreadId))
-            {
-                thread.ParentThreadId = localState.ParentThreadId;
-            }
-
-            if (localState?.CreatedBy is not null)
-            {
-                thread.CreatedBy = localState.CreatedBy;
-            }
-
-            results.Add(new SessionInfo(thread, localState, preference, isRunning, hasActiveSession, ResolveSessionState(thread, isRunning, hasActiveSession)));
-        }
-
-        return results;
+        var queryService = context.Services.Get<IAltaSessionQueryService>() ?? new AltaSessionQueryService();
+        return await queryService.LoadAsync(context).ConfigureAwait(false);
     }
 
-    private static WorkThreadLocalState? TryGetLocalState(WorkThreadViewState? viewState, string threadId)
-        => viewState is not null && viewState.ThreadStates.TryGetValue(threadId, out var state) ? state : null;
-
-    private static WorkThreadPreference? TryGetPreference(WorkThreadViewState? viewState, string threadId)
-        => viewState is not null && viewState.ThreadPreferences.TryGetValue(threadId, out var preference) ? preference : null;
-
-    private static string ResolveSessionState(WorkThreadDescriptor thread, bool isRunning, bool hasActiveSession)
-    {
-        if (thread.Status == WorkThreadStatus.Archived)
-        {
-            return "archived";
-        }
-
-        if (isRunning)
-        {
-            return "running";
-        }
-
-        return hasActiveSession ? "idle" : "inactive";
-    }
-
-    private static SessionInfo? FindThread(IReadOnlyList<SessionInfo> infos, string threadId)
+    private static AltaSessionInfo? FindThread(IReadOnlyList<AltaSessionInfo> infos, string threadId)
         => infos.FirstOrDefault(info => string.Equals(info.Thread.ThreadId, threadId, StringComparison.OrdinalIgnoreCase));
 
-    private static IEnumerable<SessionInfo> GetChildren(IReadOnlyList<SessionInfo> infos, string threadId, bool recursive)
+    private static IEnumerable<AltaSessionInfo> GetChildren(IReadOnlyList<AltaSessionInfo> infos, AltaSessionInfo parent, bool recursive)
     {
         var directChildren = infos
-            .Where(info => string.Equals(info.Thread.ParentThreadId, threadId, StringComparison.OrdinalIgnoreCase))
+            .Where(info => string.Equals(info.Thread.ParentThreadId, parent.Thread.ThreadId, StringComparison.OrdinalIgnoreCase))
+            .Where(info => string.Equals(info.Thread.ProjectRef, parent.Thread.ProjectRef, StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(static info => info.Thread.LastActiveAt)
             .ToArray();
         foreach (var child in directChildren)
@@ -1609,7 +1525,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
                 continue;
             }
 
-            foreach (var descendant in GetChildren(infos, child.Thread.ThreadId, recursive: true))
+            foreach (var descendant in GetChildren(infos, child, recursive: true))
             {
                 yield return descendant;
             }
@@ -1636,7 +1552,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             OnUserInputRequest = static (_, _) => Task.FromResult(new AgentUserInputResponse(new Dictionary<string, string>(StringComparer.Ordinal))),
         };
 
-    private static async Task<WorkThreadExecutionOptions> BuildExecutionOptionsForThreadAsync(AltaCommandContext context, SessionInfo info)
+    private static async Task<WorkThreadExecutionOptions> BuildExecutionOptionsForThreadAsync(AltaCommandContext context, AltaSessionInfo info)
     {
         var projectRoots = new List<string>();
         var workingDirectory = info.Thread.WorkingDirectory;
@@ -2003,9 +1919,9 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         });
     }
 
-    private static void WriteSession(AltaCommandContext context, string type, SessionInfo info, bool includeChildren, IReadOnlyList<SessionInfo> infos)
+    private static void WriteSession(AltaCommandContext context, string type, AltaSessionInfo info, bool includeChildren, IReadOnlyList<AltaSessionInfo> infos)
     {
-        var children = includeChildren ? GetChildren(infos, info.Thread.ThreadId, recursive: false).ToArray() : [];
+        var children = includeChildren ? GetChildren(infos, info, recursive: false).ToArray() : [];
         AltaJsonlWriter.WriteRecord(context.Stdout, new
         {
             type,
@@ -2354,14 +2270,6 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
         public bool ReplyRequested { get; set; }
     }
-
-    private sealed record SessionInfo(
-        WorkThreadDescriptor Thread,
-        WorkThreadLocalState? LocalState,
-        WorkThreadPreference? Preference,
-        bool IsRunning,
-        bool HasActiveSession,
-        string State);
 
     private sealed record MappedEvent(string Kind, string Role, string? Text, object? Metadata);
 

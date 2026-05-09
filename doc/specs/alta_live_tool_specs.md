@@ -941,11 +941,11 @@ If a backend cannot store metadata, CodeAlta should render a visible header and 
 
 ### Phase 4: Session discovery and status
 
-- [ ] Add a narrow query service that merges live runtime snapshots, recoverable threads, local thread metadata, and backend session metadata.
-- [ ] Implement `session list/show/status/children/model` with provider/model/reasoning, `parentThreadId`, and provenance fields when known.
+- [x] Add a narrow query service that merges live runtime snapshots, recoverable threads, local thread metadata, and backend session metadata.
+- [x] Implement `session list/show/status/children/model` with provider/model/reasoning, `parentThreadId`, and provenance fields when known.
 - [ ] Distinguish `running`, `idle`, `inactive`, and `archived` states.
 - [x] Add same-project parent/child hierarchy reconstruction for durable session metadata.
-- [ ] Add JSONL record contract tests and same-project filtering tests for session discovery/status commands.
+- [x] Add JSONL record contract tests and same-project filtering tests for session discovery/status commands.
 - [x] Add hierarchy reconstruction tests for durable sidebar/session metadata.
 
 ### Phase 5: Session content inspection
