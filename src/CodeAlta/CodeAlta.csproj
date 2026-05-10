@@ -8,11 +8,17 @@
     <LangVersion>preview</LangVersion>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
 
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>alta</ToolCommandName>
+
     <!--<PublishAot>true</PublishAot>-->
 
     <!-- Enable AOT analyzers -->
     <IsAotCompatible>true</IsAotCompatible>
     <AssemblyName>alta</AssemblyName>
+
+    <RuntimeIdentifiers>linux-x64;linux-arm64;linux-musl-x64;linux-musl-arm64;win-x64;win-arm64;osx-arm64;any</RuntimeIdentifiers>
+    <PublishSelfContained>false</PublishSelfContained>
   </PropertyGroup>
 
   <PropertyGroup>
