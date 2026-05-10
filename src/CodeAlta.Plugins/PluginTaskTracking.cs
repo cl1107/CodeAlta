@@ -190,6 +190,8 @@ public sealed class PluginRuntimeTaskService : IPluginTaskService
 
 internal sealed class PluginRuntimeServices : IPluginServices
 {
+    private const string UnresolvedProjectScopeId = "__codealta_unresolved_project_scope__";
+
     private readonly IPluginServices _inner;
 
     public PluginRuntimeServices(
@@ -242,7 +244,12 @@ internal sealed class PluginRuntimeServices : IPluginServices
         {
             ArgumentNullException.ThrowIfNull(args);
             var effectiveOptions = scope == PluginScope.Project
-                ? (options ?? new PluginAltaInvocationOptions()) with { SourceProjectId = scopeProjectId }
+                ? (options ?? new PluginAltaInvocationOptions()) with
+                {
+                    SourceProjectId = string.IsNullOrWhiteSpace(scopeProjectId)
+                        ? UnresolvedProjectScopeId
+                        : scopeProjectId,
+                }
                 : options;
             return inner is IPluginAltaRuntimeService runtime
                 ? runtime.InvokeAsync(pluginRuntimeKey, args, stdin, effectiveOptions, cancellationToken)

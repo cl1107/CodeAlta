@@ -9,6 +9,8 @@ namespace CodeAlta.LiveTool;
 /// </summary>
 public sealed class PluginAltaCommandContributor : IAltaCommandContributor
 {
+    private const string UnresolvedProjectScopeId = "__codealta_unresolved_project_scope__";
+
     private static readonly HashSet<string> ReservedRootCommands = new(StringComparer.OrdinalIgnoreCase)
     {
         "version",
@@ -140,7 +142,9 @@ public sealed class PluginAltaCommandContributor : IAltaCommandContributor
             var effectiveOptions = contribution.Scope == PluginScope.Project
                 ? (options ?? new PluginAltaInvocationOptions()) with
                 {
-                    SourceProjectId = contribution.ScopeProjectId,
+                    SourceProjectId = string.IsNullOrWhiteSpace(contribution.ScopeProjectId)
+                        ? UnresolvedProjectScopeId
+                        : contribution.ScopeProjectId,
                     WorkingDirectory = options?.WorkingDirectory ?? contribution.ScopeProjectPath,
                 }
                 : options;
