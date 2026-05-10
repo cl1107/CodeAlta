@@ -598,7 +598,7 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
 
             return runId;
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException)
         {
             var activeRunId = await ClearActiveRunAsync(thread.ThreadId, CancellationToken.None).ConfigureAwait(false);
             PublishRunFinishedEvent(
@@ -1549,6 +1549,7 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
             }
 
             await QueuePromptAsync(parent, prompt, "parent-notify", submittedBy, CancellationToken.None).ConfigureAwait(false);
+            await TryDrainNextQueuedPromptAsync(parent.ThreadId).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OperationCanceledException || _disposed)
         {
@@ -2130,6 +2131,18 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
                 }
 
                 return notifications;
+            }
+
+            if (@event is AgentErrorEvent error)
+            {
+                var key = "error:" + (error.RunId?.Value ?? error.Timestamp.ToUnixTimeMilliseconds().ToString(System.Globalization.CultureInfo.InvariantCulture));
+                if (!_sentParentFinalKeys.Add(key))
+                {
+                    return [];
+                }
+
+                var body = string.Concat("Delegated session failed or was cancelled before a final assistant reply: ", error.Message);
+                return [CreateParentNotification("error", body, error.RunId?.Value, key)];
             }
 
             if (@event is AgentSessionUpdateEvent { Kind: AgentSessionUpdateKind.Idle } idle && _lastParentFinalCandidate is { } candidate)

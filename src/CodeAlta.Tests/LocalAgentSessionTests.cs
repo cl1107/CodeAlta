@@ -230,6 +230,37 @@ public sealed class LocalAgentSessionTests
     }
 
     [TestMethod]
+    public async Task LocalAgentSession_SendAsync_PersistsErrorEventWhenTurnFails()
+    {
+        using var temp = TestTempDirectory.Create();
+        var store = new FileSystemLocalAgentSessionStore(new LocalAgentRuntimePathLayout(Path.Combine(temp.Path, "machine", "agents")));
+        var provider = CreateProvider();
+        var summary = CreateSummary("session-turn-failure");
+        var state = CreateState("session-turn-failure");
+        await store.UpsertSessionAsync(summary).ConfigureAwait(false);
+        await store.UpsertStateAsync(state).ConfigureAwait(false);
+        await using var session = new LocalAgentSession(
+            AgentBackendIds.OpenAIResponses,
+            provider,
+            summary,
+            state,
+            [],
+            store,
+            new ScriptedTurnExecutor((_, _, _) => throw new InvalidOperationException("provider failed before completion")),
+            CreateOptions(provider, temp.Path));
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+                () => session.SendAsync(new AgentSendOptions { Input = AgentInput.Text("first delegated prompt") }))
+            .ConfigureAwait(false);
+
+        var persistedHistory = await store.ReadEventsAsync(provider.ProtocolFamily, provider.ProviderKey, summary.SessionId).ConfigureAwait(false);
+        Assert.IsTrue(persistedHistory.OfType<AgentContentCompletedEvent>().Any(static evt => evt.Kind == AgentContentKind.User));
+        var error = persistedHistory.OfType<AgentErrorEvent>().Single();
+        Assert.IsNotNull(error.RunId);
+        Assert.AreEqual("provider failed before completion", error.Message);
+    }
+
+    [TestMethod]
     public async Task LocalAgentSession_SendAsync_ProjectsTurnSessionUpdatesAsTransientEvents()
     {
         using var temp = TestTempDirectory.Create();

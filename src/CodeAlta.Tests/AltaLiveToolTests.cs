@@ -1135,6 +1135,7 @@ public sealed class AltaLiveToolTests
         var selection = created.GetProperty("modelSelection");
         Assert.AreEqual("gpt-caller", selection.GetProperty("modelId").GetString());
         Assert.AreEqual("low", selection.GetProperty("reasoningEffort").GetString());
+        Assert.AreEqual(sourceThread.ThreadId, created.GetProperty("parentThreadId").GetString());
     }
 
     [TestMethod]
@@ -1314,7 +1315,7 @@ public sealed class AltaLiveToolTests
     }
 
     [TestMethod]
-    public async Task ChildSession_FinalAssistantMessageQueuesWhenParentIsIdle()
+    public async Task ChildSession_FinalAssistantMessageSubmitsWhenParentIsIdle()
     {
         using var root = TempDirectory.Create();
         var options = new CatalogOptions { GlobalRoot = root.Path };
@@ -1343,18 +1344,59 @@ public sealed class AltaLiveToolTests
         backend.PublishAssistantCompleted(child.BackendSessionId, childRunId, "queued final result");
         backend.PublishIdle(child.BackendSessionId, childRunId);
 
-        await WaitUntilAsync(() =>
-        {
-            var viewState = threadCatalog.LoadViewStateAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-            return viewState.ThreadStates.TryGetValue(parent.ThreadId, out var state) && state.QueuedPrompts.Count == 1;
-        }).ConfigureAwait(false);
+        await WaitUntilAsync(() => backend.SentOptions.Count == 2).ConfigureAwait(false);
         Assert.AreEqual(0, backend.SteeredOptions.Count);
+        StringAssert.Contains(ExtractText(backend.SentOptions[1].Input), "Kind: answer");
+        StringAssert.Contains(ExtractText(backend.SentOptions[1].Input), "queued final result");
         var queuedState = await threadCatalog.LoadViewStateAsync().ConfigureAwait(false);
         var queued = queuedState.ThreadStates[parent.ThreadId].QueuedPrompts.Single();
         Assert.AreEqual("parent-notify", queued.Kind);
-        Assert.AreEqual("queued", queued.State);
+        Assert.AreEqual("submitted", queued.State);
+        Assert.IsFalse(string.IsNullOrWhiteSpace(queued.RunId));
         StringAssert.Contains(queued.Prompt, "Kind: answer");
         StringAssert.Contains(queued.Prompt, "queued final result");
+        Assert.AreEqual(child.ThreadId, queued.SubmittedBy?.SourceThreadId);
+    }
+
+    [TestMethod]
+    public async Task ChildSession_ErrorSubmitsNotificationWhenParentIsIdle()
+    {
+        using var root = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = root.Path };
+        var threadCatalog = new WorkThreadCatalog(options);
+        var backendId = new AgentBackendId("child-error-parent-notify");
+        var backend = new StatefulBackend(backendId);
+        var runtime = CreateRuntime(options, backend);
+        await using var _ = runtime.ConfigureAwait(false);
+        var executionOptions = new WorkThreadExecutionOptions
+        {
+            BackendId = backendId,
+            ProviderKey = backendId.Value,
+            WorkingDirectory = root.Path,
+            ProjectRoots = [],
+            OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
+        };
+        var parent = await runtime.CreateGlobalThreadAsync(executionOptions, "Idle parent").ConfigureAwait(false);
+        var child = await runtime.CreateGlobalThreadAsync(
+                executionOptions,
+                "Child",
+                parent.ThreadId,
+                new AltaActorProvenance { Kind = "agent", SourceThreadId = parent.ThreadId, CreatedAt = DateTimeOffset.UtcNow })
+            .ConfigureAwait(false);
+        var childRunId = await runtime.SendAsync(child, executionOptions, new AgentSendOptions { Input = AgentInput.Text("child work") }).ConfigureAwait(false);
+
+        backend.PublishError(child.BackendSessionId, childRunId, "Run cancelled before the assistant response completed.");
+
+        await WaitUntilAsync(() => backend.SentOptions.Count == 2).ConfigureAwait(false);
+        Assert.AreEqual(0, backend.SteeredOptions.Count);
+        StringAssert.Contains(ExtractText(backend.SentOptions[1].Input), "Kind: error");
+        StringAssert.Contains(ExtractText(backend.SentOptions[1].Input), "Run cancelled before the assistant response completed.");
+        var queuedState = await threadCatalog.LoadViewStateAsync().ConfigureAwait(false);
+        var queued = queuedState.ThreadStates[parent.ThreadId].QueuedPrompts.Single();
+        Assert.AreEqual("parent-notify", queued.Kind);
+        Assert.AreEqual("submitted", queued.State);
+        Assert.IsFalse(string.IsNullOrWhiteSpace(queued.RunId));
+        StringAssert.Contains(queued.Prompt, "Kind: error");
         Assert.AreEqual(child.ThreadId, queued.SubmittedBy?.SourceThreadId);
     }
 
@@ -1446,7 +1488,7 @@ public sealed class AltaLiveToolTests
         var options = new CatalogOptions { GlobalRoot = root.Path };
         var backendId = new AgentBackendId("detach-send");
         var sendBlocker = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var backend = new StatefulBackend(backendId) { SendBlocker = sendBlocker };
+        var backend = new StatefulBackend(backendId) { SendBlocker = sendBlocker, PublishRunEventOnSend = true };
         var runtime = CreateRuntime(options, backend);
         await using var _ = runtime.ConfigureAwait(false);
         var dispatcher = CreateDispatcher(new AltaServiceCollection()
@@ -1470,6 +1512,58 @@ public sealed class AltaLiveToolTests
             Assert.IsFalse(record.TryGetProperty("runId", out var ignoredRunId));
             Assert.AreEqual("request", record.GetProperty("dispatchKind").GetString());
             Assert.IsTrue(record.GetProperty("detached").GetBoolean());
+            await WaitUntilAsync(() => backend.SentOptions.Count == 1).ConfigureAwait(false);
+        }
+        finally
+        {
+            sendBlocker.TrySetResult();
+        }
+    }
+
+    [TestMethod]
+    public async Task SessionSend_FromAgentCallerToParentedThreadReturnsNotificationFollowUpContract()
+    {
+        using var root = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = root.Path };
+        var backendId = new AgentBackendId("parented-detach-send");
+        var sendBlocker = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var backend = new StatefulBackend(backendId) { SendBlocker = sendBlocker, PublishRunEventOnSend = true };
+        var threadCatalog = new WorkThreadCatalog(options);
+        var runtime = CreateRuntime(options, backend);
+        await using var _ = runtime.ConfigureAwait(false);
+        var dispatcher = CreateDispatcher(new AltaServiceCollection()
+            .Add(options)
+            .Add(new ProjectCatalog(options))
+            .Add(threadCatalog)
+            .Add(runtime));
+        var parentCreated = await dispatcher.InvokeAsync(["session", "create", "--global", "--provider", backendId.Value], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var parentThreadId = ReadJsonLines(parentCreated.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.session.created").GetProperty("threadId").GetString()!;
+        var childCreated = await dispatcher.InvokeAsync(["session", "create", "--global", "--provider", backendId.Value, "--parent", parentThreadId], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var childThreadId = ReadJsonLines(childCreated.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.session.created").GetProperty("threadId").GetString()!;
+        var caller = new AltaCallerIdentity { Kind = "agent", SourceThreadId = parentThreadId };
+
+        try
+        {
+            var sendTask = dispatcher.InvokeAsync(["session", "send", childThreadId, "--message", "long delegated work"], caller: caller).AsTask();
+            var completed = await Task.WhenAny(sendTask, Task.Delay(TimeSpan.FromMilliseconds(1800))).ConfigureAwait(false);
+
+            Assert.AreSame(sendTask, completed, "Parented delegated sends should acknowledge submission instead of waiting for completion.");
+            var sent = await sendTask.ConfigureAwait(false);
+            Assert.AreEqual(AltaExitCodes.Success, sent.ExitCode);
+            var record = ReadJsonLines(sent.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.session.submitted");
+            Assert.IsTrue(record.GetProperty("detached").GetBoolean());
+            Assert.IsTrue(record.GetProperty("notificationExpected").GetBoolean());
+            Assert.IsFalse(record.GetProperty("shouldPoll").GetBoolean());
+            Assert.AreEqual("notification", record.GetProperty("followUpMode").GetString());
+            Assert.AreEqual("stop", record.GetProperty("recommendedAction").GetString());
+            StringAssert.Contains(record.GetProperty("nextStep").GetString()!, "do not call session status, tail, or events");
+            var notification = record.GetProperty("notification");
+            Assert.AreEqual(parentThreadId, notification.GetProperty("parentThreadId").GetString());
+            Assert.IsTrue(notification.GetProperty("expected").GetBoolean());
+            Assert.IsFalse(notification.GetProperty("shouldPoll").GetBoolean());
+            Assert.AreEqual("notification", notification.GetProperty("followUpMode").GetString());
+            Assert.AreEqual("stop", notification.GetProperty("recommendedAction").GetString());
+            StringAssert.Contains(notification.GetProperty("guidance").GetString()!, "Do not poll");
             await WaitUntilAsync(() => backend.SentOptions.Count == 1).ConfigureAwait(false);
         }
         finally
@@ -1507,6 +1601,47 @@ public sealed class AltaLiveToolTests
         {
             var ignored = await sendTask.ConfigureAwait(false);
             Assert.Fail("Expected the cancelled send task to throw OperationCanceledException.");
+        }
+        catch (OperationCanceledException)
+        {
+        }
+
+        await WaitUntilAsync(() => !runtime.HasActiveRunAsync(thread).ConfigureAwait(false).GetAwaiter().GetResult()).ConfigureAwait(false);
+        var aborted = await ReadRuntimeEventAsync<WorkThreadLifecycleRuntimeEvent>(
+                runtime,
+                runtimeEvent => runtimeEvent.ThreadId == thread.ThreadId && runtimeEvent.Event.Kind == WorkThreadLifecycleEventKind.RunAborted)
+            .ConfigureAwait(false);
+        Assert.AreEqual("run-1", aborted.Event.RunId);
+    }
+
+    [TestMethod]
+    public async Task RuntimeSend_InternalCancellationClearsActiveRunState()
+    {
+        using var root = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = root.Path };
+        var backendId = new AgentBackendId("internal-cancel-send");
+        var sendBlocker = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var backend = new StatefulBackend(backendId) { SendBlocker = sendBlocker, PublishRunEventOnSend = true };
+        var runtime = CreateRuntime(options, backend);
+        await using var _ = runtime.ConfigureAwait(false);
+        var executionOptions = new WorkThreadExecutionOptions
+        {
+            BackendId = backendId,
+            ProviderKey = backendId.Value,
+            WorkingDirectory = root.Path,
+            ProjectRoots = [],
+            OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
+        };
+        var thread = await runtime.CreateGlobalThreadAsync(executionOptions, "Internally Cancelable").ConfigureAwait(false);
+
+        var sendTask = runtime.SendAsync(thread, executionOptions, new AgentSendOptions { Input = AgentInput.Text("cancel internally") }, CancellationToken.None);
+        await WaitUntilAsync(() => runtime.HasActiveRunAsync(thread).ConfigureAwait(false).GetAwaiter().GetResult()).ConfigureAwait(false);
+        sendBlocker.SetCanceled();
+
+        try
+        {
+            var ignored = await sendTask.ConfigureAwait(false);
+            Assert.Fail("Expected the internally cancelled send task to throw OperationCanceledException.");
         }
         catch (OperationCanceledException)
         {
@@ -2251,6 +2386,15 @@ public sealed class AltaLiveToolTests
                 "assistant-" + Guid.NewGuid().ToString("N"),
                 null,
                 content);
+            foreach (var handler in _subscriptions.TryGetValue(sessionId, out var handlers) ? handlers.ToArray() : [])
+            {
+                handler(@event);
+            }
+        }
+
+        public void PublishError(string sessionId, AgentRunId runId, string message)
+        {
+            var @event = new AgentErrorEvent(backendId, sessionId, DateTimeOffset.UtcNow, message, exception: null, runId: runId);
             foreach (var handler in _subscriptions.TryGetValue(sessionId, out var handlers) ? handlers.ToArray() : [])
             {
                 handler(@event);

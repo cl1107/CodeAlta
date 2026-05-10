@@ -436,6 +436,11 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
                 }
             }
         }
+        catch (Exception ex)
+        {
+            await AppendRunErrorAsync(runId, ex).ConfigureAwait(false);
+            throw;
+        }
         finally
         {
             await CompleteActiveRunAsync(runId, CancellationToken.None).ConfigureAwait(false);
@@ -1196,6 +1201,28 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
         IReadOnlyList<AgentEvent> events,
         CancellationToken cancellationToken)
         => await AppendEventsAsync(events, LocalAgentEventPersistenceMode.DurableCanonical, cancellationToken).ConfigureAwait(false);
+
+    private async Task AppendRunErrorAsync(AgentRunId runId, Exception exception)
+    {
+        var message = exception is OperationCanceledException
+            ? "Run cancelled before the assistant response completed."
+            : exception.Message;
+        var errorEvent = new AgentErrorEvent(
+            BackendId,
+            SessionId,
+            DateTimeOffset.UtcNow,
+            message,
+            exception,
+            runId);
+
+        try
+        {
+            await AppendEventsAsync([errorEvent], CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception appendException) when (appendException is IOException or UnauthorizedAccessException or ObjectDisposedException or InvalidOperationException)
+        {
+        }
+    }
 
     private async Task AppendEventsAsync(
         IReadOnlyList<AgentEvent> events,

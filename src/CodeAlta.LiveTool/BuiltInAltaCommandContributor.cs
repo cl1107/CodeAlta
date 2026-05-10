@@ -10,7 +10,9 @@ namespace CodeAlta.LiveTool;
 
 internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 {
-    private static readonly TimeSpan AgentCallerSubmitAckTimeout = TimeSpan.FromSeconds(1);
+    // Agent-originated sends should return after the delegated run is accepted, not after
+    // the delegated LLM finishes. The timeout is only a submission-acknowledgement guard.
+    private static readonly TimeSpan AgentCallerSubmitAckTimeout = TimeSpan.FromSeconds(5);
 
     private static readonly AltaCommandPolicy[] Policies =
     [
@@ -1251,7 +1253,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
                 new AgentSendOptions { Input = AgentInput.Text(inputText) },
                 IsAgentCaller(context) ? CancellationToken.None : context.CancellationToken);
 
-            if (IsAgentCaller(context) && await Task.WhenAny(sendTask, Task.Delay(AgentCallerSubmitAckTimeout)).ConfigureAwait(false) != sendTask)
+            if (IsAgentCaller(context) && await WaitForAgentSubmissionAckAsync(runtime, info.Thread, sendTask).ConfigureAwait(false) && !sendTask.IsCompleted)
             {
                 _ = ObserveDetachedPromptSubmissionAsync(sendTask);
                 await runtime.PersistThreadLocalStateAsync(info.Thread, CancellationToken.None).ConfigureAwait(false);
@@ -2083,6 +2085,35 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
     private static bool IsAgentCaller(AltaCommandContext context)
         => string.Equals(context.Caller.Kind, "agent", StringComparison.OrdinalIgnoreCase);
 
+    private static async Task<bool> WaitForAgentSubmissionAckAsync(
+        WorkThreadRuntimeService runtime,
+        WorkThreadDescriptor thread,
+        Task<AgentRunId> sendTask)
+    {
+        var deadline = DateTimeOffset.UtcNow + AgentCallerSubmitAckTimeout;
+        while (!sendTask.IsCompleted)
+        {
+            if (await runtime.HasActiveRunAsync(thread, CancellationToken.None).ConfigureAwait(false))
+            {
+                return true;
+            }
+
+            var remaining = deadline - DateTimeOffset.UtcNow;
+            if (remaining <= TimeSpan.Zero)
+            {
+                return true;
+            }
+
+            var delay = remaining < TimeSpan.FromMilliseconds(100) ? remaining : TimeSpan.FromMilliseconds(100);
+            if (await Task.WhenAny(sendTask, Task.Delay(delay)).ConfigureAwait(false) == sendTask)
+            {
+                return false;
+            }
+        }
+
+        return false;
+    }
+
     private static async Task ObserveDetachedPromptSubmissionAsync(Task<AgentRunId> sendTask)
     {
         try
@@ -2143,7 +2174,36 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         var automaticParentThreadId = !string.IsNullOrWhiteSpace(context.Caller.SourceThreadId)
             ? context.Caller.SourceThreadId
             : null;
-        return ParentThreadResolutionResult.Success(automaticParentThreadId);
+        if (!string.IsNullOrWhiteSpace(automaticParentThreadId))
+        {
+            return ParentThreadResolutionResult.Success(automaticParentThreadId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(context.Caller.SourceBackendSessionId))
+        {
+            var infos = await LoadSessionInfosAsync(context).ConfigureAwait(false);
+            if (infos is not null)
+            {
+                var parent = infos.FirstOrDefault(info => string.Equals(info.Thread.BackendSessionId, context.Caller.SourceBackendSessionId, StringComparison.OrdinalIgnoreCase));
+                if (parent is not null)
+                {
+                    return ParentThreadResolutionResult.Success(parent.Thread.ThreadId);
+                }
+            }
+
+            if (context.Services.Get<WorkThreadCatalog>() is { } threadCatalog)
+            {
+                var catalogThreads = await threadCatalog.LoadInternalAsync(context.CancellationToken).ConfigureAwait(false);
+                var parent = catalogThreads.FirstOrDefault(candidate =>
+                    string.Equals(candidate.BackendSessionId, context.Caller.SourceBackendSessionId, StringComparison.OrdinalIgnoreCase));
+                if (parent is not null)
+                {
+                    return ParentThreadResolutionResult.Success(parent.ThreadId);
+                }
+            }
+        }
+
+        return ParentThreadResolutionResult.Success(null);
     }
 
     private static string GetGlobalRootOrCwd(AltaCommandContext context)
@@ -2330,6 +2390,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
     private static void WritePromptResult(AltaCommandContext context, string type, WorkThreadDescriptor thread, string? runId, string? queueItemId, bool queued, PromptDispatchKind kind, string prompt)
     {
+        var parentNotificationExpected = IsAgentCaller(context) && !string.IsNullOrWhiteSpace(thread.ParentThreadId);
         AltaJsonlWriter.WriteRecord(context.Stdout, new
         {
             type,
@@ -2341,10 +2402,33 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             queued,
             detached = runId is null && queueItemId is null && !queued,
             dispatchKind = kind.ToString().ToLowerInvariant(),
+            notificationExpected = parentNotificationExpected ? true : (bool?)null,
+            shouldPoll = parentNotificationExpected ? false : (bool?)null,
+            followUpMode = parentNotificationExpected ? "notification" : null,
+            recommendedAction = parentNotificationExpected ? "stop" : null,
+            nextStep = parentNotificationExpected
+                ? "Stop now; do not call session status, tail, or events for routine completion. CodeAlta will notify the parent thread when the delegated session produces its final assistant reply."
+                : null,
+            notification = CreatePromptNotificationPayload(context, thread),
             submittedBy = CreateProvenance(context),
             promptPreview = prompt.Length <= 160 ? prompt : prompt[..160],
         });
     }
+
+    private static object? CreatePromptNotificationPayload(AltaCommandContext context, WorkThreadDescriptor thread)
+        => IsAgentCaller(context) && !string.IsNullOrWhiteSpace(thread.ParentThreadId)
+            ? new
+            {
+                parentThreadId = thread.ParentThreadId,
+                automaticParentNotification = true,
+                expected = true,
+                shouldPoll = false,
+                followUpMode = "notification",
+                recommendedAction = "stop",
+                nextStep = "Stop now; do not call session status, tail, or events for routine completion. CodeAlta will notify the parent thread when the delegated session produces its final assistant reply.",
+                guidance = "Do not poll this delegated session for completion. CodeAlta will forward the delegated session's final assistant reply to the parent thread automatically.",
+            }
+            : null;
 
     private static void WriteSkill(AltaCommandContext context, string type, SkillDescriptor skill, bool includeDiagnostics, SkillDocument? document = null)
     {

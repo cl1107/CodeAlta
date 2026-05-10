@@ -113,7 +113,7 @@ alta session tail <thread-id> --last 10
 alta session events <thread-id> --limit 20
 ```
 
-Session control commands submit work and return submission/queue metadata instead of waiting for the target agent to finish. Agent-originated submissions can return `detached: true` after the runtime accepts a long-running turn; treat that as an accepted submission and poll `session status` plus `session tail`/`session events` until an assistant response or failure is visible. `send --queue-if-busy` and explicit `queue` persist durable queue items with caller attribution; the runtime drains at most one queued prompt for a thread when the active run becomes idle.
+Session control commands submit work and return submission/queue metadata instead of waiting for the target agent to finish. Agent-originated submissions can return `detached: true` after the runtime accepts a long-running turn. For parent/child delegated work, do not poll by default: CodeAlta forwards the child final reply or a child-run error back to the parent thread automatically. Parented delegated submissions include `notificationExpected: true`, `shouldPoll: false`, `followUpMode: "notification"`, and `recommendedAction: "stop"` so coordinators can stop immediately. Use `session status`, `tail`, or `events` only for diagnostics, explicit observation, or when no parent notification is expected. `send --queue-if-busy` and explicit `queue` persist durable queue items with caller attribution; the runtime drains at most one queued prompt for a thread when the active run becomes idle.
 
 ```text
 alta session create --project CodeAlta --title "Investigate parser" --same-model-as <thread-id> --reasoning low
