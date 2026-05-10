@@ -241,7 +241,7 @@ internal sealed class PluginRuntimeServices : IPluginServices
             CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(args);
-            var effectiveOptions = scope == PluginScope.Project && !string.IsNullOrWhiteSpace(scopeProjectId)
+            var effectiveOptions = scope == PluginScope.Project
                 ? (options ?? new PluginAltaInvocationOptions()) with { SourceProjectId = scopeProjectId }
                 : options;
             return inner is IPluginAltaRuntimeService runtime

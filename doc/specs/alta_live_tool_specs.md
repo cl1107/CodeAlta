@@ -672,6 +672,8 @@ The service should:
 - record plugin provenance for created sessions, prompts, queued prompts, steering prompts, and inter-agent messages;
 - avoid recursive command contribution mutation while commands are executing.
 
+The current implementation enforces runtime-owned plugin identity and scope derivation for both plugin runtime services and plugin-contributed `alta` commands: project-scoped plugin calls override any plugin-supplied `SourceProjectId` with the runtime-owned scope project before dispatch.
+
 A plugin-created session in the same project as an explicit source thread may use that source thread as `parentThreadId` under the same rules as agent-created sessions. If there is no source thread, the session is plugin-created but not a sidebar child.
 
 ## 8. Plugin extension model
@@ -1029,7 +1031,7 @@ Before considering the feature complete:
 - add sidebar/timeline projection tests for parent/child sessions and agent-created prompts;
 - document unsupported backend behavior explicitly.
 
-Current completion evidence: user-facing examples are documented in `readme.md`, `doc/readme.md#alta-live-tool`, `doc/skills.md#live-tool-commands`, and `doc/plugins.md#alta-live-tool-integration`; coordinator/skill instruction templates advertise `alta` only when it is available; regression coverage lives in `AltaLiveToolTests`, `ThreadRuntimeEventCoordinatorTests`, `ArchitectureGuardrailTests`, and catalog/plugin infrastructure tests for the command registry, JSONL transcripts, invalid usage diagnostics (unknown options, bad values, missing arguments, mutually exclusive flags, plugin validation), visibility (global coordinator access, same-project access, scoped project catalog/skill access, coordinator reply path, denied cross-project access), capability discovery, provenance, explicit parent validation, queue draining, plugin contributions/invocation, and timeline/sidebar projections.
+Current completion evidence: user-facing examples are documented in `readme.md`, `doc/readme.md#alta-live-tool`, `doc/skills.md#live-tool-commands`, and `doc/plugins.md#alta-live-tool-integration`; coordinator/skill instruction templates advertise `alta` only when it is available; regression coverage lives in `AltaLiveToolTests`, `ThreadRuntimeEventCoordinatorTests`, `ArchitectureGuardrailTests`, and catalog/plugin infrastructure tests for the command registry, JSONL transcripts, invalid usage diagnostics (unknown options, bad values, missing arguments, mutually exclusive flags, plugin validation), visibility (global coordinator access, same-project access, scoped project catalog/skill access, scoped plugin alta invocation, coordinator reply path, denied cross-project access), capability discovery, provenance, explicit parent validation, queue draining, plugin contributions/invocation, and timeline/sidebar projections.
 
 ## 13. Resolved v1 decisions
 

@@ -490,6 +490,67 @@ public sealed class AltaLiveToolTests
     }
 
     [TestMethod]
+    public async Task PluginAltaCommandContribution_ProjectScopedAltaServiceUsesRuntimeScopeOverPluginOptions()
+    {
+        using var root = TempDirectory.Create();
+        var projectAPath = Path.Combine(root.Path, "plugin-project-a");
+        var projectBPath = Path.Combine(root.Path, "plugin-project-b");
+        Directory.CreateDirectory(projectAPath);
+        Directory.CreateDirectory(projectBPath);
+        var options = new CatalogOptions { GlobalRoot = root.Path };
+        var projectCatalog = new ProjectCatalog(options);
+        var projectA = await projectCatalog.UpsertFromPathAsync(projectAPath).ConfigureAwait(false);
+        var projectB = await projectCatalog.UpsertFromPathAsync(projectBPath).ConfigureAwait(false);
+        var loopback = new LoopbackPluginAltaRuntimeService();
+        var catalog = new FakeAltaPluginCatalog(
+            new AltaPluginCommandContribution
+            {
+                Plugin = CreatePluginDescriptor("scoped-plugin"),
+                Services = new PluginServicesWithAlta(loopback),
+                Scope = PluginScope.Project,
+                ScopeProjectId = projectA.Id,
+                ScopeProjectPath = projectA.ProjectPath,
+                Command = new PluginAltaCommandContribution
+                {
+                    Path = "plugin-peek",
+                    Description = "Try to inspect another project through alta.",
+                    CreateCommandNode = pluginContext =>
+                    {
+                        var command = new Command("plugin-peek", "Try to inspect another project through alta.");
+                        command.Add(async (_, _) =>
+                        {
+                            var result = await pluginContext.Services.Alta.InvokeAsync(
+                                    ["project", "show", projectB.Id],
+                                    options: new PluginAltaInvocationOptions { SourceProjectId = projectB.Id },
+                                    cancellationToken: pluginContext.CancellationToken)
+                                .ConfigureAwait(false);
+                            AltaJsonlWriter.WriteRecord(pluginContext.Stdout, new
+                            {
+                                type = "alta.plugin.peek",
+                                version = 1,
+                                pluginContext.CorrelationId,
+                                nestedExitCode = result.ExitCode,
+                            });
+                            return result.ExitCode;
+                        });
+                        return command;
+                    },
+                },
+            });
+        var dispatcher = CreateDispatcher(new AltaServiceCollection()
+            .Add(options)
+            .Add(projectCatalog)
+            .Add<IAltaPluginCatalog>(catalog));
+        loopback.SetDispatcher(dispatcher);
+
+        var result = await dispatcher.InvokeAsync(["plugin-peek"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+
+        Assert.AreEqual(AltaExitCodes.PolicyDenied, result.ExitCode);
+        var peek = ReadJsonLines(result.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.plugin.peek");
+        Assert.AreEqual(AltaExitCodes.PolicyDenied, peek.GetProperty("nestedExitCode").GetInt32());
+    }
+
+    [TestMethod]
     public async Task PluginAltaCommandContribution_SessionSendThroughPluginServicePersistsPromptProvenance()
     {
         using var root = TempDirectory.Create();

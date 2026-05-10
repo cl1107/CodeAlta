@@ -98,7 +98,7 @@ public sealed class PluginAltaCommandContributor : IAltaCommandContributor
         => new()
         {
             Plugin = contribution.Plugin,
-            Services = CreatePluginScopedServices(contribution.Services, contribution.Plugin.RuntimeKey),
+            Services = CreatePluginScopedServices(contribution.Services, contribution),
             Scope = contribution.Scope,
             ScopeProjectId = contribution.ScopeProjectId,
             ScopeProjectPath = contribution.ScopeProjectPath,
@@ -110,14 +110,14 @@ public sealed class PluginAltaCommandContributor : IAltaCommandContributor
             CancellationToken = invocation.CancellationToken,
         };
 
-    private static IPluginServices CreatePluginScopedServices(IPluginServices services, string pluginRuntimeKey)
+    private static IPluginServices CreatePluginScopedServices(IPluginServices services, AltaPluginCommandContribution contribution)
     {
         if (services.Alta is not IPluginAltaRuntimeService runtimeService)
         {
             return services;
         }
 
-        return new PluginScopedServices(services, new PluginScopedAltaService(runtimeService, pluginRuntimeKey));
+        return new PluginScopedServices(services, new PluginScopedAltaService(runtimeService, contribution));
     }
 
     private static bool RootMatchesDeclaredPath(string commandName, string path)
@@ -129,14 +129,23 @@ public sealed class PluginAltaCommandContributor : IAltaCommandContributor
         return segments.Length == 0 ? null : segments[0];
     }
 
-    private sealed class PluginScopedAltaService(IPluginAltaRuntimeService inner, string pluginRuntimeKey) : IPluginAltaService
+    private sealed class PluginScopedAltaService(IPluginAltaRuntimeService inner, AltaPluginCommandContribution contribution) : IPluginAltaService
     {
         public ValueTask<PluginAltaCommandResult> InvokeAsync(
             IReadOnlyList<string> args,
             string? stdin = null,
             PluginAltaInvocationOptions? options = null,
             CancellationToken cancellationToken = default)
-            => inner.InvokeAsync(pluginRuntimeKey, args, stdin, options, cancellationToken);
+        {
+            var effectiveOptions = contribution.Scope == PluginScope.Project
+                ? (options ?? new PluginAltaInvocationOptions()) with
+                {
+                    SourceProjectId = contribution.ScopeProjectId,
+                    WorkingDirectory = options?.WorkingDirectory ?? contribution.ScopeProjectPath,
+                }
+                : options;
+            return inner.InvokeAsync(contribution.Plugin.RuntimeKey, args, stdin, effectiveOptions, cancellationToken);
+        }
     }
 
     private sealed class PluginScopedServices(IPluginServices inner, IPluginAltaService alta) : IPluginServices
