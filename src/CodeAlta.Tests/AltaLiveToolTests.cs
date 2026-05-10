@@ -93,12 +93,27 @@ public sealed class AltaLiveToolTests
 
         Assert.AreEqual(AltaExitCodes.Success, result.ExitCode);
         Assert.IsTrue(result.IsHelp);
+        StringAssert.StartsWith(result.Stdout, "Usage: alta [options] <command> [command-options]");
         StringAssert.Contains(result.Stdout, "Guidance: non-help commands return JSONL headed by `alta.result`");
         StringAssert.Contains(result.Stdout, "alta session list --project <project> --state all");
         StringAssert.Contains(result.Stdout, "--limit 20");
         StringAssert.Contains(result.Stdout, "alta session create --project <project> --reasoning low");
         StringAssert.Contains(result.Stdout, "alta session create --project <project> --same-model-as <thread-id>");
         StringAssert.Contains(result.Stdout, "session request`/`message` for peer-agent notes");
+        StringAssert.Contains(result.Stdout, "Discover: `alta <command> --help` or `alta <command> <subcommand> --help`.");
+        AssertHelpOrder(result.Stdout, "  session", "Guidance:");
+        AssertHelpOrder(result.Stdout, "  plugin", "Guidance:");
+    }
+
+    [TestMethod]
+    public async Task Dispatcher_SubcommandHelp_ListsOptionsBeforeExamples()
+    {
+        var result = await CreateDispatcher().InvokeAsync(["session", "create", "--help"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+
+        Assert.AreEqual(AltaExitCodes.Success, result.ExitCode);
+        Assert.IsTrue(result.IsHelp);
+        AssertHelpOrder(result.Stdout, "      --project=VALUE", "Examples:");
+        AssertHelpOrder(result.Stdout, "      --no-parent", "Examples:");
     }
 
     [TestMethod]
@@ -1528,6 +1543,15 @@ public sealed class AltaLiveToolTests
         Assert.IsTrue(lines.Any(static line => line.GetProperty("type").GetString() == "alta.warning" && line.GetProperty("code").GetString() == "session.historyStoreUnavailable"));
         var summary = lines.Single(static line => line.GetProperty("type").GetString() == "alta.session.events.summary");
         Assert.AreEqual(0, summary.GetProperty("count").GetInt32());
+    }
+
+    private static void AssertHelpOrder(string help, string earlier, string later)
+    {
+        var earlierIndex = help.IndexOf(earlier, StringComparison.Ordinal);
+        var laterIndex = help.IndexOf(later, StringComparison.Ordinal);
+        Assert.IsTrue(earlierIndex >= 0, $"Help text did not contain '{earlier}'.\n{help}");
+        Assert.IsTrue(laterIndex >= 0, $"Help text did not contain '{later}'.\n{help}");
+        Assert.IsTrue(earlierIndex < laterIndex, $"Expected '{earlier}' before '{later}'.\n{help}");
     }
 
     private static AltaCommandDispatcher CreateDispatcher(params IAltaCommandContributor[] contributors)

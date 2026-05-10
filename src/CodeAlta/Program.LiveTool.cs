@@ -43,23 +43,32 @@ internal partial class Program
             .ConfigureAwait(false);
         if (!string.IsNullOrEmpty(result.Stdout))
         {
-            await Console.Out.WriteAsync(result.Stdout.AsMemory(), cancellationToken).ConfigureAwait(false);
+            var stdout = InsertRootProcessOptions(result.Stdout);
+            await Console.Out.WriteAsync(stdout.AsMemory(), cancellationToken).ConfigureAwait(false);
         }
 
         if (!string.IsNullOrEmpty(result.Stderr))
         {
             await Console.Error.WriteAsync(result.Stderr.AsMemory(), cancellationToken).ConfigureAwait(false);
         }
-
-        await Console.Out.WriteLineAsync().ConfigureAwait(false);
-        await Console.Out.WriteLineAsync("Process options accepted before live commands:").ConfigureAwait(false);
-        await Console.Out.WriteLineAsync("  --test                     Run the terminal smoke test.").ConfigureAwait(false);
-        await Console.Out.WriteLineAsync("  --test-duration <SECONDS>  Smoke-test duration.").ConfigureAwait(false);
-        await Console.Out.WriteLineAsync("  --no-plugins               Disable plugin discovery, build, and load.").ConfigureAwait(false);
-        await Console.Out.WriteLineAsync("  --plugin-safe-mode         Disable plugin discovery, build, and load.").ConfigureAwait(false);
-        await Console.Out.WriteLineAsync("  --plugins-status           Print plugin status and exit without starting the TUI.").ConfigureAwait(false);
-        await Console.Out.WriteLineAsync("  --plugins-wait-for-enter   Wait for Enter after source plugin live progress finishes.").ConfigureAwait(false);
         return result.ExitCode;
+    }
+
+    private static string InsertRootProcessOptions(string stdout)
+    {
+        const string guidanceMarker = "\nGuidance:";
+        var normalized = stdout.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
+        const string processOptions = "Process options accepted before live commands:\n" +
+                                      "  --test                     Run the terminal smoke test.\n" +
+                                      "  --test-duration <SECONDS>  Smoke-test duration.\n" +
+                                      "  --no-plugins               Disable plugin discovery, build, and load.\n" +
+                                      "  --plugin-safe-mode         Disable plugin discovery, build, and load.\n" +
+                                      "  --plugins-status           Print plugin status and exit without starting the TUI.\n" +
+                                      "  --plugins-wait-for-enter   Wait for Enter after source plugin live progress finishes.";
+        var guidanceIndex = normalized.IndexOf(guidanceMarker, StringComparison.Ordinal);
+        return guidanceIndex < 0
+            ? normalized.TrimEnd('\n') + "\n\n" + processOptions + "\n"
+            : normalized[..guidanceIndex] + "\n" + processOptions + "\n" + normalized[guidanceIndex..];
     }
 
     internal static async ValueTask<int> RunLiveToolProcessAsync(

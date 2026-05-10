@@ -137,13 +137,13 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
     private static Command CreateProjectCommand(AltaCommandContext context)
     {
         var group = Group("project", "Inspect and manage project catalog entries.");
-        AddHelpText(
-            group,
-            "Examples: `alta project list`; `alta project show CodeAlta`; `alta project resolve --path C:/code/CodeAlta`.");
         group.Add(CreateProjectListCommand(context));
         group.Add(CreateProjectShowCommand(context));
         group.Add(CreateProjectResolveCommand(context));
         group.Add(CreateProjectUpsertCommand(context));
+        AddHelpText(
+            group,
+            "Examples: `alta project list`; `alta project show CodeAlta`; `alta project resolve --path C:/code/CodeAlta`.");
         return group;
     }
 
@@ -186,13 +186,6 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
     private static Command CreateSessionCommand(AltaCommandContext context)
     {
         var group = Group("session", "Inspect, create, and control CodeAlta work sessions.");
-        AddHelpText(
-            group,
-            "Common: list by project, create child sessions, send prompts, inspect status/tail/history, and steer active runs.",
-            "Examples:",
-            "  `alta session list --project CodeAlta --state all --limit 20`",
-            "  `alta session create --project CodeAlta --same-model-as <thread-id>`",
-            "  `alta session send <thread-id> --stdin`");
         group.Add(CreateSessionListCommand(context));
         group.Add(CreateSessionShowCommand(context));
         group.Add(CreateSessionStatusCommand(context));
@@ -209,6 +202,13 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         group.Add(CreateSessionJoinCommand(context));
         group.Add(CreateSessionMessageCommand(context));
         group.Add(CreateSessionRequestCommand(context));
+        AddHelpText(
+            group,
+            "Common: list by project, create child sessions, send prompts, inspect status/tail/history, and steer active runs.",
+            "Examples:",
+            "  `alta session list --project CodeAlta --state all --limit 20`",
+            "  `alta session create --project CodeAlta --same-model-as <thread-id>`",
+            "  `alta session send <thread-id> --stdin`");
         return group;
     }
 
@@ -219,12 +219,12 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         string? backend = null;
         var limit = 50;
         var command = Leaf("list", "List recoverable/live sessions as JSONL.");
-        AddHelpText(command, "Examples: `alta session list --project CodeAlta --state all --limit 20`; `alta session list --state running`.");
         command.Add("project=", "Filter by project id, slug, or path.", value => project = value);
         command.Add("state=", "Filter by running, idle, inactive, archived, or all.", value => state = ValidateState(value));
         command.Add("backend=", "Filter by backend/provider id.", value => backend = value);
         command.Add("limit=", "Maximum sessions to return.", (int value) => limit = value);
         command.Add(async (_, _) => await HandleSessionListAsync(context, project, state, backend, limit).ConfigureAwait(false));
+        AddHelpText(command, "Examples: `alta session list --project CodeAlta --state all --limit 20`; `alta session list --state running`.");
         return command;
     }
 
@@ -241,9 +241,9 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
     {
         string? threadId = null;
         var command = Leaf("status", "Show compact live status for one session.");
-        AddHelpText(command, "Example: `alta session status <thread-id>` after choosing a thread from `alta session list`.");
         command.Add("<thread-id>", "CodeAlta thread id.", value => threadId = value);
         command.Add(async (_, _) => await HandleSessionShowAsync(context, threadId, "alta.session.status").ConfigureAwait(false));
+        AddHelpText(command, "Example: `alta session status <thread-id>` after choosing a thread from `alta session list`.");
         return command;
     }
 
@@ -273,11 +273,11 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         var last = 20;
         string? include = null;
         var command = Leaf("tail", "Return a finite sanitized snapshot of recent session events.");
-        AddHelpText(command, "Examples: `alta session tail <thread-id> --last 10`; add `--include user,assistant,tool` to narrow categories.");
         command.Add("<thread-id>", "CodeAlta thread id.", value => threadId = value);
         command.Add("last=", "Number of recent events to return.", (int value) => last = value);
         command.Add("include=", "Comma-separated categories: user,assistant,reasoning,tool,host,event.", value => include = value);
         command.Add(async (_, _) => await HandleSessionEventsAsync(context, threadId, since: null, limit: last, include, fromTail: true).ConfigureAwait(false));
+        AddHelpText(command, "Examples: `alta session tail <thread-id> --last 10`; add `--include user,assistant,tool` to narrow categories.");
         return command;
     }
 
@@ -288,12 +288,12 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         var limit = 50;
         string? include = null;
         var command = Leaf("events", "Return a finite sanitized snapshot of session events.");
-        AddHelpText(command, "Example: `alta session events <thread-id> --since 120 --limit 50 --include assistant,tool,event`.");
         command.Add("<thread-id>", "CodeAlta thread id.", value => threadId = value);
         command.Add("since=", "Return events after this sequence number.", (long value) => since = value);
         command.Add("limit=", "Maximum events to return.", (int value) => limit = value);
         command.Add("include=", "Comma-separated categories: user,assistant,reasoning,tool,host,event.", value => include = value);
         command.Add(async (_, _) => await HandleSessionEventsAsync(context, threadId, since, limit, include, fromTail: false).ConfigureAwait(false));
+        AddHelpText(command, "Example: `alta session events <thread-id> --since 120 --limit 50 --include assistant,tool,event`.");
         return command;
     }
 
@@ -301,12 +301,6 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
     {
         var options = new SessionCreateOptions();
         var command = Leaf("create", "Create a project or global session using resolved model selection.");
-        AddHelpText(
-            command,
-            "Examples:",
-            "  `alta session create --project CodeAlta --reasoning low`",
-            "  `alta session create --project CodeAlta --same-model-as <thread-id>`",
-            "  `alta session create --global --model-ref codex:gpt-5.5@high`");
         AddModelSelectionOptions(command, options.Model);
         command.Add("project=", "Target project id, slug, or path.", value => options.Project = value);
         command.Add("global", "Create a global coordinator session.", value => options.Global = value is not null);
@@ -314,6 +308,12 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         command.Add("parent=", "Explicit parent thread id for same-project lineage.", value => options.ParentThreadId = value);
         command.Add("no-parent", "Suppress automatic parent assignment.", value => options.NoParent = value is not null);
         command.Add(async (_, _) => await HandleSessionCreateAsync(context, options).ConfigureAwait(false));
+        AddHelpText(
+            command,
+            "Examples:",
+            "  `alta session create --project CodeAlta --reasoning low`",
+            "  `alta session create --project CodeAlta --same-model-as <thread-id>`",
+            "  `alta session create --global --model-ref codex:gpt-5.5@high`");
         return command;
     }
 
@@ -322,11 +322,11 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         string? threadId = null;
         var options = new PromptOptions();
         var command = Leaf("send", "Submit a normal prompt to a session and return run metadata.");
-        AddHelpText(command, "Examples: `alta session send <thread-id> --message \"Summarize status\"`; prefer `--stdin` for multi-line prompts.");
         command.Add("<thread-id>", "CodeAlta thread id.", value => threadId = value);
         AddMessageOptions(command, options);
         command.Add("queue-if-busy", "Queue instead of failing when the target is busy, if a queue service is available.", value => options.QueueIfBusy = value is not null);
         command.Add(async (_, _) => await HandleSessionSendAsync(context, threadId, options, PromptDispatchKind.Send).ConfigureAwait(false));
+        AddHelpText(command, "Examples: `alta session send <thread-id> --message \"Summarize status\"`; prefer `--stdin` for multi-line prompts.");
         return command;
     }
 
@@ -335,10 +335,10 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         string? threadId = null;
         var options = new PromptOptions();
         var command = Leaf("steer", "Send steering input to an active run.");
-        AddHelpText(command, "Example: `alta session steer <thread-id> --message \"Please focus on tests first\"`; use only while the target is running.");
         command.Add("<thread-id>", "CodeAlta thread id.", value => threadId = value);
         AddMessageOptions(command, options);
         command.Add(async (_, _) => await HandleSessionSendAsync(context, threadId, options, PromptDispatchKind.Steer).ConfigureAwait(false));
+        AddHelpText(command, "Example: `alta session steer <thread-id> --message \"Please focus on tests first\"`; use only while the target is running.");
         return command;
     }
 
@@ -401,21 +401,21 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         string? threadId = null;
         var options = new PromptOptions { MessageKind = "request" };
         var command = Leaf("request", "Send an attributed peer-agent request to a session.");
-        AddHelpText(command, "Example: `alta session request <thread-id> --reply-requested --stdin` for coordinator-to-agent requests.");
         command.Add("<thread-id>", "CodeAlta thread id.", value => threadId = value);
         AddMessageOptions(command, options);
         command.Add("reply-requested", "Annotate the request as expecting a reply.", value => options.ReplyRequested = value is not null);
         command.Add(async (_, _) => await HandleSessionSendAsync(context, threadId, options, PromptDispatchKind.Request).ConfigureAwait(false));
+        AddHelpText(command, "Example: `alta session request <thread-id> --reply-requested --stdin` for coordinator-to-agent requests.");
         return command;
     }
 
     private static Command CreateSkillCommand(AltaCommandContext context)
     {
         var group = Group("skill", "Discover and activate CodeAlta-managed skills.");
-        AddHelpText(group, "Examples: `alta skill list`; `alta skill show <skill-name>`; `alta skill activate <skill-name> --session <thread-id>`.");
         group.Add(CreateSkillListCommand(context));
         group.Add(CreateSkillShowCommand(context));
         group.Add(CreateSkillActivateCommand(context, "activate"));
+        AddHelpText(group, "Examples: `alta skill list`; `alta skill show <skill-name>`; `alta skill activate <skill-name> --session <thread-id>`.");
         return group;
     }
 
@@ -465,12 +465,12 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
     private static Command CreateToolCommand(AltaCommandContext context)
     {
         var group = Group("tool", "Inspect alta live-tool status, policies, and capabilities.");
-        AddHelpText(group, "Examples: `alta tool status`; `alta tool capability list` to see host/runtime/backend/plugin availability as JSONL.");
         var capability = Group("capability", "Inspect alta capability metadata.");
         capability.Add(CreateToolCapabilityListCommand(context));
         group.Add(CreateToolStatusCommand(context));
         group.Add(CreateToolListCommand(context));
         group.Add(capability);
+        AddHelpText(group, "Examples: `alta tool status`; `alta tool capability list` to see host/runtime/backend/plugin availability as JSONL.");
         return group;
     }
 
@@ -634,10 +634,10 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
     private static Command CreateModelCommand(AltaCommandContext context)
     {
         var group = Group("model", "Inspect and resolve provider model selections.");
-        AddHelpText(group, "Examples: `alta model list --provider codex`; `alta model resolve --same-model-as <thread-id> --reasoning low`.");
         group.Add(CreateModelListCommand(context, providerGroupAlias: false));
         group.Add(CreateModelShowCommand(context));
         group.Add(CreateModelResolveCommand(context));
+        AddHelpText(group, "Examples: `alta model list --provider codex`; `alta model resolve --same-model-as <thread-id> --reasoning low`.");
         return group;
     }
 

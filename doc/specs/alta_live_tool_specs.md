@@ -280,7 +280,8 @@ Responsibilities:
 - use `XenoAtom.CommandLine.HelpOption` at the root and at every command/group level that has subcommands or options;
 - rely on `XenoAtom.CommandLine` help generation to list visible subcommands, options, arguments, usage, and command descriptions;
 - make each command description concise and agent-readable because it becomes the progressive discovery text shown by `--help`;
-- use `XenoAtom.CommandLine` descriptive text nodes for compact guidance and examples, keeping root `alta --help` sufficient for common global-agent tasks such as resolving/listing projects, listing sessions for a project, creating a project child session, sending/steering a session, and inspecting status/history snapshots without several exploratory help calls;
+- add commands/options first so all composed built-in and plugin command entries stay together immediately after usage syntax, then append `XenoAtom.CommandLine` descriptive text nodes for compact guidance and examples;
+- keep root `alta --help` sufficient for common global-agent tasks such as resolving/listing projects, listing sessions for a project, creating a project child session, sending/steering a session, and inspecting status/history snapshots without several exploratory help calls;
 - include examples in command help text where the syntax is not obvious, especially for `session list`, `session create`, `session send`, `session steer`, `session status`, `session tail`, `session request`, skill activation, model resolution, and tool capability checks;
 - expose runtime/live-tool capabilities with `tool capability list` under the canonical `tool` group, not as command-tree discovery.
 

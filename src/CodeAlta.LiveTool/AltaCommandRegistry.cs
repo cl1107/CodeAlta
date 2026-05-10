@@ -44,22 +44,7 @@ public sealed class AltaCommandRegistry
                 StrictOptionParsing = true,
             })
         {
-            new CommandUsage("Usage: {NAME} <command> [options]"),
-            "",
-            "Guidance: non-help commands return JSONL headed by `alta.result`; help is plain text.",
-            "Use small limits for snapshots. Common examples:",
-            "  `alta project list`",
-            "  `alta session list --project <project> --state all --limit 20`",
-            "  `alta session status <thread-id>`",
-            "  `alta session tail <thread-id> --last 10`",
-            "  `alta session create --project <project> --reasoning low`",
-            "  `alta session create --project <project> --same-model-as <thread-id>`",
-            "  `alta session send <thread-id> --stdin`",
-            "  `alta session steer <thread-id> --message \"...\"`",
-            "  `alta session request <thread-id> --reply-requested --stdin`",
-            "  `alta tool status`; `alta tool capability list`",
-            "Coordinate: use `session request`/`message` for peer-agent notes and `session steer` only for active runs.",
-            "Discover: `alta <group> --help` or `alta <group> <command> --help`.",
+            new CommandUsage("Usage: {NAME} [options] <command> [command-options]"),
             new HelpOption(),
         };
 
@@ -71,7 +56,28 @@ public sealed class AltaCommandRegistry
             }
         }
 
+        AddRootGuidance(app);
+
         return app;
+    }
+
+    private static void AddRootGuidance(CommandApp app)
+    {
+        app.Add("");
+        app.Add("Guidance: non-help commands return JSONL headed by `alta.result`; help is plain text.");
+        app.Add("Use small limits for snapshots. Common examples:");
+        app.Add("  `alta project list`");
+        app.Add("  `alta session list --project <project> --state all --limit 20`");
+        app.Add("  `alta session status <thread-id>`");
+        app.Add("  `alta session tail <thread-id> --last 10`");
+        app.Add("  `alta session create --project <project> --reasoning low`");
+        app.Add("  `alta session create --project <project> --same-model-as <thread-id>`");
+        app.Add("  `alta session send <thread-id> --stdin`");
+        app.Add("  `alta session steer <thread-id> --message \"...\"`");
+        app.Add("  `alta session request <thread-id> --reply-requested --stdin`");
+        app.Add("  `alta tool status`; `alta tool capability list`");
+        app.Add("Coordinate: use `session request`/`message` for peer-agent notes and `session steer` only for active runs.");
+        app.Add("Discover: `alta <command> --help` or `alta <command> <subcommand> --help`.");
     }
 
     /// <summary>Dispatches one in-process invocation.</summary>
