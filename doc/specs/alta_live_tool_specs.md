@@ -1,7 +1,7 @@
 # Alta Live Tool Specification
 
-Status: **Draft**  
-Last updated: **2026-05-09**  
+Status: **Implemented (v1)**
+Last updated: **2026-05-10**
 Audience: implementers of the CodeAlta executable, headless/live command gateway, orchestration services, plugin runtime, agent prompt/tool integration, and global `~/.alta/` agent instructions.
 
 Related specs:
