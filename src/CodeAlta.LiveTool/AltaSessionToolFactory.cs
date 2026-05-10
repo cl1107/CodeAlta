@@ -10,6 +10,14 @@ namespace CodeAlta.LiveTool;
 public static class AltaSessionToolFactory
 {
     private const string ToolName = "alta";
+    private const string ToolDescription =
+        "In-process gateway to the current CodeAlta host. " +
+        "Use it to discover projects, sessions, providers/models, skills, plugins, and tool capabilities; " +
+        "inspect live or recoverable session status/history; create project/global child sessions; " +
+        "send, queue, steer, abort, compact, or coordinate sessions and peer-agent requests; " +
+        "and activate CodeAlta-managed skills. Pass CLI-style args excluding `alta`. " +
+        "Start with args [\"--help\"] for the quick-start, then narrower help such as [\"session\",\"send\",\"--help\"] for options. " +
+        "Calls are finite/non-streaming; non-help results are compact JSONL headed by alta.result.";
     private const string InputSchemaJson = """
         {
           "type": "object",
@@ -66,7 +74,7 @@ public static class AltaSessionToolFactory
         return new AgentToolDefinition(
             new AgentToolSpec(
                 ToolName,
-                "Runs finite in-process CodeAlta alta commands. Use args [\"--help\"] first, then narrower help such as [\"session\",\"--help\"]. Non-help results are compact JSONL.",
+                ToolDescription,
                 schema),
             (invocation, cancellationToken) => InvokeAsync(dispatcher, options, invocation, cancellationToken));
     }

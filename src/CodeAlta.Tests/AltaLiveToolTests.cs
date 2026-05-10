@@ -158,6 +158,20 @@ public sealed class AltaLiveToolTests
     }
 
     [TestMethod]
+    public void SessionTool_Description_IdentifiesAltaGatewayUseCases()
+    {
+        var tool = AltaSessionToolFactory.Create(CreateDispatcher(), new AltaSessionToolOptions());
+
+        StringAssert.Contains(tool.Spec.Description, "In-process gateway to the current CodeAlta host");
+        StringAssert.Contains(tool.Spec.Description, "discover projects, sessions, providers/models, skills, plugins, and tool capabilities");
+        StringAssert.Contains(tool.Spec.Description, "create project/global child sessions");
+        StringAssert.Contains(tool.Spec.Description, "send, queue, steer, abort, compact");
+        StringAssert.Contains(tool.Spec.Description, "peer-agent requests");
+        StringAssert.Contains(tool.Spec.Description, "args [\"--help\"] for the quick-start");
+        StringAssert.Contains(tool.Spec.Description, "compact JSONL headed by alta.result");
+    }
+
+    [TestMethod]
     public async Task SessionTool_Cwd_UsesInvocationWorkingDirectory()
     {
         using var root = TempDirectory.Create();

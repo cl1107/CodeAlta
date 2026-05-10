@@ -97,6 +97,8 @@ The tool payload should be intentionally small so plugins can add subcommands wi
 
 The implemented agent-tool schema exposes `args`, nullable `stdin`, nullable `cwd`, nullable `maxOutputRecords`, nullable `maxOutputBytes`, and nullable `timeoutMs` (milliseconds). Optional numeric caps should be omitted unless set to positive integers; explicit JSON `null` is accepted and treated like omission for compatibility. The handler passes `cwd` through to the shared dispatcher so project-relative commands such as `project resolve` use the caller-supplied working directory while still falling back to the session working directory when omitted.
 
+The model-visible live-tool description should identify `alta` as an in-process gateway to the current CodeAlta host, not merely as a generic command runner. It should compactly call out the main reasons to use it: discover projects/sessions/providers/models/skills/plugins/tool capabilities; inspect live or recoverable session status/history; create project/global child sessions; send, queue, steer, abort, compact, or coordinate sessions and peer-agent requests; and activate CodeAlta-managed skills. It should also remind agents that `args` exclude the executable name, root `--help` contains the quick-start, narrower `--help` gives command-specific options, calls are finite/non-streaming, and non-help results are compact JSONL headed by `alta.result`.
+
 Model-visible tool result shape:
 
 ```jsonl
