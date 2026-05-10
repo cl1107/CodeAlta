@@ -33,7 +33,6 @@ internal sealed class ThreadWorkspaceView
     private readonly Func<string, ThreadSessionState?, PromptComposerSessionBinding> _getPromptComposerSession;
     private readonly State<float> _thinkingAnimationPhase01;
     private readonly PromptImageWorkspaceCallbacks? _fallbackPromptImageCallbacks;
-    private readonly List<ModelProviderSelectorView> _modelProviderSelectorViews = [];
     private readonly ThreadTabHostView _threadTabHostView;
     private ThreadPromptPanel? _fallbackPromptPanel;
 
@@ -152,6 +151,9 @@ internal sealed class ThreadWorkspaceView
     public bool RemoveTabPage(string tabId)
         => _threadTabHostView.RemoveTabPage(tabId);
 
+    public bool TryGetPromptPanel(string tabId, [NotNullWhen(true)] out ThreadPromptPanel? panel)
+        => _threadTabHostView.TryGetPromptPanel(tabId, out panel);
+
     public Visual CreateThreadTabContent(string tabId, Visual primaryContent, ThreadSessionState? session = null)
         => _threadTabHostView.CreateThreadTabContent(tabId, primaryContent, () => CreatePromptPanel(tabId, session, promptImageCallbacks: null));
 
@@ -169,18 +171,12 @@ internal sealed class ThreadWorkspaceView
         ArgumentNullException.ThrowIfNull(workspaceViewModel);
 
         SyncActivePromptPanelProjection();
-        foreach (var selectorView in _modelProviderSelectorViews)
-        {
-            selectorView.SyncItems(workspaceViewModel);
-        }
     }
 
     public void SyncActivePromptPanelProjection()
     {
         var panel = ActivePromptPanel;
-        CopyShellViewModel(_shellViewModel, panel.ShellViewModel);
-        CopyWorkspaceViewModel(_workspaceViewModel, panel.WorkspaceViewModel);
-        CopyPromptComposerViewModel(_promptComposerViewModel, panel.PromptComposerViewModel, preserveAlwaysEnqueue: true);
+        panel.ChromeState.ApplyProjection(_shellViewModel, _workspaceViewModel, _promptComposerViewModel, preserveAlwaysEnqueue: true);
         panel.ModelProviderSelectorView.SyncItems(panel.WorkspaceViewModel);
     }
 
@@ -190,9 +186,10 @@ internal sealed class ThreadWorkspaceView
     private ThreadPromptPanel CreatePromptPanel(string tabId, ThreadSessionState? session, PromptImageWorkspaceCallbacks? promptImageCallbacks)
     {
         var promptSession = _getPromptComposerSession(tabId, session);
-        var shellViewModel = CloneShellViewModel(_shellViewModel);
-        var workspaceViewModel = CloneWorkspaceViewModel(_workspaceViewModel);
-        var promptComposerViewModel = ClonePromptComposerViewModel(_promptComposerViewModel);
+        var chromeState = ThreadPromptChromeState.CloneFrom(_shellViewModel, _workspaceViewModel, _promptComposerViewModel);
+        var shellViewModel = chromeState.ShellViewModel;
+        var workspaceViewModel = chromeState.WorkspaceViewModel;
+        var promptComposerViewModel = chromeState.PromptComposerViewModel;
         var imageStripView = new PromptImageAttachmentStripView(
             promptComposerViewModel,
             promptImageCallbacks ?? promptSession.PromptImageCallbacks,
@@ -218,7 +215,6 @@ internal sealed class ThreadWorkspaceView
             workspaceViewModel,
             promptComposerViewModel,
             _modelProviderController);
-        _modelProviderSelectorViews.Add(modelProviderSelectorView);
         var providerSummaryButton = new Button(
             new Markup(() => workspaceViewModel.ProviderSummaryMarkup)
             {
@@ -269,76 +265,7 @@ internal sealed class ThreadWorkspaceView
             promptComposerView.ExpandButton,
             promptComposerView,
             modelProviderSelectorView,
-            shellViewModel,
-            workspaceViewModel,
-            promptComposerViewModel);
-    }
-
-    private static CodeAltaShellViewModel CloneShellViewModel(CodeAltaShellViewModel source)
-    {
-        var target = new CodeAltaShellViewModel();
-        CopyShellViewModel(source, target);
-        return target;
-    }
-
-    private static ThreadWorkspaceViewModel CloneWorkspaceViewModel(ThreadWorkspaceViewModel source)
-    {
-        var target = new ThreadWorkspaceViewModel();
-        CopyWorkspaceViewModel(source, target);
-        return target;
-    }
-
-    private static PromptComposerViewModel ClonePromptComposerViewModel(PromptComposerViewModel source)
-    {
-        var target = new PromptComposerViewModel();
-        CopyPromptComposerViewModel(source, target, preserveAlwaysEnqueue: false);
-        return target;
-    }
-
-    private static void CopyShellViewModel(CodeAltaShellViewModel source, CodeAltaShellViewModel target)
-    {
-        target.StatusText = source.StatusText;
-        target.StatusIconMarkup = source.StatusIconMarkup;
-        target.ProviderSessionLoadStatusText = source.ProviderSessionLoadStatusText;
-        target.StatusBusy = source.StatusBusy;
-        target.StatusTone = source.StatusTone;
-        target.IsInitialized = source.IsInitialized;
-    }
-
-    private static void CopyWorkspaceViewModel(ThreadWorkspaceViewModel source, ThreadWorkspaceViewModel target)
-    {
-        target.ModelProviderStatusMarkup = source.ModelProviderStatusMarkup;
-        target.ProviderSummaryMarkup = source.ProviderSummaryMarkup;
-        target.CanSelectModelProvider = source.CanSelectModelProvider;
-        target.CanSelectModel = source.CanSelectModel;
-        target.CanSelectReasoning = source.CanSelectReasoning;
-        target.ModelProviderOptions = source.ModelProviderOptions;
-        target.SelectedModelProviderIndex = source.SelectedModelProviderIndex;
-        target.ModelOptions = source.ModelOptions;
-        target.SelectedModelIndex = source.SelectedModelIndex;
-        target.ReasoningOptions = source.ReasoningOptions;
-        target.SelectedReasoningIndex = source.SelectedReasoningIndex;
-        target.CanShowThreadInfo = source.CanShowThreadInfo;
-        target.SetPromptStripItems(source.PromptStripItems, source.HasQueuedPrompts);
-    }
-
-    private static void CopyPromptComposerViewModel(PromptComposerViewModel source, PromptComposerViewModel target, bool preserveAlwaysEnqueue)
-    {
-        target.Placeholder = source.Placeholder;
-        target.IsEnabled = source.IsEnabled;
-        target.CanSend = source.CanSend;
-        target.CanSteer = source.CanSteer;
-        target.CanAbort = source.CanAbort;
-        target.CanCompact = source.CanCompact;
-        target.CanCloseTab = source.CanCloseTab;
-        target.CanClearQueue = source.CanClearQueue;
-        target.CanAlwaysEnqueue = source.CanAlwaysEnqueue;
-        if (!preserveAlwaysEnqueue)
-        {
-            target.AlwaysEnqueue = source.AlwaysEnqueue;
-        }
-
-        target.PromptImageAttachmentVersion = source.PromptImageAttachmentVersion;
+            chromeState);
     }
 
     private static bool IsSharedEditorCommand(string commandId)

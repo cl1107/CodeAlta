@@ -4,6 +4,7 @@ using CodeAlta.App.Context;
 using CodeAlta.App.State;
 using CodeAlta.Catalog;
 using CodeAlta.Models;
+using CodeAlta.Presentation.Shell;
 using CodeAlta.Threading;
 using CodeAlta.ViewModels;
 using XenoAtom.Terminal.UI;
@@ -157,6 +158,63 @@ public sealed class ShellWorkspaceCoordinatorTests
 
         Assert.AreEqual(0, count);
         Assert.AreEqual(1, deferredActions.Count);
+    }
+
+    [TestMethod]
+    public void RefreshRunningStatusElapsed_SyncsActivePromptPanelProjection()
+    {
+        using var temp = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = temp.Path };
+        var thread = CreateThread("thread-1", "project-1");
+        var threadStateCoordinator = CreateThreadStateCoordinator(options);
+        threadStateCoordinator.ApplyRecoveredCatalogState([CreateProject("project-1", "CodeAlta")], [thread]);
+        threadStateCoordinator.OpenThread("thread-1");
+        var tab = threadStateCoordinator.FindOpenThread("thread-1");
+        Assert.IsNotNull(tab);
+        tab.HasCustomStatus = true;
+        tab.StatusBusy = true;
+        tab.StatusMessage = StatusVisualFormatter.BuildThinkingStatusText();
+        tab.ActiveRunStartedAt = DateTimeOffset.Parse("2026-03-29T12:00:00+00:00");
+        var syncActivePromptPanelProjectionCount = 0;
+
+        var workspaceContext = new ShellWorkspaceContext(
+            new DelegatingShellPromptAvailabilityPort(
+                static () => AgentBackendIds.Codex,
+                static () => (false, string.Empty, StatusTone.Info)),
+            new ShellWorkspaceSurfacePort(
+                static () => true,
+                static () => null,
+                static () => null,
+                static _ => { },
+                static () => { },
+                static _ => { },
+                static _ => { }),
+            new DelegatingShellWorkspaceProjectionPort(
+                threadStateCoordinator.EnsureSelectionDefaults,
+                static () => { },
+                static () => { },
+                static () => { },
+                static () => { },
+                static _ => { },
+                static _ => { },
+                static () => { },
+                () => syncActivePromptPanelProjectionCount++,
+                static () => { }),
+            new InlineUiDispatcher());
+        var shellViewModel = new CodeAltaShellViewModel();
+        var controller = new ShellStatusProjectionController(
+            shellViewModel,
+            new ThreadSelectionContext(
+                threadStateCoordinator,
+                static (_, _) => Task.CompletedTask,
+                threadId => string.Equals(threadId, threadStateCoordinator.SelectedThreadId, StringComparison.OrdinalIgnoreCase)),
+            workspaceContext,
+            new State<int>(0));
+
+        controller.RefreshRunningStatusElapsed(DateTimeOffset.Parse("2026-03-29T12:00:05+00:00"));
+
+        Assert.AreEqual(1, syncActivePromptPanelProjectionCount);
+        Assert.AreEqual("Thinking for 5 seconds...", shellViewModel.StatusText);
     }
 
     private static (ShellWorkspaceCoordinator Workspace, SessionUsageViewModel SessionUsage) CreateWorkspaceCoordinator(

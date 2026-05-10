@@ -43,17 +43,17 @@ public sealed class ThreadWorkspaceViewTests
     }
 
     [TestMethod]
-    public void CreateThreadTabContent_ReusesExistingSplitterForAttachedPrimaryContent()
+    public void CreateThreadTabContent_RecreatesCleanContentAfterRemoval()
     {
         var view = CreateThreadWorkspaceView();
         var primary = new TextBlock("Thread");
         var firstContent = view.CreateThreadTabContent("thread-1", primary);
 
         view.RemoveTabPage("thread-1");
-        var recoveredContent = view.CreateThreadTabContent("thread-1", primary);
+        var recreatedContent = view.CreateThreadTabContent("thread-1", primary);
 
-        Assert.AreSame(firstContent, recoveredContent);
-        Assert.AreSame(firstContent, primary.Parent);
+        Assert.AreNotSame(firstContent, recreatedContent);
+        Assert.AreSame(recreatedContent, primary.Parent);
     }
 
     [TestMethod]
@@ -70,21 +70,21 @@ public sealed class ThreadWorkspaceViewTests
     }
 
     [TestMethod]
-    public void ActivateThreadTabContent_RecoversRememberedSplitterAfterContentCacheWasCleared()
+    public void RemoveTabPage_DetachesOwnedPromptContent()
     {
         var view = CreateThreadWorkspaceView();
         var content = (VSplitter)view.CreateThreadTabContent("thread-1", new TextBlock("Thread"));
-
+        var primary = content.First;
         var promptPanel = content.Second;
 
-        view.RemoveTabPage("thread-1");
-        content = (VSplitter)view.CreateThreadTabContent("thread-1", new TextBlock("Thread"));
         view.RememberTabPage("thread-1", new TabPage(new TextBlock("Thread header"), content));
-        view.ActivateThreadTabContent("thread-1");
+        view.RemoveTabPage("thread-1");
 
-        Assert.AreSame(view.ThreadBottomPanel, content.Second);
-        Assert.AreNotSame(promptPanel, content.Second);
-        Assert.AreSame(content, view.ThreadBottomPanel.Parent);
+        Assert.IsNull(content.First);
+        Assert.IsNull(content.Second);
+        Assert.IsNull(primary?.Parent);
+        Assert.IsNull(promptPanel?.Parent);
+        Assert.IsFalse(view.TryGetPromptPanel("thread-1", out _));
     }
 
     [TestMethod]
@@ -99,6 +99,67 @@ public sealed class ThreadWorkspaceViewTests
 
         Assert.IsInstanceOfType<TextBlock>(leftStatus.Children[1]);
         Assert.IsInstanceOfType<TextBlock>(statusLine.RightText);
+    }
+
+    [TestMethod]
+    public void SyncActivePromptPanelProjection_UpdatesOnlyActivePromptPanelChrome()
+    {
+        var shellViewModel = new CodeAltaShellViewModel();
+        var workspaceViewModel = new ThreadWorkspaceViewModel();
+        var promptComposerViewModel = new PromptComposerViewModel();
+        var view = CreateThreadWorkspaceView(shellViewModel, workspaceViewModel, promptComposerViewModel);
+        _ = view.CreateThreadTabContent("thread-1", new TextBlock("First"));
+        _ = view.CreateThreadTabContent("thread-2", new TextBlock("Second"));
+
+        shellViewModel.StatusText = "first status";
+        workspaceViewModel.ModelProviderOptions = [new ChatBackendOption(new("codex"), "Codex")];
+        workspaceViewModel.SetPromptStripItems([CreatePromptStripItem("first-queued")], hasQueuedPrompts: true);
+        promptComposerViewModel.PromptImageAttachmentVersion = 1;
+        view.ActivateThreadTabContent("thread-1");
+        view.SyncActivePromptPanelProjection();
+        var firstPanel = GetPromptPanel(view, "thread-1");
+        firstPanel.PromptComposerViewModel.AlwaysEnqueue = true;
+
+        shellViewModel.StatusText = "second status";
+        workspaceViewModel.ModelProviderOptions = [new ChatBackendOption(new("copilot"), "Copilot")];
+        workspaceViewModel.SetPromptStripItems([CreatePromptStripItem("second-queued")], hasQueuedPrompts: true);
+        promptComposerViewModel.PromptImageAttachmentVersion = 5;
+        view.ActivateThreadTabContent("thread-2");
+        view.SyncActivePromptPanelProjection();
+        view.RefreshActivePromptImages();
+        var secondPanel = GetPromptPanel(view, "thread-2");
+
+        Assert.AreEqual("first status", firstPanel.ShellViewModel.StatusText);
+        Assert.AreEqual("Codex", firstPanel.WorkspaceViewModel.ModelProviderOptions[0].Label);
+        Assert.AreEqual("first-queued", firstPanel.WorkspaceViewModel.PromptStripItems[0].Id);
+        Assert.AreEqual(1, firstPanel.PromptComposerViewModel.PromptImageAttachmentVersion);
+        Assert.IsTrue(firstPanel.PromptComposerViewModel.AlwaysEnqueue);
+        Assert.AreEqual("second status", secondPanel.ShellViewModel.StatusText);
+        Assert.AreEqual("Copilot", secondPanel.WorkspaceViewModel.ModelProviderOptions[0].Label);
+        Assert.AreEqual("second-queued", secondPanel.WorkspaceViewModel.PromptStripItems[0].Id);
+        Assert.AreEqual(6, secondPanel.PromptComposerViewModel.PromptImageAttachmentVersion);
+        Assert.IsFalse(secondPanel.PromptComposerViewModel.AlwaysEnqueue);
+    }
+
+    [TestMethod]
+    public void SyncModelProviderSelectorItems_DoesNotTouchRemovedPromptPanelSelectors()
+    {
+        var workspaceViewModel = new ThreadWorkspaceViewModel
+        {
+            ModelProviderOptions = [new ChatBackendOption(new("codex"), "Codex")],
+        };
+        var view = CreateThreadWorkspaceView(workspaceViewModel: workspaceViewModel);
+        _ = view.CreateThreadTabContent("thread-1", new TextBlock("Thread"));
+        view.ActivateThreadTabContent("thread-1");
+        view.SyncModelProviderSelectorItems(workspaceViewModel);
+        var removedPanel = GetPromptPanel(view, "thread-1");
+
+        view.RemoveTabPage("thread-1");
+        workspaceViewModel.ModelProviderOptions = [new ChatBackendOption(new("copilot"), "Copilot")];
+        view.SyncModelProviderSelectorItems(workspaceViewModel);
+
+        Assert.AreEqual(1, removedPanel.ModelProviderSelectorView.ChatBackendSelect.Items.Count);
+        Assert.AreEqual("Codex", removedPanel.ModelProviderSelectorView.ChatBackendSelect.Items[0].Label);
     }
 
     [TestMethod]
@@ -395,6 +456,15 @@ public sealed class ThreadWorkspaceViewTests
         Assert.IsNotNull(field);
         return Assert.IsInstanceOfType<T>(field.GetValue(instance));
     }
+
+    private static ThreadPromptPanel GetPromptPanel(ThreadWorkspaceView view, string tabId)
+    {
+        Assert.IsTrue(view.TryGetPromptPanel(tabId, out var panel));
+        return panel;
+    }
+
+    private static PromptStripItem CreatePromptStripItem(string id)
+        => new(PromptStripItemKind.QueuedPrompt, id, id, id, ImageCount: 0, RemainingCount: null);
 
     private static ThreadWorkspaceView CreateThreadWorkspaceView(
         CodeAltaShellViewModel? shellViewModel = null,

@@ -50,6 +50,12 @@ internal sealed class ThreadTabHostView
         return _tabPages.TryGetValue(tabId, out page);
     }
 
+    public bool TryGetPromptPanel(string tabId, [NotNullWhen(true)] out ThreadPromptPanel? panel)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tabId);
+        return _threadPromptPanels.TryGetValue(tabId, out panel);
+    }
+
     public void RememberTabPage(string tabId, TabPage page)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tabId);
@@ -66,7 +72,15 @@ internal sealed class ThreadTabHostView
             ThreadTabControl.TryCloseTab(page);
         }
 
-        _threadTabContentSplitters.Remove(tabId);
+        var splitter = _threadTabContentSplitters.Remove(tabId, out var cachedSplitter)
+            ? cachedSplitter
+            : page?.Content as VSplitter;
+        if (splitter is not null)
+        {
+            splitter.First = null;
+            splitter.Second = null;
+        }
+
         _threadPromptPanels.Remove(tabId);
         if (string.Equals(_activeThreadTabContentId, tabId, StringComparison.OrdinalIgnoreCase))
         {
@@ -87,17 +101,9 @@ internal sealed class ThreadTabHostView
             return existing;
         }
 
-        if (primaryContent.Parent is VSplitter existingParent && ReferenceEquals(existingParent.First, primaryContent))
+        if (primaryContent.Parent is not null)
         {
-            _threadTabContentSplitters[tabId] = existingParent;
-            if (!_threadPromptPanels.ContainsKey(tabId))
-            {
-                var recoveredPromptPanel = promptPanelFactory();
-                existingParent.Second = recoveredPromptPanel.Root;
-                _threadPromptPanels[tabId] = recoveredPromptPanel;
-            }
-
-            return existingParent;
+            throw new InvalidOperationException($"Cannot create prompt tab content for '{tabId}' because the primary content is already attached to a visual tree.");
         }
 
         var promptPanel = promptPanelFactory();
@@ -122,15 +128,19 @@ internal sealed class ThreadTabHostView
             return;
         }
 
-        if (!_threadTabContentSplitters.TryGetValue(tabId, out var current))
+        if (!_threadTabContentSplitters.ContainsKey(tabId))
         {
             if (!_tabPages.TryGetValue(tabId, out var page) || page.Content is not VSplitter splitter)
             {
                 return;
             }
 
-            current = splitter;
-            _threadTabContentSplitters[tabId] = current;
+            _threadTabContentSplitters[tabId] = splitter;
+        }
+
+        if (!_threadPromptPanels.ContainsKey(tabId))
+        {
+            return;
         }
 
         _activeThreadTabContentId = tabId;
@@ -147,9 +157,7 @@ internal sealed class ThreadPromptPanel
         Visual expandPromptButton,
         PromptComposerView composer,
         ModelProviderSelectorView modelProviderSelectorView,
-        CodeAltaShellViewModel shellViewModel,
-        ThreadWorkspaceViewModel workspaceViewModel,
-        PromptComposerViewModel promptComposerViewModel)
+        ThreadPromptChromeState chromeState)
     {
         ArgumentNullException.ThrowIfNull(root);
         ArgumentNullException.ThrowIfNull(editor);
@@ -158,9 +166,7 @@ internal sealed class ThreadPromptPanel
         ArgumentNullException.ThrowIfNull(expandPromptButton);
         ArgumentNullException.ThrowIfNull(composer);
         ArgumentNullException.ThrowIfNull(modelProviderSelectorView);
-        ArgumentNullException.ThrowIfNull(shellViewModel);
-        ArgumentNullException.ThrowIfNull(workspaceViewModel);
-        ArgumentNullException.ThrowIfNull(promptComposerViewModel);
+        ArgumentNullException.ThrowIfNull(chromeState);
 
         Root = root;
         Editor = editor;
@@ -169,10 +175,10 @@ internal sealed class ThreadPromptPanel
         ExpandPromptButton = expandPromptButton;
         Composer = composer;
         ModelProviderSelectorView = modelProviderSelectorView;
-        ShellViewModel = shellViewModel;
-        WorkspaceViewModel = workspaceViewModel;
-        PromptComposerViewModel = promptComposerViewModel;
+        ChromeState = chromeState;
     }
+
+    public ThreadPromptChromeState ChromeState { get; }
 
     public Visual Root { get; }
 
@@ -188,9 +194,9 @@ internal sealed class ThreadPromptPanel
 
     public ModelProviderSelectorView ModelProviderSelectorView { get; }
 
-    public CodeAltaShellViewModel ShellViewModel { get; }
+    public CodeAltaShellViewModel ShellViewModel => ChromeState.ShellViewModel;
 
-    public ThreadWorkspaceViewModel WorkspaceViewModel { get; }
+    public ThreadWorkspaceViewModel WorkspaceViewModel => ChromeState.WorkspaceViewModel;
 
-    public PromptComposerViewModel PromptComposerViewModel { get; }
+    public PromptComposerViewModel PromptComposerViewModel => ChromeState.PromptComposerViewModel;
 }
