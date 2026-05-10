@@ -280,12 +280,13 @@ Responsibilities:
 - use `XenoAtom.CommandLine.HelpOption` at the root and at every command/group level that has subcommands or options;
 - rely on `XenoAtom.CommandLine` help generation to list visible subcommands, options, arguments, usage, and command descriptions;
 - make each command description concise and agent-readable because it becomes the progressive discovery text shown by `--help`;
-- include examples in command help text where the syntax is not obvious;
+- use `XenoAtom.CommandLine` descriptive text nodes for compact guidance and examples, keeping root `alta --help` sufficient for common global-agent tasks such as resolving/listing projects, listing sessions for a project, creating a project child session, sending/steering a session, and inspecting status/history snapshots without several exploratory help calls;
+- include examples in command help text where the syntax is not obvious, especially for `session list`, `session create`, `session send`, `session steer`, `session status`, `session tail`, `session request`, skill activation, model resolution, and tool capability checks;
 - expose runtime/live-tool capabilities with `tool capability list` under the canonical `tool` group, not as command-tree discovery.
 
 No separate `alta describe`, `alta commands`, or `alta schema` commands are required for v1. They would duplicate `XenoAtom.CommandLine`'s built-in help behavior and should be added only later if a concrete machine-readable discovery gap remains after the CLI/live tool exists.
 
-The live tool prompt guidance should tell agents to progressively inspect `alta --help`, then narrower command levels such as `alta session --help` or `alta session tail --help`, instead of embedding every subcommand in the initial prompt.
+The live tool prompt guidance should tell agents that root `alta --help` contains the compact quick-start. Agents should use narrower command levels such as `alta session --help` or `alta session tail --help` only when they need command-specific options, not as the default way to discover basic workflows.
 
 ### 6.2 Project commands
 
@@ -800,7 +801,8 @@ CodeAlta should bootstrap a compact coordinator instruction file at `~/.alta/AGE
 - it can inspect projects/sessions through `alta` under the global visibility policy;
 - it can create, send to, steer, queue, abort, and summarize project sessions when appropriate;
 - it should preserve provenance and use peer-agent authority when communicating with project sessions;
-- it should use `alta --help` and narrower help commands for progressive command discovery;
+- it should include the current generated `alta --help` output in the managed block so the coordinator sees the compact quick-start without manually duplicated command details;
+- it should use narrower help commands only when command-specific options are needed;
 - it should inspect and activate skills through the canonical `alta skill` commands when the live tool is available, keeping `skills activate`/`skills_activate` only as compatibility aliases;
 - it should prefer JSONL parsing and bounded/non-blocking `alta` commands.
 
@@ -810,15 +812,21 @@ The shipped template should live in CodeAlta content, for example:
 src/CodeAlta.Orchestration/content/coordinator/AGENTS.md
 ```
 
-The file should be compact and packed with high-signal details rather than a full manual. More detailed `alta` reference can stay in docs or be discoverable through `alta --help`.
+The file should be compact and packed with high-signal details rather than a full manual. The shipped template contains a placeholder for generated root help; bootstrap/update replaces it with the current `alta --help` text rendered from `AltaCommandRegistry`/`XenoAtom.CommandLine`, including trusted plugin command roots when the runtime plugin catalog is available. The managed role text should not manually duplicate the detailed live-tool command reference; update `alta --help` when the reference needs to improve.
 
 Recommended on-disk shape:
 
 ```md
-<!-- CodeAlta:coordinator-managed:begin version="2026-05-09" checksum="..." -->
+<!-- CodeAlta:coordinator-managed:begin version="2026-05-10" checksum="..." -->
 # CodeAlta Global Coordinator
 
-<managed compact role/tool instructions>
+<managed compact role/safety instructions>
+
+## Generated `alta --help`
+
+```text
+<current root help rendered from the alta command registry>
+```
 <!-- CodeAlta:coordinator-managed:end -->
 
 <!-- CodeAlta:local-instructions:begin -->
@@ -830,8 +838,8 @@ Recommended on-disk shape:
 
 Bootstrap/update policy:
 
-1. On first launch, create `~/.alta/AGENTS.md` from the shipped template.
-2. On later launches, update only the managed block when the shipped template version/checksum is newer.
+1. On first launch, create `~/.alta/AGENTS.md` from the shipped template after replacing the help placeholder with generated `alta --help` output.
+2. On later launches, update only the managed block when the shipped template version/checksum or generated root help changes.
 3. Preserve the local instructions block byte-for-byte whenever possible.
 4. If a user already has an unmarked `~/.alta/AGENTS.md`, migrate safely: create a timestamped backup, write the managed block, and place the previous file content inside the local instructions block.
 5. If the markers are damaged or duplicated, do not overwrite silently; emit diagnostics and leave the file unchanged unless the user explicitly repairs/resets it.

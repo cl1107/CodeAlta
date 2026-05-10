@@ -10,30 +10,33 @@ namespace CodeAlta.Orchestration.Hosting;
 /// </summary>
 public static class CoordinatorAgentsBootstrapper
 {
-    private const string TemplateVersion = "2026-05-09";
+    private const string TemplateVersion = "2026-05-10";
     private const string ManagedBeginPrefix = "<!-- CodeAlta:coordinator-managed:begin";
     private const string ManagedEndMarker = "<!-- CodeAlta:coordinator-managed:end -->";
     private const string LocalBeginMarker = "<!-- CodeAlta:local-instructions:begin -->";
     private const string LocalEndMarker = "<!-- CodeAlta:local-instructions:end -->";
+    private const string AltaHelpPlaceholder = "{{ALTA_HELP}}";
     private const string LocalInstructionsPlaceholder = "### Local instructions\n\nAdd local coordinator preferences here. CodeAlta preserves this section.";
+    private const string FallbackAltaHelp = "Run `alta --help` in a CodeAlta session to inspect the current live-tool command surface.";
     private static readonly Logger Logger = LogManager.GetLogger("CodeAlta.CoordinatorAgents");
 
     /// <summary>
     /// Ensures the global coordinator <c>AGENTS.md</c> exists and has the current managed block.
     /// </summary>
     /// <param name="globalRoot">The CodeAlta global root, normally <c>~/.alta</c>.</param>
+    /// <param name="altaHelpText">Optional generated <c>alta --help</c> text to embed in the managed coordinator guidance.</param>
     /// <returns>A bootstrap result describing what changed.</returns>
     /// <exception cref="ArgumentException">Thrown when <paramref name="globalRoot"/> is empty.</exception>
-    public static CoordinatorAgentsBootstrapResult Ensure(string globalRoot)
+    public static CoordinatorAgentsBootstrapResult Ensure(string globalRoot, string? altaHelpText = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(globalRoot);
         Directory.CreateDirectory(globalRoot);
 
         var targetPath = Path.Combine(globalRoot, "AGENTS.md");
-        var managedBlock = BuildManagedBlock(LoadManagedBody());
         if (!File.Exists(targetPath))
         {
-            File.WriteAllText(targetPath, BuildFile(managedBlock, BuildLocalBlock(LocalInstructionsPlaceholder)), Encoding.UTF8);
+            var initialManagedBlock = BuildManagedBlock(LoadManagedBody(altaHelpText));
+            File.WriteAllText(targetPath, BuildFile(initialManagedBlock, BuildLocalBlock(LocalInstructionsPlaceholder)), Encoding.UTF8);
             return new CoordinatorAgentsBootstrapResult(targetPath, CoordinatorAgentsBootstrapAction.Created);
         }
 
@@ -41,9 +44,10 @@ public static class CoordinatorAgentsBootstrapper
         var markers = FindMarkers(current);
         if (markers.HasNoMarkers)
         {
+            var migratedManagedBlock = BuildManagedBlock(LoadManagedBody(altaHelpText));
             var backupPath = CreateBackup(targetPath);
             var migratedLocalBlock = BuildLocalBlock(current.TrimEnd('\r', '\n'));
-            File.WriteAllText(targetPath, BuildFile(managedBlock, migratedLocalBlock), Encoding.UTF8);
+            File.WriteAllText(targetPath, BuildFile(migratedManagedBlock, migratedLocalBlock), Encoding.UTF8);
             return new CoordinatorAgentsBootstrapResult(targetPath, CoordinatorAgentsBootstrapAction.Migrated, BackupPath: backupPath);
         }
 
@@ -58,6 +62,10 @@ public static class CoordinatorAgentsBootstrapper
         }
 
         var currentManagedBlock = current[markers.ManagedBeginIndex..(markers.ManagedEndIndex + ManagedEndMarker.Length)];
+        var effectiveAltaHelpText = string.IsNullOrWhiteSpace(altaHelpText)
+            ? ExtractManagedAltaHelp(currentManagedBlock)
+            : altaHelpText;
+        var managedBlock = BuildManagedBlock(LoadManagedBody(effectiveAltaHelpText));
         if (string.Equals(currentManagedBlock, managedBlock, StringComparison.Ordinal))
         {
             return new CoordinatorAgentsBootstrapResult(targetPath, CoordinatorAgentsBootstrapAction.Unchanged);
@@ -68,15 +76,59 @@ public static class CoordinatorAgentsBootstrapper
         return new CoordinatorAgentsBootstrapResult(targetPath, CoordinatorAgentsBootstrapAction.Updated);
     }
 
-    private static string LoadManagedBody()
+    private static string LoadManagedBody(string? altaHelpText)
     {
         var contentPath = Path.Combine(AppContext.BaseDirectory, "content", "coordinator", "AGENTS.md");
+        string body;
         if (File.Exists(contentPath))
         {
-            return File.ReadAllText(contentPath, Encoding.UTF8).Trim();
+            body = File.ReadAllText(contentPath, Encoding.UTF8).Trim();
+        }
+        else
+        {
+            body = "# CodeAlta Global Coordinator\n\nUse the `alta` live tool for finite CodeAlta host/session/catalog operations.\n\n## `alta --help`\n\n```text\n{{ALTA_HELP}}\n```";
         }
 
-        return "# CodeAlta Global Coordinator\n\nUse the `alta` live tool for finite CodeAlta host/session/catalog operations. Start with `alta --help` and then narrower help commands.";
+        return body.Replace(AltaHelpPlaceholder, NormalizeAltaHelp(altaHelpText), StringComparison.Ordinal);
+    }
+
+    private static string NormalizeAltaHelp(string? altaHelpText)
+    {
+        var help = string.IsNullOrWhiteSpace(altaHelpText) ? FallbackAltaHelp : altaHelpText.Trim();
+        return help.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').TrimEnd('\n');
+    }
+
+    private static string? ExtractManagedAltaHelp(string managedBlock)
+    {
+        const string header = "## Generated `alta --help`";
+        const string fence = "```text";
+        var headerIndex = managedBlock.IndexOf(header, StringComparison.Ordinal);
+        if (headerIndex < 0)
+        {
+            return null;
+        }
+
+        var fenceIndex = managedBlock.IndexOf(fence, headerIndex, StringComparison.Ordinal);
+        if (fenceIndex < 0)
+        {
+            return null;
+        }
+
+        var contentStart = managedBlock.IndexOf('\n', fenceIndex + fence.Length);
+        if (contentStart < 0)
+        {
+            return null;
+        }
+
+        contentStart++;
+        var fenceEnd = managedBlock.IndexOf("\n```", contentStart, StringComparison.Ordinal);
+        if (fenceEnd < 0)
+        {
+            return null;
+        }
+
+        var help = managedBlock[contentStart..fenceEnd].Trim();
+        return string.IsNullOrWhiteSpace(help) ? null : help;
     }
 
     private static string BuildManagedBlock(string managedBody)

@@ -5,6 +5,7 @@ using CodeAlta.App.State;
 using CodeAlta.Catalog;
 using CodeAlta.LiveTool;
 using CodeAlta.Models;
+using CodeAlta.Orchestration.Hosting;
 using CodeAlta.Orchestration.Runtime;
 using CodeAlta.Presentation.Chat;
 using CodeAlta.Presentation.Workspace;
@@ -122,6 +123,9 @@ internal sealed class CodeAltaFrontendComposition
         altaServices
             .Add(altaRegistry)
             .Add(altaDispatcher);
+        _ = CoordinatorAgentsBootstrapper.Ensure(
+            catalogOptions.GlobalRoot,
+            AltaHelpText.RenderRootHelp(altaRegistry, altaServices));
 
         var threadPromptDraftService = new ThreadPromptDraftService(frontend.LoadPromptDraft, frontend.DeletePromptDraft);
         var threadModelProviderPreferenceService = new ThreadModelProviderPreferenceService(frontend.ApplyThreadPreference, frontend.RememberThreadPreference);

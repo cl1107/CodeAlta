@@ -87,6 +87,21 @@ public sealed class AltaLiveToolTests
     }
 
     [TestMethod]
+    public async Task Dispatcher_RootHelp_IncludesCompactAgentGuidanceAndExamples()
+    {
+        var result = await CreateDispatcher().InvokeAsync(["--help"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+
+        Assert.AreEqual(AltaExitCodes.Success, result.ExitCode);
+        Assert.IsTrue(result.IsHelp);
+        StringAssert.Contains(result.Stdout, "Guidance: non-help commands return JSONL headed by `alta.result`");
+        StringAssert.Contains(result.Stdout, "alta session list --project <project> --state all");
+        StringAssert.Contains(result.Stdout, "--limit 20");
+        StringAssert.Contains(result.Stdout, "alta session create --project <project> --reasoning low");
+        StringAssert.Contains(result.Stdout, "alta session create --project <project> --same-model-as <thread-id>");
+        StringAssert.Contains(result.Stdout, "session request`/`message` for peer-agent notes");
+    }
+
+    [TestMethod]
     public async Task SessionTool_Help_ReturnsPlainHelpText()
     {
         using var arguments = JsonDocument.Parse("""{"args":["--help"]}""");

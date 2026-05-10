@@ -46,7 +46,20 @@ public sealed class AltaCommandRegistry
         {
             new CommandUsage("Usage: {NAME} <command> [options]"),
             "",
-            "Run `alta <group> --help` for narrower help. Non-help commands write JSONL.",
+            "Guidance: non-help commands return JSONL headed by `alta.result`; help is plain text.",
+            "Use small limits for snapshots. Common examples:",
+            "  `alta project list`",
+            "  `alta session list --project <project> --state all --limit 20`",
+            "  `alta session status <thread-id>`",
+            "  `alta session tail <thread-id> --last 10`",
+            "  `alta session create --project <project> --reasoning low`",
+            "  `alta session create --project <project> --same-model-as <thread-id>`",
+            "  `alta session send <thread-id> --stdin`",
+            "  `alta session steer <thread-id> --message \"...\"`",
+            "  `alta session request <thread-id> --reply-requested --stdin`",
+            "  `alta tool status`; `alta tool capability list`",
+            "Coordinate: use `session request`/`message` for peer-agent notes and `session steer` only for active runs.",
+            "Discover: `alta <group> --help` or `alta <group> <command> --help`.",
             new HelpOption(),
         };
 

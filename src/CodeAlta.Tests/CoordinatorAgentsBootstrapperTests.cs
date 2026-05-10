@@ -1,3 +1,4 @@
+using CodeAlta.LiveTool;
 using CodeAlta.Orchestration.Hosting;
 
 namespace CodeAlta.Tests;
@@ -9,8 +10,9 @@ public sealed class CoordinatorAgentsBootstrapperTests
     public void Ensure_CreatesMarkedCoordinatorAgentsFileOnFirstRun()
     {
         using var temp = TestTempDirectory.Create();
+        var generatedHelp = AltaHelpText.RenderRootHelp();
 
-        var result = CoordinatorAgentsBootstrapper.Ensure(temp.Path);
+        var result = CoordinatorAgentsBootstrapper.Ensure(temp.Path, generatedHelp);
 
         Assert.AreEqual(CoordinatorAgentsBootstrapAction.Created, result.Action);
         var content = File.ReadAllText(Path.Combine(temp.Path, "AGENTS.md"));
@@ -18,7 +20,13 @@ public sealed class CoordinatorAgentsBootstrapperTests
         StringAssert.Contains(content, "checksum=");
         StringAssert.Contains(content, "CodeAlta Global Coordinator");
         StringAssert.Contains(content, "alta --help");
+        StringAssert.Contains(content, generatedHelp);
+        Assert.IsFalse(content.Contains("{{ALTA_HELP}}", StringComparison.Ordinal));
         StringAssert.Contains(content, "CodeAlta:local-instructions:begin");
+
+        var unchanged = CoordinatorAgentsBootstrapper.Ensure(temp.Path);
+        Assert.AreEqual(CoordinatorAgentsBootstrapAction.Unchanged, unchanged.Action);
+        Assert.AreEqual(content, File.ReadAllText(Path.Combine(temp.Path, "AGENTS.md")));
     }
 
     [TestMethod]
