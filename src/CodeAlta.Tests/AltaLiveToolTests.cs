@@ -99,7 +99,8 @@ public sealed class AltaLiveToolTests
         StringAssert.Contains(result.Stdout, "--limit 20");
         StringAssert.Contains(result.Stdout, "alta session create --project <project> --reasoning low");
         StringAssert.Contains(result.Stdout, "alta session create --project <project> --same-model-as <thread-id>");
-        StringAssert.Contains(result.Stdout, "session request`/`message` for peer-agent notes");
+        StringAssert.Contains(result.Stdout, "delegate project-folder work to project sessions");
+        StringAssert.Contains(result.Stdout, "request`/`message` for peer-agent notes");
         StringAssert.Contains(result.Stdout, "Discover: `alta <command> --help` or `alta <command> <subcommand> --help`.");
         AssertHelpOrder(result.Stdout, "  session", "Guidance:");
         AssertHelpOrder(result.Stdout, "  plugin", "Guidance:");

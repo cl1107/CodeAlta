@@ -801,6 +801,7 @@ CodeAlta should bootstrap a compact coordinator instruction file at `~/.alta/AGE
 - it helps across all user projects and sessions;
 - it can inspect projects/sessions through `alta` under the global visibility policy;
 - it can create, send to, steer, queue, abort, and summarize project sessions when appropriate;
+- it should delegate project work to project sessions instead of reading, editing, building, testing, or otherwise operating directly inside project folders itself;
 - it should preserve provenance and use peer-agent authority when communicating with project sessions;
 - it should include the current generated `alta --help` output in the managed block so the coordinator sees the compact quick-start without manually duplicated command details;
 - it should use narrower help commands only when command-specific options are needed;
