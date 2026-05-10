@@ -874,6 +874,8 @@ Rules:
 
 Implementation note: the sidebar projection expands thread nodes that have children, orders root sessions by the most recent activity in their subtree, and renders threads with missing, cross-scope, or cyclic parent lineage at the project/global root with a warning provenance marker and tooltip explaining why the durable parent link was not nested.
 
+Runtime-created sessions must appear in the sidebar without requiring a manual catalog refresh. When an agent uses the live tool to create or send work to a project session from a global or parent session, the runtime emits a thread materialization/catalog event that the shell uses to upsert the descriptor into the appropriate global/project sidebar scope without opening a tab. Sidebar running indicators merge open-tab busy state with runtime run state events, so non-open child/sub-sessions can still show as running while their turns are in flight.
+
 ### 10.2 Timeline provenance
 
 Timeline items should visually distinguish at least:
@@ -964,6 +966,7 @@ If a backend cannot store metadata, CodeAlta should render a visible header and 
 - [x] Implement `session list/show/status/children/model` with provider/model/reasoning, `parentThreadId`, and provenance fields when known.
 - [x] Distinguish `running`, `idle`, `inactive`, and `archived` states.
 - [x] Add same-project parent/child hierarchy reconstruction for durable session metadata.
+- [x] Project live runtime-created project/global sessions into the sidebar and show non-open running sessions from runtime run-state events.
 - [x] Add JSONL record contract tests and same-project filtering tests for session discovery/status commands.
 - [x] Add hierarchy reconstruction tests for durable sidebar/session metadata.
 
@@ -1019,6 +1022,7 @@ If a backend cannot store metadata, CodeAlta should render a visible header and 
 - [x] Automatically forward child-session final assistant replies and marked progress updates to parent sessions through steer-or-queue peer-agent delivery.
 - [x] Add enforced coordinator/project visibility policy checks.
 - [x] Add sidebar/timeline projection updates for agent-created same-project child sessions and agent-created prompts.
+- [x] Add live sidebar projection updates for global-agent-created project sub-sessions and non-open running sub-session indicators.
 - [x] Add tests ensuring peer-agent messages cannot be rendered as user/developer/system instructions.
 
 ## 12. Documentation and testing requirements
@@ -1038,7 +1042,7 @@ Before considering the feature complete:
 - add sidebar/timeline projection tests for parent/child sessions and agent-created prompts;
 - document unsupported backend behavior explicitly.
 
-Current completion evidence: user-facing examples are documented in `readme.md`, `doc/readme.md#alta-live-tool`, `doc/skills.md#live-tool-commands`, and `doc/plugins.md#alta-live-tool-integration`; coordinator/skill instruction templates advertise `alta` only when it is available; regression coverage lives in `AltaLiveToolTests`, `ThreadRuntimeEventCoordinatorTests`, `ArchitectureGuardrailTests`, and catalog/plugin infrastructure tests for the command registry, JSONL transcripts, invalid usage diagnostics (unknown options, bad values, missing arguments, mutually exclusive flags, plugin validation), visibility (global coordinator access, same-project access, scoped project catalog/skill access, scoped plugin alta invocation, coordinator reply path, denied cross-project access), capability discovery, unsupported backend diagnostics, provenance, explicit parent validation, automatic child-to-parent final/progress notifications, queue draining, plugin contributions/invocation, and timeline/sidebar projections.
+Current completion evidence: user-facing examples are documented in `readme.md`, `doc/readme.md#alta-live-tool`, `doc/skills.md#live-tool-commands`, and `doc/plugins.md#alta-live-tool-integration`; coordinator/skill instruction templates advertise `alta` only when it is available; regression coverage lives in `AltaLiveToolTests`, `ThreadRuntimeEventCoordinatorTests`, `ShellThreadStateCoordinatorTests`, `ArchitectureGuardrailTests`, and catalog/plugin infrastructure tests for the command registry, JSONL transcripts, invalid usage diagnostics (unknown options, bad values, missing arguments, mutually exclusive flags, plugin validation), visibility (global coordinator access, same-project access, scoped project catalog/skill access, scoped plugin alta invocation, coordinator reply path, denied cross-project access), capability discovery, unsupported backend diagnostics, provenance, explicit parent validation, automatic child-to-parent final/progress notifications, queue draining, plugin contributions/invocation, live runtime sidebar projection, and timeline/sidebar projections.
 
 ## 13. Resolved v1 decisions
 

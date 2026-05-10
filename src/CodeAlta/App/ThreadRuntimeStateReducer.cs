@@ -36,6 +36,7 @@ internal sealed class ThreadRuntimeStateReducer
         {
             WorkThreadAgentEvent agentEvent => ReduceAgentEvent(thread, tab, agentEvent.Event, isSelectedThread, ShouldApplyShellChromeProjectionAfterRuntimeEvent(runtimeEvent)),
             WorkThreadHostEvent hostEvent => ReduceHostEvent(thread, tab, hostEvent),
+            WorkThreadLifecycleRuntimeEvent => new ThreadRuntimeReductionResult(true, false, false, false, false, null),
             WorkThreadQueueRuntimeEvent => new ThreadRuntimeReductionResult(true, false, false, false, false, null),
             _ => default,
         };
@@ -91,6 +92,8 @@ internal sealed class ThreadRuntimeStateReducer
         return runtimeEvent switch
         {
             WorkThreadHostEvent => true,
+            WorkThreadLifecycleRuntimeEvent => true,
+            WorkThreadCatalogRuntimeEvent => true,
             WorkThreadQueueRuntimeEvent => true,
             WorkThreadAgentEvent
             {
@@ -352,7 +355,7 @@ internal sealed class ThreadRuntimeStateReducer
         }
     }
 
-    private static bool ShouldTrackRunId(AgentEvent @event)
+    internal static bool ShouldTrackRunId(AgentEvent @event)
     {
         if (@event is not AgentSessionUpdateEvent { Kind: AgentSessionUpdateKind.CompactionStarted or AgentSessionUpdateKind.CompactionCompleted } &&
             @event is not AgentActivityEvent { Kind: AgentActivityKind.Compaction })

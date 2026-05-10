@@ -548,6 +548,58 @@ public sealed class ThreadRuntimeEventCoordinatorTests
     }
 
     [TestMethod]
+    public void ApplyRuntimeEvent_CatalogEventUpsertsRuntimeThread()
+    {
+        var thread = CreateThread();
+        var tab = CreateOpenThreadState(thread);
+        WorkThreadDescriptor? upserted = null;
+        var coordinator = CreateCoordinator(thread, tab, upsertRuntimeThread: descriptor => upserted = descriptor);
+
+        coordinator.ApplyRuntimeEvent(new WorkThreadCatalogRuntimeEvent(thread.ThreadId, DateTimeOffset.UtcNow, thread));
+
+        Assert.AreSame(thread, upserted);
+    }
+
+    [TestMethod]
+    public void ApplyRuntimeEvent_TracksRunningStateForNonOpenRuntimeThread()
+    {
+        var thread = CreateThread();
+        var tab = CreateOpenThreadState(thread);
+        var publisher = new FrontendEventPublisher(new InlineUiDispatcher());
+        var events = new List<ShellFrontendEvent>();
+        publisher.Subscribe(events.Add);
+        var coordinator = CreateCoordinator(thread, tab, frontendEvents: publisher, exposeOpenThread: false);
+        var runId = "run-1";
+
+        coordinator.ApplyRuntimeEvent(new WorkThreadLifecycleRuntimeEvent(
+            thread.ThreadId,
+            DateTimeOffset.UtcNow,
+            new WorkThreadLifecycleEvent
+            {
+                ThreadId = thread.ThreadId,
+                Kind = WorkThreadLifecycleEventKind.RunSubmitted,
+                RunId = runId,
+            }));
+
+        Assert.IsTrue(coordinator.IsThreadRunning(thread.ThreadId));
+        Assert.IsTrue(events.OfType<ShellChromeChangedEvent>().Any());
+        events.Clear();
+
+        coordinator.ApplyRuntimeEvent(new WorkThreadAgentEvent(
+            thread.ThreadId,
+            new AgentSessionUpdateEvent(
+                AgentBackendIds.Copilot,
+                "session-1",
+                DateTimeOffset.UtcNow,
+                new AgentRunId(runId),
+                AgentSessionUpdateKind.Idle,
+                "idle")));
+
+        Assert.IsFalse(coordinator.IsThreadRunning(thread.ThreadId));
+        Assert.IsTrue(events.OfType<ShellChromeChangedEvent>().Any());
+    }
+
+    [TestMethod]
     public void HandleAgentEvent_PublishesSessionUsageChangedWhenSelectedUsageChanges()
     {
         var thread = CreateThread();
@@ -606,21 +658,24 @@ public sealed class ThreadRuntimeEventCoordinatorTests
 
     private static ThreadRuntimeEventCoordinator CreateCoordinator(
         WorkThreadDescriptor thread,
-        OpenThreadState tab,
+        OpenThreadState? tab,
         IProjectFileSearchService? projectFileSearchService = null,
         IPluginAgentEventObserver? pluginAgentEventObserver = null,
-        FrontendEventPublisher? frontendEvents = null)
+        FrontendEventPublisher? frontendEvents = null,
+        Action<WorkThreadDescriptor>? upsertRuntimeThread = null,
+        bool exposeOpenThread = true)
     {
         var stateStore = new ShellStateStore(new InlineUiDispatcher());
         stateStore.Mutate(snapshot => snapshot.SetCatalog([], [thread]));
         return new ThreadRuntimeEventCoordinator(
             stateStore: stateStore,
-            findOpenThread: id => id == tab.Thread.ThreadId ? tab : null,
+            findOpenThread: id => exposeOpenThread && tab is not null && id == tab.Thread.ThreadId ? tab : null,
             getAutoApproveEnabled: static () => false,
             isSelectedThread: id => id == thread.ThreadId,
             statusPort: new TestShellStatusPort(),
             drainQueuedPromptAsync: static (_, _) => Task.CompletedTask,
             projectFileSearchService: projectFileSearchService ?? NullProjectFileSearchService.Instance,
+            upsertRuntimeThread: upsertRuntimeThread,
             pluginAgentEventObserver: pluginAgentEventObserver,
             frontendEvents: frontendEvents);
     }

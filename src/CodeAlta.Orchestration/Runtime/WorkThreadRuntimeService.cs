@@ -502,6 +502,7 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
         thread.BackendSessionId = backendSessionId;
         thread.WorkingDirectory = options.WorkingDirectory;
         thread.ThreadId = CreateThreadId(options.BackendId, backendSessionId);
+        PublishThreadCatalogEvent(thread);
         PublishSessionLifecycleEvent(thread.ThreadId, previousThreadId, previousBackendSessionId, backendSessionId);
 
         ThreadSessionEntry? entry = null;
@@ -566,7 +567,11 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
 
         var runStartedAt = DateTimeOffset.UtcNow;
         var runId = await _agentHub.RunAsync(agentId, sendOptions, cancellationToken).ConfigureAwait(false);
-        await MarkActiveRunIfStillInFlightAsync(thread.ThreadId, runId, runStartedAt, cancellationToken).ConfigureAwait(false);
+        if (await MarkActiveRunIfStillInFlightAsync(thread.ThreadId, runId, runStartedAt, cancellationToken).ConfigureAwait(false))
+        {
+            PublishRunSubmittedEvent(thread.ThreadId, runId, runStartedAt);
+        }
+
         return runId;
     }
 
@@ -1099,7 +1104,7 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
         return entry;
     }
 
-    private async Task MarkActiveRunIfStillInFlightAsync(
+    private async Task<bool> MarkActiveRunIfStillInFlightAsync(
         string threadId,
         AgentRunId runId,
         DateTimeOffset runStartedAt,
@@ -1107,34 +1112,36 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
     {
         if (string.IsNullOrWhiteSpace(threadId))
         {
-            return;
+            return false;
         }
 
         if (!_threadActors.TryGet(threadId, out var actor))
         {
-            return;
+            return false;
         }
 
         try
         {
-            await actor.QueryAsync(
+            return await actor.QueryAsync(
                     _ =>
                     {
                         if (_entries.TryGetValue(threadId, out var entry))
                         {
-                            entry.MarkActiveRunIfStillInFlight(runId, runStartedAt);
+                            return ValueTask.FromResult(entry.MarkActiveRunIfStillInFlight(runId, runStartedAt));
                         }
 
-                        return ValueTask.FromResult(true);
+                        return ValueTask.FromResult(false);
                     },
                     cancellationToken)
                 .ConfigureAwait(false);
         }
         catch (ObjectDisposedException)
         {
+            return false;
         }
         catch (InvalidOperationException) when (_disposed)
         {
+            return false;
         }
     }
 
@@ -1629,6 +1636,31 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
         }
     }
 
+    private void PublishThreadCatalogEvent(WorkThreadDescriptor thread)
+    {
+        if (!_disposed)
+        {
+            _events.TryPublish(new WorkThreadCatalogRuntimeEvent(thread.ThreadId, DateTimeOffset.UtcNow, CloneThreadDescriptor(thread)));
+        }
+    }
+
+    private void PublishRunSubmittedEvent(string threadId, AgentRunId runId, DateTimeOffset timestamp)
+    {
+        if (!_disposed)
+        {
+            _events.TryPublish(new WorkThreadLifecycleRuntimeEvent(
+                threadId,
+                timestamp,
+                new WorkThreadLifecycleEvent
+                {
+                    ThreadId = threadId,
+                    Kind = WorkThreadLifecycleEventKind.RunSubmitted,
+                    RunId = runId.Value,
+                    Message = "Runtime run submitted.",
+                }));
+        }
+    }
+
     private void PublishSessionLifecycleEvent(
         string threadId,
         string? previousThreadId,
@@ -1655,6 +1687,30 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
                     : "Runtime session rekeyed.",
             }));
     }
+
+    private static WorkThreadDescriptor CloneThreadDescriptor(WorkThreadDescriptor thread)
+        => new()
+        {
+            ThreadId = thread.ThreadId,
+            Kind = thread.Kind,
+            BackendId = thread.BackendId,
+            ProviderKey = thread.ProviderKey,
+            BackendSessionId = thread.BackendSessionId,
+            ProjectRef = thread.ProjectRef,
+            ParentThreadId = thread.ParentThreadId,
+            CreatedBy = thread.CreatedBy,
+            WorkingDirectory = thread.WorkingDirectory,
+            Title = thread.Title,
+            Status = thread.Status,
+            CreatedAt = thread.CreatedAt,
+            UpdatedAt = thread.UpdatedAt,
+            LastActiveAt = thread.LastActiveAt,
+            StartedAt = thread.StartedAt,
+            LatestSummary = thread.LatestSummary,
+            MessageCount = thread.MessageCount,
+            SourcePath = thread.SourcePath,
+            MarkdownBody = thread.MarkdownBody,
+        };
 
     private WorkThreadDescriptor? TryCreateRecoverableThread(
         AgentBackendId backendId,
@@ -1995,14 +2051,15 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
             return false;
         }
 
-        public void MarkActiveRunIfStillInFlight(AgentRunId runId, DateTimeOffset runStartedAt)
+        public bool MarkActiveRunIfStillInFlight(AgentRunId runId, DateTimeOffset runStartedAt)
         {
             if (LastTerminalEventAt >= runStartedAt)
             {
-                return;
+                return false;
             }
 
             ActiveRunId = runId;
+            return true;
         }
 
         public void BeginQueueDrain()

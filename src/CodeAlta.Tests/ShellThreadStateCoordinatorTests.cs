@@ -119,6 +119,37 @@ public sealed class ShellThreadStateCoordinatorTests
     }
 
     [TestMethod]
+    public void UpsertRuntimeThread_AddsAgentCreatedProjectThreadWithoutOpeningIt()
+    {
+        using var temp = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = temp.Path };
+        var dispatcher = new InlineUiDispatcher();
+        var publisher = new FrontendEventPublisher(dispatcher);
+        var events = new List<ShellFrontendEvent>();
+        publisher.Subscribe(events.Add);
+        var coordinator = CreateCoordinator(
+            options,
+            stateStore: new ShellStateStore(dispatcher),
+            frontendEvents: publisher);
+        var project = CreateProject("project-1", "CodeAlta");
+        var thread = CreateThread("agent-child", project.Id);
+        thread.CreatedBy = new AltaActorProvenance
+        {
+            Kind = "agent",
+            SourceThreadId = "global-parent",
+            CreatedAt = DateTimeOffset.UtcNow,
+        };
+        coordinator.ApplyRecoveredCatalogState([project], []);
+
+        coordinator.UpsertRuntimeThread(thread);
+
+        Assert.AreEqual(thread.ThreadId, coordinator.Threads.Single().ThreadId);
+        Assert.IsFalse(coordinator.ViewState.OpenThreadIds.Contains(thread.ThreadId, StringComparer.OrdinalIgnoreCase));
+        Assert.IsNull(coordinator.FindOpenThread(thread.ThreadId));
+        Assert.IsTrue(events.OfType<CatalogChangedEvent>().Any());
+    }
+
+    [TestMethod]
     public async Task ClosingThreadTab_DoesNotStopThread()
     {
         using var temp = TempDirectory.Create();

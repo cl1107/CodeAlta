@@ -26,12 +26,14 @@ internal static class SidebarUiStateHelpers
         ShellThreadStateCoordinator threadStateCoordinator,
         PromptDraftUiCoordinator promptDraftUiCoordinator,
         Func<string, OpenThreadState?> findOpenThread,
+        Func<string, bool> isRuntimeThreadRunning,
         Action verifyBindableAccess)
     {
         ArgumentNullException.ThrowIfNull(sidebarCoordinator);
         ArgumentNullException.ThrowIfNull(threadStateCoordinator);
         ArgumentNullException.ThrowIfNull(promptDraftUiCoordinator);
         ArgumentNullException.ThrowIfNull(findOpenThread);
+        ArgumentNullException.ThrowIfNull(isRuntimeThreadRunning);
         ArgumentNullException.ThrowIfNull(verifyBindableAccess);
 
         sidebarCoordinator.RefreshProjection(
@@ -41,8 +43,8 @@ internal static class SidebarUiStateHelpers
             ResolveCurrentTarget(threadStateCoordinator),
             threadStateCoordinator.NavigatorSettings,
             threadId => findOpenThread(threadId) is { } tab
-                ? new ThreadVisualState(tab.StatusBusy, tab.HasPromptDraft)
-                : new ThreadVisualState(false, promptDraftUiCoordinator.HasPersistedPromptDraft(threadId)),
+                ? new ThreadVisualState(tab.StatusBusy || isRuntimeThreadRunning(threadId), tab.HasPromptDraft)
+                : new ThreadVisualState(isRuntimeThreadRunning(threadId), promptDraftUiCoordinator.HasPersistedPromptDraft(threadId)),
             verifyBindableAccess);
     }
 }

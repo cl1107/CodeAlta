@@ -1,4 +1,5 @@
 using CodeAlta.Agent;
+using CodeAlta.Catalog;
 
 namespace CodeAlta.Orchestration.Runtime;
 
@@ -43,6 +44,18 @@ public sealed record WorkThreadLifecycleRuntimeEvent(
     string ThreadId,
     DateTimeOffset Timestamp,
     WorkThreadLifecycleEvent Event)
+    : WorkThreadRuntimeEvent(ThreadId, Timestamp);
+
+/// <summary>
+/// Announces that a thread descriptor was materialized or refreshed by the runtime.
+/// </summary>
+/// <param name="ThreadId">The owning thread id.</param>
+/// <param name="Timestamp">The event timestamp.</param>
+/// <param name="Thread">The materialized thread descriptor snapshot.</param>
+public sealed record WorkThreadCatalogRuntimeEvent(
+    string ThreadId,
+    DateTimeOffset Timestamp,
+    WorkThreadDescriptor Thread)
     : WorkThreadRuntimeEvent(ThreadId, Timestamp);
 
 /// <summary>

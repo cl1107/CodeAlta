@@ -345,12 +345,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
     }
 
     internal void RefreshSidebarProjection()
-        => SidebarUiStateHelpers.RefreshProjection(
-            _sidebarCoordinator,
-            _threadStateCoordinator,
-            _promptDraftUiCoordinator,
-            threadId => _threadStateCoordinator.FindOpenThread(threadId),
-            VerifyBindableAccess);
+        => SidebarUiStateHelpers.RefreshProjection(_sidebarCoordinator, _threadStateCoordinator, _promptDraftUiCoordinator, threadId => _threadStateCoordinator.FindOpenThread(threadId), _threadRuntimeEventCoordinator.IsThreadRunning, VerifyBindableAccess);
 
     internal void SyncSidebarSelectionToCurrentState()
         => _sidebarCoordinator.SyncSelectionToCurrentState(SidebarUiStateHelpers.ResolveCurrentTarget(_threadStateCoordinator));

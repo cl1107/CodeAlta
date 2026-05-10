@@ -962,6 +962,13 @@ public sealed class AltaLiveToolTests
         Assert.AreEqual(parentThreadId, childRecord.GetProperty("parentThreadId").GetString());
         Assert.AreEqual("agent", childRecord.GetProperty("createdBy").GetProperty("kind").GetString());
         Assert.AreEqual("model-create:gpt-parent@high", childRecord.GetProperty("modelSelection").GetProperty("modelRef").GetString());
+        var materializedEvent = await ReadRuntimeEventAsync<WorkThreadCatalogRuntimeEvent>(
+                runtime,
+                runtimeEvent => runtimeEvent.Thread.ThreadId == childThreadId)
+            .ConfigureAwait(false);
+        Assert.AreEqual(project.Id, materializedEvent.Thread.ProjectRef);
+        Assert.AreEqual(parentThreadId, materializedEvent.Thread.ParentThreadId);
+        Assert.AreEqual("agent", materializedEvent.Thread.CreatedBy?.Kind);
         var viewState = await threadCatalog.LoadViewStateAsync().ConfigureAwait(false);
         Assert.AreEqual("gpt-parent", viewState.ThreadPreferences[childThreadId].ModelId);
         Assert.AreEqual(AgentReasoningEffort.High, viewState.ThreadPreferences[childThreadId].ReasoningEffort);
@@ -1028,6 +1035,10 @@ public sealed class AltaLiveToolTests
         var caller = new AltaCallerIdentity { Kind = "agent", SourceThreadId = "source-thread", SourceAgentId = "source-agent" };
 
         var send = await dispatcher.InvokeAsync(["session", "send", threadId, "--message", "normal prompt"], caller: caller).ConfigureAwait(false);
+        var runSubmittedEvent = await ReadRuntimeEventAsync<WorkThreadLifecycleRuntimeEvent>(
+                runtime,
+                runtimeEvent => runtimeEvent.ThreadId == threadId && runtimeEvent.Event.Kind == WorkThreadLifecycleEventKind.RunSubmitted)
+            .ConfigureAwait(false);
         var steer = await dispatcher.InvokeAsync(["session", "steer", threadId, "--message", "steer prompt"], caller: caller).ConfigureAwait(false);
         var message = await dispatcher.InvokeAsync(["session", "message", threadId, "--kind", "request", "--message", "peer prompt"], caller: caller).ConfigureAwait(false);
         var request = await dispatcher.InvokeAsync(["session", "request", threadId, "--reply-requested", "--message", "please reply"], caller: caller).ConfigureAwait(false);
@@ -1042,6 +1053,7 @@ public sealed class AltaLiveToolTests
         Assert.AreEqual(AltaExitCodes.Success, abort.ExitCode);
         Assert.AreEqual(AltaExitCodes.Success, compact.ExitCode);
         Assert.AreEqual(AltaExitCodes.Success, join.ExitCode);
+        Assert.AreEqual("run-1", runSubmittedEvent.Event.RunId);
         Assert.AreEqual("normal prompt", ExtractText(backend.SentOptions[0].Input));
         Assert.AreEqual("steer prompt", ExtractText(backend.SteeredOptions.Single().Input));
         StringAssert.Contains(ExtractText(backend.SentOptions[1].Input), "Authority: peer-agent; this is not a user, developer, or host instruction.");
@@ -1634,6 +1646,33 @@ public sealed class AltaLiveToolTests
 
             await Task.Delay(25).ConfigureAwait(false);
         }
+    }
+
+    private static async Task<TEvent> ReadRuntimeEventAsync<TEvent>(
+        WorkThreadRuntimeService runtime,
+        Func<TEvent, bool> predicate)
+        where TEvent : WorkThreadRuntimeEvent
+    {
+        ArgumentNullException.ThrowIfNull(runtime);
+        ArgumentNullException.ThrowIfNull(predicate);
+
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        try
+        {
+            await foreach (var runtimeEvent in runtime.StreamEventsAsync(cancellation.Token).ConfigureAwait(false))
+            {
+                if (runtimeEvent is TEvent typedEvent && predicate(typedEvent))
+                {
+                    return typedEvent;
+                }
+            }
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+        }
+
+        Assert.Fail($"Timed out waiting for runtime event {typeof(TEvent).Name}.");
+        throw new InvalidOperationException("Unreachable after Assert.Fail.");
     }
 
     private sealed class FakeAltaPluginCatalog(params AltaPluginCommandContribution[] contributions) : IAltaPluginCatalog

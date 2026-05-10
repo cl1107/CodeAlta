@@ -20,10 +20,12 @@ internal sealed class ThreadRuntimeEventCoordinator
     private readonly IShellStatusPort _statusPort;
     private readonly Func<OpenThreadState, CancellationToken, Task> _drainQueuedPromptAsync;
     private readonly IProjectFileSearchService _projectFileSearchService;
+    private readonly Action<WorkThreadDescriptor> _upsertRuntimeThread;
     private readonly IPluginAgentEventObserver _pluginAgentEventObserver;
     private readonly FrontendEventPublisher? _frontendEvents;
     private readonly ThreadRuntimeStateReducer _stateReducer;
     private readonly ThreadRuntimeTimelineRenderer _timelineRenderer;
+    private readonly HashSet<string> _runningThreadIds = new(StringComparer.OrdinalIgnoreCase);
 
     public ThreadRuntimeEventCoordinator(
         ShellStateStore stateStore,
@@ -33,6 +35,7 @@ internal sealed class ThreadRuntimeEventCoordinator
         IShellStatusPort statusPort,
         Func<OpenThreadState, CancellationToken, Task> drainQueuedPromptAsync,
         IProjectFileSearchService projectFileSearchService,
+        Action<WorkThreadDescriptor>? upsertRuntimeThread = null,
         IPluginAgentEventObserver? pluginAgentEventObserver = null,
         FrontendEventPublisher? frontendEvents = null)
     {
@@ -50,19 +53,39 @@ internal sealed class ThreadRuntimeEventCoordinator
         _statusPort = statusPort;
         _drainQueuedPromptAsync = drainQueuedPromptAsync;
         _projectFileSearchService = projectFileSearchService;
+        _upsertRuntimeThread = upsertRuntimeThread ?? (static _ => { });
         _pluginAgentEventObserver = pluginAgentEventObserver ?? new PluginAgentEventObserver(null);
         _frontendEvents = frontendEvents;
         _stateReducer = new ThreadRuntimeStateReducer();
         _timelineRenderer = new ThreadRuntimeTimelineRenderer(getAutoApproveEnabled);
     }
 
+    public bool IsThreadRunning(string threadId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
+        return _runningThreadIds.Contains(threadId);
+    }
+
     public void ApplyRuntimeEvent(WorkThreadRuntimeEvent runtimeEvent)
     {
         ArgumentNullException.ThrowIfNull(runtimeEvent);
 
+        if (runtimeEvent is WorkThreadCatalogRuntimeEvent catalogEvent)
+        {
+            _upsertRuntimeThread(catalogEvent.Thread);
+            return;
+        }
+
+        var runtimeRunStateChanged = ObserveRuntimeRunState(runtimeEvent);
+
         var thread = FindThread(runtimeEvent.ThreadId);
         if (thread is null)
         {
+            if (runtimeRunStateChanged)
+            {
+                _frontendEvents?.Publish(new ShellChromeChangedEvent());
+            }
+
             return;
         }
 
@@ -72,6 +95,10 @@ internal sealed class ThreadRuntimeEventCoordinator
             tab,
             runtimeEvent,
             _isSelectedThread(thread.ThreadId));
+        if (runtimeRunStateChanged && !reduction.ApplyShellChromeProjection)
+        {
+            reduction = reduction with { ApplyShellChromeProjection = true };
+        }
 
         if (tab is not null)
         {
@@ -375,6 +402,29 @@ internal sealed class ThreadRuntimeEventCoordinator
 
     public static string SummarizeContent(string content)
         => ThreadRuntimeStateReducer.SummarizeContent(content);
+
+    private bool ObserveRuntimeRunState(WorkThreadRuntimeEvent runtimeEvent)
+    {
+        switch (runtimeEvent)
+        {
+            case WorkThreadLifecycleRuntimeEvent { Event.Kind: WorkThreadLifecycleEventKind.RunSubmitted }:
+                return _runningThreadIds.Add(runtimeEvent.ThreadId);
+            case WorkThreadLifecycleRuntimeEvent
+            {
+                Event.Kind: WorkThreadLifecycleEventKind.RunCompleted
+                or WorkThreadLifecycleEventKind.RunFailed
+                or WorkThreadLifecycleEventKind.RunAborted
+            }:
+                return _runningThreadIds.Remove(runtimeEvent.ThreadId);
+            case WorkThreadAgentEvent { Event: AgentErrorEvent or AgentSessionUpdateEvent { Kind: AgentSessionUpdateKind.Idle or AgentSessionUpdateKind.Shutdown } }:
+                return _runningThreadIds.Remove(runtimeEvent.ThreadId);
+            case WorkThreadAgentEvent { Event.RunId: not null } agentEvent
+                when ThreadRuntimeStateReducer.ShouldTrackRunId(agentEvent.Event):
+                return _runningThreadIds.Add(runtimeEvent.ThreadId);
+            default:
+                return false;
+        }
+    }
 
     private WorkThreadDescriptor? FindThread(string threadId)
     {
