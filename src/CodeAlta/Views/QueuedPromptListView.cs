@@ -270,7 +270,7 @@ internal static partial class QueuedPromptListView
             new TextBlock($"{NerdFont.MdSquareEditOutline} Edit Queued Prompt"),
             new DockLayout(
                 top: null,
-                content: editor.Scrollable().MinHeight(8),
+                content: editor.Scrollable().IsTabStop(false).MinHeight(8),
                 bottom: buttonRow))
         {
             Width = 90,

@@ -92,6 +92,7 @@ internal sealed class ConfigRecoveryDialog
 
         var editorFrame = new Border(
             new ScrollViewer(_editor.Stretch(), focusable: false)
+                .IsTabStop(false)
                 .HorizontalAlignment(Align.Stretch)
                 .VerticalAlignment(Align.Stretch))
         {

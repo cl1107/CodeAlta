@@ -61,7 +61,7 @@ internal sealed class PromptComposerView
         Editor = CreatePromptEditor(viewModel, controller.OpenHelp, controller.OpenCommandPalette, projectFileSearchService, getPromptReferenceProjectRoot, controller.AcceptPrompt, commandBindings, promptText)
             .IsEnabled(viewModel.Bind.IsEnabled);
         _promptImageAttachmentStripView.ConfigurePromptImagePasteHandler(Editor);
-        EditorView = Editor.Scrollable();
+        EditorView = Editor.Scrollable().IsTabStop(false);
         SendButton = CreatePromptActionButton(viewModel, controller.SendPrompt, controller.AbortThread);
         ExpandButton = CreateIconButton(
             $"{NerdFont.MdSquareEditOutline}",
@@ -108,7 +108,7 @@ internal sealed class PromptComposerView
             .BottomRightText(new Markup("[dim]Esc/Ctrl+Enter Close · draft preserved[/]"))
             .IsModal(true)
             .Padding(1)
-            .Content(editor.Scrollable());
+            .Content(editor.Scrollable().IsTabStop(false));
         ResponsiveDialogSize.Apply(dialog, _getDialogBounds(), minWidth: 60, minHeight: 18);
         dialog.AddCommand(CreateExpandedPromptDialogCloseCommand("CodeAlta.Thread.ExpandPrompt.Close", new KeyGesture(TerminalKey.Escape)));
         dialog.AddCommand(CreateExpandedPromptDialogCloseCommand("CodeAlta.Thread.ExpandPrompt.CloseWithCtrlEnter", new KeyGesture(TerminalKey.Enter, TerminalModifiers.Ctrl), CommandPresentation.None));

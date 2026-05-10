@@ -387,6 +387,7 @@ internal sealed partial class FileEditorTab : IAsyncDisposable
             .Right(actions);
 
         var scrollableEditor = new ScrollViewer(Editor.Stretch(), focusable: false)
+            .IsTabStop(false)
             .HorizontalAlignment(Align.Stretch)
             .VerticalAlignment(Align.Stretch);
 
