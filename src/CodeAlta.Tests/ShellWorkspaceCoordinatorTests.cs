@@ -173,6 +173,7 @@ public sealed class ShellWorkspaceCoordinatorTests
         Assert.IsNotNull(tab);
         tab.HasCustomStatus = true;
         tab.StatusBusy = true;
+        tab.StatusTone = StatusTone.Info;
         tab.StatusMessage = StatusVisualFormatter.BuildThinkingStatusText();
         tab.ActiveRunStartedAt = DateTimeOffset.Parse("2026-03-29T12:00:00+00:00");
         var syncActivePromptPanelProjectionCount = 0;
@@ -215,6 +216,8 @@ public sealed class ShellWorkspaceCoordinatorTests
 
         Assert.AreEqual(1, syncActivePromptPanelProjectionCount);
         Assert.AreEqual("Thinking for 5 seconds...", shellViewModel.StatusText);
+        Assert.IsTrue(shellViewModel.StatusBusy);
+        Assert.AreEqual(StatusTone.Info, shellViewModel.StatusTone);
     }
 
     private static (ShellWorkspaceCoordinator Workspace, SessionUsageViewModel SessionUsage) CreateWorkspaceCoordinator(

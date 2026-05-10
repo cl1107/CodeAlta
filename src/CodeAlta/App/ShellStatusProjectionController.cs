@@ -144,7 +144,9 @@ internal sealed class ShellStatusProjectionController
                 }
 
                 selectedTab.StatusMessage = message;
-                _shellViewModel.StatusText = message;
+                ShellViewModelProjection.ApplyStatus(
+                    _shellViewModel,
+                    new ShellStatusSnapshot(message, selectedTab.StatusBusy, selectedTab.StatusTone));
                 _workspaceContext.SyncActivePromptPanelProjection();
                 _workspaceContext.RefreshSidebarProjection();
                 _viewRefreshState.Value++;
