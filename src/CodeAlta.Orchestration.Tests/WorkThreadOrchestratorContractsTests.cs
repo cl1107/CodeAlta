@@ -91,7 +91,6 @@ public sealed class WorkThreadOrchestratorContractsTests
             ThreadId = "thread-1",
             Title = "Thread",
             BackendId = "backend",
-            BackendSessionId = "session",
             WorkingDirectory = "C:/project",
         };
         var result = new WorkThreadCommandResult
@@ -140,7 +139,6 @@ public sealed class WorkThreadOrchestratorContractsTests
             Kind = WorkThreadKind.ProjectThread,
             BackendId = "backend",
             ProviderKey = "provider",
-            BackendSessionId = "session",
             ProjectRef = "project-1",
             WorkingDirectory = "C:/project",
             Title = "Original",
@@ -163,7 +161,6 @@ public sealed class WorkThreadOrchestratorContractsTests
         Assert.AreEqual(WorkThreadKind.ProjectThread, snapshot.Kind);
         Assert.AreEqual("backend", snapshot.BackendId);
         Assert.AreEqual("provider", snapshot.ProviderKey);
-        Assert.AreEqual("session", snapshot.BackendSessionId);
         Assert.AreEqual("project-1", snapshot.ProjectRef);
         Assert.AreEqual("C:/project", snapshot.WorkingDirectory);
         Assert.AreEqual("Original", snapshot.Title);

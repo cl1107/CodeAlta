@@ -6,7 +6,7 @@ namespace CodeAlta.Presentation.Threads;
 internal sealed record ThreadInfoReport(
     string ThreadTitle,
     string BackendName,
-    string BackendSessionId,
+    string ThreadId,
     string WorkingDirectory,
     string? ModelName,
     AgentReasoningEffort? ReasoningEffort,

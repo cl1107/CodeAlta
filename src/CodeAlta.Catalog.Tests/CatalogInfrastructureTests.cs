@@ -315,8 +315,7 @@ public sealed class CatalogInfrastructureTests
         descriptor.CreatedBy = new AltaActorProvenance
         {
             Kind = "plugin",
-            SourceThreadId = "codex:parent",
-            SourceBackendSessionId = "backend-parent",
+            SourceThreadId = "parent",
             SourceProjectId = descriptor.ProjectRef,
             SourceAgentId = "agent:parent",
             PluginRuntimeKey = "sample-plugin",
@@ -335,14 +334,78 @@ public sealed class CatalogInfrastructureTests
         Assert.AreEqual(descriptor.ParentThreadId, reloaded.ParentThreadId);
         Assert.AreEqual(descriptor.BackendId, reloaded.BackendId);
         Assert.AreEqual(descriptor.ResolvedProviderKey, reloaded.ResolvedProviderKey);
-        Assert.AreEqual(descriptor.BackendSessionId, reloaded.BackendSessionId);
+        Assert.AreEqual(descriptor.ThreadId, reloaded.ThreadId);
         Assert.AreEqual(descriptor.StartedAt, reloaded.StartedAt);
         Assert.IsNotNull(reloaded.CreatedBy);
         Assert.AreEqual("plugin", reloaded.CreatedBy.Kind);
-        Assert.AreEqual("codex:parent", reloaded.CreatedBy.SourceThreadId);
+        Assert.AreEqual("parent", reloaded.CreatedBy.SourceThreadId);
         Assert.AreEqual("sample-plugin", reloaded.CreatedBy.PluginRuntimeKey);
         Assert.AreEqual(descriptor.CreatedBy.CreatedAt, reloaded.CreatedBy.CreatedAt);
         Assert.AreEqual(7, reloaded.MessageCount);
+    }
+
+    [TestMethod]
+    public void WorkThreadYamlSerializer_DeserializeThreadMarkdown_MigratesLegacySessionId()
+    {
+        var serializer = new WorkThreadYamlSerializer();
+        var legacyKey = "backend_" + "session_id";
+
+        var reloaded = serializer.DeserializeThreadMarkdown($"""
+            ---
+            thread_id: codex:thread-one
+            kind: internal_thread
+            backend_id: codex
+            provider_key: codex
+            {legacyKey}: thread-one
+            title: Legacy
+            ---
+
+            # Legacy
+            """);
+
+        Assert.AreEqual("thread-one", reloaded.ThreadId);
+    }
+
+    [TestMethod]
+    public void WorkThreadYamlSerializer_DeserializeThreadMarkdown_KeepsMatchingLegacySessionId()
+    {
+        var serializer = new WorkThreadYamlSerializer();
+        var legacyKey = "backend_" + "session_id";
+
+        var reloaded = serializer.DeserializeThreadMarkdown($"""
+            ---
+            thread_id: thread-one
+            kind: internal_thread
+            backend_id: codex
+            provider_key: codex
+            {legacyKey}: thread-one
+            title: Legacy
+            ---
+
+            # Legacy
+            """);
+
+        Assert.AreEqual("thread-one", reloaded.ThreadId);
+    }
+
+    [TestMethod]
+    public void WorkThreadYamlSerializer_DeserializeThreadMarkdown_RejectsConflictingLegacyIds()
+    {
+        var serializer = new WorkThreadYamlSerializer();
+        var legacyKey = "backend_" + "session_id";
+
+        Assert.ThrowsExactly<InvalidDataException>(() => serializer.DeserializeThreadMarkdown($"""
+            ---
+            thread_id: thread-one
+            kind: internal_thread
+            backend_id: codex
+            provider_key: codex
+            {legacyKey}: other-thread
+            title: Legacy
+            ---
+
+            # Legacy
+            """));
     }
 
     [TestMethod]
@@ -363,12 +426,11 @@ public sealed class CatalogInfrastructureTests
         var timestamp = new DateTimeOffset(2026, 03, 10, 12, 0, 0, TimeSpan.Zero);
         var internalThread = new WorkThreadDescriptor
         {
-            ThreadId = "codex:019cc85b",
+            ThreadId = "019cc85b",
             Kind = WorkThreadKind.InternalThread,
             BackendId = "codex",
-            BackendSessionId = "019cc85b",
             ProjectRef = project.Id,
-            ParentThreadId = "copilot:019cc700",
+            ParentThreadId = "019cc700",
             WorkingDirectory = Path.Combine(root.Path, "threads", "internal", "codex-019cc85b"),
             Title = "Review sqlitevec integration",
             Status = WorkThreadStatus.Active,
@@ -396,10 +458,9 @@ public sealed class CatalogInfrastructureTests
         var catalog = new WorkThreadCatalog(new CatalogOptions { GlobalRoot = root.Path });
         var descriptor = new WorkThreadDescriptor
         {
-            ThreadId = "copilot:019cc700",
+            ThreadId = "019cc700",
             Kind = WorkThreadKind.ProjectThread,
             BackendId = "copilot",
-            BackendSessionId = "019cc700",
             ProjectRef = Guid.CreateVersion7().ToString(),
             WorkingDirectory = @"C:\code\repo-main",
             Title = "Project thread",
@@ -772,12 +833,11 @@ public sealed class CatalogInfrastructureTests
         var timestamp = new DateTimeOffset(2026, 03, 10, 12, 0, 0, TimeSpan.Zero);
         return new WorkThreadDescriptor
         {
-            ThreadId = "codex:platform-search-review",
+            ThreadId = "platform-search-review",
             Kind = WorkThreadKind.InternalThread,
             BackendId = "codex",
-            BackendSessionId = "platform-search-review",
             ProjectRef = Guid.CreateVersion7().ToString(),
-            ParentThreadId = "copilot:global-thread",
+            ParentThreadId = "global-thread",
             WorkingDirectory = @"C:\Users\alexa\.alta\threads\internal\platform-search-review",
             Title = "Review sqlitevec integration",
             Status = WorkThreadStatus.Active,

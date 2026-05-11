@@ -190,7 +190,9 @@ public sealed class LocalAgentBackend : IAgentBackend, IAgentSharedSessionMetada
 
         var registration = ResolveProvider(options.ProviderKey);
         var now = DateTimeOffset.UtcNow;
-        var sessionId = Guid.CreateVersion7().ToString();
+        var sessionId = string.IsNullOrWhiteSpace(options.ThreadId)
+            ? Guid.CreateVersion7().ToString()
+            : options.ThreadId.Trim();
         var summary = new LocalAgentSessionSummary
         {
             SessionId = sessionId,

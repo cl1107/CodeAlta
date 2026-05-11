@@ -39,7 +39,6 @@ public sealed class PromptReferenceProjectRootResolverTests
             ThreadId = "global-thread",
             Kind = WorkThreadKind.GlobalThread,
             BackendId = AgentBackendIds.Codex.Value,
-            BackendSessionId = "session-global-thread",
             WorkingDirectory = globalRoot,
             Title = "Global Thread",
             Status = WorkThreadStatus.Active,

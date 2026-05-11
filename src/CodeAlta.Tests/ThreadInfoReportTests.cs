@@ -20,7 +20,6 @@ public sealed class ThreadInfoReportTests
             {
                 ThreadId = "codex:thread-1",
                 BackendId = AgentBackendIds.Codex.Value,
-                BackendSessionId = "thread-1",
                 WorkingDirectory = @"C:\code\CodeAlta",
                 Title = "Investigate startup",
                 CreatedAt = DateTimeOffset.Parse("2026-03-20T10:00:00+00:00"),
@@ -104,7 +103,7 @@ public sealed class ThreadInfoReportTests
         var report = new ThreadInfoReport(
             ThreadTitle: "Investigate startup",
             BackendName: "Codex",
-            BackendSessionId: "thread-1",
+            ThreadId: "thread-1",
             WorkingDirectory: @"C:\code\CodeAlta",
             ModelName: "gpt-5-codex",
             ReasoningEffort: AgentReasoningEffort.High,

@@ -605,7 +605,6 @@ public sealed class CodeAltaAppSidebarTests
             ThreadId = threadId,
             Kind = kind,
             BackendId = backendId,
-            BackendSessionId = $"session-{threadId}",
             ProjectRef = projectId,
             WorkingDirectory = workingDirectory,
             Title = title,

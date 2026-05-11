@@ -76,6 +76,7 @@ internal static class CopilotAgentMapper
         var systemMessage = BuildSystemMessage(options.SystemMessage, options.DeveloperInstructions);
         var config = new SessionConfig
         {
+            SessionId = string.IsNullOrWhiteSpace(options.ThreadId) ? null : options.ThreadId.Trim(),
             Model = options.Model,
             WorkingDirectory = options.WorkingDirectory,
             Streaming = options.Streaming,

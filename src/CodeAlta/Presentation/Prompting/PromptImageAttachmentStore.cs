@@ -48,11 +48,9 @@ internal sealed class PromptImageAttachmentStore
         ArgumentNullException.ThrowIfNull(thread);
 
         var createdAt = thread.CreatedAt == default ? DateTimeOffset.UtcNow : thread.CreatedAt;
-        var sessionSegment = !string.IsNullOrWhiteSpace(thread.BackendSessionId)
-            ? thread.BackendSessionId
-            : !string.IsNullOrWhiteSpace(thread.ThreadId)
-                ? thread.ThreadId
-                : Guid.CreateVersion7().ToString("N");
+        var sessionSegment = !string.IsNullOrWhiteSpace(thread.ThreadId)
+            ? thread.ThreadId
+            : Guid.CreateVersion7().ToString("N");
 
         return Path.Combine(
             _catalogOptions.SessionsRoot,

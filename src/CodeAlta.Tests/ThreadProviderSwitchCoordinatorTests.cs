@@ -41,7 +41,7 @@ public sealed class ThreadProviderSwitchCoordinatorTests
                 return Task.CompletedTask;
             });
         var createdAt = DateTimeOffset.Parse("2026-04-19T10:00:00+00:00");
-        var thread = CreateThread("codex_subscription:019e1584", "codex_subscription", "019e1584", createdAt);
+        var thread = CreateThread("019e1584", "codex_subscription", createdAt);
         var tabState = CreateTabState(thread, "codex_subscription", "gpt-5.5");
 
         var switched = await coordinator.SwitchThreadProviderAsync(
@@ -50,15 +50,14 @@ public sealed class ThreadProviderSwitchCoordinatorTests
             new AgentBackendId("anthropic")).ConfigureAwait(false);
 
         Assert.IsTrue(switched);
-        Assert.AreEqual("codex_subscription:019e1584", thread.ThreadId, "Switching providers must not rekey the open thread/tab.");
+        Assert.AreEqual("019e1584", thread.ThreadId, "Switching providers must not rekey the open thread/tab.");
         Assert.AreEqual("anthropic", thread.BackendId);
         Assert.AreEqual("anthropic", thread.ProviderKey);
-        Assert.AreEqual(string.Empty, thread.BackendSessionId, "The next run should start a target-provider session without resuming the previous provider session.");
         Assert.AreEqual("anthropic", tabState.BackendId.Value);
         Assert.AreEqual("claude-sonnet-4", tabState.ModelId);
         Assert.AreEqual(AgentReasoningEffort.High, tabState.ReasoningEffort);
         Assert.IsNull(tabState.Usage);
-        CollectionAssert.AreEqual(new[] { "codex_subscription:019e1584" }, detachedThreadIds);
+        CollectionAssert.AreEqual(new[] { "019e1584" }, detachedThreadIds);
         CollectionAssert.AreEqual(new[] { thread }, updatedThreads);
         Assert.IsTrue(persisted);
     }
@@ -81,7 +80,7 @@ public sealed class ThreadProviderSwitchCoordinatorTests
             static _ => { },
             static () => Task.CompletedTask);
         var createdAt = DateTimeOffset.Parse("2026-04-19T10:00:00+00:00");
-        var thread = CreateThread("codex:native-session", AgentBackendIds.Codex.Value, "native-session", createdAt);
+        var thread = CreateThread("native-session", AgentBackendIds.Codex.Value, createdAt);
         var tabState = CreateTabState(thread, AgentBackendIds.Codex.Value, "gpt-5");
 
         var switched = await coordinator.SwitchThreadProviderAsync(
@@ -90,9 +89,8 @@ public sealed class ThreadProviderSwitchCoordinatorTests
             new AgentBackendId("anthropic")).ConfigureAwait(false);
 
         Assert.IsTrue(switched);
-        Assert.AreEqual("codex:native-session", thread.ThreadId);
+        Assert.AreEqual("native-session", thread.ThreadId);
         Assert.AreEqual("anthropic", thread.BackendId);
-        Assert.AreEqual(string.Empty, thread.BackendSessionId);
         Assert.AreEqual("anthropic", tabState.BackendId.Value);
     }
 
@@ -103,7 +101,7 @@ public sealed class ThreadProviderSwitchCoordinatorTests
         WriteProviderConfig(temp.Path);
         var options = new CatalogOptions { GlobalRoot = temp.Path };
         var createdAt = DateTimeOffset.Parse("2026-04-19T10:00:00+00:00");
-        var thread = CreateThread("openai:session-1", "openai", "session-1", createdAt);
+        var thread = CreateThread("session-1", "openai", createdAt);
         var tabState = CreateTabState(thread, "openai", "gpt-4.1");
         var observedTargetDuringDetach = false;
         var coordinator = new ThreadProviderSwitchCoordinator(
@@ -141,7 +139,7 @@ public sealed class ThreadProviderSwitchCoordinatorTests
             static _ => Task.FromResult(true),
             static _ => { },
             static () => Task.CompletedTask);
-        var thread = CreateThread("openai:session-1", "openai", "session-1", DateTimeOffset.UtcNow);
+        var thread = CreateThread("session-1", "openai", DateTimeOffset.UtcNow);
         var tabState = CreateTabState(thread, "openai", "gpt-4.1");
 
         Assert.IsTrue(coordinator.CanSelectThreadProvider(thread, tabState));
@@ -190,14 +188,13 @@ public sealed class ThreadProviderSwitchCoordinatorTests
             Availability = ChatBackendAvailability.Ready,
         };
 
-    private static WorkThreadDescriptor CreateThread(string threadId, string backendId, string backendSessionId, DateTimeOffset timestamp)
+    private static WorkThreadDescriptor CreateThread(string threadId, string backendId, DateTimeOffset timestamp)
         => new()
         {
             ThreadId = threadId,
             Kind = WorkThreadKind.ProjectThread,
             BackendId = backendId,
             ProviderKey = backendId,
-            BackendSessionId = backendSessionId,
             ProjectRef = "project-1",
             WorkingDirectory = @"C:\repo",
             Title = "Review startup",

@@ -48,7 +48,7 @@ internal sealed class ThreadInfoService
             var sessions = await _agentHub
                 .ListSessionsAsync(new AgentBackendId(snapshot.Value.Thread.BackendId), cancellationToken: cancellationToken);
             metadata = sessions.FirstOrDefault(
-                session => string.Equals(session.SessionId, snapshot.Value.Thread.BackendSessionId, StringComparison.Ordinal));
+                session => string.Equals(session.SessionId, snapshot.Value.Thread.ThreadId, StringComparison.Ordinal));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

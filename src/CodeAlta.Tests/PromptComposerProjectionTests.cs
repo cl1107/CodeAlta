@@ -231,7 +231,6 @@ public sealed class PromptComposerProjectionTests
             ThreadId = "thread-1",
             Kind = WorkThreadKind.ProjectThread,
             BackendId = AgentBackendIds.Codex.Value,
-            BackendSessionId = "backend-thread-1",
             ProjectRef = "project-1",
             WorkingDirectory = @"C:\code\CodeAlta",
             Title = title,

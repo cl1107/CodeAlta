@@ -624,7 +624,6 @@ public sealed class CodeAltaAppTabStripTests
             ThreadId = threadId,
             Kind = WorkThreadKind.ProjectThread,
             BackendId = "codex",
-            BackendSessionId = $"session-{threadId}",
             ProjectRef = projectId,
             WorkingDirectory = @"C:\repo",
             Title = threadId,

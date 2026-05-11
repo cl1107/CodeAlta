@@ -666,7 +666,6 @@ public sealed class CodeAltaShellControllerTests
             ThreadId = threadId,
             Kind = WorkThreadKind.ProjectThread,
             BackendId = backendId ?? AgentBackendIds.Codex.Value,
-            BackendSessionId = $"session-{threadId}",
             ProjectRef = projectId,
             WorkingDirectory = @"C:\repo",
             Title = "Test thread",

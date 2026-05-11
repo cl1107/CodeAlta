@@ -70,7 +70,6 @@ public sealed class WorkThreadSkillActivationPlannerTests
         {
             ThreadId = "thread-1",
             BackendId = backendId,
-            BackendSessionId = "session-1",
             WorkingDirectory = "C:/project",
             Title = "Thread",
         };

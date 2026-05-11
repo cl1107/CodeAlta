@@ -1649,7 +1649,6 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             threadId = thread.ThreadId,
             backendId = thread.BackendId,
             providerKey = thread.ResolvedProviderKey,
-            backendSessionId = thread.BackendSessionId,
             projectId = thread.ProjectRef,
             title = thread.Title,
             parentThreadId = thread.ParentThreadId,
@@ -2130,8 +2129,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
     private static AltaSessionInfo? FindThread(IReadOnlyList<AltaSessionInfo> infos, string threadId)
         => infos.FirstOrDefault(info =>
-            string.Equals(info.Thread.ThreadId, threadId, StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(info.Thread.BackendSessionId, threadId, StringComparison.OrdinalIgnoreCase));
+            string.Equals(info.Thread.ThreadId, threadId, StringComparison.OrdinalIgnoreCase));
 
     private static IEnumerable<AltaSessionInfo> GetChildren(IReadOnlyList<AltaSessionInfo> infos, AltaSessionInfo parent, bool recursive)
     {
@@ -2268,15 +2266,6 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
                 inherited = inheritedResult.Selection;
             }
         }
-        else if (!string.IsNullOrWhiteSpace(context.Caller.SourceBackendSessionId))
-        {
-            var inheritedResult = await ResolveBackendSessionModelSelectionAsync(context, context.Caller.SourceBackendSessionId).ConfigureAwait(false);
-            if (inheritedResult.ExitCode == AltaExitCodes.Success)
-            {
-                inherited = inheritedResult.Selection;
-            }
-        }
-
         var providerKey = FirstNonEmpty(request.ProviderKey, inherited?.ProviderKey, GetDefaultProviderKey(context));
         if (string.IsNullOrWhiteSpace(providerKey))
         {
@@ -2352,39 +2341,6 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         }
 
         return ThreadModelSelectionResult.Success(CreateModelSelection(info.Thread, info.Preference));
-    }
-
-    private static async Task<ThreadModelSelectionResult> ResolveBackendSessionModelSelectionAsync(AltaCommandContext context, string backendSessionId)
-    {
-        var infos = await LoadSessionInfosAsync(context).ConfigureAwait(false);
-        if (infos is null)
-        {
-            return ThreadModelSelectionResult.Fail(AltaExitCodes.ServiceUnavailable);
-        }
-
-        var info = infos.FirstOrDefault(candidate =>
-            string.Equals(candidate.Thread.BackendSessionId, backendSessionId, StringComparison.OrdinalIgnoreCase));
-        if (info is not null)
-        {
-            return ThreadModelSelectionResult.Success(CreateModelSelection(info.Thread, info.Preference));
-        }
-
-        if (context.Services.Get<WorkThreadCatalog>() is not { } threadCatalog)
-        {
-            return ThreadModelSelectionResult.NotFound();
-        }
-
-        var catalogThreads = await threadCatalog.LoadInternalAsync(context.CancellationToken).ConfigureAwait(false);
-        var thread = catalogThreads.FirstOrDefault(candidate =>
-            string.Equals(candidate.BackendSessionId, backendSessionId, StringComparison.OrdinalIgnoreCase));
-        if (thread is null)
-        {
-            return ThreadModelSelectionResult.NotFound();
-        }
-
-        var viewState = await threadCatalog.LoadViewStateAsync(context.CancellationToken).ConfigureAwait(false);
-        viewState.ThreadPreferences.TryGetValue(thread.ThreadId, out var preference);
-        return ThreadModelSelectionResult.Success(CreateModelSelection(thread, preference));
     }
 
     private static string? GetDefaultProviderKey(AltaCommandContext context)
@@ -2675,7 +2631,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         return $"""
         [CodeAlta delegated-agent message]
         Source thread: {context.Caller.SourceThreadId ?? "unknown"}
-        Source agent/session: {context.Caller.SourceAgentId ?? context.Caller.SourceBackendSessionId ?? context.Caller.Kind}
+        Source agent: {context.Caller.SourceAgentId ?? context.Caller.Kind}
         Source project: {context.Caller.SourceProjectId ?? "unknown"}
         Target thread: {target.ThreadId}
         Kind: {kind}
@@ -2720,30 +2676,6 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return ParentThreadResolutionResult.Success(automaticParentThreadId);
         }
 
-        if (!string.IsNullOrWhiteSpace(context.Caller.SourceBackendSessionId))
-        {
-            var infos = await LoadSessionInfosAsync(context).ConfigureAwait(false);
-            if (infos is not null)
-            {
-                var parent = infos.FirstOrDefault(info => string.Equals(info.Thread.BackendSessionId, context.Caller.SourceBackendSessionId, StringComparison.OrdinalIgnoreCase));
-                if (parent is not null)
-                {
-                    return ParentThreadResolutionResult.Success(parent.Thread.ThreadId);
-                }
-            }
-
-            if (context.Services.Get<WorkThreadCatalog>() is { } threadCatalog)
-            {
-                var catalogThreads = await threadCatalog.LoadInternalAsync(context.CancellationToken).ConfigureAwait(false);
-                var parent = catalogThreads.FirstOrDefault(candidate =>
-                    string.Equals(candidate.BackendSessionId, context.Caller.SourceBackendSessionId, StringComparison.OrdinalIgnoreCase));
-                if (parent is not null)
-                {
-                    return ParentThreadResolutionResult.Success(parent.ThreadId);
-                }
-            }
-        }
-
         return ParentThreadResolutionResult.Success(null);
     }
 
@@ -2782,7 +2714,6 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             kind = ThreadKindWire(info.Thread.Kind),
             backendId = info.Thread.BackendId,
             providerKey = info.Thread.ResolvedProviderKey,
-            backendSessionId = info.Thread.BackendSessionId,
             projectId = info.Thread.ProjectRef,
             projectRef = info.Thread.ProjectRef,
             parentThreadId = info.Thread.ParentThreadId,
@@ -2817,7 +2748,6 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             threadId = info.Thread.ThreadId,
             backendId = info.Thread.BackendId,
             providerKey = info.Thread.ResolvedProviderKey,
-            backendSessionId = info.Thread.BackendSessionId,
             metrics = ToDetailedMetricsPayload(metrics),
         });
     }
@@ -2843,7 +2773,6 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             threadId = info.Thread.ThreadId,
             backendId = info.Thread.BackendId,
             providerKey = info.Thread.ResolvedProviderKey,
-            backendSessionId = info.Thread.BackendSessionId,
             status = StatusWire(result.Status),
             scope = MetricsScopeWire(result.Scope),
             startedAt = result.Metrics.StartedAt,
@@ -3003,7 +2932,6 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             {
                 kind = "backend",
                 backendId = agentEvent.BackendId.Value,
-                backendSessionId = agentEvent.SessionId,
                 runId = agentEvent.RunId?.Value,
             },
             content = string.IsNullOrEmpty(mapped.Text) ? [] : new[] { new { type = "text", text = mapped.Text } },
@@ -3057,7 +2985,6 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             {
                 kind = "backend",
                 backendId = agentEvent.BackendId.Value,
-                backendSessionId = agentEvent.SessionId,
                 runId = agentEvent.RunId?.Value,
             };
         }
@@ -3417,7 +3344,6 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         {
             Kind = context.Caller.Kind,
             SourceThreadId = context.Caller.SourceThreadId,
-            SourceBackendSessionId = context.Caller.SourceBackendSessionId,
             SourceProjectId = context.Caller.SourceProjectId,
             SourceAgentId = context.Caller.SourceAgentId,
             PluginRuntimeKey = context.Caller.PluginRuntimeKey,

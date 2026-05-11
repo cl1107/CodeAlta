@@ -26,7 +26,7 @@ internal static class ThreadInfoReportBuilder
         return new ThreadInfoReport(
             ThreadTitle: thread.Title,
             BackendName: backendName,
-            BackendSessionId: thread.BackendSessionId,
+            ThreadId: thread.ThreadId,
             WorkingDirectory: thread.WorkingDirectory,
             ModelName: modelName,
             ReasoningEffort: reasoningEffort,

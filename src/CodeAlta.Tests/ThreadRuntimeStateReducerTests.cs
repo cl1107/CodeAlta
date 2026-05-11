@@ -345,7 +345,6 @@ public sealed class ThreadRuntimeStateReducerTests
             ThreadId = "thread-1",
             Kind = WorkThreadKind.ProjectThread,
             BackendId = AgentBackendIds.Copilot.Value,
-            BackendSessionId = "backend-thread-1",
             ProjectRef = "project-1",
             WorkingDirectory = @"C:\code\CodeAlta",
             Title = "Review startup",

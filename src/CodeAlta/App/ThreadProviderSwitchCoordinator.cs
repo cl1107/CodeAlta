@@ -94,7 +94,6 @@ internal sealed class ThreadProviderSwitchCoordinator
         var oldThreadId = thread.ThreadId;
         var oldThreadBackendId = thread.BackendId;
         var oldThreadProviderKey = thread.ProviderKey;
-        var oldThreadBackendSessionId = thread.BackendSessionId;
         var oldThreadUpdatedAt = thread.UpdatedAt;
         var oldTabBackendId = tab.BackendId;
         var oldTabModelId = tab.ModelId;
@@ -103,7 +102,6 @@ internal sealed class ThreadProviderSwitchCoordinator
 
         thread.BackendId = targetBackend.BackendId.Value;
         thread.ProviderKey = targetBackend.ProviderKey;
-        thread.BackendSessionId = string.Empty;
         thread.UpdatedAt = timestamp;
 
         tab.BackendId = targetBackend.BackendId;
@@ -123,7 +121,6 @@ internal sealed class ThreadProviderSwitchCoordinator
         {
             thread.BackendId = oldThreadBackendId;
             thread.ProviderKey = oldThreadProviderKey;
-            thread.BackendSessionId = oldThreadBackendSessionId;
             thread.UpdatedAt = oldThreadUpdatedAt;
             tab.BackendId = oldTabBackendId;
             tab.ModelId = oldTabModelId;

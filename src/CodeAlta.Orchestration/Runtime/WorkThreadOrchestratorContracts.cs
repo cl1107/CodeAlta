@@ -287,9 +287,6 @@ public sealed record WorkThreadDescriptorSnapshot
     /// <summary>Gets the provider key selected for the thread.</summary>
     public string? ProviderKey { get; init; }
 
-    /// <summary>Gets the backend-owned session identifier.</summary>
-    public required string BackendSessionId { get; init; }
-
     /// <summary>Gets the owning project identifier for project threads.</summary>
     public string? ProjectRef { get; init; }
 
@@ -348,7 +345,6 @@ public sealed record WorkThreadDescriptorSnapshot
             Kind = descriptor.Kind,
             BackendId = descriptor.BackendId,
             ProviderKey = descriptor.ProviderKey,
-            BackendSessionId = descriptor.BackendSessionId,
             ProjectRef = descriptor.ProjectRef,
             ParentThreadId = descriptor.ParentThreadId,
             CreatedBy = descriptor.CreatedBy,

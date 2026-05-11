@@ -11,9 +11,6 @@ public sealed record AltaActorProvenance
     /// <summary>Gets the source CodeAlta thread identifier, when the actor is associated with a thread.</summary>
     public string? SourceThreadId { get; init; }
 
-    /// <summary>Gets the source backend session identifier, when known.</summary>
-    public string? SourceBackendSessionId { get; init; }
-
     /// <summary>Gets the source project identifier, when known.</summary>
     public string? SourceProjectId { get; init; }
 

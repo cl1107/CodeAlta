@@ -21,7 +21,7 @@ public sealed class WorkThreadRuntimeStressTests
             .ToArray();
         await Task.WhenAll(sends);
 
-        Assert.AreEqual(8, fixture.Backend.SessionsCreated);
+        Assert.AreEqual(8, fixture.Backend.SessionsResumed);
     }
 
     [TestMethod]
@@ -146,7 +146,6 @@ public sealed class WorkThreadRuntimeStressTests
         {
             ThreadId = threadId,
             BackendId = backendId.Value,
-            BackendSessionId = string.Empty,
             Kind = WorkThreadKind.GlobalThread,
             Title = threadId,
             WorkingDirectory = root,
@@ -225,6 +224,8 @@ public sealed class WorkThreadRuntimeStressTests
 
         public int SessionsCreated;
 
+        public int SessionsResumed;
+
         public int AbortCount;
 
         public int CompactCount;
@@ -247,7 +248,10 @@ public sealed class WorkThreadRuntimeStressTests
         }
 
         public Task<IAgentSession> ResumeSessionAsync(string sessionId, AgentSessionResumeOptions options, CancellationToken cancellationToken = default)
-            => Task.FromResult<IAgentSession>(new StressAgentSession(this, sessionId));
+        {
+            Interlocked.Increment(ref SessionsResumed);
+            return Task.FromResult<IAgentSession>(new StressAgentSession(this, sessionId));
+        }
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 

@@ -101,7 +101,7 @@ internal static class ThreadInfoFormatter
     {
         StartSection(builder, "Overview");
         builder.Append("- Provider: ").AppendLine(report.BackendName);
-        builder.Append("- Session ID: `").Append(report.BackendSessionId).AppendLine("`");
+        builder.Append("- Thread ID: `").Append(report.ThreadId).AppendLine("`");
         builder.Append("- Working directory: `").Append(report.WorkingDirectory).AppendLine("`");
         builder.Append("- Model: ").AppendLine(report.ModelName ?? "(default model)");
         builder.Append("- Reasoning: ").AppendLine(report.ReasoningEffort?.ToString() ?? "(default)");

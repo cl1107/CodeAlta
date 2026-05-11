@@ -735,7 +735,6 @@ public sealed class ModelProviderSelectorCoordinatorTests
             Kind = WorkThreadKind.ProjectThread,
             BackendId = "openai",
             ProviderKey = "openai",
-            BackendSessionId = "session-1",
             ProjectRef = project.Id,
             WorkingDirectory = project.ProjectPath,
             Title = "Review startup",

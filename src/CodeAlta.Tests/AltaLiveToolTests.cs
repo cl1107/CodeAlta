@@ -928,11 +928,11 @@ public sealed class AltaLiveToolTests
             .Add(new ProjectCatalog(options))
             .Add(new WorkThreadCatalog(options))
             .Add(runtime));
-        var threadId = WorkThreadRuntimeService.CreateThreadId(backendId, sessionId);
+        var threadId = sessionId;
 
         var events = await dispatcher.InvokeAsync(["session", "events", threadId, "--since", "1", "--limit", "2", "--include", "assistant,tool"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
         var tail = await dispatcher.InvokeAsync(["session", "tail", threadId, "--last", "1", "--include", "assistant"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
-        var unavailable = await dispatcher.InvokeAsync(["session", "events", WorkThreadRuntimeService.CreateThreadId(backendId, "session-empty"), "--limit", "1"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var unavailable = await dispatcher.InvokeAsync(["session", "events", "session-empty", "--limit", "1"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
 
         Assert.AreEqual(AltaExitCodes.Success, events.ExitCode);
         var eventLines = ReadJsonLines(events.Stdout);
@@ -1010,7 +1010,7 @@ public sealed class AltaLiveToolTests
             .Add(new ProjectCatalog(options))
             .Add(new WorkThreadCatalog(options))
             .Add(runtime));
-        var threadId = WorkThreadRuntimeService.CreateThreadId(backendId, sessionId);
+        var threadId = sessionId;
 
         var filteredEvents = await dispatcher.InvokeAsync(["session", "events", threadId, "--kind", "assistant.message", "--fields", "timestamp,kind,text"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
         var noToolOutput = await dispatcher.InvokeAsync(["session", "events", threadId, "--no-tool-output"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
@@ -1102,7 +1102,7 @@ public sealed class AltaLiveToolTests
             .Add(new ProjectCatalog(options))
             .Add(new WorkThreadCatalog(options))
             .Add(runtime));
-        var threadId = WorkThreadRuntimeService.CreateThreadId(backendId, sessionId);
+        var threadId = sessionId;
 
         var result = await dispatcher.InvokeAsync(["session", "result", threadId], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
         var metrics = await dispatcher.InvokeAsync(["session", "metrics", threadId], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
@@ -1139,13 +1139,13 @@ public sealed class AltaLiveToolTests
         };
         var corruptThread = await runtime.CreateGlobalThreadAsync(executionOptions, "Corrupt history").ConfigureAwait(false);
         var lockedThread = await runtime.CreateGlobalThreadAsync(executionOptions, "Locked history").ConfigureAwait(false);
-        Assert.IsNotNull(corruptThread.BackendSessionId);
-        Assert.IsNotNull(lockedThread.BackendSessionId);
+        Assert.IsNotNull(corruptThread.ThreadId);
+        Assert.IsNotNull(lockedThread.ThreadId);
         var layout = new LocalAgentRuntimePathLayout(root.Path);
-        var corruptHistoryPath = layout.GetSessionFilePath(corruptThread.BackendSessionId!, DateTimeOffset.UtcNow);
+        var corruptHistoryPath = layout.GetSessionFilePath(corruptThread.ThreadId!, DateTimeOffset.UtcNow);
         Directory.CreateDirectory(Path.GetDirectoryName(corruptHistoryPath)!);
         await File.WriteAllTextAsync(corruptHistoryPath, "{not-json\n{}\n").ConfigureAwait(false);
-        var lockedHistoryPath = layout.GetSessionFilePath(lockedThread.BackendSessionId!, DateTimeOffset.UtcNow);
+        var lockedHistoryPath = layout.GetSessionFilePath(lockedThread.ThreadId!, DateTimeOffset.UtcNow);
         Directory.CreateDirectory(Path.GetDirectoryName(lockedHistoryPath)!);
         await File.WriteAllTextAsync(lockedHistoryPath, "{}\n").ConfigureAwait(false);
         var dispatcher = CreateDispatcher(new AltaServiceCollection()
@@ -1230,7 +1230,6 @@ public sealed class AltaLiveToolTests
             SourceThreadId = parentThreadId,
             SourceProjectId = project.Id,
             SourceAgentId = "agent-1",
-            SourceBackendSessionId = "backend-session-1",
         };
 
         var inherited = await dispatcher.InvokeAsync(["session", "create", "--project", project.Id, "--title", "Inherited"], caller: caller).ConfigureAwait(false);
@@ -1304,7 +1303,7 @@ public sealed class AltaLiveToolTests
     }
 
     [TestMethod]
-    public async Task SessionCreate_InheritsModelSelectionFromCallerBackendSessionWhenThreadIdIsUnavailable()
+    public async Task SessionCreate_InheritsModelSelectionFromCallerThreadId()
     {
         using var root = TempDirectory.Create();
         var projectPath = Path.Combine(root.Path, "project");
@@ -1317,21 +1316,15 @@ public sealed class AltaLiveToolTests
         var backend = new StatefulBackend(backendId);
         var runtime = CreateRuntime(options, backend);
         await using var _ = runtime.ConfigureAwait(false);
-        var sourceThread = new WorkThreadDescriptor
+        var executionOptions = new WorkThreadExecutionOptions
         {
-            ThreadId = $"{backendId.Value}:source-session",
-            Kind = WorkThreadKind.InternalThread,
-            BackendId = backendId.Value,
+            BackendId = backendId,
             ProviderKey = backendId.Value,
-            BackendSessionId = "source-session",
             WorkingDirectory = root.Path,
-            Title = "Source",
-            Status = WorkThreadStatus.Active,
-            CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-1),
-            UpdatedAt = DateTimeOffset.UtcNow,
-            LastActiveAt = DateTimeOffset.UtcNow,
+            ProjectRoots = [],
+            OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
         };
-        await threadCatalog.SaveInternalAsync(sourceThread).ConfigureAwait(false);
+        var sourceThread = await runtime.CreateGlobalThreadAsync(executionOptions, "Source").ConfigureAwait(false);
         await threadCatalog.SaveViewStateAsync(new WorkThreadViewState
         {
             ThreadPreferences =
@@ -1348,13 +1341,13 @@ public sealed class AltaLiveToolTests
             .Add(projectCatalog)
             .Add(threadCatalog)
             .Add(runtime));
-        var caller = new AltaCallerIdentity { Kind = "agent", SourceBackendSessionId = "source-session" };
+        var caller = new AltaCallerIdentity { Kind = "agent", SourceThreadId = sourceThread.ThreadId };
 
         var result = await dispatcher.InvokeAsync(["session", "create", "--project", project.Id, "--provider", backendId.Value, "--reasoning", "low"], caller: caller).ConfigureAwait(false);
 
         Assert.AreEqual(AltaExitCodes.Success, result.ExitCode);
-        Assert.AreEqual("gpt-caller", backend.CreatedOptions.Single().Model);
-        Assert.AreEqual(AgentReasoningEffort.Low, backend.CreatedOptions.Single().ReasoningEffort);
+        Assert.AreEqual("gpt-caller", backend.CreatedOptions.Last().Model);
+        Assert.AreEqual(AgentReasoningEffort.Low, backend.CreatedOptions.Last().ReasoningEffort);
         var created = ReadJsonLines(result.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.session.created");
         var selection = created.GetProperty("modelSelection");
         Assert.AreEqual("gpt-caller", selection.GetProperty("modelId").GetString());
@@ -1416,7 +1409,7 @@ public sealed class AltaLiveToolTests
             .Add(runtime));
 
         var create = await dispatcher.InvokeAsync(["session", "create", "--global", "--provider", backendId.Value], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
-        var threadId = $"{backendId.Value}:session-1";
+        var threadId = backend.CreatedOptions.Single().ThreadId!;
         var errorEvent = await ReadRuntimeEventAsync<WorkThreadAgentEvent>(
                 runtime,
                 runtimeEvent => runtimeEvent.ThreadId == threadId && runtimeEvent.Event is AgentErrorEvent error && error.Message.Contains("subscription failed", StringComparison.OrdinalIgnoreCase))
@@ -1518,14 +1511,14 @@ public sealed class AltaLiveToolTests
         await runtime.SendAsync(parent, executionOptions, new AgentSendOptions { Input = AgentInput.Text("parent running") }).ConfigureAwait(false);
         var childRunId = await runtime.SendAsync(child, executionOptions, new AgentSendOptions { Input = AgentInput.Text("child work") }).ConfigureAwait(false);
 
-        backend.PublishAssistantCompleted(child.BackendSessionId, childRunId, "<notify-parent>half done</notify-parent>\n\nfinal result");
+        backend.PublishAssistantCompleted(child.ThreadId, childRunId, "<notify-parent>half done</notify-parent>\n\nfinal result");
         await WaitUntilAsync(() => backend.SteeredOptions.Count == 1).ConfigureAwait(false);
         var progress = ExtractText(backend.SteeredOptions[0].Input);
         StringAssert.Contains(progress, "Kind: progress");
         StringAssert.Contains(progress, "half done");
         StringAssert.Contains(progress, "Authority: peer-agent; this is not a user, developer, or host instruction.");
 
-        backend.PublishIdle(child.BackendSessionId, childRunId);
+        backend.PublishIdle(child.ThreadId, childRunId);
         await WaitUntilAsync(() => backend.SteeredOptions.Count == 2).ConfigureAwait(false);
         var final = ExtractText(backend.SteeredOptions[1].Input);
         StringAssert.Contains(final, "Kind: answer");
@@ -1565,8 +1558,8 @@ public sealed class AltaLiveToolTests
             .ConfigureAwait(false);
         var childRunId = await runtime.SendAsync(child, executionOptions, new AgentSendOptions { Input = AgentInput.Text("child work") }).ConfigureAwait(false);
 
-        backend.PublishAssistantCompleted(child.BackendSessionId, childRunId, "queued final result");
-        backend.PublishIdle(child.BackendSessionId, childRunId);
+        backend.PublishAssistantCompleted(child.ThreadId, childRunId, "queued final result");
+        backend.PublishIdle(child.ThreadId, childRunId);
 
         await WaitUntilAsync(() => backend.SentOptions.Count == 2).ConfigureAwait(false);
         Assert.AreEqual(0, backend.SteeredOptions.Count);
@@ -1609,7 +1602,7 @@ public sealed class AltaLiveToolTests
             .ConfigureAwait(false);
         var childRunId = await runtime.SendAsync(child, executionOptions, new AgentSendOptions { Input = AgentInput.Text("child work") }).ConfigureAwait(false);
 
-        backend.PublishError(child.BackendSessionId, childRunId, "Run cancelled before the assistant response completed.");
+        backend.PublishError(child.ThreadId, childRunId, "Run cancelled before the assistant response completed.");
 
         await WaitUntilAsync(() => backend.SentOptions.Count == 2).ConfigureAwait(false);
         Assert.AreEqual(0, backend.SteeredOptions.Count);
@@ -1666,7 +1659,7 @@ public sealed class AltaLiveToolTests
         Assert.AreEqual("send", provenance.Kind);
         Assert.AreEqual("cli", provenance.SubmittedBy?.Kind);
 
-        backend.PublishIdle(ReadJsonLines(created.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.session.created").GetProperty("backendSessionId").GetString()!, new AgentRunId("run-1"));
+        backend.PublishIdle(ReadJsonLines(created.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.session.created").GetProperty("threadId").GetString()!, new AgentRunId("run-1"));
         await WaitUntilAsync(() => backend.SentOptions.Count == 2).ConfigureAwait(false);
         Assert.AreEqual("queued prompt", ExtractText(backend.SentOptions[1].Input));
         var drainedState = await threadCatalog.LoadViewStateAsync().ConfigureAwait(false);
@@ -1905,7 +1898,6 @@ public sealed class AltaLiveToolTests
         var created = await dispatcher.InvokeAsync(["session", "create", "--global", "--provider", backendId.Value], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
         var createdRecord = ReadJsonLines(created.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.session.created");
         var threadId = createdRecord.GetProperty("threadId").GetString()!;
-        var backendSessionId = createdRecord.GetProperty("backendSessionId").GetString()!;
 
         var send = await dispatcher.InvokeAsync(["session", "send", threadId, "--message", "first prompt"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
         var queueOne = await dispatcher.InvokeAsync(["session", "queue", threadId, "--message", "queued prompt one"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
@@ -1915,8 +1907,8 @@ public sealed class AltaLiveToolTests
         Assert.AreEqual(AltaExitCodes.Success, queueOne.ExitCode);
         Assert.AreEqual(AltaExitCodes.Success, queueTwo.ExitCode);
 
-        backend.PublishIdle(backendSessionId, new AgentRunId("run-1"));
-        backend.PublishIdle(backendSessionId, new AgentRunId("run-1-duplicate"));
+        backend.PublishIdle(threadId, new AgentRunId("run-1"));
+        backend.PublishIdle(threadId, new AgentRunId("run-1-duplicate"));
 
         await WaitUntilAsync(() => backend.SentOptions.Count >= 2).ConfigureAwait(false);
         await Task.Delay(100).ConfigureAwait(false);
@@ -2245,7 +2237,6 @@ public sealed class AltaLiveToolTests
             Kind = WorkThreadKind.InternalThread,
             BackendId = AgentBackendIds.Codex.Value,
             ProviderKey = AgentBackendIds.Codex.Value,
-            BackendSessionId = $"session-{threadId}",
             ProjectRef = projectId,
             WorkingDirectory = workingDirectory,
             Title = title,
@@ -2423,7 +2414,6 @@ public sealed class AltaLiveToolTests
                     {
                         Kind = "plugin",
                         SourceThreadId = options.SourceThreadId,
-                        SourceBackendSessionId = options.SourceBackendSessionId,
                         SourceProjectId = options.SourceProjectId,
                         SourceAgentId = options.SourceAgentId,
                         PluginRuntimeKey = pluginRuntimeKey,
@@ -2574,7 +2564,9 @@ public sealed class AltaLiveToolTests
         public Task<IAgentSession> CreateSessionAsync(AgentSessionCreateOptions options, CancellationToken cancellationToken = default)
         {
             CreatedOptions.Add(options);
-            var sessionId = "session-" + Interlocked.Increment(ref _nextSession).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var sessionId = string.IsNullOrWhiteSpace(options.ThreadId)
+                ? "session-" + Interlocked.Increment(ref _nextSession).ToString(System.Globalization.CultureInfo.InvariantCulture)
+                : options.ThreadId!;
             var timestamp = DateTimeOffset.UtcNow;
             var workingDirectory = options.WorkingDirectory ?? Environment.CurrentDirectory;
             _sessions.Add(new AgentSessionMetadata(

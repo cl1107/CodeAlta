@@ -234,7 +234,7 @@ Resolution precedence for session creation and model-sensitive commands:
 1. explicit `--model-ref`;
 2. explicit `--same-model-as <thread-id>` plus any `--provider`, `--model`, or `--reasoning` overrides;
 3. explicit `--provider`, `--model`, and/or `--reasoning`, merged with the caller-session default where possible;
-4. the controller session's provider/model/reasoning when the live tool caller has `AltaCallerIdentity.SourceThreadId`, or when only `SourceBackendSessionId` is available and it can be resolved to a known CodeAlta thread;
+4. the controller session's provider/model/reasoning when the live tool caller has `AltaCallerIdentity.SourceThreadId`;
 5. the host's current/default provider preference for external CLI calls without a source session;
 6. the provider/backend default.
 
@@ -428,7 +428,6 @@ When the backend supports structured metadata, CodeAlta should store the same da
 Recommended metadata fields:
 
 - `sourceThreadId`
-- `sourceBackendSessionId`
 - `sourceProjectId`
 - `sourceAgentId`
 - `targetThreadId`
@@ -567,7 +566,6 @@ public sealed record AltaActorProvenance
 {
     public required string Kind { get; init; } // user, agent, host, plugin
     public string? SourceThreadId { get; init; }
-    public string? SourceBackendSessionId { get; init; }
     public string? SourceProjectId { get; init; }
     public string? SourceAgentId { get; init; }
     public string? PluginRuntimeKey { get; init; }
@@ -628,7 +626,6 @@ public sealed record AltaCallerIdentity
 {
     public required string Kind { get; init; } // cli, agent, host, plugin
     public string? SourceThreadId { get; init; }
-    public string? SourceBackendSessionId { get; init; }
     public string? SourceAgentId { get; init; }
     public string? SourceProjectId { get; init; }
     public string? PluginRuntimeKey { get; init; }
@@ -664,7 +661,6 @@ public sealed record PluginAltaCommandResult
 public sealed record PluginAltaInvocationOptions
 {
     public string? SourceThreadId { get; init; }
-    public string? SourceBackendSessionId { get; init; }
     public string? SourceProjectId { get; init; }
     public string? SourceAgentId { get; init; }
     public string? WorkingDirectory { get; init; }
@@ -770,8 +766,7 @@ Minimum durable provenance shape:
 ```json
 {
   "kind": "agent",
-  "sourceThreadId": "codex:parent",
-  "sourceBackendSessionId": "abc",
+  "sourceThreadId": "parent-thread",
   "sourceProjectId": "01HX...",
   "sourceAgentId": "agent:parent",
   "pluginRuntimeKey": null,
@@ -919,12 +914,11 @@ Minimum event record shape for `session tail` JSONL output:
   "role": "assistant",
   "source": {
     "kind": "backend",
-    "backendId": "codex",
-    "backendSessionId": "..."
+    "backendId": "codex"
   },
   "createdBy": {
     "kind": "agent",
-    "sourceThreadId": "codex:parent",
+    "sourceThreadId": "parent-thread",
     "sourceAgentId": "agent:parent"
   },
   "content": [

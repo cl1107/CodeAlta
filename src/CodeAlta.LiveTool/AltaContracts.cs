@@ -13,10 +13,7 @@ public sealed record AltaCallerIdentity
     /// <summary>Gets the source CodeAlta thread id, when the caller is associated with one.</summary>
     public string? SourceThreadId { get; init; }
 
-    /// <summary>Gets the source backend session id, when known.</summary>
-    public string? SourceBackendSessionId { get; init; }
-
-    /// <summary>Gets the source agent/session id, when known.</summary>
+    /// <summary>Gets the source agent id, when known.</summary>
     public string? SourceAgentId { get; init; }
 
     /// <summary>Gets the source project id, when known.</summary>

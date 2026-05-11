@@ -23,9 +23,6 @@ public sealed class WorkThreadYamlSerializer
         [JsonPropertyName("provider_key")]
         public string? ProviderKey { get; set; }
 
-        [JsonPropertyName("backend_session_id")]
-        public string? BackendSessionId { get; set; }
-
         [JsonPropertyName("project_ref")]
         public string? ProjectRef { get; set; }
 
@@ -98,13 +95,14 @@ public sealed class WorkThreadYamlSerializer
         var document = ParseFrontMatter(markdown);
         var frontMatter = YamlSerializer.Deserialize<WorkThreadFrontMatter>(document.FrontMatter) ?? new WorkThreadFrontMatter();
 
+        var threadId = MigrateThreadId(frontMatter.ThreadId, ExtractLegacySessionId(document.FrontMatter), frontMatter.BackendId, frontMatter.ProviderKey);
+
         return new WorkThreadDescriptor
         {
-            ThreadId = frontMatter.ThreadId ?? string.Empty,
+            ThreadId = threadId,
             Kind = ParseKind(frontMatter.Kind),
             BackendId = frontMatter.BackendId ?? string.Empty,
             ProviderKey = frontMatter.ProviderKey ?? frontMatter.BackendId,
-            BackendSessionId = frontMatter.BackendSessionId ?? string.Empty,
             ProjectRef = frontMatter.ProjectRef,
             ParentThreadId = frontMatter.ParentThreadId,
             CreatedBy = frontMatter.CreatedBy,
@@ -142,7 +140,6 @@ public sealed class WorkThreadYamlSerializer
             },
             BackendId = descriptor.BackendId,
             ProviderKey = descriptor.ResolvedProviderKey,
-            BackendSessionId = descriptor.BackendSessionId,
             ProjectRef = descriptor.ProjectRef,
             ParentThreadId = descriptor.ParentThreadId,
             CreatedBy = descriptor.CreatedBy,
@@ -247,6 +244,103 @@ public sealed class WorkThreadYamlSerializer
             "internal_thread" => WorkThreadKind.InternalThread,
             _ => WorkThreadKind.ProjectThread,
         };
+    }
+
+    private static string MigrateThreadId(
+        string? persistedThreadId,
+        string? legacySessionId,
+        string? backendId,
+        string? providerKey)
+    {
+        var threadId = NormalizeOptionalText(persistedThreadId);
+        var sessionId = NormalizeOptionalText(legacySessionId);
+
+        if (sessionId is not null)
+        {
+            if (threadId is null)
+            {
+                return sessionId;
+            }
+
+            if (string.Equals(threadId, sessionId, StringComparison.Ordinal))
+            {
+                return sessionId;
+            }
+
+            if (TryStripKnownProviderPrefix(threadId, backendId, providerKey, out var stripped) &&
+                string.Equals(stripped, sessionId, StringComparison.Ordinal))
+            {
+                return sessionId;
+            }
+
+            throw new InvalidDataException(
+                $"Legacy work-thread metadata has conflicting thread ids '{threadId}' and '{sessionId}'.");
+        }
+
+        if (threadId is null)
+        {
+            return string.Empty;
+        }
+
+        return TryStripKnownProviderPrefix(threadId, backendId, providerKey, out var migratedThreadId)
+            ? migratedThreadId
+            : threadId;
+    }
+
+    private static bool TryStripKnownProviderPrefix(
+        string threadId,
+        string? backendId,
+        string? providerKey,
+        out string stripped)
+    {
+        stripped = string.Empty;
+        var separatorIndex = threadId.IndexOf(':', StringComparison.Ordinal);
+        if (separatorIndex <= 0 || separatorIndex == threadId.Length - 1)
+        {
+            return false;
+        }
+
+        var prefix = threadId[..separatorIndex];
+        if (!IsKnownProviderPrefix(prefix, backendId, providerKey))
+        {
+            return false;
+        }
+
+        stripped = threadId[(separatorIndex + 1)..];
+        return true;
+    }
+
+    private static bool IsKnownProviderPrefix(string prefix, string? backendId, string? providerKey)
+        => string.Equals(prefix, backendId, StringComparison.OrdinalIgnoreCase) ||
+           string.Equals(prefix, providerKey, StringComparison.OrdinalIgnoreCase);
+
+    private static string? NormalizeOptionalText(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static string? ExtractLegacySessionId(string frontMatter)
+    {
+        var legacyKey = "backend_" + "session_id";
+        using var reader = new StringReader(frontMatter.Replace("\r\n", "\n", StringComparison.Ordinal));
+        string? line;
+        while ((line = reader.ReadLine()) is not null)
+        {
+            var separatorIndex = line.IndexOf(':', StringComparison.Ordinal);
+            if (separatorIndex <= 0)
+            {
+                continue;
+            }
+
+            var key = line[..separatorIndex].Trim();
+            if (!string.Equals(key, legacyKey, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var value = line[(separatorIndex + 1)..].Trim();
+            return value.Trim('"', '\'');
+        }
+
+        return null;
     }
 
     private static WorkThreadStatus ParseStatus(string? value)

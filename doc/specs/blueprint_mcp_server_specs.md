@@ -58,7 +58,7 @@ Regardless of transport, services should be designed as **idempotent** and **aud
 - `projectId` (nullable; omitted for global scope)
 - `capabilities[]` (string identifiers)
 - `parentAgentId` (nullable)
-- `backend` + `backendSessionId` (optional for debugging)
+- `providerKey` + `threadId` (optional for debugging)
 
 ### 2.3 Suggested tools
 

@@ -386,7 +386,6 @@ public sealed class ShellWorkspaceCoordinatorTests
             ThreadId = threadId,
             Kind = WorkThreadKind.ProjectThread,
             BackendId = AgentBackendIds.Codex.Value,
-            BackendSessionId = $"session-{threadId}",
             ProjectRef = projectId,
             WorkingDirectory = @"C:\repo",
             Title = "Test thread",

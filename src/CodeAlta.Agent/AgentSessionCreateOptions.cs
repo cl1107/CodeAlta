@@ -6,6 +6,11 @@ namespace CodeAlta.Agent;
 public class AgentSessionCreateOptions
 {
     /// <summary>
+    /// Gets or initializes the canonical CodeAlta thread identifier requested for this session.
+    /// </summary>
+    public string? ThreadId { get; init; }
+
+    /// <summary>
     /// Gets or initializes the configured provider key.
     /// </summary>
     public string? ProviderKey { get; init; }

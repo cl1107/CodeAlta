@@ -313,7 +313,7 @@ A project thread does not need its own CodeAlta file by default.
 
 It can be recovered from:
 
-- backend session/thread id
+- thread id
 - backend source
 - cwd matching the project `path`
 - backend summary or first user prompt for a display title
@@ -336,8 +336,8 @@ If CodeAlta needs to persist delegated internal-thread linkage, the stored recor
 ```md
 ---
 kind: "internal_thread_link"
-backend_session_id: "019cc85b-01fb-76d1-a785-2ea9f177e184"
-parent_backend_session_id: "019cc85b-01fb-76d1-a785-2ea9f177e111"
+thread_id: "019cc85b-01fb-76d1-a785-2ea9f177e184"
+parent_thread_id: "019cc85b-01fb-76d1-a785-2ea9f177e111"
 role: "reviewer"
 cwd: "~/.alta/threads/internal/review-pass-01"
 created_at: "2026-03-10T09:00:00Z"
@@ -362,8 +362,8 @@ Entity-specific rules:
 
 - projects use `id` as their stable identifier
 - projects use `path` as the local project root
-- project/global threads use the backend session/thread id as their stable identifier
-- CodeAlta-owned internal linkage records should store `backend_session_id` only when CodeAlta needs to restore parent/child relationships
+- project/global threads use `thread_id` as their stable identifier
+- CodeAlta-owned internal linkage records should store `thread_id` and `parent_thread_id` when CodeAlta needs to restore parent/child relationships
 - agents do not use GUIDs; they use filename-derived `agent-key`
 
 ## 7. References between entities

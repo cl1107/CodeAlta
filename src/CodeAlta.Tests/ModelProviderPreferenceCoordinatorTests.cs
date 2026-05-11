@@ -73,7 +73,6 @@ public sealed class ModelProviderPreferenceCoordinatorTests
             ThreadId = threadId,
             Kind = WorkThreadKind.ProjectThread,
             BackendId = providerKey,
-            BackendSessionId = $"{providerKey}-session",
             WorkingDirectory = @"C:\code\CodeAlta",
             Title = "Investigate provider defaults",
             Status = WorkThreadStatus.Active,

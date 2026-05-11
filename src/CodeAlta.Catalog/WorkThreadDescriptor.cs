@@ -32,12 +32,6 @@ public sealed class WorkThreadDescriptor
     public string? ProviderKey { get; set; }
 
     /// <summary>
-    /// Gets or sets the backend-owned session identifier.
-    /// </summary>
-    [JsonPropertyName("backend_session_id")]
-    public string BackendSessionId { get; set; } = string.Empty;
-
-    /// <summary>
     /// Gets or sets the owning project identifier for project threads.
     /// </summary>
     [JsonPropertyName("project_ref")]
@@ -183,11 +177,6 @@ public sealed class WorkThreadDescriptor
         if (string.IsNullOrWhiteSpace(BackendId))
         {
             throw new ArgumentException("Backend id is required.", nameof(BackendId));
-        }
-
-        if (string.IsNullOrWhiteSpace(BackendSessionId))
-        {
-            throw new ArgumentException("Backend session id is required.", nameof(BackendSessionId));
         }
 
         if (string.IsNullOrWhiteSpace(WorkingDirectory))

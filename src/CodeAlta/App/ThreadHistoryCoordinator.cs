@@ -112,7 +112,7 @@ internal sealed class ThreadHistoryCoordinator
         }
 
         return thread.Status != WorkThreadStatus.Draft &&
-               !string.IsNullOrWhiteSpace(thread.BackendSessionId);
+               !string.IsNullOrWhiteSpace(thread.ThreadId);
     }
 
     public static ThreadHistoryLoadPlan CreateInitialLoadPlan(IReadOnlyList<AgentEvent> history)

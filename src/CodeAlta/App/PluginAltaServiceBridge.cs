@@ -71,7 +71,6 @@ internal sealed class PluginAltaServiceBridge : IPluginAltaRuntimeService
                 {
                     Kind = "plugin",
                     SourceThreadId = options.SourceThreadId,
-                    SourceBackendSessionId = options.SourceBackendSessionId,
                     SourceProjectId = options.SourceProjectId,
                     SourceAgentId = options.SourceAgentId,
                     PluginRuntimeKey = pluginRuntimeKey,

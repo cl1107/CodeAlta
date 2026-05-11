@@ -155,9 +155,6 @@ public sealed record PluginAltaInvocationOptions
     /// <summary>Gets the source thread id associated with the plugin operation.</summary>
     public string? SourceThreadId { get; init; }
 
-    /// <summary>Gets the source backend session id associated with the plugin operation.</summary>
-    public string? SourceBackendSessionId { get; init; }
-
     /// <summary>Gets the source project id associated with the plugin operation.</summary>
     public string? SourceProjectId { get; init; }
 

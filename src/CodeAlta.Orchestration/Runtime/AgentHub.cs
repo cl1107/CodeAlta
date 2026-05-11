@@ -133,18 +133,18 @@ public sealed class AgentHub : IAsyncDisposable
     /// Resumes a backend session for an agent.
     /// </summary>
     /// <param name="agentId">Agent id.</param>
-    /// <param name="backendSessionId">The backend session identifier.</param>
+    /// <param name="threadId">The canonical thread identifier to resume at the backend boundary.</param>
     /// <param name="options">Session resume options.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The resumed session id.</returns>
     /// <exception cref="InvalidOperationException">Thrown when the agent is not registered.</exception>
     public async Task<string> ResumeSessionAsync(
         AgentId agentId,
-        string backendSessionId,
+        string threadId,
         AgentSessionResumeOptions options,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(backendSessionId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
         ArgumentNullException.ThrowIfNull(options);
 
         AgentIdentity identity;
@@ -163,7 +163,7 @@ public sealed class AgentHub : IAsyncDisposable
         }
 
         var backend = await GetOrCreateBackendAsync(identity.BackendId, cancellationToken).ConfigureAwait(false);
-        var session = await backend.ResumeSessionAsync(backendSessionId, options, cancellationToken).ConfigureAwait(false);
+        var session = await backend.ResumeSessionAsync(threadId, options, cancellationToken).ConfigureAwait(false);
         var sessionEntry = new SessionEntry(session, backend);
 
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);

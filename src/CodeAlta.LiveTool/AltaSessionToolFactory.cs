@@ -128,7 +128,6 @@ public static class AltaSessionToolFactory
         {
             Kind = "agent",
             SourceThreadId = options.SourceThreadIdProvider?.Invoke() ?? options.SourceThreadId,
-            SourceBackendSessionId = invocation.SessionId,
             SourceAgentId = options.SourceAgentId,
             SourceProjectId = options.SourceProjectIdProvider?.Invoke() ?? options.SourceProjectId,
             PluginRuntimeKey = options.PluginRuntimeKey,

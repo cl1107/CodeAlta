@@ -130,7 +130,7 @@ We keep the first schema small, and add tables only when we have a consumer.
 - `agent_sessions`
   - `session_id TEXT PRIMARY KEY`
   - `agent_key TEXT NOT NULL`
-  - `backend_session_id TEXT` (codex thread id, copilot session id)
+  - `thread_id TEXT` (durable CodeAlta conversation id)
   - `created_at TEXT`
   - `last_used_at TEXT`
 - `tasks`
