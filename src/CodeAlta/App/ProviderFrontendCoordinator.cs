@@ -2,6 +2,7 @@ using System.Diagnostics;
 using CodeAlta.Agent;
 using CodeAlta.Agent.Codex;
 using CodeAlta.Agent.Copilot;
+using CodeAlta.Agent.CopilotDirect;
 using CodeAlta.Agent.ModelCatalog;
 using CodeAlta.Agent.OpenAI.CodexSubscription;
 using CodeAlta.App.Events;
@@ -218,6 +219,83 @@ internal sealed class ProviderFrontendCoordinator
         return new ProviderTestResult(true, accountMessage, string.IsNullOrWhiteSpace(accountId) ? 0 : 1);
     }
 
+    public async Task<ProviderTestResult> LoginCopilotDirectWithBrowserAsync(
+        CodeAltaProviderDocument definition,
+        Action<string> reportStatus,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        ArgumentNullException.ThrowIfNull(reportStatus);
+
+        var manager = CreateCopilotDirectLoginManager(definition);
+        var result = await manager.LoginWithDeviceCodeAsync(
+            CreateCopilotDirectLoginOptions(definition),
+            (deviceCode, _) =>
+            {
+                reportStatus($"Opening GitHub Copilot login in your browser. Enter code {deviceCode.UserCode} at {deviceCode.VerificationUri}. Waiting for authorization...");
+                TryOpenBrowser(deviceCode.VerificationUri);
+                return ValueTask.CompletedTask;
+            },
+            cancellationToken);
+        return new ProviderTestResult(true, FormatCopilotDirectLoginMessage("GitHub Copilot login completed", result), 0);
+    }
+
+    public async Task<ProviderTestResult> LoginCopilotDirectWithDeviceCodeAsync(
+        CodeAltaProviderDocument definition,
+        Action<string> reportStatus,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        ArgumentNullException.ThrowIfNull(reportStatus);
+
+        var manager = CreateCopilotDirectLoginManager(definition);
+        var result = await manager.LoginWithDeviceCodeAsync(
+            CreateCopilotDirectLoginOptions(definition),
+            (deviceCode, _) =>
+            {
+                reportStatus($"Open {deviceCode.VerificationUri} and enter code {deviceCode.UserCode}. Waiting for GitHub Copilot authorization...");
+                return ValueTask.CompletedTask;
+            },
+            cancellationToken);
+        return new ProviderTestResult(true, FormatCopilotDirectLoginMessage("GitHub Copilot device login completed", result), 0);
+    }
+
+    public async Task<ProviderTestResult> LogoutCopilotDirectAsync(
+        CodeAltaProviderDocument definition,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+
+        await CreateCopilotDirectLoginManager(definition)
+            .DeleteCredentialAsync(CreateCopilotDirectLoginOptions(definition), cancellationToken);
+        return new ProviderTestResult(true, "Deleted CodeAlta-owned GitHub Copilot direct credentials for this provider.", 0);
+    }
+
+    public async Task<ProviderTestResult> TestCopilotDirectAuthenticationAsync(
+        CodeAltaProviderDocument definition,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+
+        var status = await CreateCopilotDirectLoginManager(definition)
+            .GetCredentialStatusAsync(CreateCopilotDirectLoginOptions(definition), cancellationToken);
+        return status is null
+            ? new ProviderTestResult(false, "Login required before cached GitHub Copilot credentials can be used.", 0)
+            : new ProviderTestResult(true, FormatCopilotDirectLoginMessage("Authenticated with cached GitHub Copilot credentials", status), 0);
+    }
+
+    public async Task<ProviderTestResult> ListCopilotDirectModelsAsync(
+        CodeAltaProviderDocument definition,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+
+        var result = await TestProviderAsync(definition, cancellationToken);
+        return result.Success
+            ? result with { Message = $"Copilot model listing completed without sending a model turn · {result.ModelCount} model(s) available." }
+            : result;
+    }
+
     private void PublishModelProviderCatalogChanged()
         => _frontendEvents.Publish(new ModelProviderCatalogChangedEvent());
 
@@ -338,6 +416,23 @@ internal sealed class ProviderFrontendCoordinator
             CodexAuthFileReader.ResolveCodexHome());
     }
 
+    private static CopilotDirectLoginManager CreateCopilotDirectLoginManager(CodeAltaProviderDocument definition)
+    {
+        if (!string.Equals(definition.ProviderType, "github-copilot-direct", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Select a GitHub Copilot Direct provider first.");
+        }
+
+        return new CopilotDirectLoginManager(new HttpClient());
+    }
+
+    private CopilotDirectLoginOptions CreateCopilotDirectLoginOptions(CodeAltaProviderDocument definition)
+        => new(
+            definition.ProviderKey,
+            GetProviderStateRootPath(),
+            definition.GitHubEnterpriseUrl,
+            TryCreateUri(definition.ApiUrl));
+
     private string GetProviderStateRootPath()
         => _ownedServices?.CatalogOptions.GlobalRoot
            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".alta");
@@ -347,6 +442,16 @@ internal sealed class ProviderFrontendCoordinator
         var account = string.IsNullOrWhiteSpace(credential.AccountId) ? "account/workspace unknown" : credential.AccountId;
         return $"{prefix} · account/workspace: {account}.";
     }
+
+    private static string FormatCopilotDirectLoginMessage(string prefix, CopilotDirectLoginResult result)
+    {
+        var expiry = result.ExpiresAt is null ? "expiry unknown" : $"expires {result.ExpiresAt.Value.LocalDateTime:g}";
+        var enterprise = string.IsNullOrWhiteSpace(result.EnterpriseDomain) ? "GitHub.com" : result.EnterpriseDomain.Trim();
+        return $"{prefix} · {enterprise} · API {result.BaseUri} · {expiry}.";
+    }
+
+    private static Uri? TryCreateUri(string? value)
+        => Uri.TryCreate(value, UriKind.Absolute, out var uri) ? uri : null;
 
     private static void TryOpenBrowser(Uri uri)
     {

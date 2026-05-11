@@ -31,6 +31,8 @@ internal sealed partial class ModelProviderEditorItemViewModel
         UseDefaultApiKeyEnv = source.ApiKeyEnv is null;
         ApiUrl = source.ApiUrl;
         UseDefaultApiUrl = source.ApiUrl is null;
+        GitHubEnterpriseUrl = source.GitHubEnterpriseUrl;
+        UseDefaultGitHubEnterpriseUrl = source.GitHubEnterpriseUrl is null;
         OrganizationId = source.OrganizationId;
         UseDefaultOrganizationId = source.OrganizationId is null;
         ProjectId = source.ProjectId;
@@ -107,6 +109,12 @@ internal sealed partial class ModelProviderEditorItemViewModel
 
     [Bindable]
     public partial bool UseDefaultApiUrl { get; set; }
+
+    [Bindable]
+    public partial string? GitHubEnterpriseUrl { get; set; }
+
+    [Bindable]
+    public partial bool UseDefaultGitHubEnterpriseUrl { get; set; }
 
     [Bindable]
     public partial string? OrganizationId { get; set; }
@@ -199,6 +207,7 @@ internal sealed partial class ModelProviderEditorItemViewModel
         definition.ApiKey = UseDefaultApiKey ? null : NormalizeText(ApiKey);
         definition.ApiKeyEnv = UseDefaultApiKeyEnv ? null : NormalizeText(ApiKeyEnv);
         definition.ApiUrl = UseDefaultApiUrl ? null : NormalizeText(ApiUrl);
+        definition.GitHubEnterpriseUrl = ProviderType == "github-copilot-direct" && !UseDefaultGitHubEnterpriseUrl ? NormalizeText(GitHubEnterpriseUrl) : null;
         definition.OrganizationId = UseDefaultOrganizationId ? null : NormalizeText(OrganizationId);
         definition.ProjectId = UseDefaultProjectId ? null : NormalizeText(ProjectId);
         definition.Project = UseDefaultProject ? null : NormalizeText(Project);
@@ -247,6 +256,8 @@ internal sealed partial class ModelProviderEditorItemViewModel
     partial void OnUseDefaultApiKeyEnvChanged(bool value) => ClearTestResultOnEdit();
     partial void OnApiUrlChanged(string? value) => ClearTestResultOnEdit();
     partial void OnUseDefaultApiUrlChanged(bool value) => ClearTestResultOnEdit();
+    partial void OnGitHubEnterpriseUrlChanged(string? value) => ClearTestResultOnEdit();
+    partial void OnUseDefaultGitHubEnterpriseUrlChanged(bool value) => ClearTestResultOnEdit();
     partial void OnOrganizationIdChanged(string? value) => ClearTestResultOnEdit();
     partial void OnUseDefaultOrganizationIdChanged(bool value) => ClearTestResultOnEdit();
     partial void OnProjectIdChanged(string? value) => ClearTestResultOnEdit();

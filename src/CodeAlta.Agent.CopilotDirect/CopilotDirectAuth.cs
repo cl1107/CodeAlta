@@ -346,6 +346,23 @@ internal sealed class CopilotDirectCredentialStore
         TryRestrictFile(_path);
     }
 
+    public ValueTask DeleteAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        try
+        {
+            if (File.Exists(_path))
+            {
+                File.Delete(_path);
+            }
+        }
+        catch (DirectoryNotFoundException)
+        {
+        }
+
+        return ValueTask.CompletedTask;
+    }
+
     private static void TryRestrictFile(string path)
     {
         try
@@ -460,6 +477,25 @@ internal static partial class CopilotDirectBaseUriResolver
     }
 }
 
+internal static class CopilotDirectAuthUtilities
+{
+    public static string NormalizeGitHubHost(string? enterpriseDomain)
+    {
+        if (string.IsNullOrWhiteSpace(enterpriseDomain))
+        {
+            return "github.com";
+        }
+
+        var value = enterpriseDomain.Trim();
+        if (Uri.TryCreate(value, UriKind.Absolute, out var uri))
+        {
+            return uri.Host;
+        }
+
+        return value.Trim('/');
+    }
+}
+
 internal sealed class CopilotDeviceCodeResponse
 {
     [JsonPropertyName("device_code")]
@@ -488,6 +524,9 @@ internal sealed class GitHubDeviceTokenResponse
 
     [JsonPropertyName("error_description")]
     public string? ErrorDescription { get; set; }
+
+    [JsonPropertyName("interval")]
+    public int? Interval { get; set; }
 }
 
 internal sealed class CopilotTokenResponse

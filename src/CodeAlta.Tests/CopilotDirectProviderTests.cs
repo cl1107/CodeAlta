@@ -200,6 +200,71 @@ public sealed class CopilotDirectProviderTests
     }
 
     [TestMethod]
+    public async Task CopilotDirectLoginManager_DeviceFlow_StoresCachedCredential()
+    {
+        using var temp = TestTempDirectory.Create();
+        var tokenPolls = 0;
+        var observedDeviceCode = default(CopilotDirectDeviceCode);
+        var handler = new StubHandler(request =>
+        {
+            if (request.RequestUri == new Uri("https://github.com/login/device/code"))
+            {
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(
+                        """
+                        {"device_code":"device-1","user_code":"ABCD-EFGH","verification_uri":"https://github.com/login/device","expires_in":60,"interval":5}
+                        """,
+                        Encoding.UTF8,
+                        "application/json"),
+                };
+            }
+
+            if (request.RequestUri == new Uri("https://github.com/login/oauth/access_token"))
+            {
+                tokenPolls++;
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("{\"access_token\":\"github-token\"}", Encoding.UTF8, "application/json"),
+                };
+            }
+
+            Assert.AreEqual(new Uri("https://api.github.com/copilot_internal/v2/token"), request.RequestUri);
+            Assert.AreEqual("Bearer github-token", request.Headers.Authorization?.ToString());
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(
+                    """
+                    {"token":"copilot-token","expires_at":4102444800,"endpoints":{"api":"https://copilot.test"}}
+                    """,
+                    Encoding.UTF8,
+                    "application/json"),
+            };
+        });
+        var manager = new CopilotDirectLoginManager(new HttpClient(handler));
+
+        var result = await manager.LoginWithDeviceCodeAsync(
+            new CopilotDirectLoginOptions("github-copilot", temp.Path)
+            {
+                PollingIntervalOverride = TimeSpan.FromMilliseconds(1),
+            },
+            (deviceCode, _) =>
+            {
+                observedDeviceCode = deviceCode;
+                return ValueTask.CompletedTask;
+            }).ConfigureAwait(false);
+
+        Assert.IsNotNull(observedDeviceCode);
+        Assert.AreEqual("ABCD-EFGH", observedDeviceCode!.UserCode);
+        Assert.AreEqual(new Uri("https://copilot.test"), result.BaseUri);
+        Assert.AreEqual(1, tokenPolls);
+
+        var status = await manager.GetCredentialStatusAsync(new CopilotDirectLoginOptions("github-copilot", temp.Path)).ConfigureAwait(false);
+        Assert.IsNotNull(status);
+        Assert.AreEqual(new Uri("https://copilot.test"), status!.BaseUri);
+    }
+
+    [TestMethod]
     public async Task CopilotDirect_ChatCompletions_SendsCopilotHeadersAndStreamsText()
     {
         var handler = new StubHandler(request =>
