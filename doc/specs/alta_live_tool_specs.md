@@ -134,7 +134,7 @@ No `alta` command should block waiting for future session activity. A command ma
 
 Implications:
 
-- do not add `watch`, `follow`, `wait`, or interactive prompt modes in v1;
+- do not add `watch`, `follow`, `wait`, or interactive prompt modes in v1; parent/child delegated completion should use automatic parent notifications instead of active waiting;
 - commands that inspect messages/events return a finite snapshot, selected by `--last`, `--since`, `--limit`, or equivalent filters;
 - commands that start work, such as `session send`, return submission metadata (`threadId`, `runId`, queue status) rather than waiting for the target agent to finish;
 - v1 commands must not open interactive confirmation prompts; disruptive commands either run under existing trusted policy or fail with a policy-denied JSONL error;
@@ -297,6 +297,7 @@ The live tool prompt guidance should tell agents that root `alta --help` contain
 alta project list [--include-archived]
 alta project show <project-id|slug|path>
 alta project resolve [--path <path>]
+alta project current
 alta project upsert <path>
 ```
 
@@ -323,6 +324,8 @@ alta session show <thread-id>
 alta session status <thread-id>
 alta session children <thread-id> [--recursive]
 alta session model <thread-id>
+alta session result <thread-id> [--scope last-turn|session]
+alta session report <thread-id>... [--stdin] [--scope last-turn|session] [--include result,metrics]
 alta session metrics <thread-id> [--scope last-turn|session]
 alta session tail <thread-id> [--last <n>] [--include user,assistant,reasoning,tool,host,event] [--kind <event-kind>[,...]] [--fields <field>[,...]] [--no-tool-output]
 alta session events <thread-id> [--since <sequence>] [--limit <n>] [--include ...] [--kind ...] [--fields ...] [--no-tool-output]
@@ -346,7 +349,7 @@ Implementation source:
 - CodeAlta event projections or normalized stored events for `tail`, `events`, and `metrics` when available;
 - backend `GetHistoryAsync` only as a fallback when CodeAlta projections are unavailable, such as during early bootstrap or migration.
 
-`session list`, `show`, and `status` should include `providerKey`, `modelId`, `reasoningEffort`, `modelRef`, `parentThreadId`, and `createdBy` when known. `session show` should also include direct child counts/ids when cheap to compute and compact last-turn metrics when stored history is available. `session list --metrics` may read stored history for each emitted row and include compact last-turn metrics; callers should keep limits small when requesting metrics. `session children` should emit child `alta.session.item` records. `session model` should emit one `alta.model.selection` JSONL record so another command can reuse its `modelRef` field easily. `session metrics` should emit one `alta.session.metrics` record with timing, message/tool counts, final-answer characters/words/estimated tokens, current usage, provider operation totals, and model selection for either the last turn or the whole session.
+`session list`, `show`, and `status` should include `providerKey`, `modelId`, `reasoningEffort`, `modelRef`, `parentThreadId`, and `createdBy` when known. `session show` should also include direct child counts/ids when cheap to compute and compact last-turn metrics when stored history is available. `session list --metrics` may read stored history for each emitted row and include compact last-turn metrics; callers should keep limits small when requesting metrics. `session children` should emit child `alta.session.item` records. `session model` should emit one `alta.model.selection` JSONL record so another command can reuse its `modelRef` field easily. `session result` should emit one `alta.session.result` record with explicit `status` (`completed`, `failed`, `cancelled`, `running`, or `unknown`), final assistant text when completed, final error when failed/cancelled, timestamps, duration, model selection, tool-call count, and metrics. `session report` should emit one `alta.session.report.item` record per requested thread id plus a summary so multi-model evaluations do not require one metrics/result command per child session. `session metrics` should emit one `alta.session.metrics` record with explicit status, timing, message/tool counts, final-answer characters/words/estimated tokens, final error when applicable, current usage, provider operation totals, and model selection for either the last turn or the whole session.
 
 `tail` and `events` return finite snapshots only; they must not wait for future messages. Reads should prefer CodeAlta-owned event projections so they do not race with backend files that another active session may be writing. Backend-history fallback must be best-effort and tolerant of locked/partially written files; it should return available data plus an `alta.warning` record rather than fail the whole command when a transient read conflict occurs. The current implementation reads CodeAlta local-runtime normalized event journals first via `WorkThreadRuntimeService.TryReadStoredHistoryAsync`; transient/corrupt local journal reads emit `session.historyStoreUnavailable`, then the command falls back to the active runtime session history when available. Callers can narrow event payloads with category `--include`, exact mapped `--kind` values such as `assistant.message`, `--fields` projections, and `--no-tool-output` for compact diagnostics. They should expose only sanitized visible content:
 
@@ -399,7 +402,7 @@ alta session message <thread-id> (--message <text> | --stdin) [--kind note|reque
 alta session request <thread-id> (--message <text> | --stdin) [--reply-requested]
 ```
 
-These commands are wrappers over `session send` or `session queue` that add CodeAlta attribution metadata. They are useful when one agent needs to communicate with another without pretending to be the user. Use plain `session send` for actionable delegated work that should run as a normal target-session turn; use `message`/`request` for peer notes, handoffs, or coordination metadata where the delegated-agent header is desired. `--reply-requested` is metadata for the target session; the command still returns after delivery/queueing and does not wait for a reply. Agent-originated submissions may report `detached: true` after the delegated run is accepted when the target turn continues beyond the live-tool submission-acknowledgement window. For parent/child delegated work, callers should not poll by default: CodeAlta forwards the child final reply back to the parent thread automatically. Parented delegated submission records include machine-readable follow-up fields (`notificationExpected: true`, `shouldPoll: false`, `followUpMode: "notification"`, `recommendedAction: "stop"`, and `nextStep`) in addition to the nested `notification` payload.
+These commands are wrappers over `session send` or `session queue` that add CodeAlta attribution metadata. They are useful when one agent needs to communicate with another without pretending to be the user. Use plain `session send` for actionable delegated work that should run as a normal target-session turn; use `message`/`request` for peer notes, handoffs, or coordination metadata where the delegated-agent header is desired. `--reply-requested` is metadata for the target session; the command still returns after delivery/queueing and does not wait for a reply. Agent-originated submissions may report `detached: true` after the delegated run is accepted when the target turn continues beyond the live-tool submission-acknowledgement window. For parent/child delegated work, callers should not poll or actively wait by default: CodeAlta forwards the child final reply back to the parent thread automatically. Parented delegated submission records include machine-readable follow-up fields (`notificationExpected: true`, `shouldPoll: false`, `shouldYield: true`, `activeWaitAllowed: false`, `waitForCompletion: false`, `followUpMode: "notification"`, `recommendedAction: "stop"`, `forbiddenWaitActions`, and `nextStep`) in addition to the nested `notification` payload. The `nextStep` guidance explicitly tells coordinators not to call tools, shell sleeps, timers, status/tail/events, or polling commands to wait for completion; they should yield control and wait for parent-thread notifications.
 
 For parent/child sessions, explicit `alta session message` calls are not required for routine child-to-parent completion reporting. When a child session has a durable `parentThreadId`, the runtime automatically forwards the child's last visible assistant message for each completed turn to the parent as a peer-agent notification; if the child run fails or is cancelled before a final assistant reply, CodeAlta forwards an error notification instead. The parent delivery path is fail-soft: if the parent has an active run, CodeAlta sends the notification as steering input; otherwise, or if steering is unavailable/races with idle, CodeAlta persists it as a queued prompt and immediately attempts to drain it when the parent is idle so child completion reporting can wake the coordinator without manual polling.
 
@@ -465,14 +468,14 @@ alta tool list
 alta tool capability list
 alta provider list
 alta provider model list [--provider <id>]
-alta model list [--provider <id>]
-alta model show <model-ref>
+alta model list [--provider <id>] [--contains <text>] [--reasoning <effort>] [--supports-tools] [--refs]
+alta model show <model-ref>|--model-ref <ref>
 alta model resolve [--model-ref <ref>] [--same-model-as <thread-id>] [--provider <id>] [--model <id>] [--reasoning <effort>]
 alta plugin list
 alta plugin status <runtime-key>
 ```
 
-These are read-only discovery commands that help a global agent understand what CodeAlta can do before creating or steering sessions. `tool status` should describe the live gateway availability, caller scope, and output limits. `tool capability list` summarizes command policy classifications with `alta.tool.capability` records and also emits compact runtime/backend/plugin summaries (`alta.tool.runtimeCapability`, `alta.tool.backendCapability`, and `alta.tool.pluginCapability`) so agents can distinguish available services, registered/configured providers, live-tool injection support, and plugin command availability without treating the command as a replacement for `--help`. `provider model list` and `model list` should emit one `alta.model.item` JSONL record per model, including `modelRef`. `model resolve` should emit a single `alta.model.selection` JSONL record after applying the same precedence rules as `session create`.
+These are read-only discovery commands that help a global agent understand what CodeAlta can do before creating or steering sessions. `tool status` should describe the live gateway availability, caller scope, and output limits. `tool capability list` summarizes command policy classifications with `alta.tool.capability` records and also emits compact runtime/backend/plugin summaries (`alta.tool.runtimeCapability`, `alta.tool.backendCapability`, and `alta.tool.pluginCapability`) so agents can distinguish available services, registered/configured providers, live-tool injection support, and plugin command availability without treating the command as a replacement for `--help`. `provider model list` and `model list` should emit one `alta.model.item` JSONL record per model, including `modelRef`, requested/effective reasoning, and a reasoning status. `model list --refs` emits compact `alta.model.ref` records for copy/paste workflows. `--contains` is a deterministic substring filter over actual fields such as model id, display name, and model ref; it is not fuzzy natural-language lookup. `model show` and `model resolve` validate exact provider/model/model-ref selections when model metadata is available. `model resolve` should emit a single `alta.model.selection` JSONL record after applying the same precedence rules as `session create`.
 
 Implementation source:
 
@@ -745,7 +748,7 @@ Plugins invoking `alta` must not get a privileged bypass by default. A plugin ca
 
 Commands must be classified. Initial v1 classifications:
 
-- read-only: `--help`, `version`, `project list/show/resolve`, `session list/show/status/children/model/metrics/tail/events/join`, `skill list/show`, `provider list`, `provider model list`, `model list/show/resolve`, `plugin list/status`, `tool status`, `tool list`, `tool capability list`;
+- read-only: `--help`, `version`, `project list/show/resolve/current`, `session list/show/status/result/report/children/model/metrics/tail/events/join`, `skill list/show`, `provider list`, `provider model list`, `model list/show/resolve`, `plugin list/status`, `tool status`, `tool list`, `tool capability list`;
 - mutating: `project upsert`, `session create`, `session send`, `session steer`, `session queue`, `session compact`, `session message`, `session request`, `skill activate`;
 - disruptive: `session abort`, future delete/archive operations.
 

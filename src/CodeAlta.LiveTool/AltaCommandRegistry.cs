@@ -66,9 +66,10 @@ public sealed class AltaCommandRegistry
         app.Add("");
         app.Add("Guidance: non-help commands return JSONL headed by `alta.result`; help is plain text.");
         app.Add("Use small limits for snapshots. Common examples:");
-        app.Add("  `alta project list`");
+        app.Add("  `alta project current`; `alta project list`");
         app.Add("  `alta session list --project <project> --state all --limit 20`");
-        app.Add("  `alta session metrics <thread-id>`");
+        app.Add("  `alta session result <thread-id>`; `alta session metrics <thread-id>`");
+        app.Add("  `alta session report <thread-id-1> <thread-id-2> --include result,metrics`");
         app.Add("  `alta session status <thread-id>`");
         app.Add("  `alta session tail <thread-id> --last 10 --include assistant`");
         app.Add("  `alta session create --project <project> --reasoning low`");

@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using CodeAlta.Agent;
 using CodeAlta.Catalog;
 using CodeAlta.Catalog.Skills;
@@ -13,6 +14,19 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
     // Agent-originated sends should return after the delegated run is accepted, not after
     // the delegated LLM finishes. The timeout is only a submission-acknowledgement guard.
     private static readonly TimeSpan AgentCallerSubmitAckTimeout = TimeSpan.FromSeconds(5);
+    private const string NotificationFollowUpNextStep = "Do not call any tool, shell sleep, timer, status, tail, events, or polling command to wait for completion; yield control and wait for parent-thread notifications.";
+    private const string NotificationFollowUpGuidance = "Do not poll or actively wait for this delegated session to complete. CodeAlta will forward the delegated session's final assistant reply to the parent thread automatically.";
+
+    private static readonly string[] NotificationFollowUpForbiddenWaitActions =
+    [
+        "tool call",
+        "shell sleep",
+        "timer",
+        "session status",
+        "session tail",
+        "session events",
+        "polling",
+    ];
 
     private static readonly AltaCommandPolicy[] Policies =
     [
@@ -20,10 +34,13 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         Read("project list", supportsCatalogOnlyContext: true),
         Read("project show", supportsCatalogOnlyContext: true),
         Read("project resolve", supportsCatalogOnlyContext: true),
+        Read("project current", supportsCatalogOnlyContext: true),
         Mutating("project upsert", requiresRuntime: false, supportsCatalogOnlyContext: true),
         Read("session list"),
         Read("session show"),
         Read("session status"),
+        Read("session result"),
+        Read("session report"),
         Read("session children"),
         Read("session model"),
         Read("session metrics"),
@@ -145,10 +162,11 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         group.Add(CreateProjectListCommand(context));
         group.Add(CreateProjectShowCommand(context));
         group.Add(CreateProjectResolveCommand(context));
+        group.Add(CreateProjectCurrentCommand(context));
         group.Add(CreateProjectUpsertCommand(context));
         AddHelpText(
             group,
-            "Examples: `alta project list`; `alta project show CodeAlta`; `alta project resolve --path C:/code/CodeAlta`.");
+            "Examples: `alta project current`; `alta project list`; `alta project show CodeAlta`; `alta project resolve --path C:/code/CodeAlta`.");
         return group;
     }
 
@@ -179,6 +197,14 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         return command;
     }
 
+    private static Command CreateProjectCurrentCommand(AltaCommandContext context)
+    {
+        var command = Leaf("current", "Resolve the invocation cwd/current directory to a catalog project.");
+        command.Add(async (_, _) => await HandleProjectResolveAsync(context, null).ConfigureAwait(false));
+        AddHelpText(command, "Example: `alta project current` returns the catalog project matched by the live-tool cwd.");
+        return command;
+    }
+
     private static Command CreateProjectUpsertCommand(AltaCommandContext context)
     {
         string? path = null;
@@ -194,6 +220,8 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         group.Add(CreateSessionListCommand(context));
         group.Add(CreateSessionShowCommand(context));
         group.Add(CreateSessionStatusCommand(context));
+        group.Add(CreateSessionResultCommand(context));
+        group.Add(CreateSessionReportCommand(context));
         group.Add(CreateSessionChildrenCommand(context));
         group.Add(CreateSessionModelCommand(context));
         group.Add(CreateSessionMetricsCommand(context));
@@ -210,11 +238,13 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         group.Add(CreateSessionRequestCommand(context));
         AddHelpText(
             group,
-            "Common: list by project, create child sessions, send prompts, inspect status/tail/history, and steer active runs.",
+            "Common: list by project, create child sessions, send prompts, inspect result/metrics snapshots, and steer active runs.",
             "Examples:",
             "  `alta session list --project CodeAlta --state all --limit 20`",
             "  `alta session create --project CodeAlta --same-model-as <thread-id>`",
-            "  `alta session send <thread-id> --stdin`");
+            "  `alta session send <thread-id> --stdin`",
+            "  `alta session result <thread-id>`",
+            "  `alta session report <thread-id-1> <thread-id-2> --include result,metrics`");
         return group;
     }
 
@@ -252,6 +282,40 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         command.Add("<thread-id>", "CodeAlta thread id.", value => threadId = value);
         command.Add(async (_, _) => await HandleSessionShowAsync(context, threadId, "alta.session.status").ConfigureAwait(false));
         AddHelpText(command, "Example: `alta session status <thread-id>` after choosing a thread from `alta session list`.");
+        return command;
+    }
+
+    private static Command CreateSessionResultCommand(AltaCommandContext context)
+    {
+        string? threadId = null;
+        var scope = "last-turn";
+        var command = Leaf("result", "Return one session's final answer or error with compact metrics.");
+        command.Add("<thread-id>", "CodeAlta thread id.", value => threadId = value);
+        command.Add("scope=", "Result scope: last-turn or session. Defaults to last-turn.", value => scope = value ?? scope);
+        command.Add(async (_, _) => await HandleSessionResultAsync(context, threadId, scope).ConfigureAwait(false));
+        AddHelpText(command, "Example: `alta session result <thread-id>` after a completion notification or for diagnostics.");
+        return command;
+    }
+
+    private static Command CreateSessionReportCommand(AltaCommandContext context)
+    {
+        var threadIds = new List<string>();
+        var scope = "last-turn";
+        var include = "result,metrics";
+        var useStdin = false;
+        var command = Leaf("report", "Aggregate result/metric snapshots for multiple sessions.");
+        command.Add("<thread-id*>", "Thread ids to report.", value =>
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                threadIds.Add(value);
+            }
+        });
+        command.Add("stdin", "Read additional thread ids from stdin, separated by whitespace, commas, or newlines.", value => useStdin = value is not null);
+        command.Add("scope=", "Result scope: last-turn or session. Defaults to last-turn.", value => scope = value ?? scope);
+        command.Add("include=", "Comma-separated sections: result,metrics. Defaults to result,metrics.", value => include = value ?? include);
+        command.Add(async (_, _) => await HandleSessionReportAsync(context, threadIds, useStdin, scope, include).ConfigureAwait(false));
+        AddHelpText(command, "Examples: `alta session report <thread-id-1> <thread-id-2> --include result,metrics`; `alta session report --stdin`.");
         return command;
     }
 
@@ -671,10 +735,15 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
     private static Command CreateModelListCommand(AltaCommandContext context, bool providerGroupAlias)
     {
-        string? provider = null;
+        var options = new ModelListOptions();
         var command = Leaf("list", providerGroupAlias ? "List models for registered providers." : "List models for registered providers.");
-        command.Add("provider=", "Provider/backend id filter.", value => provider = value);
-        command.Add(async (_, _) => await HandleModelListAsync(context, provider).ConfigureAwait(false));
+        command.Add("provider=", "Provider/backend id filter.", value => options.Provider = value);
+        command.Add("contains=", "Substring filter over model id, display name, and model ref.", value => options.Contains = value);
+        command.Add("reasoning=", "Only include models supporting this reasoning effort.", value => options.ReasoningEffort = ParseReasoningOption(value));
+        command.Add("supports-tools", "Only include models that report tool-call support.", value => options.SupportsTools = value is not null);
+        command.Add("refs", "Emit compact model-ref records for copy/paste instead of full model metadata.", value => options.RefsOnly = value is not null);
+        command.Add(async (_, _) => await HandleModelListAsync(context, options).ConfigureAwait(false));
+        AddHelpText(command, "Examples: `alta model list --provider anthropic --contains sonnet`; `alta model list --provider codex_subscription --reasoning low --refs`.");
         return command;
     }
 
@@ -682,8 +751,16 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
     {
         string? modelRef = null;
         var command = Leaf("show", "Show one model by compact model ref.");
-        command.Add("<model-ref>", "Model ref: provider:model[@reasoning].", value => modelRef = value);
+        command.Add("<model-ref>?", "Model ref: provider:model[@reasoning].", value =>
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                modelRef = value;
+            }
+        });
+        command.Add("model-ref=", "Model ref: provider:model[@reasoning].", value => modelRef = value);
         command.Add(async (_, _) => await HandleModelShowAsync(context, modelRef).ConfigureAwait(false));
+        AddHelpText(command, "Example: `alta model show --model-ref github-copilot-direct:claude-sonnet-4.6@low`.");
         return command;
     }
 
@@ -1000,6 +1077,90 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         return AltaExitCodes.Success;
     }
 
+    private static async ValueTask<int> HandleSessionResultAsync(AltaCommandContext context, string? threadId, string? scope)
+    {
+        if (string.IsNullOrWhiteSpace(threadId))
+        {
+            return UsageError(context, "usage.missingThread", "Thread id is required.", "alta session result");
+        }
+
+        var normalizedScope = NormalizeMetricsScope(scope);
+        if (normalizedScope is null)
+        {
+            return UsageError(context, "usage.invalidScope", "--scope must be last-turn or session.", "alta session result");
+        }
+
+        var result = await BuildSessionResultAsync(context, threadId, normalizedScope.Value).ConfigureAwait(false);
+        if (result.ExitCode != AltaExitCodes.Success)
+        {
+            return result.ExitCode;
+        }
+
+        WriteSessionResult(context, "alta.session.result", result.Info!, result.Result!, includeResult: true, includeMetrics: true);
+        return AltaExitCodes.Success;
+    }
+
+    private static async ValueTask<int> HandleSessionReportAsync(
+        AltaCommandContext context,
+        IReadOnlyCollection<string> threadIds,
+        bool useStdin,
+        string? scope,
+        string? include)
+    {
+        var normalizedScope = NormalizeMetricsScope(scope);
+        if (normalizedScope is null)
+        {
+            return UsageError(context, "usage.invalidScope", "--scope must be last-turn or session.", "alta session report");
+        }
+
+        var includes = ParseSet(include);
+        if (includes.Count == 0)
+        {
+            includes = ParseSet("result,metrics");
+        }
+
+        if (includes.Any(static item => item is not "result" and not "metrics"))
+        {
+            return UsageError(context, "usage.invalidInclude", "--include values must be result and/or metrics.", "alta session report");
+        }
+
+        var ids = new List<string>(threadIds.Where(static id => !string.IsNullOrWhiteSpace(id)).Select(static id => id.Trim()));
+        if (useStdin)
+        {
+            var stdin = await context.Stdin.ReadToEndAsync(context.CancellationToken).ConfigureAwait(false);
+            foreach (var id in stdin.Split(['\r', '\n', '\t', ' ', ','], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+            {
+                ids.Add(id);
+            }
+        }
+
+        ids = ids.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (ids.Count == 0)
+        {
+            return UsageError(context, "usage.missingThread", "At least one thread id is required.", "alta session report");
+        }
+
+        var results = new List<SessionResultBuildResult>(ids.Count);
+        foreach (var id in ids)
+        {
+            var result = await BuildSessionResultAsync(context, id, normalizedScope.Value).ConfigureAwait(false);
+            if (result.ExitCode != AltaExitCodes.Success)
+            {
+                return result.ExitCode;
+            }
+
+            results.Add(result);
+        }
+
+        foreach (var result in results)
+        {
+            WriteSessionResult(context, "alta.session.report.item", result.Info!, result.Result!, includes.Contains("result"), includes.Contains("metrics"));
+        }
+
+        WriteSummary(context, "alta.session.report.summary", results.Count, truncated: false);
+        return AltaExitCodes.Success;
+    }
+
     private static async ValueTask<int> HandleSessionChildrenAsync(AltaCommandContext context, string? threadId, bool recursive)
     {
         if (string.IsNullOrWhiteSpace(threadId))
@@ -1151,6 +1312,44 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         return BuildSessionMetrics(info, history ?? [], SessionMetricsScope.LastTurn);
     }
 
+    private static async Task<SessionResultBuildResult> BuildSessionResultAsync(AltaCommandContext context, string threadId, SessionMetricsScope scope)
+    {
+        if (!context.TryGetRequired<WorkThreadRuntimeService>(nameof(WorkThreadRuntimeService), out var runtime))
+        {
+            return SessionResultBuildResult.Fail(AltaExitCodes.ServiceUnavailable);
+        }
+
+        var infos = await LoadSessionInfosAsync(context).ConfigureAwait(false);
+        if (infos is null)
+        {
+            return SessionResultBuildResult.Fail(AltaExitCodes.ServiceUnavailable);
+        }
+
+        var info = FindThread(infos, threadId);
+        if (info is null)
+        {
+            return SessionResultBuildResult.Fail(NotFound(context, "session.notFound", $"Session '{threadId}' was not found."));
+        }
+
+        var history = await ReadSessionHistoryAsync(context, runtime, info).ConfigureAwait(false) ?? [];
+        var scoped = SelectMetricScope(history, scope);
+        var metrics = BuildSessionMetrics(info, history, scope);
+        var finalAssistant = scoped.OfType<AgentContentCompletedEvent>().LastOrDefault(static content => content.Kind == AgentContentKind.Assistant);
+        var finalError = scoped.OfType<AgentErrorEvent>().LastOrDefault();
+        var status = DetermineResultStatus(info, finalAssistant, finalError);
+        var finalAnswer = status == SessionResultStatus.Completed && finalAssistant is not null
+            ? finalAssistant.Content
+            : null;
+        var result = new SessionResult(
+            scope,
+            status,
+            finalAnswer,
+            finalAssistant?.Timestamp,
+            status is SessionResultStatus.Failed or SessionResultStatus.Cancelled ? CreateFinalError(finalError!) : null,
+            metrics);
+        return SessionResultBuildResult.Success(info, result);
+    }
+
     private static async Task<IReadOnlyList<AgentEvent>?> ReadSessionHistoryAsync(
         AltaCommandContext context,
         WorkThreadRuntimeService runtime,
@@ -1211,6 +1410,8 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         var finalAssistant = scoped.OfType<AgentContentCompletedEvent>().LastOrDefault(static content => content.Kind == AgentContentKind.Assistant);
         var startedAt = firstUser?.Timestamp ?? firstEvent?.Timestamp;
         var completedAt = finalAssistant?.Timestamp ?? lastEvent?.Timestamp;
+        var finalError = scoped.OfType<AgentErrorEvent>().LastOrDefault();
+        var status = DetermineResultStatus(info, finalAssistant, finalError);
         var duration = startedAt is not null && completedAt is not null && completedAt >= startedAt
             ? completedAt.Value - startedAt.Value
             : (TimeSpan?)null;
@@ -1239,8 +1440,50 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             TokenEstimator.Estimate(finalAnswer),
             finalUsage,
             providerTotals,
+            StatusWire(status),
+            status is SessionResultStatus.Failed or SessionResultStatus.Cancelled ? CreateFinalError(finalError!) : null,
             ToModelSelectionPayload(CreateModelSelection(info.Thread, info.Preference)));
     }
+
+    private static SessionResultStatus DetermineResultStatus(AltaSessionInfo info, AgentContentCompletedEvent? finalAssistant, AgentErrorEvent? finalError)
+    {
+        if (info.IsRunning || string.Equals(info.State, "running", StringComparison.OrdinalIgnoreCase))
+        {
+            return SessionResultStatus.Running;
+        }
+
+        if (finalError is not null && (finalAssistant is null || finalError.Timestamp >= finalAssistant.Timestamp))
+        {
+            return IsCancellationError(finalError) ? SessionResultStatus.Cancelled : SessionResultStatus.Failed;
+        }
+
+        return finalAssistant is not null ? SessionResultStatus.Completed : SessionResultStatus.Unknown;
+    }
+
+    private static bool IsCancellationError(AgentErrorEvent error)
+        => error.Exception is OperationCanceledException ||
+           error.Exception is TaskCanceledException ||
+           string.Equals(error.ExceptionInfo?.Type, typeof(OperationCanceledException).FullName, StringComparison.Ordinal) ||
+           string.Equals(error.ExceptionInfo?.Type, typeof(TaskCanceledException).FullName, StringComparison.Ordinal) ||
+           error.Message.Contains("cancel", StringComparison.OrdinalIgnoreCase);
+
+    private static FinalErrorPayload CreateFinalError(AgentErrorEvent error)
+        => new(
+            IsCancellationError(error) ? "cancelled" : "failed",
+            error.Message,
+            error.Timestamp,
+            error.RunId?.Value,
+            error.ExceptionInfo?.Type);
+
+    private static string StatusWire(SessionResultStatus status)
+        => status switch
+        {
+            SessionResultStatus.Completed => "completed",
+            SessionResultStatus.Failed => "failed",
+            SessionResultStatus.Cancelled => "cancelled",
+            SessionResultStatus.Running => "running",
+            _ => "unknown",
+        };
 
     private static IReadOnlyList<AgentEvent> SelectMetricScope(IReadOnlyList<AgentEvent> history, SessionMetricsScope scope)
     {
@@ -1365,7 +1608,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return parentResolution.ExitCode;
         }
 
-        var modelSelection = await ResolveModelSelectionAsync(context, options.Model).ConfigureAwait(false);
+        var modelSelection = await ResolveModelSelectionAsync(context, options.Model, "alta session create").ConfigureAwait(false);
         if (modelSelection.ExitCode != AltaExitCodes.Success)
         {
             return modelSelection.ExitCode;
@@ -1747,7 +1990,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         return AltaExitCodes.Success;
     }
 
-    private static async ValueTask<int> HandleModelListAsync(AltaCommandContext context, string? providerFilter)
+    private static async ValueTask<int> HandleModelListAsync(AltaCommandContext context, ModelListOptions options)
     {
         if (!context.TryGetRequired<AgentHub>(nameof(AgentHub), out var agentHub))
         {
@@ -1755,12 +1998,12 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         }
 
         var providers = agentHub.ListRegisteredBackends()
-            .Where(id => string.IsNullOrWhiteSpace(providerFilter) || string.Equals(id.Value, providerFilter, StringComparison.OrdinalIgnoreCase))
+            .Where(id => string.IsNullOrWhiteSpace(options.Provider) || string.Equals(id.Value, options.Provider, StringComparison.OrdinalIgnoreCase))
             .OrderBy(static id => id.Value, StringComparer.OrdinalIgnoreCase)
             .ToArray();
-        if (!string.IsNullOrWhiteSpace(providerFilter) && providers.Length == 0)
+        if (!string.IsNullOrWhiteSpace(options.Provider) && providers.Length == 0)
         {
-            return NotFound(context, "provider.notFound", $"Provider '{providerFilter}' was not found.");
+            return NotFound(context, "provider.notFound", $"Provider '{options.Provider}' was not found.");
         }
 
         var count = 0;
@@ -1777,9 +2020,19 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
                 continue;
             }
 
-            foreach (var model in models.OrderBy(static model => model.Id, StringComparer.OrdinalIgnoreCase))
+            foreach (var model in models
+                         .Where(model => ModelMatchesFilters(provider.Value, model, options))
+                         .OrderBy(static model => model.Id, StringComparer.OrdinalIgnoreCase))
             {
-                WriteModelItem(context, provider.Value, model);
+                if (options.RefsOnly)
+                {
+                    WriteModelRefItem(context, provider.Value, model, options.ReasoningEffort);
+                }
+                else
+                {
+                    WriteModelItem(context, provider.Value, model, options.ReasoningEffort);
+                }
+
                 count++;
             }
         }
@@ -1828,7 +2081,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
     private static async ValueTask<int> HandleModelResolveAsync(AltaCommandContext context, AltaModelSelectionOptions options)
     {
-        var result = await ResolveModelSelectionAsync(context, options).ConfigureAwait(false);
+        var result = await ResolveModelSelectionAsync(context, options, "alta model resolve").ConfigureAwait(false);
         if (result.ExitCode != AltaExitCodes.Success)
         {
             return result.ExitCode;
@@ -1980,16 +2233,16 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         ];
     }
 
-    private static async Task<ModelResolutionResult> ResolveModelSelectionAsync(AltaCommandContext context, AltaModelSelectionOptions request)
+    private static async Task<ModelResolutionResult> ResolveModelSelectionAsync(AltaCommandContext context, AltaModelSelectionOptions request, string commandPath = "alta model resolve")
     {
         if (!string.IsNullOrWhiteSpace(request.ModelRef))
         {
             if (!AltaModelRef.TryParse(request.ModelRef, out var parsed, out var error))
             {
-                return ModelResolutionResult.Fail(UsageError(context, "usage.invalidModelRef", error!, "alta model resolve"));
+                return ModelResolutionResult.Fail(UsageError(context, "usage.invalidModelRef", error!, commandPath));
             }
 
-            return ModelResolutionResult.Success(parsed);
+            return await ValidateAndCompleteModelSelectionAsync(context, parsed, requestedReasoning: parsed.ReasoningEffort, commandPath).ConfigureAwait(false);
         }
 
         AltaModelSelection? inherited = null;
@@ -2039,7 +2292,49 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             ReasoningEffort = reasoning,
             ModelRef = AltaModelRef.Format(providerKey, modelId, reasoning),
         };
-        return ModelResolutionResult.Success(selection);
+        return await ValidateAndCompleteModelSelectionAsync(context, selection, request.ReasoningEffort, commandPath).ConfigureAwait(false);
+    }
+
+    private static async Task<ModelResolutionResult> ValidateAndCompleteModelSelectionAsync(AltaCommandContext context, AltaModelSelection selection, AgentReasoningEffort? requestedReasoning, string commandPath)
+    {
+        if (context.Services.Get<AgentHub>() is not { } agentHub || string.IsNullOrWhiteSpace(selection.ModelId))
+        {
+            return ModelResolutionResult.Success(selection);
+        }
+
+        IReadOnlyList<AgentModelInfo> models;
+        try
+        {
+            models = await agentHub.ListModelsAsync(new AgentBackendId(selection.ProviderKey), context.CancellationToken).ConfigureAwait(false);
+        }
+        catch (KeyNotFoundException)
+        {
+            return ModelResolutionResult.Fail(NotFound(context, "provider.notFound", $"Provider '{selection.ProviderKey}' was not found."));
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException)
+        {
+            AltaJsonlWriter.WriteWarning(context.Stderr, context.CorrelationId, "model.validationUnavailable", $"Provider '{selection.ProviderKey}' models are unavailable: {ex.Message}");
+            return ModelResolutionResult.Success(selection);
+        }
+
+        var model = models.FirstOrDefault(candidate => string.Equals(candidate.Id, selection.ModelId, StringComparison.OrdinalIgnoreCase));
+        if (model is null)
+        {
+            return ModelResolutionResult.Fail(NotFound(context, "model.notFound", $"Model '{selection.ModelId}' was not found for provider '{selection.ProviderKey}'."));
+        }
+
+        if (requestedReasoning is { } requested && !ModelSupportsReasoning(model, requested))
+        {
+            return ModelResolutionResult.Fail(UsageError(context, "usage.unsupportedReasoning", $"Reasoning effort '{AltaModelRef.ToWireName(requested)}' is not supported by model '{selection.ModelId}' for provider '{selection.ProviderKey}'.", commandPath));
+        }
+
+        var effectiveReasoning = selection.ReasoningEffort ?? model.DefaultReasoningEffort;
+        return ModelResolutionResult.Success(selection with
+        {
+            ModelId = model.Id,
+            ReasoningEffort = effectiveReasoning,
+            ModelRef = AltaModelRef.Format(selection.ProviderKey, model.Id, effectiveReasoning),
+        });
     }
 
     private static async Task<ThreadModelSelectionResult> ResolveThreadModelSelectionAsync(AltaCommandContext context, string threadId)
@@ -2527,10 +2822,46 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         });
     }
 
+    private static void WriteSessionResult(AltaCommandContext context, string type, AltaSessionInfo info, SessionResult result, bool includeResult, bool includeMetrics)
+    {
+        var finalAnswer = !includeResult || result.FinalAnswer is null
+            ? null
+            : new
+            {
+                text = result.FinalAnswer,
+                characters = result.FinalAnswer.Length,
+                words = CountWords(result.FinalAnswer),
+                estimatedTokens = TokenEstimator.Estimate(result.FinalAnswer),
+                completedAt = result.FinalAssistantAt,
+            };
+
+        AltaJsonlWriter.WriteRecord(context.Stdout, new
+        {
+            type,
+            version = 1,
+            correlationId = context.CorrelationId,
+            threadId = info.Thread.ThreadId,
+            backendId = info.Thread.BackendId,
+            providerKey = info.Thread.ResolvedProviderKey,
+            backendSessionId = info.Thread.BackendSessionId,
+            status = StatusWire(result.Status),
+            scope = MetricsScopeWire(result.Scope),
+            startedAt = result.Metrics.StartedAt,
+            completedAt = result.Metrics.CompletedAt,
+            durationMs = ToMilliseconds(result.Metrics.Duration),
+            toolCallCount = result.Metrics.ToolCallCount,
+            modelSelection = result.Metrics.ModelSelection,
+            finalAnswer,
+            finalError = includeResult ? result.FinalError : null,
+            metrics = includeMetrics ? ToDetailedMetricsPayload(result.Metrics) : null,
+        });
+    }
+
     private static object ToCompactMetricsPayload(SessionMetrics metrics)
         => new
         {
             scope = MetricsScopeWire(metrics.Scope),
+            metrics.Status,
             metrics.EventCount,
             metrics.StartedAt,
             metrics.CompletedAt,
@@ -2544,12 +2875,14 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             },
             usage = ToUsagePayload(metrics.FinalUsage),
             providerOperations = ToProviderOperationTotalsPayload(metrics.ProviderOperations),
+            finalError = metrics.FinalError,
         };
 
     private static object ToDetailedMetricsPayload(SessionMetrics metrics)
         => new
         {
             scope = MetricsScopeWire(metrics.Scope),
+            metrics.Status,
             metrics.EventCount,
             metrics.RunCount,
             metrics.StartedAt,
@@ -2567,6 +2900,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             },
             currentUsage = ToUsagePayload(metrics.FinalUsage),
             providerOperations = ToProviderOperationTotalsPayload(metrics.ProviderOperations),
+            finalError = metrics.FinalError,
             metrics.ModelSelection,
         };
 
@@ -2845,11 +3179,13 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             dispatchKind = kind.ToString().ToLowerInvariant(),
             notificationExpected = parentNotificationExpected ? true : (bool?)null,
             shouldPoll = parentNotificationExpected ? false : (bool?)null,
+            shouldYield = parentNotificationExpected ? true : (bool?)null,
+            activeWaitAllowed = parentNotificationExpected ? false : (bool?)null,
+            waitForCompletion = parentNotificationExpected ? false : (bool?)null,
             followUpMode = parentNotificationExpected ? "notification" : null,
             recommendedAction = parentNotificationExpected ? "stop" : null,
-            nextStep = parentNotificationExpected
-                ? "Stop now; do not call session status, tail, or events for routine completion. CodeAlta will notify the parent thread when the delegated session produces its final assistant reply."
-                : null,
+            forbiddenWaitActions = parentNotificationExpected ? NotificationFollowUpForbiddenWaitActions : null,
+            nextStep = parentNotificationExpected ? NotificationFollowUpNextStep : null,
             notification = CreatePromptNotificationPayload(context, thread),
             submittedBy = CreateProvenance(context),
             promptPreview = prompt.Length <= 160 ? prompt : prompt[..160],
@@ -2864,10 +3200,14 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
                 automaticParentNotification = true,
                 expected = true,
                 shouldPoll = false,
+                shouldYield = true,
+                activeWaitAllowed = false,
+                waitForCompletion = false,
                 followUpMode = "notification",
                 recommendedAction = "stop",
-                nextStep = "Stop now; do not call session status, tail, or events for routine completion. CodeAlta will notify the parent thread when the delegated session produces its final assistant reply.",
-                guidance = "Do not poll this delegated session for completion. CodeAlta will forward the delegated session's final assistant reply to the parent thread automatically.",
+                forbiddenWaitActions = NotificationFollowUpForbiddenWaitActions,
+                nextStep = NotificationFollowUpNextStep,
+                guidance = NotificationFollowUpGuidance,
             }
             : null;
 
@@ -2914,6 +3254,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
     private static void WriteModelItem(AltaCommandContext context, string providerKey, AgentModelInfo model, AgentReasoningEffort? requestedReasoning = null)
     {
         var reasoning = requestedReasoning ?? model.DefaultReasoningEffort;
+        var reasoningStatus = GetReasoningStatus(model, requestedReasoning, reasoning);
         AltaJsonlWriter.WriteRecord(context.Stdout, new
         {
             type = "alta.model.item",
@@ -2926,10 +3267,98 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             model.Provider,
             defaultReasoningEffort = model.DefaultReasoningEffort is null ? null : AltaModelRef.ToWireName(model.DefaultReasoningEffort.Value),
             supportedReasoningEfforts = model.SupportedReasoningEfforts?.Select(AltaModelRef.ToWireName).ToArray(),
+            requestedReasoningEffort = requestedReasoning is null ? null : AltaModelRef.ToWireName(requestedReasoning.Value),
+            effectiveReasoningEffort = reasoning is null ? null : AltaModelRef.ToWireName(reasoning.Value),
+            reasoningStatus,
             modelRef = AltaModelRef.Format(providerKey, model.Id, reasoning),
             capabilities = model.Capabilities,
         });
     }
+
+    private static void WriteModelRefItem(AltaCommandContext context, string providerKey, AgentModelInfo model, AgentReasoningEffort? requestedReasoning)
+    {
+        var reasoning = requestedReasoning ?? model.DefaultReasoningEffort;
+        AltaJsonlWriter.WriteRecord(context.Stdout, new
+        {
+            type = "alta.model.ref",
+            version = 1,
+            correlationId = context.CorrelationId,
+            providerKey,
+            modelId = model.Id,
+            model.DisplayName,
+            modelRef = AltaModelRef.Format(providerKey, model.Id, reasoning),
+        });
+    }
+
+    private static bool ModelMatchesFilters(string providerKey, AgentModelInfo model, ModelListOptions options)
+    {
+        if (options.ReasoningEffort is { } reasoning && !ModelSupportsReasoning(model, reasoning))
+        {
+            return false;
+        }
+
+        if (options.SupportsTools && !ModelSupportsTools(model))
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(options.Contains))
+        {
+            var effectiveReasoning = options.ReasoningEffort ?? model.DefaultReasoningEffort;
+            var modelRef = AltaModelRef.Format(providerKey, model.Id, effectiveReasoning);
+            var needle = options.Contains.Trim();
+            return ContainsOrdinalIgnoreCase(model.Id, needle) ||
+                   ContainsOrdinalIgnoreCase(model.DisplayName, needle) ||
+                   ContainsOrdinalIgnoreCase(modelRef, needle);
+        }
+
+        return true;
+    }
+
+    private static bool ModelSupportsReasoning(AgentModelInfo model, AgentReasoningEffort reasoning)
+    {
+        if (reasoning == AgentReasoningEffort.None)
+        {
+            return true;
+        }
+
+        return model.SupportedReasoningEfforts is { Count: > 0 }
+            ? model.SupportedReasoningEfforts.Contains(reasoning)
+            : ModelCapabilityBool(model, "supportsReasoning") != false;
+    }
+
+    private static bool ModelSupportsTools(AgentModelInfo model)
+        => ModelCapabilityBool(model, "supportsToolCall") == true || ModelCapabilityBool(model, "supportsTools") == true;
+
+    private static bool? ModelCapabilityBool(AgentModelInfo model, string key)
+    {
+        if (model.Capabilities is null || !model.Capabilities.TryGetValue(key, out var value))
+        {
+            return null;
+        }
+
+        return value switch
+        {
+            bool boolValue => boolValue,
+            JsonElement { ValueKind: JsonValueKind.True } => true,
+            JsonElement { ValueKind: JsonValueKind.False } => false,
+            string text when bool.TryParse(text, out var parsed) => parsed,
+            _ => null,
+        };
+    }
+
+    private static string GetReasoningStatus(AgentModelInfo model, AgentReasoningEffort? requestedReasoning, AgentReasoningEffort? effectiveReasoning)
+    {
+        if (requestedReasoning is { } requested)
+        {
+            return ModelSupportsReasoning(model, requested) ? "applied" : "unsupported";
+        }
+
+        return effectiveReasoning is null ? "none" : "defaulted";
+    }
+
+    private static bool ContainsOrdinalIgnoreCase(string? value, string text)
+        => value?.Contains(text, StringComparison.OrdinalIgnoreCase) == true;
 
     private static void WritePlugin(AltaCommandContext context, string type, AltaPluginSummary plugin)
     {
@@ -3050,6 +3479,19 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         public bool NoToolOutput { get; set; }
     }
 
+    private sealed class ModelListOptions
+    {
+        public string? Provider { get; set; }
+
+        public string? Contains { get; set; }
+
+        public AgentReasoningEffort? ReasoningEffort { get; set; }
+
+        public bool SupportsTools { get; set; }
+
+        public bool RefsOnly { get; set; }
+    }
+
     private enum SessionMetricsScope
     {
         LastTurn,
@@ -3079,7 +3521,33 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         long FinalAnswerEstimatedTokens,
         AgentSessionUsage? FinalUsage,
         ProviderOperationTotals ProviderOperations,
+         string Status,
+         FinalErrorPayload? FinalError,
         object ModelSelection);
+
+    private sealed record SessionResult(
+        SessionMetricsScope Scope,
+        SessionResultStatus Status,
+        string? FinalAnswer,
+        DateTimeOffset? FinalAssistantAt,
+        FinalErrorPayload? FinalError,
+        SessionMetrics Metrics);
+
+    private sealed record FinalErrorPayload(
+        string kind,
+        string message,
+        DateTimeOffset timestamp,
+        string? runId,
+        string? exceptionType);
+
+    private enum SessionResultStatus
+    {
+        Unknown,
+        Running,
+        Completed,
+        Failed,
+        Cancelled,
+    }
 
     private sealed class PromptOptions
     {
@@ -3101,6 +3569,13 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         public static ModelResolutionResult Success(AltaModelSelection selection) => new(AltaExitCodes.Success, selection);
 
         public static ModelResolutionResult Fail(int exitCode) => new(exitCode, null);
+    }
+
+    private sealed record SessionResultBuildResult(int ExitCode, AltaSessionInfo? Info, SessionResult? Result)
+    {
+        public static SessionResultBuildResult Success(AltaSessionInfo info, SessionResult result) => new(AltaExitCodes.Success, info, result);
+
+        public static SessionResultBuildResult Fail(int exitCode) => new(exitCode, null, null);
     }
 
     private sealed record ThreadModelSelectionResult(int ExitCode, bool Found, AltaModelSelection? Selection)

@@ -190,10 +190,19 @@ public sealed class AltaLiveToolTests
         }));
 
         var result = await tool.Handler(CreateInvocation(arguments.RootElement), CancellationToken.None).ConfigureAwait(false);
+        using var currentArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+        {
+            args = new[] { "project", "current" },
+            cwd = projectPath,
+        }));
+        var currentResult = await tool.Handler(CreateInvocation(currentArguments.RootElement), CancellationToken.None).ConfigureAwait(false);
 
         Assert.IsTrue(result.Success);
         var resolution = ReadJsonLines(AssertTextItem(result)).Single(static line => line.GetProperty("type").GetString() == "alta.project.resolution");
         Assert.AreEqual(project.Id, resolution.GetProperty("projectId").GetString());
+        Assert.IsTrue(currentResult.Success);
+        var currentResolution = ReadJsonLines(AssertTextItem(currentResult)).Single(static line => line.GetProperty("type").GetString() == "alta.project.resolution");
+        Assert.AreEqual(project.Id, currentResolution.GetProperty("projectId").GetString());
     }
 
     [TestMethod]
@@ -1006,6 +1015,8 @@ public sealed class AltaLiveToolTests
         var filteredEvents = await dispatcher.InvokeAsync(["session", "events", threadId, "--kind", "assistant.message", "--fields", "timestamp,kind,text"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
         var noToolOutput = await dispatcher.InvokeAsync(["session", "events", threadId, "--no-tool-output"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
         var metrics = await dispatcher.InvokeAsync(["session", "metrics", threadId], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var result = await dispatcher.InvokeAsync(["session", "result", threadId], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var report = await dispatcher.InvokeAsync(["session", "report", threadId, "--include", "result,metrics"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
         var show = await dispatcher.InvokeAsync(["session", "show", threadId], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
         var list = await dispatcher.InvokeAsync(["session", "list", "--metrics"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
 
@@ -1024,12 +1035,25 @@ public sealed class AltaLiveToolTests
         Assert.AreEqual(AltaExitCodes.Success, metrics.ExitCode);
         var metricsPayload = ReadJsonLines(metrics.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.session.metrics").GetProperty("metrics");
         Assert.AreEqual("last-turn", metricsPayload.GetProperty("scope").GetString());
+        Assert.AreEqual("completed", metricsPayload.GetProperty("status").GetString());
         Assert.AreEqual(240000d, metricsPayload.GetProperty("durationMs").GetDouble());
         Assert.AreEqual(1, metricsPayload.GetProperty("toolCallCount").GetInt32());
         Assert.AreEqual(3, metricsPayload.GetProperty("finalAnswer").GetProperty("finalAnswerWords").GetInt32());
         Assert.AreEqual(100, metricsPayload.GetProperty("currentUsage").GetProperty("lastOperation").GetProperty("inputTokens").GetInt64());
         Assert.AreEqual(20, metricsPayload.GetProperty("currentUsage").GetProperty("lastOperation").GetProperty("outputTokens").GetInt64());
         Assert.AreEqual(10, metricsPayload.GetProperty("currentUsage").GetProperty("lastOperation").GetProperty("cachedInputTokens").GetInt64());
+
+        Assert.AreEqual(AltaExitCodes.Success, result.ExitCode);
+        var resultPayload = ReadJsonLines(result.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.session.result");
+        Assert.AreEqual("completed", resultPayload.GetProperty("status").GetString());
+        Assert.AreEqual("final concise answer", resultPayload.GetProperty("finalAnswer").GetProperty("text").GetString());
+        Assert.AreEqual(1, resultPayload.GetProperty("toolCallCount").GetInt32());
+
+        Assert.AreEqual(AltaExitCodes.Success, report.ExitCode);
+        var reportItem = ReadJsonLines(report.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.session.report.item");
+        Assert.AreEqual("completed", reportItem.GetProperty("status").GetString());
+        Assert.IsTrue(reportItem.TryGetProperty("metrics", out var reportMetrics));
+        Assert.AreEqual(1, reportMetrics.GetProperty("toolCallCount").GetInt32());
 
         Assert.AreEqual(AltaExitCodes.Success, show.ExitCode);
         Assert.IsTrue(ReadJsonLines(show.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.session.detail").TryGetProperty("metrics", out var showMetrics));
@@ -1039,6 +1063,61 @@ public sealed class AltaLiveToolTests
         var listItem = ReadJsonLines(list.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.session.item");
         Assert.IsTrue(listItem.TryGetProperty("metrics", out var listMetrics));
         Assert.AreEqual(240000d, listMetrics.GetProperty("durationMs").GetDouble());
+    }
+
+    [TestMethod]
+    public async Task SessionResult_SeparatesFinalErrorFromFinalAnswer()
+    {
+        using var root = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = root.Path };
+        var backendId = new AgentBackendId("error-result");
+        var sessionId = "session-error-result";
+        var timestamp = new DateTimeOffset(2026, 05, 09, 12, 00, 00, TimeSpan.Zero);
+        var store = new FileSystemLocalAgentSessionStore(new LocalAgentRuntimePathLayout(root.Path));
+        await store.UpsertSessionAsync(new LocalAgentSessionSummary
+        {
+            SessionId = sessionId,
+            BackendId = backendId,
+            ProtocolFamily = "openai",
+            ProviderKey = backendId.Value,
+            ModelId = "gpt-error",
+            WorkingDirectory = root.Path,
+            Title = "Error result session",
+            Summary = "Stored error result",
+            CreatedAt = timestamp,
+            UpdatedAt = timestamp.AddMinutes(2),
+        }).ConfigureAwait(false);
+        await store.AppendEventsAsync(
+            "openai",
+            backendId.Value,
+            sessionId,
+            [
+                new AgentContentCompletedEvent(backendId, sessionId, timestamp, new AgentRunId("run-error"), AgentContentKind.User, "user-1", null, "please run"),
+                new AgentErrorEvent(backendId, sessionId, timestamp.AddMinutes(2), "Run cancelled before completion.", exception: null, runId: new AgentRunId("run-error")),
+            ]).ConfigureAwait(false);
+        var runtime = CreateRuntime(options, backendId);
+        await using var _ = runtime.ConfigureAwait(false);
+        var dispatcher = CreateDispatcher(new AltaServiceCollection()
+            .Add(options)
+            .Add(new ProjectCatalog(options))
+            .Add(new WorkThreadCatalog(options))
+            .Add(runtime));
+        var threadId = WorkThreadRuntimeService.CreateThreadId(backendId, sessionId);
+
+        var result = await dispatcher.InvokeAsync(["session", "result", threadId], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var metrics = await dispatcher.InvokeAsync(["session", "metrics", threadId], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+
+        Assert.AreEqual(AltaExitCodes.Success, result.ExitCode);
+        var resultPayload = ReadJsonLines(result.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.session.result");
+        Assert.AreEqual("cancelled", resultPayload.GetProperty("status").GetString());
+        Assert.IsFalse(resultPayload.TryGetProperty("finalAnswer", out var finalAnswerProperty));
+        Assert.AreEqual("cancelled", resultPayload.GetProperty("finalError").GetProperty("kind").GetString());
+
+        Assert.AreEqual(AltaExitCodes.Success, metrics.ExitCode);
+        var metricsPayload = ReadJsonLines(metrics.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.session.metrics").GetProperty("metrics");
+        Assert.AreEqual("cancelled", metricsPayload.GetProperty("status").GetString());
+        Assert.AreEqual("cancelled", metricsPayload.GetProperty("finalError").GetProperty("kind").GetString());
+        Assert.AreEqual(0, metricsPayload.GetProperty("finalAnswer").GetProperty("finalAnswerWords").GetInt32());
     }
 
     [TestMethod]
@@ -1081,6 +1160,45 @@ public sealed class AltaLiveToolTests
 
         AssertHistoryFallbackWarning(corruptResult);
         AssertHistoryFallbackWarning(lockedResult);
+    }
+
+    [TestMethod]
+    public async Task ModelListAndShow_SupportPracticalFiltersAndRefs()
+    {
+        var backendId = new AgentBackendId("models");
+        var backend = new StatefulBackend(backendId)
+        {
+            Models =
+            [
+                new AgentModelInfo(
+                    "claude-sonnet-4.6",
+                    DisplayName: "Claude Sonnet 4.6",
+                    DefaultReasoningEffort: AgentReasoningEffort.Low,
+                    SupportedReasoningEfforts: [AgentReasoningEffort.Low, AgentReasoningEffort.Medium],
+                    Capabilities: new Dictionary<string, object?> { ["supportsToolCall"] = true }),
+                new AgentModelInfo(
+                    "gpt-4o",
+                    DisplayName: "GPT-4o",
+                    SupportedReasoningEfforts: [],
+                    Capabilities: new Dictionary<string, object?> { ["supportsToolCall"] = false }),
+            ],
+        };
+        var factory = new AgentBackendFactory();
+        factory.Register(backendId, () => backend);
+        var dispatcher = CreateDispatcher(new AltaServiceCollection().Add(new AgentHub(factory)));
+
+        var refs = await dispatcher.InvokeAsync(["model", "list", "--provider", backendId.Value, "--contains", "sonnet", "--reasoning", "low", "--supports-tools", "--refs"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var show = await dispatcher.InvokeAsync(["model", "show", "--model-ref", $"{backendId.Value}:claude-sonnet-4.6@low"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+
+        Assert.AreEqual(AltaExitCodes.Success, refs.ExitCode);
+        var refRecord = ReadJsonLines(refs.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.model.ref");
+        Assert.AreEqual("models:claude-sonnet-4.6@low", refRecord.GetProperty("modelRef").GetString());
+        Assert.AreEqual(1, ReadJsonLines(refs.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.model.summary").GetProperty("count").GetInt32());
+
+        Assert.AreEqual(AltaExitCodes.Success, show.ExitCode);
+        var showRecord = ReadJsonLines(show.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.model.item");
+        Assert.AreEqual("applied", showRecord.GetProperty("reasoningStatus").GetString());
+        Assert.AreEqual("low", showRecord.GetProperty("effectiveReasoningEffort").GetString());
     }
 
     [TestMethod]
@@ -1660,16 +1778,24 @@ public sealed class AltaLiveToolTests
             Assert.IsTrue(record.GetProperty("detached").GetBoolean());
             Assert.IsTrue(record.GetProperty("notificationExpected").GetBoolean());
             Assert.IsFalse(record.GetProperty("shouldPoll").GetBoolean());
+            Assert.IsTrue(record.GetProperty("shouldYield").GetBoolean());
+            Assert.IsFalse(record.GetProperty("activeWaitAllowed").GetBoolean());
+            Assert.IsFalse(record.GetProperty("waitForCompletion").GetBoolean());
             Assert.AreEqual("notification", record.GetProperty("followUpMode").GetString());
             Assert.AreEqual("stop", record.GetProperty("recommendedAction").GetString());
-            StringAssert.Contains(record.GetProperty("nextStep").GetString()!, "do not call session status, tail, or events");
+            StringAssert.Contains(record.GetProperty("nextStep").GetString()!, "Do not call any tool, shell sleep, timer, status, tail, events, or polling command to wait for completion");
+            CollectionAssert.Contains(record.GetProperty("forbiddenWaitActions").EnumerateArray().Select(static item => item.GetString()).ToArray(), "shell sleep");
             var notification = record.GetProperty("notification");
             Assert.AreEqual(parentThreadId, notification.GetProperty("parentThreadId").GetString());
             Assert.IsTrue(notification.GetProperty("expected").GetBoolean());
             Assert.IsFalse(notification.GetProperty("shouldPoll").GetBoolean());
+            Assert.IsTrue(notification.GetProperty("shouldYield").GetBoolean());
+            Assert.IsFalse(notification.GetProperty("activeWaitAllowed").GetBoolean());
+            Assert.IsFalse(notification.GetProperty("waitForCompletion").GetBoolean());
             Assert.AreEqual("notification", notification.GetProperty("followUpMode").GetString());
             Assert.AreEqual("stop", notification.GetProperty("recommendedAction").GetString());
-            StringAssert.Contains(notification.GetProperty("guidance").GetString()!, "Do not poll");
+            StringAssert.Contains(notification.GetProperty("guidance").GetString()!, "Do not poll or actively wait");
+            CollectionAssert.Contains(notification.GetProperty("forbiddenWaitActions").EnumerateArray().Select(static item => item.GetString()).ToArray(), "shell sleep");
             await WaitUntilAsync(() => backend.SentOptions.Count == 1).ConfigureAwait(false);
         }
         finally
@@ -2429,6 +2555,8 @@ public sealed class AltaLiveToolTests
 
         public bool PublishRunEventOnSend { get; init; }
 
+        public IReadOnlyList<AgentModelInfo> Models { get; init; } = [];
+
         public AgentBackendId BackendId => backendId;
 
         public string DisplayName => "Stateful Backend";
@@ -2438,7 +2566,7 @@ public sealed class AltaLiveToolTests
         public Task StopAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
         public Task<IReadOnlyList<AgentModelInfo>> ListModelsAsync(CancellationToken cancellationToken = default)
-            => Task.FromResult<IReadOnlyList<AgentModelInfo>>([]);
+            => Task.FromResult(Models);
 
         public Task<IReadOnlyList<AgentSessionMetadata>> ListSessionsAsync(AgentSessionListFilter? filter = null, CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<AgentSessionMetadata>>(_sessions.ToArray());
