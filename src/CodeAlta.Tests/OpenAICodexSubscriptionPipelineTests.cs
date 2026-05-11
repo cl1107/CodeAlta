@@ -405,6 +405,8 @@ public sealed class OpenAICodexSubscriptionPipelineTests
             string.Join('|', visibleModels.Select(static model => model.Id)));
         Assert.IsFalse(visibleModels.Any(static model => model.Id == "codex-auto-review"));
         Assert.IsTrue(visibleModels.All(static model => Equals(272000L, model.Capabilities?["contextWindow"])));
+        Assert.IsTrue(visibleModels.All(static model => Equals(272000L, model.Capabilities?["inputTokenLimit"])));
+        Assert.IsTrue(visibleModels.All(static model => Equals(128000L, model.Capabilities?["outputTokenLimit"])));
         Assert.IsTrue(visibleModels.All(static model => Equals(true, model.Capabilities?["listable"])));
         Assert.IsTrue(visibleModels.All(static model => Equals(false, model.Capabilities?["hidden"])));
     }

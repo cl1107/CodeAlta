@@ -919,7 +919,7 @@ public sealed class OpenAIRawApiAgentBackendTests
                     outputTokens: 7,
                     cachedInputTokens: 40,
                     reasoningTokens: 3,
-                    totalTokens: 67),
+                    totalTokens: 107),
             ],
         ]);
         var executor = new OpenAIResponsesTurnExecutor(new OpenAIProviderOptions
@@ -928,12 +928,24 @@ public sealed class OpenAIRawApiAgentBackendTests
             ResponsesClientFactory = _ => responsesClient,
         });
 
+        var request = CreateTurnRequest() with
+        {
+            ModelInfo = new AgentModelInfo(
+                "gpt-test",
+                DisplayName: "GPT Test",
+                Capabilities: new Dictionary<string, object?>(StringComparer.Ordinal)
+                {
+                    ["inputTokenLimit"] = 200000L,
+                    ["outputTokenLimit"] = 128000L,
+                }),
+        };
+
         var response = await executor.ExecuteTurnAsync(
-            CreateTurnRequest(),
+            request,
             static (_, _) => ValueTask.CompletedTask).ConfigureAwait(false);
 
         Assert.IsNotNull(response.Usage);
-        Assert.AreEqual(60L, response.Usage.LastOperation?.InputTokens);
+        Assert.AreEqual(100L, response.Usage.LastOperation?.InputTokens);
         Assert.AreEqual(7L, response.Usage.LastOperation?.OutputTokens);
         Assert.AreEqual(40L, response.Usage.LastOperation?.CachedInputTokens);
         Assert.AreEqual(3L, response.Usage.LastOperation?.ReasoningTokens);

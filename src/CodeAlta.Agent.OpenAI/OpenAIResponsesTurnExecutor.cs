@@ -1483,12 +1483,9 @@ internal sealed class OpenAIResponsesTurnExecutor(
         return LocalAgentUsageFactory.CreateOperationUsage(
             modelId: response.Model,
             modelInfo: request.ModelInfo,
-            inputTokens: OpenAIUsageNormalizer.GetFreshInputTokens(response.Usage.InputTokenCount, cachedInputTokens),
+            inputTokens: response.Usage.InputTokenCount,
             outputTokens: response.Usage.OutputTokenCount,
-            totalTokens: OpenAIUsageNormalizer.GetTotalTokens(
-                response.Usage.TotalTokenCount,
-                response.Usage.InputTokenCount,
-                response.Usage.OutputTokenCount),
+            totalTokens: response.Usage.TotalTokenCount,
             cachedInputTokens: cachedInputTokens,
             reasoningTokens: response.Usage.OutputTokenDetails?.ReasoningTokenCount,
             updatedAt: response.CreatedAt == default ? DateTimeOffset.UtcNow : response.CreatedAt);

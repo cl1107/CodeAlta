@@ -5,14 +5,20 @@ namespace CodeAlta.Agent.OpenAI.CodexSubscription;
 
 internal static class CodexSubscriptionStaticModelCatalog
 {
+    // Codex exposes `context_window` as the model context/input window. Keep the 128k
+    // generation cap in the separate output-token capabilities instead of adding it here.
+    private const long DefaultContextWindow = 272_000;
+    private const long DefaultInputTokenLimit = DefaultContextWindow;
+    private const long DefaultOutputTokenLimit = 128_000;
+
     // User-visible Codex subscription picker entries, following the curated Codex/pi-mono catalog.
     private static readonly CodexStaticModel[] Models =
     [
-        new("gpt-5.5", "GPT-5.5", SupportsImageInput: true, DefaultReasoningEffort: AgentReasoningEffort.Medium, ContextWindow: 272_000),
-        new("gpt-5.4", "GPT-5.4", SupportsImageInput: true, DefaultReasoningEffort: AgentReasoningEffort.Medium, ContextWindow: 272_000),
-        new("gpt-5.4-mini", "GPT-5.4 mini", SupportsImageInput: true, DefaultReasoningEffort: AgentReasoningEffort.Medium, ContextWindow: 272_000),
-        new("gpt-5.3-codex", "GPT-5.3 Codex", SupportsImageInput: true, DefaultReasoningEffort: AgentReasoningEffort.High, ContextWindow: 272_000),
-        new("gpt-5.2", "GPT-5.2", SupportsImageInput: true, DefaultReasoningEffort: AgentReasoningEffort.Medium, ContextWindow: 272_000),
+        new("gpt-5.5", "GPT-5.5", SupportsImageInput: true, DefaultReasoningEffort: AgentReasoningEffort.Medium),
+        new("gpt-5.4", "GPT-5.4", SupportsImageInput: true, DefaultReasoningEffort: AgentReasoningEffort.Medium),
+        new("gpt-5.4-mini", "GPT-5.4 mini", SupportsImageInput: true, DefaultReasoningEffort: AgentReasoningEffort.Medium),
+        new("gpt-5.3-codex", "GPT-5.3 Codex", SupportsImageInput: true, DefaultReasoningEffort: AgentReasoningEffort.High),
+        new("gpt-5.2", "GPT-5.2", SupportsImageInput: true, DefaultReasoningEffort: AgentReasoningEffort.Medium),
     ];
 
     public static IReadOnlyList<AgentModelInfo> List(LocalAgentProviderDescriptor providerDescriptor)
@@ -54,13 +60,18 @@ internal static class CodexSubscriptionStaticModelCatalog
                 ["supportsTools"] = true,
                 ["supportsImageInput"] = model.SupportsImageInput,
                 ["requiresWebSocket"] = false,
-                ["contextWindow"] = model.ContextWindow,
+                ["contextWindow"] = DefaultContextWindow,
+                ["contextWindowTokens"] = DefaultContextWindow,
+                ["inputTokenLimit"] = DefaultInputTokenLimit,
+                ["maxInputTokens"] = DefaultInputTokenLimit,
+                ["outputTokenLimit"] = DefaultOutputTokenLimit,
+                ["maxOutputTokens"] = DefaultOutputTokenLimit,
+                ["maxTokens"] = DefaultOutputTokenLimit,
             });
 
     private sealed record CodexStaticModel(
         string Id,
         string DisplayName,
         bool SupportsImageInput,
-        AgentReasoningEffort DefaultReasoningEffort,
-        long ContextWindow);
+        AgentReasoningEffort DefaultReasoningEffort);
 }
