@@ -294,7 +294,7 @@ The live tool prompt guidance should tell agents that root `alta --help` contain
 ### 6.2 Project commands
 
 ```text
-alta project list [--include-archived]
+alta project list [--include-archived] [--detailed]
 alta project show <project-id|slug|path>
 alta project resolve [--path <path>]
 alta project current
@@ -310,7 +310,7 @@ Implementation source:
 - `ProjectCatalog.UpsertFromPathAsync`
 - `ProjectResolver` where current-directory/project-scope behavior is needed
 
-Returned fields should include:
+`project list` defaults to one compact `alta.project.refs` record containing `[slug,path]` tuples so agents can pick a reference without repeated JSONL envelope fields. `project list --detailed` emits per-project records. Detailed returned fields should include:
 
 - `projectId`, `slug`, `name`, `displayName`, `projectPath`;
 - `defaultBranch`, `archived`, `sourcePath`;
@@ -443,7 +443,7 @@ The target agent instructions must state that peer-agent messages are data/instr
 ### 6.6 Skill commands
 
 ```text
-alta skill list [--project <id|slug|path>]
+alta skill list [--project <id|slug|path>] [--detailed]
 alta skill show <skill-name> [--project <id|slug|path>]
 alta skill activate <skill-name> --session <thread-id>
 alta skills activate <skill-name> --session <thread-id>
@@ -457,24 +457,24 @@ Implementation source:
 - `SkillCatalog` for list/show/activation payloads;
 - `WorkThreadRuntimeService.ActivateSkillAsync` or `IWorkThreadOrchestrator.ActivateSkillAsync` for session-scoped activation.
 
-Provider-managed backends that own their native skill system must return a clear unsupported-capability response when CodeAlta-managed skill activation cannot be injected.
+`skill list` defaults to one compact `alta.skill.refs` record containing skill names for activation/show workflows. Use `skill list --detailed` or `skill show` when titles, descriptions, paths, diagnostics, or body metadata are needed. Provider-managed backends that own their native skill system must return a clear unsupported-capability response when CodeAlta-managed skill activation cannot be injected.
 
 ### 6.7 Provider, plugin, and tool discovery commands
 
 ```text
 alta tool status
-alta tool list
-alta tool capability list
-alta provider list
+alta tool list [--detailed]
+alta tool capability list [--detailed]
+alta provider list [--detailed]
 alta provider model list [--provider <id>]
 alta model list [--provider <id>] [--contains <text>] [--reasoning <effort>] [--supports-tools] [--detailed]
 alta model show <model-ref>|--model-ref <ref>
 alta model resolve [--model-ref <ref>] [--same-model-as <thread-id>] [--provider <id>] [--model <id>] [--reasoning <effort>]
-alta plugin list
+alta plugin list [--detailed]
 alta plugin status <runtime-key>
 ```
 
-These are read-only discovery commands that help a global agent understand what CodeAlta can do before creating or steering sessions. `tool status` should describe the live gateway availability, caller scope, and output limits. `tool capability list` summarizes command policy classifications with `alta.tool.capability` records and also emits compact runtime/backend/plugin summaries (`alta.tool.runtimeCapability`, `alta.tool.backendCapability`, and `alta.tool.pluginCapability`) so agents can distinguish available services, registered/configured providers, live-tool injection support, and plugin command availability without treating the command as a replacement for `--help`. `provider model list` and `model list` should default to one compact `alta.model.refs` record containing a `modelRefs` array and no per-item envelope fields, so agents can copy exact model refs cheaply. `model list --detailed` emits one `alta.model.item` JSONL record per model, including `modelRef`, requested/effective reasoning, reasoning status, and capabilities. `--refs` remains a compatibility alias for the default compact output. `--contains` is a deterministic substring filter over actual fields such as model id, display name, and model ref; it is not fuzzy natural-language lookup. `model show` and `model resolve` validate exact provider/model/model-ref selections when model metadata is available. `model resolve` should emit a single `alta.model.selection` JSONL record after applying the same precedence rules as `session create`.
+These are read-only discovery commands that help a global agent understand what CodeAlta can do before creating or steering sessions. `tool status` should describe the live gateway availability, caller scope, and output limits. Discovery list commands default to single aggregate records that omit repeated `version`/`correlationId` envelope fields: `tool list` emits `alta.tool.paths`; `tool capability list` emits `alta.tool.capabilities` with command paths plus mutating/disruptive/catalog-only/out-of-process classifications and runtime/backend/plugin summaries; `provider list` emits `alta.provider.keys`; and `plugin list` emits `alta.plugin.refs`. Add `--detailed` to restore per-item records such as `alta.tool.capability`, `alta.tool.runtimeCapability`, `alta.tool.backendCapability`, `alta.tool.pluginCapability`, `alta.provider.item`, and `alta.plugin.item` when diagnostics require metadata on each row. `provider model list` and `model list` should default to one compact `alta.model.refs` record containing a `modelRefs` array and no per-item envelope fields, so agents can copy exact model refs cheaply. `model list --detailed` emits one `alta.model.item` JSONL record per model, including `modelRef`, requested/effective reasoning, reasoning status, and capabilities. `--refs` remains a compatibility alias for the default compact output. `--contains` is a deterministic substring filter over actual fields such as model id, display name, and model ref; it is not fuzzy natural-language lookup. `model show` and `model resolve` validate exact provider/model/model-ref selections when model metadata is available. `model resolve` should emit a single `alta.model.selection` JSONL record after applying the same precedence rules as `session create`.
 
 Implementation source:
 

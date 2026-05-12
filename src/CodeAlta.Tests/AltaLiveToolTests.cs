@@ -237,7 +237,7 @@ public sealed class AltaLiveToolTests
         Assert.IsFalse(invalidResult.Success);
         StringAssert.Contains(invalidResult.Error, "maxOutputRecords");
 
-        using var cappedArguments = JsonDocument.Parse("""{"args":["tool","capability","list"],"maxOutputRecords":1}""");
+        using var cappedArguments = JsonDocument.Parse("""{"args":["tool","capability","list","--detailed"],"maxOutputRecords":1}""");
         var cappedResult = await tool.Handler(CreateInvocation(cappedArguments.RootElement), CancellationToken.None).ConfigureAwait(false);
 
         Assert.IsTrue(cappedResult.Success);
@@ -298,19 +298,73 @@ public sealed class AltaLiveToolTests
         var result = await dispatcher.InvokeAsync(["tool", "capability", "list"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
 
         Assert.AreEqual(AltaExitCodes.Success, result.ExitCode);
-        var lines = ReadJsonLines(result.Stdout);
-        Assert.IsTrue(lines.Any(static line =>
-            line.GetProperty("type").GetString() == "alta.tool.runtimeCapability" &&
-            line.GetProperty("capability").GetString() == "catalog.project" &&
-            line.GetProperty("available").GetBoolean()));
-        Assert.IsTrue(lines.Any(static line =>
-            line.GetProperty("type").GetString() == "alta.tool.backendCapability" &&
-            line.GetProperty("backendId").GetString() == "openai-responses" &&
-            line.GetProperty("supportsAltaSessionTool").GetBoolean()));
-        Assert.IsTrue(lines.Any(static line =>
-            line.GetProperty("type").GetString() == "alta.tool.pluginCapability" &&
-            line.GetProperty("pluginCount").GetInt32() == 1 &&
-            line.GetProperty("pluginCommandCount").GetInt32() == 1));
+        var capability = ReadJsonLines(result.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.tool.capabilities");
+        AssertJsonArrayContains(capability.GetProperty("runtime").GetProperty("available"), "catalog.project");
+        AssertJsonArrayContains(capability.GetProperty("backends").GetProperty("sessionTool"), "openai-responses");
+        Assert.AreEqual(1, capability.GetProperty("plugins").GetProperty("pluginCount").GetInt32());
+        Assert.AreEqual(1, capability.GetProperty("plugins").GetProperty("pluginCommandCount").GetInt32());
+        Assert.IsFalse(capability.TryGetProperty("correlationId", out _));
+        Assert.IsFalse(capability.TryGetProperty("version", out _));
+    }
+
+    [TestMethod]
+    public async Task DiscoveryLists_DefaultToCompactRecordsAndDetailedRestoresItems()
+    {
+        using var root = TempDirectory.Create();
+        var projectPath = Path.Combine(root.Path, "compact-project");
+        Directory.CreateDirectory(projectPath);
+        await WriteSkillAsync(Path.Combine(projectPath, ".alta", "skills", "compact-skill"), "compact-skill", "Compact skill.").ConfigureAwait(false);
+        var options = new CatalogOptions { GlobalRoot = root.Path };
+        var projectCatalog = new ProjectCatalog(options);
+        var project = await projectCatalog.UpsertFromPathAsync(projectPath).ConfigureAwait(false);
+        var backendId = new AgentBackendId("compact-provider");
+        var dispatcher = CreateDispatcher(new AltaServiceCollection()
+            .Add(options)
+            .Add(projectCatalog)
+            .Add(new SkillCatalog())
+            .Add<IReadOnlyList<AgentBackendDescriptor>>([new AgentBackendDescriptor(backendId, "Compact Provider")])
+            .Add<IAltaPluginCatalog>(new FakeAltaPluginCatalog(new AltaPluginCommandContribution
+            {
+                Plugin = CreatePluginDescriptor("compact-plugin"),
+                Services = NoopPluginServices.Create(),
+                Scope = PluginScope.Global,
+                Command = new PluginAltaCommandContribution
+                {
+                    Path = "compact-plugin-command",
+                    CreateCommandNode = _ => new Command("compact-plugin-command", "Compact plugin command."),
+                },
+            })));
+
+        var projectList = await dispatcher.InvokeAsync(["project", "list"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var skillList = await dispatcher.InvokeAsync(["skill", "list", "--project", project.Id], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var providerList = await dispatcher.InvokeAsync(["provider", "list"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var pluginList = await dispatcher.InvokeAsync(["plugin", "list"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var toolList = await dispatcher.InvokeAsync(["tool", "list"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var detailedPluginList = await dispatcher.InvokeAsync(["plugin", "list", "--detailed"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+
+        Assert.AreEqual(AltaExitCodes.Success, projectList.ExitCode);
+        AssertJsonArrayContains(ReadJsonLines(projectList.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.project.refs").GetProperty("projects").EnumerateArray().Select(static item => item[0].GetString()).ToArray(), project.Slug);
+
+        Assert.AreEqual(AltaExitCodes.Success, skillList.ExitCode);
+        AssertJsonArrayContains(ReadJsonLines(skillList.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.skill.refs").GetProperty("skills"), "compact-skill");
+
+        Assert.AreEqual(AltaExitCodes.Success, providerList.ExitCode);
+        var providerKeys = ReadJsonLines(providerList.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.provider.keys");
+        AssertJsonArrayContains(providerKeys.GetProperty("providerKeys"), backendId.Value);
+        Assert.IsFalse(providerKeys.TryGetProperty("correlationId", out _));
+
+        Assert.AreEqual(AltaExitCodes.Success, pluginList.ExitCode);
+        var pluginRefs = ReadJsonLines(pluginList.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.plugin.refs");
+        Assert.AreEqual("compact-plugin", pluginRefs.GetProperty("plugins")[0].GetProperty("runtimeKey").GetString());
+
+        Assert.AreEqual(AltaExitCodes.Success, toolList.ExitCode);
+        var toolPaths = ReadJsonLines(toolList.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.tool.paths");
+        AssertJsonArrayContains(toolPaths.GetProperty("paths"), "session create");
+        AssertJsonArrayContains(toolPaths.GetProperty("mutating"), "session create");
+
+        Assert.AreEqual(AltaExitCodes.Success, detailedPluginList.ExitCode);
+        var detailedPlugin = ReadJsonLines(detailedPluginList.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.plugin.item");
+        Assert.AreEqual("1.0.0", detailedPlugin.GetProperty("pluginVersion").GetString());
     }
 
     [TestMethod]
@@ -538,9 +592,8 @@ public sealed class AltaLiveToolTests
 
         var capabilities = await dispatcher.InvokeAsync(["tool", "capability", "list"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
         Assert.AreEqual(AltaExitCodes.Success, capabilities.ExitCode);
-        Assert.IsTrue(ReadJsonLines(capabilities.Stdout).Any(line =>
-            line.GetProperty("type").GetString() == "alta.tool.capability" &&
-            line.GetProperty("path").GetString() == "statistics"));
+        var capability = ReadJsonLines(capabilities.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.tool.capabilities");
+        AssertJsonArrayContains(capability.GetProperty("paths"), "statistics");
     }
 
     [TestMethod]
@@ -644,10 +697,8 @@ public sealed class AltaLiveToolTests
         var result = await dispatcher.InvokeAsync(["plugin-spawn"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
 
         Assert.AreEqual(AltaExitCodes.Success, capabilities.ExitCode);
-        var pluginPolicy = ReadJsonLines(capabilities.Stdout).Single(line =>
-            line.GetProperty("type").GetString() == "alta.tool.capability" &&
-            line.GetProperty("path").GetString() == "plugin-spawn");
-        Assert.IsTrue(pluginPolicy.GetProperty("isMutating").GetBoolean());
+        var capability = ReadJsonLines(capabilities.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.tool.capabilities");
+        AssertJsonArrayContains(capability.GetProperty("mutating"), "plugin-spawn");
         Assert.AreEqual(AltaExitCodes.Success, result.ExitCode);
         var createdHeader = (await new WorkThreadCatalog(options).JournalStore.ListHeadersAsync().ConfigureAwait(false)).Single();
         var createdState = await ReadJournalStateAsync(new WorkThreadCatalog(options), createdHeader.ThreadId).ConfigureAwait(false);
@@ -2273,11 +2324,13 @@ public sealed class AltaLiveToolTests
         var upsertNew = await dispatcher.InvokeAsync(["project", "upsert", projectCPath], caller: caller).ConfigureAwait(false);
 
         Assert.AreEqual(AltaExitCodes.Success, list.ExitCode);
-        var visibleProjects = ReadJsonLines(list.Stdout)
-            .Where(static line => line.GetProperty("type").GetString() == "alta.project.item")
-            .Select(static line => line.GetProperty("projectId").GetString())
+        var visibleProjectPaths = ReadJsonLines(list.Stdout)
+            .Single(static line => line.GetProperty("type").GetString() == "alta.project.refs")
+            .GetProperty("projects")
+            .EnumerateArray()
+            .Select(static line => line[1].GetString())
             .ToArray();
-        CollectionAssert.IsSubsetOf(new[] { projectA.Id, projectB.Id }, visibleProjects);
+        CollectionAssert.IsSubsetOf(new[] { projectA.ProjectPath, projectB.ProjectPath }, visibleProjectPaths);
         Assert.AreEqual(AltaExitCodes.Success, showOther.ExitCode);
         Assert.AreEqual(AltaExitCodes.Success, resolveOther.ExitCode);
         Assert.AreEqual(AltaExitCodes.Success, upsertNew.ExitCode);
@@ -2310,16 +2363,20 @@ public sealed class AltaLiveToolTests
 
         Assert.AreEqual(AltaExitCodes.Success, listOwnByDefault.ExitCode);
         var visibleSkills = ReadJsonLines(listOwnByDefault.Stdout)
-            .Where(static line => line.GetProperty("type").GetString() == "alta.skill.item")
-            .Select(static line => line.GetProperty("name").GetString())
+            .Single(static line => line.GetProperty("type").GetString() == "alta.skill.refs")
+            .GetProperty("skills")
+            .EnumerateArray()
+            .Select(static line => line.GetString())
             .ToArray();
         CollectionAssert.Contains(visibleSkills, "project-a-skill");
         CollectionAssert.DoesNotContain(visibleSkills, "project-b-skill");
         Assert.AreEqual(AltaExitCodes.Success, listOther.ExitCode);
         Assert.AreEqual(AltaExitCodes.Success, showOther.ExitCode);
         var otherSkills = ReadJsonLines(listOther.Stdout)
-            .Where(static line => line.GetProperty("type").GetString() == "alta.skill.item")
-            .Select(static line => line.GetProperty("name").GetString())
+            .Single(static line => line.GetProperty("type").GetString() == "alta.skill.refs")
+            .GetProperty("skills")
+            .EnumerateArray()
+            .Select(static line => line.GetString())
             .ToArray();
         CollectionAssert.Contains(otherSkills, "project-b-skill");
     }
@@ -2381,6 +2438,14 @@ public sealed class AltaLiveToolTests
         Assert.IsTrue(laterIndex >= 0, $"Help text did not contain '{later}'.\n{help}");
         Assert.IsTrue(earlierIndex < laterIndex, $"Expected '{earlier}' before '{later}'.\n{help}");
     }
+
+    private static void AssertJsonArrayContains(JsonElement array, string expected)
+        => AssertJsonArrayContains(array.EnumerateArray().Select(static item => item.GetString()), expected);
+
+    private static void AssertJsonArrayContains(IEnumerable<string?> values, string expected)
+        => Assert.IsTrue(
+            values.Any(item => string.Equals(item, expected, StringComparison.Ordinal)),
+            $"Expected JSON array to contain '{expected}'.");
 
     private static AltaCommandDispatcher CreateDispatcher(params IAltaCommandContributor[] contributors)
     {

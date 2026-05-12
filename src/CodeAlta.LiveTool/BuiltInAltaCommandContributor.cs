@@ -174,9 +174,11 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
     private static Command CreateProjectListCommand(AltaCommandContext context)
     {
         var includeArchived = false;
+        var detailed = false;
         var command = Leaf("list", "List known projects from the CodeAlta catalog.");
         command.Add("include-archived", "Include archived projects.", value => includeArchived = value is not null);
-        command.Add(async (_, _) => await HandleProjectListAsync(context, includeArchived).ConfigureAwait(false));
+        command.Add("detailed", "Emit one detailed metadata record per project instead of the compact project refs array.", value => detailed = value is not null);
+        command.Add(async (_, _) => await HandleProjectListAsync(context, includeArchived, detailed).ConfigureAwait(false));
         return command;
     }
 
@@ -527,9 +529,11 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
     private static Command CreateSkillListCommand(AltaCommandContext context)
     {
         string? project = null;
+        var detailed = false;
         var command = Leaf("list", "List discovered CodeAlta skills.");
         command.Add("project=", "Project id, slug, or path for project-local skill roots.", value => project = value);
-        command.Add(async (_, _) => await HandleSkillListAsync(context, project).ConfigureAwait(false));
+        command.Add("detailed", "Emit one detailed metadata record per skill instead of compact skill refs.", value => detailed = value is not null);
+        command.Add(async (_, _) => await HandleSkillListAsync(context, project, detailed).ConfigureAwait(false));
         return command;
     }
 
@@ -591,10 +595,18 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
     private static Command CreateToolListCommand(AltaCommandContext context)
     {
+        var detailed = false;
         var command = Leaf("list", "List built-in alta command policy entries.");
+        command.Add("detailed", "Emit one detailed policy record per command instead of the compact paths/classification record.", value => detailed = value is not null);
         command.Add((_, _) =>
         {
             var policies = GetEffectivePolicies(context);
+            if (!detailed)
+            {
+                WriteToolPaths(context, policies);
+                return ValueTask.FromResult(AltaExitCodes.Success);
+            }
+
             foreach (var policy in policies.OrderBy(static policy => policy.Path, StringComparer.OrdinalIgnoreCase))
             {
                 WritePolicy(context, "alta.tool.item", policy);
@@ -608,10 +620,18 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
     private static Command CreateToolCapabilityListCommand(AltaCommandContext context)
     {
+        var detailed = false;
         var command = Leaf("list", "List command capability classifications.");
+        command.Add("detailed", "Emit legacy per-command/runtime/backend/plugin capability records instead of one compact aggregate record.", value => detailed = value is not null);
         command.Add((_, _) =>
         {
             var policies = GetEffectivePolicies(context);
+            if (!detailed)
+            {
+                WriteToolCapabilities(context, policies);
+                return ValueTask.FromResult(AltaExitCodes.Success);
+            }
+
             var recordCount = 0;
             foreach (var policy in policies.OrderBy(static policy => policy.Path, StringComparer.OrdinalIgnoreCase))
             {
@@ -630,16 +650,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
     private static int WriteRuntimeCapabilities(AltaCommandContext context)
     {
-        (string Capability, bool Available)[] capabilities =
-        [
-            ("catalog.project", context.Services.Get<ProjectCatalog>() is not null),
-            ("catalog.thread", context.Services.Get<WorkThreadCatalog>() is not null),
-            ("catalog.skill", context.Services.Get<SkillCatalog>() is not null),
-            ("runtime.workThread", context.Services.Get<WorkThreadRuntimeService>() is not null),
-            ("providers.agentHub", context.Services.Get<AgentHub>() is not null),
-            ("plugins.altaCatalog", context.Services.Get<IAltaPluginCatalog>() is not null),
-            ("sessionTool.backendPolicy", context.Services.Get<IAltaSessionToolBackendPolicy>() is not null),
-        ];
+        var capabilities = GetRuntimeCapabilities(context);
 
         foreach (var capability in capabilities)
         {
@@ -658,53 +669,100 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
     private static int WriteBackendCapabilities(AltaCommandContext context)
     {
-        var descriptors = GetBackendDescriptors(context);
-        var registered = context.Services.Get<AgentHub>()?.ListRegisteredBackends() ?? [];
-        var backendIds = descriptors.Select(static descriptor => descriptor.BackendId)
-            .Concat(registered)
-            .Distinct()
-            .OrderBy(static id => id.Value, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        var policy = context.Services.Get<IAltaSessionToolBackendPolicy>();
+        var capabilities = GetBackendCapabilities(context);
 
-        foreach (var backendId in backendIds)
+        foreach (var capability in capabilities)
         {
             AltaJsonlWriter.WriteRecord(context.Stdout, new
             {
                 type = "alta.tool.backendCapability",
                 version = 1,
                 correlationId = context.CorrelationId,
-                providerKey = backendId.Value,
-                backendId = backendId.Value,
-                registered = registered.Contains(backendId),
-                configured = descriptors.Any(descriptor => descriptor.BackendId == backendId),
-                supportsAltaSessionTool = policy?.SupportsAltaSessionTool(backendId.Value) ?? false,
+                providerKey = capability.ProviderKey,
+                backendId = capability.BackendId,
+                capability.Registered,
+                capability.Configured,
+                capability.SupportsAltaSessionTool,
             });
         }
 
-        return backendIds.Length;
+        return capabilities.Length;
+    }
+
+    private static (string Capability, bool Available)[] GetRuntimeCapabilities(AltaCommandContext context) =>
+    [
+        ("catalog.project", context.Services.Get<ProjectCatalog>() is not null),
+        ("catalog.thread", context.Services.Get<WorkThreadCatalog>() is not null),
+        ("catalog.skill", context.Services.Get<SkillCatalog>() is not null),
+        ("runtime.workThread", context.Services.Get<WorkThreadRuntimeService>() is not null),
+        ("providers.agentHub", context.Services.Get<AgentHub>() is not null),
+        ("plugins.altaCatalog", context.Services.Get<IAltaPluginCatalog>() is not null),
+        ("sessionTool.backendPolicy", context.Services.Get<IAltaSessionToolBackendPolicy>() is not null),
+    ];
+
+    private static BackendCapability[] GetBackendCapabilities(AltaCommandContext context)
+    {
+        var descriptors = GetBackendDescriptors(context);
+        var registered = context.Services.Get<AgentHub>()?.ListRegisteredBackends() ?? [];
+        var policy = context.Services.Get<IAltaSessionToolBackendPolicy>();
+        return GetProviderBackendIds(context, descriptors)
+            .Select(backendId => new BackendCapability(
+                backendId.Value,
+                backendId.Value,
+                registered.Contains(backendId),
+                descriptors.Any(descriptor => descriptor.BackendId == backendId),
+                policy?.SupportsAltaSessionTool(backendId.Value) ?? false))
+            .ToArray();
+    }
+
+    private static AgentBackendId[] GetProviderBackendIds(AltaCommandContext context, IReadOnlyList<AgentBackendDescriptor> descriptors)
+    {
+        var backendIds = descriptors.Select(static descriptor => descriptor.BackendId).ToList();
+        if (context.Services.Get<AgentHub>() is { } agentHub)
+        {
+            foreach (var id in agentHub.ListRegisteredBackends())
+            {
+                if (!backendIds.Contains(id))
+                {
+                    backendIds.Add(id);
+                }
+            }
+        }
+
+        return backendIds.OrderBy(static id => id.Value, StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
     private static int WritePluginCapabilities(AltaCommandContext context, IReadOnlyList<AltaCommandPolicy> policies)
     {
-        if (context.Services.Get<IAltaPluginCatalog>() is not { } catalog)
+        var capability = GetPluginCapability(context, policies);
+        if (capability is null)
         {
             return 0;
         }
 
-        var plugins = catalog.ListPlugins();
-        var builtInPolicyPaths = new HashSet<string>(Policies.Select(static policy => policy.Path), StringComparer.OrdinalIgnoreCase);
-        var pluginCommandCount = policies.Count(policy => !builtInPolicyPaths.Contains(policy.Path));
         AltaJsonlWriter.WriteRecord(context.Stdout, new
         {
             type = "alta.tool.pluginCapability",
             version = 1,
             correlationId = context.CorrelationId,
-            available = true,
-            pluginCount = plugins.Count,
-            pluginCommandCount,
+            capability.Available,
+            capability.PluginCount,
+            capability.PluginCommandCount,
         });
         return 1;
+    }
+
+    private static PluginCapability? GetPluginCapability(AltaCommandContext context, IReadOnlyList<AltaCommandPolicy> policies)
+    {
+        if (context.Services.Get<IAltaPluginCatalog>() is not { } catalog)
+        {
+            return null;
+        }
+
+        var plugins = catalog.ListPlugins();
+        var builtInPolicyPaths = new HashSet<string>(Policies.Select(static policy => policy.Path), StringComparer.OrdinalIgnoreCase);
+        var pluginCommandCount = policies.Count(policy => !builtInPolicyPaths.Contains(policy.Path));
+        return new PluginCapability(true, plugins.Count, pluginCommandCount);
     }
 
     private static Command CreateProviderCommand(AltaCommandContext context)
@@ -719,8 +777,10 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
     private static Command CreateProviderListCommand(AltaCommandContext context)
     {
+        var detailed = false;
         var command = Leaf("list", "List registered provider/backend ids.");
-        command.Add(async (_, _) => await HandleProviderListAsync(context).ConfigureAwait(false));
+        command.Add("detailed", "Emit one detailed metadata record per provider instead of the compact providerKeys array.", value => detailed = value is not null);
+        command.Add(async (_, _) => await HandleProviderListAsync(context, detailed).ConfigureAwait(false));
         return command;
     }
 
@@ -785,8 +845,10 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
     private static Command CreatePluginListCommand(AltaCommandContext context)
     {
+        var detailed = false;
         var command = Leaf("list", "List plugin runtime summaries.");
-        command.Add((_, _) => HandlePluginList(context));
+        command.Add("detailed", "Emit one detailed plugin record per runtime instead of compact plugin refs.", value => detailed = value is not null);
+        command.Add((_, _) => HandlePluginList(context, detailed));
         return command;
     }
 
@@ -871,7 +933,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             : throw new CommandOptionException("Message kind must be note, request, handoff, or answer.", "--kind");
     }
 
-    private static async ValueTask<int> HandleProjectListAsync(AltaCommandContext context, bool includeArchived)
+    private static async ValueTask<int> HandleProjectListAsync(AltaCommandContext context, bool includeArchived, bool detailed)
     {
         if (!context.TryGetRequired<ProjectCatalog>(nameof(ProjectCatalog), out var catalog))
         {
@@ -883,6 +945,12 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             .Where(project => includeArchived || !project.Archived)
             .OrderBy(static project => project.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+        if (!detailed)
+        {
+            WriteProjectRefs(context, filtered);
+            return AltaExitCodes.Success;
+        }
+
         foreach (var project in filtered)
         {
             WriteProject(context, "alta.project.item", project);
@@ -1887,7 +1955,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         return AltaExitCodes.Success;
     }
 
-    private static async ValueTask<int> HandleSkillListAsync(AltaCommandContext context, string? projectRef)
+    private static async ValueTask<int> HandleSkillListAsync(AltaCommandContext context, string? projectRef, bool detailed)
     {
         if (!context.TryGetRequired<SkillCatalog>(nameof(SkillCatalog), out var skillCatalog))
         {
@@ -1901,6 +1969,12 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         }
 
         var skills = await skillCatalog.ListAsync(queryResult.Query!, context.CancellationToken).ConfigureAwait(false);
+        if (!detailed)
+        {
+            WriteSkillRefs(context, skills);
+            return AltaExitCodes.Success;
+        }
+
         foreach (var skill in skills)
         {
             WriteSkill(context, "alta.skill.item", skill, includeDiagnostics: true);
@@ -1988,22 +2062,19 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         }
     }
 
-    private static async ValueTask<int> HandleProviderListAsync(AltaCommandContext context)
+    private static async ValueTask<int> HandleProviderListAsync(AltaCommandContext context, bool detailed)
     {
         var descriptors = GetBackendDescriptors(context);
-        var backendIds = descriptors.Select(static descriptor => descriptor.BackendId).ToList();
-        if (context.Services.Get<AgentHub>() is { } agentHub)
+        var backendIds = GetProviderBackendIds(context, descriptors);
+
+        if (!detailed)
         {
-            foreach (var id in agentHub.ListRegisteredBackends())
-            {
-                if (!backendIds.Contains(id))
-                {
-                    backendIds.Add(id);
-                }
-            }
+            WriteProviderKeys(context, backendIds);
+            await Task.CompletedTask.ConfigureAwait(false);
+            return AltaExitCodes.Success;
         }
 
-        foreach (var backendId in backendIds.OrderBy(static id => id.Value, StringComparer.OrdinalIgnoreCase))
+        foreach (var backendId in backendIds)
         {
             var descriptor = descriptors.FirstOrDefault(candidate => candidate.BackendId == backendId);
             AltaJsonlWriter.WriteRecord(context.Stdout, new
@@ -2017,7 +2088,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             });
         }
 
-        WriteSummary(context, "alta.provider.summary", backendIds.Count, truncated: false);
+        WriteSummary(context, "alta.provider.summary", backendIds.Length, truncated: false);
         await Task.CompletedTask.ConfigureAwait(false);
         return AltaExitCodes.Success;
     }
@@ -2132,10 +2203,16 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         return AltaExitCodes.Success;
     }
 
-    private static ValueTask<int> HandlePluginList(AltaCommandContext context)
+    private static ValueTask<int> HandlePluginList(AltaCommandContext context, bool detailed)
     {
         var catalog = context.Services.Get<IAltaPluginCatalog>();
         var plugins = catalog?.ListPlugins() ?? [];
+        if (!detailed)
+        {
+            WritePluginRefs(context, plugins);
+            return ValueTask.FromResult(AltaExitCodes.Success);
+        }
+
         foreach (var plugin in plugins)
         {
             WritePlugin(context, "alta.plugin.item", plugin);
@@ -2835,6 +2912,13 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         });
     }
 
+    private static void WriteProjectRefs(AltaCommandContext context, IReadOnlyList<ProjectDescriptor> projects)
+        => AltaJsonlWriter.WriteRecord(context.Stdout, new
+        {
+            type = "alta.project.refs",
+            projects = projects.Select(static project => new[] { project.Slug, project.ProjectPath }).ToArray(),
+        });
+
     private static void WriteSession(AltaCommandContext context, string type, AltaSessionInfo info, bool includeChildren, IReadOnlyList<AltaSessionInfo> infos, SessionMetrics? metrics = null)
     {
         var children = includeChildren ? GetChildren(infos, info, recursive: false).ToArray() : [];
@@ -3328,6 +3412,13 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         });
     }
 
+    private static void WriteSkillRefs(AltaCommandContext context, IReadOnlyList<SkillDescriptor> skills)
+        => AltaJsonlWriter.WriteRecord(context.Stdout, new
+        {
+            type = "alta.skill.refs",
+            skills = skills.Select(static skill => skill.Name).ToArray(),
+        });
+
     private static void WritePolicy(AltaCommandContext context, string type, AltaCommandPolicy policy)
     {
         AltaJsonlWriter.WriteRecord(context.Stdout, new
@@ -3340,6 +3431,47 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             policy.IsMutating,
             policy.IsDisruptive,
             policy.SupportsCatalogOnlyContext,
+        });
+    }
+
+    private static void WriteToolPaths(AltaCommandContext context, IReadOnlyList<AltaCommandPolicy> policies)
+    {
+        var ordered = policies.OrderBy(static policy => policy.Path, StringComparer.OrdinalIgnoreCase).ToArray();
+        AltaJsonlWriter.WriteRecord(context.Stdout, new
+        {
+            type = "alta.tool.paths",
+            paths = ordered.Select(static policy => policy.Path).ToArray(),
+            mutating = ordered.Where(static policy => policy.IsMutating).Select(static policy => policy.Path).ToArray(),
+            disruptive = ordered.Where(static policy => policy.IsDisruptive).Select(static policy => policy.Path).ToArray(),
+        });
+    }
+
+    private static void WriteToolCapabilities(AltaCommandContext context, IReadOnlyList<AltaCommandPolicy> policies)
+    {
+        var ordered = policies.OrderBy(static policy => policy.Path, StringComparer.OrdinalIgnoreCase).ToArray();
+        var runtimeCapabilities = GetRuntimeCapabilities(context);
+        var backendCapabilities = GetBackendCapabilities(context);
+        var pluginCapability = GetPluginCapability(context, policies);
+        AltaJsonlWriter.WriteRecord(context.Stdout, new
+        {
+            type = "alta.tool.capabilities",
+            paths = ordered.Select(static policy => policy.Path).ToArray(),
+            mutating = ordered.Where(static policy => policy.IsMutating).Select(static policy => policy.Path).ToArray(),
+            disruptive = ordered.Where(static policy => policy.IsDisruptive).Select(static policy => policy.Path).ToArray(),
+            catalogOnly = ordered.Where(static policy => policy.SupportsCatalogOnlyContext).Select(static policy => policy.Path).ToArray(),
+            outOfProcess = ordered.Where(static policy => !policy.RequiresInProcessRuntime).Select(static policy => policy.Path).ToArray(),
+            runtime = new
+            {
+                available = runtimeCapabilities.Where(static capability => capability.Available).Select(static capability => capability.Capability).ToArray(),
+                unavailable = runtimeCapabilities.Where(static capability => !capability.Available).Select(static capability => capability.Capability).ToArray(),
+            },
+            backends = new
+            {
+                registered = backendCapabilities.Where(static capability => capability.Registered).Select(static capability => capability.ProviderKey).ToArray(),
+                configured = backendCapabilities.Where(static capability => capability.Configured).Select(static capability => capability.ProviderKey).ToArray(),
+                sessionTool = backendCapabilities.Where(static capability => capability.SupportsAltaSessionTool).Select(static capability => capability.ProviderKey).ToArray(),
+            },
+            plugins = pluginCapability,
         });
     }
 
@@ -3372,6 +3504,13 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         {
             type = "alta.model.refs",
             modelRefs,
+        });
+
+    private static void WriteProviderKeys(AltaCommandContext context, IReadOnlyList<AgentBackendId> backendIds)
+        => AltaJsonlWriter.WriteRecord(context.Stdout, new
+        {
+            type = "alta.provider.keys",
+            providerKeys = backendIds.Select(static backendId => backendId.Value).ToArray(),
         });
 
     private static string CreateModelRef(string providerKey, AgentModelInfo model, AgentReasoningEffort? requestedReasoning)
@@ -3459,12 +3598,23 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             correlationId = context.CorrelationId,
             plugin.RuntimeKey,
             plugin.DisplayName,
-            plugin.Version,
+            pluginVersion = plugin.Version,
             plugin.Scope,
             plugin.State,
             plugin.Diagnostics,
         });
     }
+
+    private static void WritePluginRefs(AltaCommandContext context, IReadOnlyList<AltaPluginSummary> plugins)
+        => AltaJsonlWriter.WriteRecord(context.Stdout, new
+        {
+            type = "alta.plugin.refs",
+            plugins = plugins.Select(static plugin => new
+            {
+                runtimeKey = plugin.RuntimeKey,
+                state = plugin.State,
+            }).ToArray(),
+        });
 
     private static void WriteSummary(AltaCommandContext context, string type, int count, bool truncated)
     {
@@ -3593,6 +3743,18 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         long OutputTokens,
         long CachedInputTokens,
         long ReasoningTokens);
+
+    private sealed record BackendCapability(
+        string ProviderKey,
+        string BackendId,
+        bool Registered,
+        bool Configured,
+        bool SupportsAltaSessionTool);
+
+    private sealed record PluginCapability(
+        bool Available,
+        int PluginCount,
+        int PluginCommandCount);
 
     private sealed record SessionMetrics(
         SessionMetricsScope Scope,

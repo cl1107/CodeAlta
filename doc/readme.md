@@ -98,12 +98,14 @@ alta session --help
 alta session result --help
 alta session tail --help
 alta tool capability list
+alta tool capability list --detailed
 ```
 
-Help commands return normal help text. Non-help commands return finite newline-delimited JSON records headed by an `alta.result` record that includes command execution `durationMs`; they do not keep a stream open for future activity. Use small limits when inspecting history so the result stays model-friendly:
+Help commands return normal help text. Non-help commands return finite newline-delimited JSON records headed by an `alta.result` record that includes command execution `durationMs`; they do not keep a stream open for future activity. Discovery lists default to compact aggregate records (`*.refs`, `*.keys`, `*.paths`, or `*.capabilities`) and use `--detailed` only when per-item metadata is needed. Use small limits when inspecting history so the result stays model-friendly:
 
 ```text
 alta project list
+alta project list --detailed
 alta project current
 alta project show CodeAlta
 alta session list --project CodeAlta --state all --limit 20
@@ -146,6 +148,7 @@ Model and provider discovery use the same model-ref rules as session creation:
 
 ```text
 alta provider list
+alta provider list --detailed
 alta provider model list --provider codex
 alta model list --provider anthropic --contains sonnet
 alta model list --provider codex_subscription --reasoning low
@@ -154,19 +157,20 @@ alta model show --model-ref github-copilot-direct:claude-sonnet-4.6@low
 alta model resolve --model-ref codex_subscription:gpt-5.5@high
 ```
 
-Model discovery remains deterministic and id/ref based. `model list` filters are simple field filters over provider id, model id, display name, model ref, reasoning support, and tool-call support; by default it emits one compact `modelRefs` array for copy/paste workflows. Use `--detailed` when per-model metadata such as display names, reasoning status, and capabilities is needed. `model show`/`model resolve` validate exact model refs when model metadata is available and include requested/effective reasoning fields so callers can see whether reasoning was applied, defaulted, or unsupported.
+Provider/model discovery remains deterministic and id/ref based. `provider list` defaults to one compact `providerKeys` array. `model list` filters are simple field filters over provider id, model id, display name, model ref, reasoning support, and tool-call support; by default it emits one compact `modelRefs` array for copy/paste workflows. Use `--detailed` when per-provider or per-model metadata such as display names, reasoning status, and capabilities is needed. `model show`/`model resolve` validate exact model refs when model metadata is available and include requested/effective reasoning fields so callers can see whether reasoning was applied, defaulted, or unsupported.
 
 Skills are available through the singular `skill` group; compatibility aliases exist for older `skills activate`/`skills_activate` guidance. Activation succeeds only when CodeAlta can inject local-runtime skill context; provider-managed native skill systems report an unsupported-capability diagnostic instead of pretending to activate.
 
 ```text
 alta skill list --project CodeAlta
+alta skill list --project CodeAlta --detailed
 alta skill show codealta-plugin-runtime
 alta skill activate codealta-plugin-runtime --session <thread-id>
 ```
 
 Visibility and provenance are enforced by the host. The global coordinator can inspect local projects and sessions, while project-scoped sessions can inspect/control their own project and same-project descendants; denied cross-project reads/mutations return a policy-denied JSONL error. Sessions created or controlled by agents/plugins carry `createdBy`/`submittedBy` metadata so sidebars and timelines can reconstruct parent/child relationships and prompt ownership after restart.
 
-Plugins can add fresh `alta` command roots that appear in `alta --help`, and trusted plugins can invoke built-in `alta` commands through `Services.Alta.InvokeAsync(...)`. Plugin-originated mutating commands include the runtime-owned plugin key in provenance.
+Plugins can add fresh `alta` command roots that appear in `alta --help`, and trusted plugins can invoke built-in `alta` commands through `Services.Alta.InvokeAsync(...)`. `plugin list` defaults to compact runtime refs; add `--detailed` for version, scope, state, and diagnostics. Plugin-originated mutating commands include the runtime-owned plugin key in provenance.
 
 ## Provider Configuration
 
