@@ -258,7 +258,8 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
         _threadTabStripCoordinator = new ThreadTabStripCoordinator(
             _threadSelectionContext,
             _threadTabContext,
-            _shellTabService);
+            _shellTabService,
+            () => _promptDraftUiCoordinator.HasCurrentPromptDraft);
         composition.DraftTabReplacement.Bind(_threadTabStripCoordinator.ReplaceDraftTabWithThread);
         var input = new DelegatingShellPromptInputService(() => ReadBindableState(() => _promptDraftUiCoordinator.PromptText), _threadCommandCoordinator.IsCurrentPromptEmpty);
         var threadSvc = new DelegatingShellThreadCommandService(GetSelectedThread, EnsureThreadTab);
@@ -593,6 +594,9 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
 
     internal bool IsPromptTextEmpty()
         => ReadBindableState(() => string.IsNullOrWhiteSpace(_promptDraftUiCoordinator!.PromptText) && !_promptDraftUiCoordinator.HasCurrentPromptImages);
+
+    internal bool HasCurrentPromptDraft()
+        => ReadBindableState(() => _promptDraftUiCoordinator!.HasCurrentPromptDraft);
 
     internal string? GetPromptText()
         => ReadBindableState(() => _promptDraftUiCoordinator!.PromptText);

@@ -74,6 +74,7 @@ internal sealed class WorkspaceProjectionController
             () =>
             {
                 ApplyShellChromeProjectionCore();
+                _statusProjection.SetReadyStatusForCurrentSelection();
                 _viewRefreshState.Value++;
             });
 

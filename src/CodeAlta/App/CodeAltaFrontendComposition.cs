@@ -235,7 +235,8 @@ internal sealed class CodeAltaFrontendComposition
                 {
                     var hasStatus = modelProviderSelectorCoordinator.TryGetPromptUnavailableStatus(out var message, out var tone);
                     return (hasStatus, message, tone);
-                }),
+                },
+                frontend.HasCurrentPromptDraft),
             new ShellWorkspaceSurfacePort(
                 frontend.HasWorkspaceSurface,
                 () => frontend.ThreadPaneLayout?.GetAbsoluteBounds(),

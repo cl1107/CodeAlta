@@ -185,6 +185,16 @@ internal sealed class ShellStatusProjectionController
             return;
         }
 
+        if (_workspaceContext.HasCurrentPromptDraft())
+        {
+            SetStatus(
+                StatusVisualFormatter.BuildPromptEditedStatusText(),
+                showSpinner: false,
+                StatusTone.Info,
+                StatusVisualFormatter.BuildPromptEditedIconMarkup());
+            return;
+        }
+
         SetStatus(readyMessage, tone: StatusTone.Ready);
     }
 }

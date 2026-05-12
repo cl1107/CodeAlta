@@ -65,12 +65,14 @@ internal sealed class SidebarCoordinator
         SidebarSelectionTarget currentTarget,
         NavigatorSettings settings,
         Func<string, ThreadVisualState> getThreadVisualState,
+        Func<string?, bool, bool> hasDraftPrompt,
         Action verifyBindableAccess)
     {
         ArgumentNullException.ThrowIfNull(projects);
         ArgumentNullException.ThrowIfNull(threads);
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(getThreadVisualState);
+        ArgumentNullException.ThrowIfNull(hasDraftPrompt);
         ArgumentNullException.ThrowIfNull(verifyBindableAccess);
 
         verifyBindableAccess();
@@ -90,6 +92,7 @@ internal sealed class SidebarCoordinator
             expandedProjectIds,
             settings,
             getThreadVisualState,
+            hasDraftPrompt,
             GetOrCreateRow,
             nowUtc);
         UpdateNextRecencyRefresh(nowUtc);

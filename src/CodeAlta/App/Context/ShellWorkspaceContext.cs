@@ -36,6 +36,9 @@ internal sealed class ShellWorkspaceContext
     public (bool HasStatus, string Message, StatusTone Tone) GetPromptUnavailableStatus()
         => _promptAvailability.GetPromptUnavailableStatus();
 
+    public bool HasCurrentPromptDraft()
+        => _promptAvailability.HasCurrentPromptDraft();
+
     public bool HasWorkspaceSurface()
         => _surface.HasWorkspaceSurface;
 

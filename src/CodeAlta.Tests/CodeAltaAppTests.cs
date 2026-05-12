@@ -2649,36 +2649,125 @@ public sealed class CodeAltaAppTests
     [TestMethod]
     public void PromptDraftUiCoordinator_PreservesPromptTextPerSelection()
     {
+        var root = Path.Combine(Path.GetTempPath(), $"CodeAlta.Tests.{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
         var selectedThreadId = "thread-1";
         var coordinator = new PromptDraftUiCoordinator(
             new PromptDraftCoordinator(),
-            new CatalogOptions { GlobalRoot = Path.GetTempPath() },
+            new CatalogOptions { GlobalRoot = root },
             () => ShellSelection.Thread(selectedThreadId, "project-1"),
             new FrontendEventPublisher(new InlineUiDispatcher()));
-        var first = new ThreadSessionState();
-        var second = new ThreadSessionState();
+        try
+        {
+            var first = new ThreadSessionState();
+            var second = new ThreadSessionState();
 
-        coordinator.SyncPromptText(first);
-        coordinator.PromptText = "first prompt";
-        selectedThreadId = "thread-2";
-        coordinator.SyncPromptText(second);
-        Assert.AreEqual(string.Empty, coordinator.PromptText);
+            coordinator.SyncPromptText(first);
+            coordinator.PromptText = "first prompt";
+            selectedThreadId = "thread-2";
+            coordinator.SyncPromptText(second);
+            Assert.AreEqual(string.Empty, coordinator.PromptText);
 
-        coordinator.PromptText = "second prompt";
-        coordinator.SyncPromptText(session: null);
-        Assert.AreEqual(string.Empty, coordinator.PromptText);
+            coordinator.PromptText = "second prompt";
+            coordinator.SyncPromptText(session: null);
+            Assert.AreEqual(string.Empty, coordinator.PromptText);
 
-        coordinator.PromptText = "draft prompt";
-        selectedThreadId = "thread-1";
-        coordinator.SyncPromptText(first);
-        Assert.AreEqual("first prompt", coordinator.PromptText);
+            coordinator.PromptText = "draft prompt";
+            selectedThreadId = "thread-1";
+            coordinator.SyncPromptText(first);
+            Assert.AreEqual("first prompt", coordinator.PromptText);
 
-        selectedThreadId = "thread-2";
-        coordinator.SyncPromptText(second);
-        Assert.AreEqual("second prompt", coordinator.PromptText);
+            selectedThreadId = "thread-2";
+            coordinator.SyncPromptText(second);
+            Assert.AreEqual("second prompt", coordinator.PromptText);
 
-        coordinator.SyncPromptText(session: null);
-        Assert.AreEqual("draft prompt", coordinator.PromptText);
+            coordinator.SyncPromptText(session: null);
+            Assert.AreEqual("draft prompt", coordinator.PromptText);
+        }
+        finally
+        {
+            coordinator.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
+    public void PromptDraftUiCoordinator_PreservesPromptTextPerProjectDraft()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"CodeAlta.Tests.{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        var selectedProjectId = "project-1";
+        var coordinator = new PromptDraftUiCoordinator(
+            new PromptDraftCoordinator(),
+            new CatalogOptions { GlobalRoot = root },
+            () => ShellSelection.ProjectDraft(selectedProjectId),
+            new FrontendEventPublisher(new InlineUiDispatcher()));
+        try
+        {
+            coordinator.SyncPromptText(session: null);
+            coordinator.PromptText = "project one prompt";
+
+            selectedProjectId = "project-2";
+            coordinator.SyncPromptText(session: null);
+            Assert.AreEqual(string.Empty, coordinator.PromptText);
+            coordinator.PromptText = "project two prompt";
+
+            selectedProjectId = "project-1";
+            coordinator.SyncPromptText(session: null);
+            Assert.AreEqual("project one prompt", coordinator.PromptText);
+
+            selectedProjectId = "project-2";
+            coordinator.SyncPromptText(session: null);
+            Assert.AreEqual("project two prompt", coordinator.PromptText);
+        }
+        finally
+        {
+            coordinator.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
+    public async Task PromptDraftUiCoordinator_PersistsProjectDraftPrompt()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"CodeAlta.Tests.{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            var publisher = new FrontendEventPublisher(new InlineUiDispatcher());
+            var coordinator = new PromptDraftUiCoordinator(
+                new PromptDraftCoordinator(),
+                new CatalogOptions { GlobalRoot = root },
+                static () => ShellSelection.ProjectDraft("project-1"),
+                publisher);
+
+            coordinator.SyncPromptText(session: null);
+            coordinator.PromptText = "persist project draft";
+            await coordinator.DisposeAsync().ConfigureAwait(false);
+
+            var reloaded = new PromptDraftUiCoordinator(
+                new PromptDraftCoordinator(),
+                new CatalogOptions { GlobalRoot = root },
+                static () => ShellSelection.ProjectDraft("project-1"),
+                publisher);
+
+            reloaded.SyncPromptText(session: null);
+            Assert.AreEqual("persist project draft", reloaded.PromptText);
+            await reloaded.DisposeAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
     }
 
     [TestMethod]

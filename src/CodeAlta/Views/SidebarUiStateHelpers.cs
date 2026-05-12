@@ -45,6 +45,7 @@ internal static class SidebarUiStateHelpers
             threadId => findOpenThread(threadId) is { } tab
                 ? new ThreadVisualState(tab.StatusBusy || isRuntimeThreadRunning(threadId), tab.HasPromptDraft)
                 : new ThreadVisualState(isRuntimeThreadRunning(threadId), promptDraftUiCoordinator.HasPersistedPromptDraft(threadId)),
+            promptDraftUiCoordinator.HasDraftPrompt,
             verifyBindableAccess);
     }
 }

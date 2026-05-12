@@ -9,6 +9,8 @@ internal interface IShellPromptAvailabilityPort
     AgentBackendId GetPreferredModelProviderId();
 
     (bool HasStatus, string Message, StatusTone Tone) GetPromptUnavailableStatus();
+
+    bool HasCurrentPromptDraft();
 }
 
 internal interface IShellWorkspaceProjectionPort
@@ -38,16 +40,19 @@ internal sealed class DelegatingShellPromptAvailabilityPort : IShellPromptAvaila
 {
     private readonly Func<AgentBackendId> _getPreferredModelProviderId;
     private readonly Func<(bool HasStatus, string Message, StatusTone Tone)> _getPromptUnavailableStatus;
+    private readonly Func<bool> _hasCurrentPromptDraft;
 
     public DelegatingShellPromptAvailabilityPort(
         Func<AgentBackendId> getPreferredModelProviderId,
-        Func<(bool HasStatus, string Message, StatusTone Tone)> getPromptUnavailableStatus)
+        Func<(bool HasStatus, string Message, StatusTone Tone)> getPromptUnavailableStatus,
+        Func<bool>? hasCurrentPromptDraft = null)
     {
         ArgumentNullException.ThrowIfNull(getPreferredModelProviderId);
         ArgumentNullException.ThrowIfNull(getPromptUnavailableStatus);
 
         _getPreferredModelProviderId = getPreferredModelProviderId;
         _getPromptUnavailableStatus = getPromptUnavailableStatus;
+        _hasCurrentPromptDraft = hasCurrentPromptDraft ?? (static () => false);
     }
 
     public AgentBackendId GetPreferredModelProviderId()
@@ -55,6 +60,9 @@ internal sealed class DelegatingShellPromptAvailabilityPort : IShellPromptAvaila
 
     public (bool HasStatus, string Message, StatusTone Tone) GetPromptUnavailableStatus()
         => _getPromptUnavailableStatus();
+
+    public bool HasCurrentPromptDraft()
+        => _hasCurrentPromptDraft();
 }
 
 internal sealed class DelegatingShellWorkspaceProjectionPort : IShellWorkspaceProjectionPort

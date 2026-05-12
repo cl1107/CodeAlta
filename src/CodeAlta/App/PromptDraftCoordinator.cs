@@ -4,18 +4,20 @@ namespace CodeAlta.App;
 
 internal sealed class PromptDraftCoordinator
 {
-    private string _draftPromptText = string.Empty;
+    private const string DefaultDraftScopeKey = "__draft__:global";
 
-    public PromptDraftChange RememberPrompt(ThreadSessionState? session, string? text)
+    private readonly Dictionary<string, string> _draftPromptTextByScope = new(StringComparer.OrdinalIgnoreCase);
+
+    public PromptDraftChange RememberPrompt(ThreadSessionState? session, string? text, string? draftScopeKey = null)
     {
         var normalized = text ?? string.Empty;
-        var previous = session?.PromptDraftText ?? _draftPromptText;
+        var previous = session?.PromptDraftText ?? GetDraftPrompt(NormalizeDraftScopeKey(draftScopeKey));
         var textChanged = !string.Equals(previous, normalized, StringComparison.Ordinal);
         var editedStateChanged = string.IsNullOrWhiteSpace(previous) != string.IsNullOrWhiteSpace(normalized);
 
         if (session is null)
         {
-            _draftPromptText = normalized;
+            _draftPromptTextByScope[NormalizeDraftScopeKey(draftScopeKey)] = normalized;
             return new PromptDraftChange(textChanged, editedStateChanged);
         }
 
@@ -23,6 +25,18 @@ internal sealed class PromptDraftCoordinator
         return new PromptDraftChange(textChanged, editedStateChanged);
     }
 
-    public string GetPrompt(ThreadSessionState? session)
-        => session?.PromptDraftText ?? _draftPromptText;
+    public string GetPrompt(ThreadSessionState? session, string? draftScopeKey = null)
+        => session?.PromptDraftText ?? GetDraftPrompt(NormalizeDraftScopeKey(draftScopeKey));
+
+    public bool TryGetDraftPrompt(string? draftScopeKey, out string prompt)
+        => _draftPromptTextByScope.TryGetValue(NormalizeDraftScopeKey(draftScopeKey), out prompt!);
+
+    public bool HasDraftPrompt(string? draftScopeKey)
+        => !string.IsNullOrWhiteSpace(GetPrompt(session: null, draftScopeKey));
+
+    private string GetDraftPrompt(string draftScopeKey)
+        => _draftPromptTextByScope.GetValueOrDefault(draftScopeKey) ?? string.Empty;
+
+    private static string NormalizeDraftScopeKey(string? draftScopeKey)
+        => string.IsNullOrWhiteSpace(draftScopeKey) ? DefaultDraftScopeKey : draftScopeKey.Trim();
 }

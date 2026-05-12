@@ -15,6 +15,7 @@ internal static class SidebarTreeProjectionBuilder
         IReadOnlyCollection<string> expandedProjectIds,
         NavigatorSettings settings,
         Func<string, ThreadVisualState> getThreadVisualState,
+        Func<string?, bool, bool> hasDraftPrompt,
         Func<string, SidebarNodeKind, SidebarSelectionTarget?, SidebarNodeViewModel> getOrCreateRow,
         DateTimeOffset nowUtc)
     {
@@ -24,12 +25,13 @@ internal static class SidebarTreeProjectionBuilder
         ArgumentNullException.ThrowIfNull(expandedProjectIds);
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(getThreadVisualState);
+        ArgumentNullException.ThrowIfNull(hasDraftPrompt);
         ArgumentNullException.ThrowIfNull(getOrCreateRow);
 
         return new SidebarTreeProjection(
             [
-                CreateGlobalNode(threads, settings, getThreadVisualState, getOrCreateRow, nowUtc),
-                CreateProjectsNode(projects, threads, expandedProjectIds, settings, getThreadVisualState, getOrCreateRow, nowUtc),
+                CreateGlobalNode(threads, settings, getThreadVisualState, hasDraftPrompt, getOrCreateRow, nowUtc),
+                CreateProjectsNode(projects, threads, expandedProjectIds, settings, getThreadVisualState, hasDraftPrompt, getOrCreateRow, nowUtc),
             ]);
     }
 
@@ -37,6 +39,7 @@ internal static class SidebarTreeProjectionBuilder
         IReadOnlyList<WorkThreadDescriptor> threads,
         NavigatorSettings settings,
         Func<string, ThreadVisualState> getThreadVisualState,
+        Func<string?, bool, bool> hasDraftPrompt,
         Func<string, SidebarNodeKind, SidebarSelectionTarget?, SidebarNodeViewModel> getOrCreateRow,
         DateTimeOffset nowUtc)
     {
@@ -48,7 +51,12 @@ internal static class SidebarTreeProjectionBuilder
         var row = getOrCreateRow("global", SidebarNodeKind.Global, SidebarSelectionTarget.Global());
         row.UpdateTitle("Global");
         row.UpdateActivity(visibleThreads.FirstOrDefault()?.LastActiveAt, nowUtc);
-        row.UpdateStateIndicator(iconMarkup: null, visibleThreads.Any(thread => getThreadVisualState(thread.ThreadId).IsRunning));
+        var hasRunningThread = visibleThreads.Any(thread => getThreadVisualState(thread.ThreadId).IsRunning);
+        var hasGlobalDraft = hasDraftPrompt(null, true);
+        row.UpdateStateIndicator(
+            hasRunningThread ? null : BuildDraftStateIconMarkup(hasGlobalDraft, SidebarAccent.Global),
+            hasRunningThread,
+            hasRunningThread ? null : ResolveDraftStateTooltip(hasGlobalDraft, isGlobal: true));
 
         var children = visibleThreads
             .CreateThreadHierarchy(
@@ -75,6 +83,7 @@ internal static class SidebarTreeProjectionBuilder
         IReadOnlyCollection<string> expandedProjectIds,
         NavigatorSettings settings,
         Func<string, ThreadVisualState> getThreadVisualState,
+        Func<string?, bool, bool> hasDraftPrompt,
         Func<string, SidebarNodeKind, SidebarSelectionTarget?, SidebarNodeViewModel> getOrCreateRow,
         DateTimeOffset nowUtc)
     {
@@ -90,7 +99,7 @@ internal static class SidebarTreeProjectionBuilder
             : OrderProjectsByName(visibleProjects);
 
         var children = orderedProjects
-            .Select(project => CreateProjectNode(project, threads, expandedProjectIds, settings, getThreadVisualState, getOrCreateRow, nowUtc))
+            .Select(project => CreateProjectNode(project, threads, expandedProjectIds, settings, getThreadVisualState, hasDraftPrompt, getOrCreateRow, nowUtc))
             .ToArray();
 
         return new SidebarTreeNodeProjection(
@@ -111,6 +120,7 @@ internal static class SidebarTreeProjectionBuilder
         IReadOnlyCollection<string> expandedProjectIds,
         NavigatorSettings settings,
         Func<string, ThreadVisualState> getThreadVisualState,
+        Func<string?, bool, bool> hasDraftPrompt,
         Func<string, SidebarNodeKind, SidebarSelectionTarget?, SidebarNodeViewModel> getOrCreateRow,
         DateTimeOffset nowUtc)
     {
@@ -120,7 +130,12 @@ internal static class SidebarTreeProjectionBuilder
         var row = getOrCreateRow($"project:{project.Id}", SidebarNodeKind.Project, SidebarSelectionTarget.Project(project.Id));
         row.UpdateTitle(project.DisplayName);
         row.UpdateActivity(projectThreads.OrderByDescending(static thread => thread.LastActiveAt).FirstOrDefault()?.LastActiveAt, nowUtc);
-        row.UpdateStateIndicator(iconMarkup: null, projectThreads.Any(thread => getThreadVisualState(thread.ThreadId).IsRunning));
+        var hasRunningThread = projectThreads.Any(thread => getThreadVisualState(thread.ThreadId).IsRunning);
+        var hasProjectDraft = hasDraftPrompt(project.Id, false);
+        row.UpdateStateIndicator(
+            hasRunningThread ? null : BuildDraftStateIconMarkup(hasProjectDraft, SidebarAccent.Projects),
+            hasRunningThread,
+            hasRunningThread ? null : ResolveDraftStateTooltip(hasProjectDraft, isGlobal: false));
 
         var children = projectThreads
             .CreateThreadHierarchy(
@@ -329,6 +344,14 @@ internal static class SidebarTreeProjectionBuilder
             ? SidebarThreadPresentation.BuildEditedPromptIconMarkup(accent)
             : null;
     }
+
+    private static string? BuildDraftStateIconMarkup(bool hasPromptDraft, SidebarAccent accent)
+        => hasPromptDraft ? SidebarThreadPresentation.BuildEditedPromptIconMarkup(accent) : null;
+
+    private static string? ResolveDraftStateTooltip(bool hasPromptDraft, bool isGlobal)
+        => hasPromptDraft
+            ? isGlobal ? "Global draft prompt edited" : "Project draft prompt edited"
+            : null;
 
     private static string BuildLineageDiagnosticIconMarkup()
         => $"[{UiPalette.GetStatusToneMarkup(StatusTone.Warning)}]{NerdFont.MdAlertCircleOutline}[/]";

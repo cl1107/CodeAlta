@@ -15,6 +15,7 @@ internal sealed class ThreadTabStripCoordinator
     private readonly ThreadSelectionContext _threadSelection;
     private readonly ThreadTabContext _threadTabs;
     private readonly IShellTabService _shellTabs;
+    private readonly Func<bool> _hasDraftPrompt;
     private bool _syncingSelection;
     private bool _syncingPages;
     private int _lastObservedSelectedIndex = -1;
@@ -24,7 +25,8 @@ internal sealed class ThreadTabStripCoordinator
     public ThreadTabStripCoordinator(
         ThreadSelectionContext threadSelection,
         ThreadTabContext threadTabs,
-        IShellTabService shellTabs)
+        IShellTabService shellTabs,
+        Func<bool>? hasDraftPrompt = null)
     {
         ArgumentNullException.ThrowIfNull(threadSelection);
         ArgumentNullException.ThrowIfNull(threadTabs);
@@ -33,6 +35,7 @@ internal sealed class ThreadTabStripCoordinator
         _threadSelection = threadSelection;
         _threadTabs = threadTabs;
         _shellTabs = shellTabs;
+        _hasDraftPrompt = hasDraftPrompt ?? (static () => false);
     }
 
     public void SyncControl()
@@ -578,7 +581,7 @@ internal sealed class ThreadTabStripCoordinator
         var header = _threadTabs.CreateComputedVisual(
             () => new HStack(
             [
-                ThreadTabVisualFactory.CreateIndicator(isBusy: false, StatusTone.Info),
+                ThreadTabVisualFactory.CreateIndicator(isBusy: false, _hasDraftPrompt(), StatusTone.Info),
                 ThreadTabVisualFactory.CreateTitle(ShellTextFormatter.BuildDraftTabTitle(
                     _threadSelection.GetSelectedProject(),
                     _threadSelection.IsGlobalDraftSelected())),
