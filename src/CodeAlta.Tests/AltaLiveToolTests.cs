@@ -965,6 +965,7 @@ public sealed class AltaLiveToolTests
         var options = new CatalogOptions { GlobalRoot = root.Path };
         var backendId = new AgentBackendId("metrics");
         var sessionId = "session-metrics";
+        var secondSessionId = "session-metrics-second";
         var timestamp = new DateTimeOffset(2026, 05, 09, 11, 00, 00, TimeSpan.Zero);
         var store = new FileSystemLocalAgentSessionStore(new LocalAgentRuntimePathLayout(root.Path));
         await store.UpsertSessionAsync(new LocalAgentSessionSummary
@@ -979,6 +980,19 @@ public sealed class AltaLiveToolTests
             Summary = "Stored metrics",
             CreatedAt = timestamp,
             UpdatedAt = timestamp.AddMinutes(4),
+        }).ConfigureAwait(false);
+        await store.UpsertSessionAsync(new LocalAgentSessionSummary
+        {
+            SessionId = secondSessionId,
+            BackendId = backendId,
+            ProtocolFamily = "openai",
+            ProviderKey = backendId.Value,
+            ModelId = "gpt-metrics",
+            WorkingDirectory = root.Path,
+            Title = "Second metrics session",
+            Summary = "Second stored metrics",
+            CreatedAt = timestamp.AddMinutes(10),
+            UpdatedAt = timestamp.AddMinutes(12),
         }).ConfigureAwait(false);
         await store.AppendEventsAsync(
             "openai",
@@ -1003,6 +1017,14 @@ public sealed class AltaLiveToolTests
                         UpdatedAt: timestamp.AddMinutes(3))),
                 new AgentContentCompletedEvent(backendId, sessionId, timestamp.AddMinutes(4), new AgentRunId("run-1"), AgentContentKind.Assistant, "assistant-1", null, "final concise answer"),
             ]).ConfigureAwait(false);
+        await store.AppendEventsAsync(
+            "openai",
+            backendId.Value,
+            secondSessionId,
+            [
+                new AgentContentCompletedEvent(backendId, secondSessionId, timestamp.AddMinutes(10), new AgentRunId("run-2"), AgentContentKind.User, "user-2", null, "please summarize again"),
+                new AgentContentCompletedEvent(backendId, secondSessionId, timestamp.AddMinutes(12), new AgentRunId("run-2"), AgentContentKind.Assistant, "assistant-2", null, "second final answer"),
+            ]).ConfigureAwait(false);
         var runtime = CreateRuntime(options, backendId);
         await using var _ = runtime.ConfigureAwait(false);
         var dispatcher = CreateDispatcher(new AltaServiceCollection()
@@ -1017,6 +1039,11 @@ public sealed class AltaLiveToolTests
         var metrics = await dispatcher.InvokeAsync(["session", "metrics", threadId], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
         var result = await dispatcher.InvokeAsync(["session", "result", threadId], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
         var report = await dispatcher.InvokeAsync(["session", "report", threadId, "--include", "result,metrics"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var multiReport = await dispatcher.InvokeAsync(["session", "report", threadId, secondSessionId, "--include=result"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var stdinReport = await dispatcher.InvokeAsync(
+            ["session", "report", "--stdin", "--include=result,metrics"],
+            stdin: $"{secondSessionId}{Environment.NewLine}missing-session{Environment.NewLine}{threadId}{Environment.NewLine}",
+            caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
         var show = await dispatcher.InvokeAsync(["session", "show", threadId], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
         var list = await dispatcher.InvokeAsync(["session", "list", "--metrics"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
 
@@ -1055,12 +1082,31 @@ public sealed class AltaLiveToolTests
         Assert.IsTrue(reportItem.TryGetProperty("metrics", out var reportMetrics));
         Assert.AreEqual(1, reportMetrics.GetProperty("toolCallCount").GetInt32());
 
+        Assert.AreEqual(AltaExitCodes.Success, multiReport.ExitCode);
+        var multiReportItems = ReadJsonLines(multiReport.Stdout).Where(static line => line.GetProperty("type").GetString() == "alta.session.report.item").ToArray();
+        CollectionAssert.AreEqual(new[] { threadId, secondSessionId }, multiReportItems.Select(static item => item.GetProperty("threadId").GetString()).ToArray());
+        Assert.AreEqual("final concise answer", multiReportItems[0].GetProperty("finalAnswer").GetProperty("text").GetString());
+        Assert.AreEqual("second final answer", multiReportItems[1].GetProperty("finalAnswer").GetProperty("text").GetString());
+
+        Assert.AreEqual(AltaExitCodes.Success, stdinReport.ExitCode);
+        var stdinReportLines = ReadJsonLines(stdinReport.Stdout);
+        var stdinReportItems = stdinReportLines.Where(static line => line.GetProperty("type").GetString() == "alta.session.report.item").ToArray();
+        CollectionAssert.AreEqual(new[] { secondSessionId, "missing-session", threadId }, stdinReportItems.Select(static item => item.GetProperty("threadId").GetString()).ToArray());
+        Assert.AreEqual("not_found", stdinReportItems[1].GetProperty("status").GetString());
+        Assert.AreEqual("session.notFound", stdinReportItems[1].GetProperty("diagnostic").GetProperty("code").GetString());
+        var stdinReportSummary = stdinReportLines.Single(static line => line.GetProperty("type").GetString() == "alta.session.report.summary");
+        Assert.AreEqual(3, stdinReportSummary.GetProperty("count").GetInt32());
+        Assert.AreEqual(2, stdinReportSummary.GetProperty("successCount").GetInt32());
+        Assert.AreEqual(1, stdinReportSummary.GetProperty("diagnosticCount").GetInt32());
+
         Assert.AreEqual(AltaExitCodes.Success, show.ExitCode);
         Assert.IsTrue(ReadJsonLines(show.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.session.detail").TryGetProperty("metrics", out var showMetrics));
         Assert.AreEqual(1, showMetrics.GetProperty("toolCallCount").GetInt32());
 
         Assert.AreEqual(AltaExitCodes.Success, list.ExitCode);
-        var listItem = ReadJsonLines(list.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.session.item");
+        var listItem = ReadJsonLines(list.Stdout).Single(line =>
+            line.GetProperty("type").GetString() == "alta.session.item" &&
+            line.GetProperty("threadId").GetString() == sessionId);
         Assert.IsTrue(listItem.TryGetProperty("metrics", out var listMetrics));
         Assert.AreEqual(240000d, listMetrics.GetProperty("durationMs").GetDouble());
     }

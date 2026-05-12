@@ -244,7 +244,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             "  `alta session create --project CodeAlta --same-model-as <thread-id>`",
             "  `alta session send <thread-id> --stdin`",
             "  `alta session result <thread-id>`",
-            "  `alta session report <thread-id-1> <thread-id-2> --include result,metrics`");
+            "  `alta session report <thread-id-1> <thread-id-2> --include=result,metrics`");
         return group;
     }
 
@@ -304,7 +304,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         var include = "result,metrics";
         var useStdin = false;
         var command = Leaf("report", "Aggregate result/metric snapshots for multiple sessions.");
-        command.Add("<thread-id*>", "Thread ids to report.", value =>
+        command.Add("<thread-id>*", "Thread ids to report.", value =>
         {
             if (!string.IsNullOrWhiteSpace(value))
             {
@@ -315,7 +315,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         command.Add("scope=", "Result scope: last-turn or session. Defaults to last-turn.", value => scope = value ?? scope);
         command.Add("include=", "Comma-separated sections: result,metrics. Defaults to result,metrics.", value => include = value ?? include);
         command.Add(async (_, _) => await HandleSessionReportAsync(context, threadIds, useStdin, scope, include).ConfigureAwait(false));
-        AddHelpText(command, "Examples: `alta session report <thread-id-1> <thread-id-2> --include result,metrics`; `alta session report --stdin`.");
+        AddHelpText(command, "Examples: `alta session report <thread-id-1> <thread-id-2> --include=result,metrics`; `alta session report --stdin --include=result,metrics`.");
         return command;
     }
 
@@ -1134,30 +1134,42 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             }
         }
 
-        ids = ids.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         if (ids.Count == 0)
         {
             return UsageError(context, "usage.missingThread", "At least one thread id is required.", "alta session report");
         }
 
-        var results = new List<SessionResultBuildResult>(ids.Count);
+        if (!context.TryGetRequired<WorkThreadRuntimeService>(nameof(WorkThreadRuntimeService), out var runtime))
+        {
+            return AltaExitCodes.ServiceUnavailable;
+        }
+
+        var infos = await LoadSessionInfosAsync(context).ConfigureAwait(false);
+        if (infos is null)
+        {
+            return AltaExitCodes.ServiceUnavailable;
+        }
+
+        var includeResult = includes.Contains("result");
+        var includeMetrics = includes.Contains("metrics");
+        var successCount = 0;
+        var diagnosticCount = 0;
         foreach (var id in ids)
         {
-            var result = await BuildSessionResultAsync(context, id, normalizedScope.Value).ConfigureAwait(false);
-            if (result.ExitCode != AltaExitCodes.Success)
+            var info = FindThread(infos, id);
+            if (info is null)
             {
-                return result.ExitCode;
+                diagnosticCount++;
+                WriteSessionReportDiagnostic(context, id, "session.notFound", AltaExitCodes.NotFound, $"Session '{id}' was not found.");
+                continue;
             }
 
-            results.Add(result);
+            var result = await BuildSessionResultAsync(context, runtime, info, normalizedScope.Value).ConfigureAwait(false);
+            successCount++;
+            WriteSessionResult(context, "alta.session.report.item", info, result, includeResult, includeMetrics);
         }
 
-        foreach (var result in results)
-        {
-            WriteSessionResult(context, "alta.session.report.item", result.Info!, result.Result!, includes.Contains("result"), includes.Contains("metrics"));
-        }
-
-        WriteSummary(context, "alta.session.report.summary", results.Count, truncated: false);
+        WriteSessionReportSummary(context, ids.Count, successCount, diagnosticCount, truncated: false);
         return AltaExitCodes.Success;
     }
 
@@ -1332,6 +1344,22 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         }
 
         var history = await ReadSessionHistoryAsync(context, runtime, info).ConfigureAwait(false) ?? [];
+        var result = BuildSessionResult(info, history, scope);
+        return SessionResultBuildResult.Success(info, result);
+    }
+
+    private static async Task<SessionResult> BuildSessionResultAsync(
+        AltaCommandContext context,
+        WorkThreadRuntimeService runtime,
+        AltaSessionInfo info,
+        SessionMetricsScope scope)
+    {
+        var history = await ReadSessionHistoryAsync(context, runtime, info).ConfigureAwait(false) ?? [];
+        return BuildSessionResult(info, history, scope);
+    }
+
+    private static SessionResult BuildSessionResult(AltaSessionInfo info, IReadOnlyList<AgentEvent> history, SessionMetricsScope scope)
+    {
         var scoped = SelectMetricScope(history, scope);
         var metrics = BuildSessionMetrics(info, history, scope);
         var finalAssistant = scoped.OfType<AgentContentCompletedEvent>().LastOrDefault(static content => content.Kind == AgentContentKind.Assistant);
@@ -1347,7 +1375,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             finalAssistant?.Timestamp,
             status is SessionResultStatus.Failed or SessionResultStatus.Cancelled ? CreateFinalError(finalError!) : null,
             metrics);
-        return SessionResultBuildResult.Success(info, result);
+        return result;
     }
 
     private static async Task<IReadOnlyList<AgentEvent>?> ReadSessionHistoryAsync(
@@ -2783,6 +2811,38 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             finalAnswer,
             finalError = includeResult ? result.FinalError : null,
             metrics = includeMetrics ? ToDetailedMetricsPayload(result.Metrics) : null,
+        });
+    }
+
+    private static void WriteSessionReportDiagnostic(AltaCommandContext context, string requestedThreadId, string code, int exitCode, string message)
+    {
+        AltaJsonlWriter.WriteRecord(context.Stdout, new
+        {
+            type = "alta.session.report.item",
+            version = 1,
+            correlationId = context.CorrelationId,
+            threadId = requestedThreadId,
+            status = "not_found",
+            diagnostic = new
+            {
+                code,
+                exitCode,
+                message,
+            },
+        });
+    }
+
+    private static void WriteSessionReportSummary(AltaCommandContext context, int count, int successCount, int diagnosticCount, bool truncated)
+    {
+        AltaJsonlWriter.WriteRecord(context.Stdout, new
+        {
+            type = "alta.session.report.summary",
+            version = 1,
+            correlationId = context.CorrelationId,
+            count,
+            successCount,
+            diagnosticCount,
+            truncated,
         });
     }
 
