@@ -432,15 +432,26 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
         SemaphoreSlim applyGate,
         CancellationToken cancellationToken)
     {
+        Task? backendInitializationTask = null;
         try
         {
-            await _shell.InitializeChatBackendAsync(descriptor.BackendId, cancellationToken).ConfigureAwait(false);
+            backendInitializationTask = _shell.InitializeChatBackendAsync(descriptor.BackendId, cancellationToken);
             await projectImporter.ImportBackendAsync(descriptor, cancellationToken).ConfigureAwait(false);
             await ApplyBackendRecoverableThreadsAsync(descriptor.BackendId, recoveredThreads, applyGate, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
-            ReportStartupProviderLoadProgress(progress.Snapshot(descriptor));
+            try
+            {
+                if (backendInitializationTask is not null)
+                {
+                    await backendInitializationTask.ConfigureAwait(false);
+                }
+            }
+            finally
+            {
+                ReportStartupProviderLoadProgress(progress.Snapshot(descriptor));
+            }
         }
     }
 

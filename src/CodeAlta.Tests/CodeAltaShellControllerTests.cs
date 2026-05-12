@@ -168,7 +168,7 @@ public sealed class CodeAltaShellControllerTests
     }
 
     [TestMethod]
-    public async Task InitializeAsync_LoadsReadyProviderSessionsWhileAnotherProviderIsInitializing()
+    public async Task InitializeAsync_LoadsProviderSessionsWhileProviderModelsAreInitializing()
     {
         var log = new List<string>();
         var codexBackendId = new AgentBackendId("codex");
@@ -197,17 +197,16 @@ public sealed class CodeAltaShellControllerTests
 
         var initializationTask = controller.InitializeAsync(CancellationToken.None);
 
-        await WaitUntilAsync(() => log.Contains("ThreadSource.List:codex")).ConfigureAwait(false);
+        await WaitUntilAsync(() => log.Contains("ThreadSource.List:slow")).ConfigureAwait(false);
 
         Assert.IsFalse(initializationTask.IsCompleted, "The slow provider should still be initializing.");
         CollectionAssert.Contains(log, "ProgressImporter.ImportBackend:codex");
-        Assert.IsFalse(log.Contains("ProgressImporter.ImportBackend:slow"), "The slow provider should not load sessions before initialization completes.");
-        Assert.IsFalse(log.Contains("ThreadSource.List:slow"), "The slow provider should not be queried before initialization completes.");
+        CollectionAssert.Contains(log, "ProgressImporter.ImportBackend:slow");
+        CollectionAssert.Contains(log, "ThreadSource.List:codex");
 
         shell.CompleteBackendInitialization(slowBackendId);
         await initializationTask.ConfigureAwait(false);
 
-        CollectionAssert.Contains(log, "ThreadSource.List:slow");
         Assert.IsTrue(shell.ProviderSessionLoadStatuses.Count > 0);
         Assert.AreEqual(null, shell.ProviderSessionLoadStatuses.LastOrDefault());
     }
