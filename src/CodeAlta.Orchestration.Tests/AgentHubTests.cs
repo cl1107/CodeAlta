@@ -38,6 +38,22 @@ public sealed class AgentHubTests
         Assert.IsFalse(backend.Disposed);
     }
 
+    [TestMethod]
+    public async Task ListModelsAsync_UsesInMemoryCacheAfterFirstLoad()
+    {
+        var backend = new BlockingBackend("local");
+        var factory = new AgentBackendFactory();
+        factory.Register("local", () => backend);
+        await using var hub = new AgentHub(factory);
+        backend.AllowStart.SetResult();
+
+        var first = await hub.ListModelsAsync(new AgentBackendId("local"));
+        var second = await hub.ListModelsAsync(new AgentBackendId("local"));
+
+        Assert.AreSame(first, second);
+        Assert.AreEqual(1, backend.ListModelsCallCount);
+    }
+
     private sealed class BlockingBackend(string backendId) : IAgentBackend
     {
         public TaskCompletionSource StartEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -45,6 +61,8 @@ public sealed class AgentHubTests
         public TaskCompletionSource AllowStart { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public int StartCallCount { get; private set; }
+
+        public int ListModelsCallCount { get; private set; }
 
         public bool Disposed { get; private set; }
 
@@ -62,7 +80,10 @@ public sealed class AgentHubTests
         public Task StopAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
         public Task<IReadOnlyList<AgentModelInfo>> ListModelsAsync(CancellationToken cancellationToken = default)
-            => Task.FromResult<IReadOnlyList<AgentModelInfo>>([new AgentModelInfo("test-model", "Test Model")]);
+        {
+            ListModelsCallCount++;
+            return Task.FromResult<IReadOnlyList<AgentModelInfo>>([new AgentModelInfo("test-model", "Test Model")]);
+        }
 
         public Task<IReadOnlyList<AgentSessionMetadata>> ListSessionsAsync(
             AgentSessionListFilter? filter = null,

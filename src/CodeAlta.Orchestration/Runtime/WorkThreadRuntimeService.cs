@@ -76,6 +76,26 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
     public long DroppedRuntimeEventCount => _events.DroppedCount;
 
     /// <summary>
+    /// Gets an active thread descriptor from the runtime's in-memory coordinator session table.
+    /// </summary>
+    /// <param name="threadId">The thread identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The active in-memory thread descriptor when present; otherwise <see langword="null" />.</returns>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="threadId" /> is empty.</exception>
+    public async Task<WorkThreadDescriptor?> TryGetActiveThreadDescriptorAsync(
+        string threadId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
+
+        cancellationToken.ThrowIfCancellationRequested();
+        await Task.CompletedTask.ConfigureAwait(false);
+        return _entries.TryGetValue(threadId, out var entry) && !entry.IsTerminated
+            ? entry.ToDescriptor()
+            : null;
+    }
+
+    /// <summary>
     /// Lists recoverable user-facing threads from backend session history.
     /// </summary>
     public async Task<IReadOnlyList<WorkThreadDescriptor>> ListRecoverableThreadsAsync(CancellationToken cancellationToken = default)

@@ -354,6 +354,69 @@ public sealed class AltaLiveToolTests
     }
 
     [TestMethod]
+    public async Task ModelResolve_CompleteExplicitSelectionDoesNotLoadSessionInfos()
+    {
+        var dispatcher = CreateDispatcher(new AltaServiceCollection()
+            .Add<IAltaSessionQueryService>(new ThrowingSessionQueryService()));
+        var caller = new AltaCallerIdentity { Kind = "agent", SourceThreadId = "source-thread" };
+
+        var result = await dispatcher.InvokeAsync(
+                ["model", "resolve", "--provider", "codex", "--model", "gpt-explicit", "--reasoning", "low"],
+                caller: caller)
+            .ConfigureAwait(false);
+
+        Assert.AreEqual(AltaExitCodes.Success, result.ExitCode);
+        var selection = ReadJsonLines(result.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.model.selection");
+        Assert.AreEqual("codex:gpt-explicit@low", selection.GetProperty("modelRef").GetString());
+    }
+
+    [TestMethod]
+    public async Task ModelResolve_PartialSelectionInheritsMissingModelFromActiveParentWithoutSessionScan()
+    {
+        using var root = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = root.Path };
+        var backendId = new AgentBackendId("parent-model");
+        var backend = new StatefulBackend(backendId);
+        var runtime = CreateRuntime(options, backend);
+        await using var _ = runtime.ConfigureAwait(false);
+        var parentOptions = new WorkThreadExecutionOptions
+        {
+            BackendId = backendId,
+            ProviderKey = backendId.Value,
+            Model = "gpt-parent",
+            ReasoningEffort = AgentReasoningEffort.High,
+            WorkingDirectory = root.Path,
+            ProjectRoots = [],
+            OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
+        };
+        var parent = await runtime.CreateGlobalThreadAsync(parentOptions, "Parent").ConfigureAwait(false);
+        var childOptions = new WorkThreadExecutionOptions
+        {
+            BackendId = backendId,
+            ProviderKey = backendId.Value,
+            WorkingDirectory = root.Path,
+            ProjectRoots = [],
+            OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
+        };
+        var child = await runtime.CreateGlobalThreadAsync(childOptions, "Child", parent.ThreadId, createdBy: null).ConfigureAwait(false);
+        var dispatcher = CreateDispatcher(new AltaServiceCollection()
+            .Add(options)
+            .Add(new ProjectCatalog(options))
+            .Add(new WorkThreadCatalog(options))
+            .Add(runtime)
+            .Add<IAltaSessionQueryService>(new ThrowingSessionQueryService()));
+
+        var result = await dispatcher.InvokeAsync(
+                ["model", "resolve", "--reasoning", "low"],
+                caller: new AltaCallerIdentity { Kind = "agent", SourceThreadId = child.ThreadId })
+            .ConfigureAwait(false);
+
+        Assert.AreEqual(AltaExitCodes.Success, result.ExitCode);
+        var selection = ReadJsonLines(result.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.model.selection");
+        Assert.AreEqual("parent-model:gpt-parent@low", selection.GetProperty("modelRef").GetString());
+    }
+
+    [TestMethod]
     public async Task Dispatcher_MissingRuntimeService_ReturnsServiceUnavailableDiagnostic()
     {
         var result = await CreateDispatcher().InvokeAsync(["session", "list"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
@@ -1262,7 +1325,8 @@ public sealed class AltaLiveToolTests
             .Add(options)
             .Add(projectCatalog)
             .Add(threadCatalog)
-            .Add(runtime));
+            .Add(runtime)
+            .Add<IAltaSessionQueryService>(new ThrowingSessionQueryService()));
 
         var parent = await dispatcher.InvokeAsync(["session", "create", "--project", project.Id, "--title", "Parent", "--model-ref", $"{backendId.Value}:gpt-parent@low"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
         var parentRecord = ReadJsonLines(parent.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.session.created");
@@ -1323,7 +1387,8 @@ public sealed class AltaLiveToolTests
             .Add(options)
             .Add(projectCatalog)
             .Add(new WorkThreadCatalog(options))
-            .Add(runtime));
+            .Add(runtime)
+            .Add<IAltaSessionQueryService>(new ThrowingSessionQueryService()));
 
         var parent = await dispatcher.InvokeAsync(["session", "create", "--project", projectA.Id, "--provider", backendId.Value, "--title", "Parent"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
         var parentThreadId = ReadJsonLines(parent.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.session.created").GetProperty("threadId").GetString()!;
@@ -1363,22 +1428,19 @@ public sealed class AltaLiveToolTests
         {
             BackendId = backendId,
             ProviderKey = backendId.Value,
+            Model = "gpt-caller",
+            ReasoningEffort = AgentReasoningEffort.High,
             WorkingDirectory = root.Path,
             ProjectRoots = [],
             OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
         };
         var sourceThread = await runtime.CreateGlobalThreadAsync(executionOptions, "Source").ConfigureAwait(false);
-        await AppendJournalStateAsync(threadCatalog, sourceThread, new WorkThreadLocalState
-        {
-            ProviderKey = backendId.Value,
-            ModelId = "gpt-caller",
-            ReasoningEffort = AgentReasoningEffort.High,
-        }).ConfigureAwait(false);
         var dispatcher = CreateDispatcher(new AltaServiceCollection()
             .Add(options)
             .Add(projectCatalog)
             .Add(threadCatalog)
-            .Add(runtime));
+            .Add(runtime)
+            .Add<IAltaSessionQueryService>(new ThrowingSessionQueryService()));
         var caller = new AltaCallerIdentity { Kind = "agent", SourceThreadId = sourceThread.ThreadId };
 
         var result = await dispatcher.InvokeAsync(["session", "create", "--project", project.Id, "--provider", backendId.Value, "--reasoning", "low"], caller: caller).ConfigureAwait(false);
@@ -2627,6 +2689,12 @@ public sealed class AltaLiveToolTests
         {
             yield return new AltaCommandPolicy { Path = "delay", RequiresInProcessRuntime = true };
         }
+    }
+
+    private sealed class ThrowingSessionQueryService : IAltaSessionQueryService
+    {
+        public Task<IReadOnlyList<AltaSessionInfo>?> LoadAsync(AltaCommandContext context)
+            => throw new InvalidOperationException("Session infos must not be loaded for this path.");
     }
 
     private sealed class SharedMetadataBackend(AgentBackendId backendId) : IAgentBackend, IAgentSharedSessionMetadataBackend

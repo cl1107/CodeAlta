@@ -1022,22 +1022,18 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return UsageError(context, "usage.missingThread", "Thread id is required.", "alta session show");
         }
 
-        var infos = await LoadSessionInfosAsync(context).ConfigureAwait(false);
-        if (infos is null)
+        var infoResult = await ResolveSessionInfoAsync(context, threadId, includeLocalState: recordType == "alta.session.detail").ConfigureAwait(false);
+        if (infoResult.ExitCode != AltaExitCodes.Success)
         {
-            return AltaExitCodes.ServiceUnavailable;
+            return infoResult.ExitCode;
         }
 
-        var info = FindThread(infos, threadId);
-        if (info is null)
-        {
-            return NotFound(context, "session.notFound", $"Session '{threadId}' was not found.");
-        }
+        var info = infoResult.Info!;
 
         var metrics = recordType == "alta.session.detail"
             ? await BuildCompactMetricsAsync(context, info).ConfigureAwait(false)
             : null;
-        WriteSession(context, recordType, info, includeChildren: true, infos, metrics);
+        WriteSession(context, recordType, info, includeChildren: true, infoResult.Infos, metrics);
         return AltaExitCodes.Success;
     }
 
@@ -1059,17 +1055,13 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return AltaExitCodes.ServiceUnavailable;
         }
 
-        var infos = await LoadSessionInfosAsync(context).ConfigureAwait(false);
-        if (infos is null)
+        var infoResult = await ResolveSessionInfoAsync(context, threadId).ConfigureAwait(false);
+        if (infoResult.ExitCode != AltaExitCodes.Success)
         {
-            return AltaExitCodes.ServiceUnavailable;
+            return infoResult.ExitCode;
         }
 
-        var info = FindThread(infos, threadId);
-        if (info is null)
-        {
-            return NotFound(context, "session.notFound", $"Session '{threadId}' was not found.");
-        }
+        var info = infoResult.Info!;
 
         var history = await ReadSessionHistoryAsync(context, runtime, info).ConfigureAwait(false);
         var metrics = BuildSessionMetrics(info, history ?? [], normalizedScope.Value);
@@ -1210,18 +1202,13 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return UsageError(context, "usage.missingThread", "Thread id is required.", "alta session model");
         }
 
-        var infos = await LoadSessionInfosAsync(context).ConfigureAwait(false);
-        if (infos is null)
+        var infoResult = await ResolveSessionInfoAsync(context, threadId).ConfigureAwait(false);
+        if (infoResult.ExitCode != AltaExitCodes.Success)
         {
-            return AltaExitCodes.ServiceUnavailable;
+            return infoResult.ExitCode;
         }
 
-        var info = FindThread(infos, threadId);
-        if (info is null)
-        {
-            return NotFound(context, "session.notFound", $"Session '{threadId}' was not found.");
-        }
-
+        var info = infoResult.Info!;
         WriteModelSelection(context, "alta.model.selection", CreateModelSelection(info.Thread, info.Preference), info.Thread.ThreadId);
         return AltaExitCodes.Success;
     }
@@ -1249,18 +1236,13 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return AltaExitCodes.ServiceUnavailable;
         }
 
-        var infos = await LoadSessionInfosAsync(context).ConfigureAwait(false);
-        if (infos is null)
+        var infoResult = await ResolveSessionInfoAsync(context, threadId).ConfigureAwait(false);
+        if (infoResult.ExitCode != AltaExitCodes.Success)
         {
-            return AltaExitCodes.ServiceUnavailable;
+            return infoResult.ExitCode;
         }
 
-        var info = FindThread(infos, threadId);
-        if (info is null)
-        {
-            return NotFound(context, "session.notFound", $"Session '{threadId}' was not found.");
-        }
-
+        var info = infoResult.Info!;
         var history = await ReadSessionHistoryAsync(context, runtime, info).ConfigureAwait(false);
 
         if (history is null)
@@ -1331,17 +1313,13 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return SessionResultBuildResult.Fail(AltaExitCodes.ServiceUnavailable);
         }
 
-        var infos = await LoadSessionInfosAsync(context).ConfigureAwait(false);
-        if (infos is null)
+        var infoResult = await ResolveSessionInfoAsync(context, threadId).ConfigureAwait(false);
+        if (infoResult.ExitCode != AltaExitCodes.Success)
         {
-            return SessionResultBuildResult.Fail(AltaExitCodes.ServiceUnavailable);
+            return SessionResultBuildResult.Fail(infoResult.ExitCode);
         }
 
-        var info = FindThread(infos, threadId);
-        if (info is null)
-        {
-            return SessionResultBuildResult.Fail(NotFound(context, "session.notFound", $"Session '{threadId}' was not found."));
-        }
+        var info = infoResult.Info!;
 
         var history = await ReadSessionHistoryAsync(context, runtime, info).ConfigureAwait(false) ?? [];
         var result = BuildSessionResult(info, history, scope);
@@ -1667,7 +1645,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         thread.ParentThreadId = parentResolution.ParentThreadId;
         thread.CreatedBy = createdBy;
         await runtime.PersistThreadLocalStateAsync(thread, context.CancellationToken).ConfigureAwait(false);
-        await PersistThreadPreferenceAsync(context, thread.ThreadId, modelSelection.Selection!).ConfigureAwait(false);
+        await PersistThreadPreferenceAsync(context, thread, modelSelection.Selection!).ConfigureAwait(false);
 
         AltaJsonlWriter.WriteRecord(context.Stdout, new
         {
@@ -1708,18 +1686,13 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return AltaExitCodes.ServiceUnavailable;
         }
 
-        var infos = await LoadSessionInfosAsync(context).ConfigureAwait(false);
-        if (infos is null)
+        var infoResult = await ResolveSessionInfoAsync(context, threadId).ConfigureAwait(false);
+        if (infoResult.ExitCode != AltaExitCodes.Success)
         {
-            return AltaExitCodes.ServiceUnavailable;
+            return infoResult.ExitCode;
         }
 
-        var info = FindThread(infos, threadId);
-        if (info is null)
-        {
-            return NotFound(context, "session.notFound", $"Session '{threadId}' was not found.");
-        }
-
+        var info = infoResult.Info!;
         var inputText = kind is PromptDispatchKind.Message or PromptDispatchKind.Request
             ? BuildPeerAgentMessage(context, info.Thread, options, promptResult.Prompt!)
             : promptResult.Prompt!;
@@ -1802,16 +1775,10 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return AltaExitCodes.ServiceUnavailable;
         }
 
-        var infos = await LoadSessionInfosAsync(context).ConfigureAwait(false);
-        if (infos is null)
+        var info = await ResolveSessionInfoAsync(context, threadId).ConfigureAwait(false);
+        if (info.ExitCode != AltaExitCodes.Success)
         {
-            return AltaExitCodes.ServiceUnavailable;
-        }
-
-        var info = FindThread(infos, threadId);
-        if (info is null)
-        {
-            return NotFound(context, "session.notFound", $"Session '{threadId}' was not found.");
+            return info.ExitCode;
         }
 
         try
@@ -1852,26 +1819,21 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return AltaExitCodes.ServiceUnavailable;
         }
 
-        var infos = await LoadSessionInfosAsync(context).ConfigureAwait(false);
-        if (infos is null)
+        var info = await ResolveSessionInfoAsync(context, threadId).ConfigureAwait(false);
+        if (info.ExitCode != AltaExitCodes.Success)
         {
-            return AltaExitCodes.ServiceUnavailable;
+            return info.ExitCode;
         }
 
-        var info = FindThread(infos, threadId);
-        if (info is null)
-        {
-            return NotFound(context, "session.notFound", $"Session '{threadId}' was not found.");
-        }
-
-        var executionOptions = await BuildExecutionOptionsForThreadAsync(context, info).ConfigureAwait(false);
-        await runtime.CompactAsync(info.Thread, executionOptions, context.CancellationToken).ConfigureAwait(false);
+        var sessionInfo = info.Info!;
+        var executionOptions = await BuildExecutionOptionsForThreadAsync(context, sessionInfo).ConfigureAwait(false);
+        await runtime.CompactAsync(sessionInfo.Thread, executionOptions, context.CancellationToken).ConfigureAwait(false);
         AltaJsonlWriter.WriteRecord(context.Stdout, new
         {
             type = "alta.session.compacted",
             version = 1,
             correlationId = context.CorrelationId,
-            threadId = info.Thread.ThreadId,
+            threadId = sessionInfo.Thread.ThreadId,
             compactedBy = CreateProvenance(context),
         });
         return AltaExitCodes.Success;
@@ -1945,29 +1907,24 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return AltaExitCodes.ServiceUnavailable;
         }
 
-        var infos = await LoadSessionInfosAsync(context).ConfigureAwait(false);
-        if (infos is null)
+        var info = await ResolveSessionInfoAsync(context, threadId).ConfigureAwait(false);
+        if (info.ExitCode != AltaExitCodes.Success)
         {
-            return AltaExitCodes.ServiceUnavailable;
+            return info.ExitCode;
         }
 
-        var info = FindThread(infos, threadId);
-        if (info is null)
-        {
-            return NotFound(context, "session.notFound", $"Session '{threadId}' was not found.");
-        }
-
-        var executionOptions = await BuildExecutionOptionsForThreadAsync(context, info).ConfigureAwait(false);
+        var sessionInfo = info.Info!;
+        var executionOptions = await BuildExecutionOptionsForThreadAsync(context, sessionInfo).ConfigureAwait(false);
         try
         {
-            var runId = await runtime.ActivateSkillAsync(info.Thread, executionOptions, skillName, context.CancellationToken).ConfigureAwait(false);
+            var runId = await runtime.ActivateSkillAsync(sessionInfo.Thread, executionOptions, skillName, context.CancellationToken).ConfigureAwait(false);
             AltaJsonlWriter.WriteRecord(context.Stdout, new
             {
                 type = "alta.skill.activated",
                 version = 1,
                 correlationId = context.CorrelationId,
                 skillName,
-                threadId = info.Thread.ThreadId,
+                threadId = sessionInfo.Thread.ThreadId,
                 runId = runId.Value,
                 activatedBy = CreateProvenance(context),
             });
@@ -2155,6 +2112,40 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         return await queryService.LoadAsync(context).ConfigureAwait(false);
     }
 
+    private static async Task<SessionInfoResolutionResult> ResolveSessionInfoAsync(AltaCommandContext context, string threadId, bool includeLocalState = false)
+    {
+        if (context.Services.Get<WorkThreadRuntimeService>() is { } runtime)
+        {
+            var activeThread = await runtime.TryGetActiveThreadDescriptorAsync(threadId, context.CancellationToken).ConfigureAwait(false);
+            if (activeThread is not null)
+            {
+                var isRunning = await runtime.HasActiveRunAsync(activeThread, context.CancellationToken).ConfigureAwait(false);
+                var localState = includeLocalState && context.Services.Get<WorkThreadCatalog>() is { } threadCatalog
+                    ? await TryReadLatestThreadStateAsync(threadCatalog, activeThread, context.CancellationToken).ConfigureAwait(false)
+                    : null;
+                var activeInfo = new AltaSessionInfo(
+                    activeThread,
+                    localState,
+                    null,
+                    isRunning,
+                    true,
+                    isRunning ? "running" : "idle");
+                return SessionInfoResolutionResult.Success(activeInfo, [activeInfo]);
+            }
+        }
+
+        var infos = await LoadSessionInfosAsync(context).ConfigureAwait(false);
+        if (infos is null)
+        {
+            return SessionInfoResolutionResult.Fail(AltaExitCodes.ServiceUnavailable);
+        }
+
+        var info = FindThread(infos, threadId);
+        return info is null
+            ? SessionInfoResolutionResult.Fail(NotFound(context, "session.notFound", $"Session '{threadId}' was not found."))
+            : SessionInfoResolutionResult.Success(info, infos);
+    }
+
     private static AltaSessionInfo? FindThread(IReadOnlyList<AltaSessionInfo> infos, string threadId)
         => infos.FirstOrDefault(info =>
             string.Equals(info.Thread.ThreadId, threadId, StringComparison.OrdinalIgnoreCase));
@@ -2220,8 +2211,8 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             ProviderKey = info.Thread.ResolvedProviderKey,
             WorkingDirectory = workingDirectory,
             ProjectRoots = projectRoots,
-            Model = info.Preference?.ModelId,
-            ReasoningEffort = info.Preference?.ReasoningEffort,
+            Model = info.Preference?.ModelId ?? info.Thread.ModelId,
+            ReasoningEffort = info.Preference?.ReasoningEffort ?? info.Thread.ReasoningEffort,
             Tools = CreateAltaSessionTools(context, info.Thread.BackendId, () => info.Thread.ThreadId, info.Thread.ProjectRef, workingDirectory),
             OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
             OnUserInputRequest = static (_, _) => Task.FromResult(new AgentUserInputResponse(new Dictionary<string, string>(StringComparer.Ordinal))),
@@ -2286,7 +2277,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
                 return ModelResolutionResult.Fail(NotFound(context, "session.notFound", $"Session '{request.SameModelAsThreadId}' was not found."));
             }
         }
-        else if (!string.IsNullOrWhiteSpace(context.Caller.SourceThreadId))
+        else if (!HasCompleteModelSelection(request) && !string.IsNullOrWhiteSpace(context.Caller.SourceThreadId))
         {
             var inheritedResult = await ResolveThreadModelSelectionAsync(context, context.Caller.SourceThreadId).ConfigureAwait(false);
             if (inheritedResult.ExitCode == AltaExitCodes.Success)
@@ -2311,6 +2302,11 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         };
         return await ValidateAndCompleteModelSelectionAsync(context, selection, request.ReasoningEffort, commandPath).ConfigureAwait(false);
     }
+
+    private static bool HasCompleteModelSelection(AltaModelSelectionOptions request)
+        => !string.IsNullOrWhiteSpace(request.ProviderKey) &&
+           !string.IsNullOrWhiteSpace(request.ModelId) &&
+           request.ReasoningEffort is not null;
 
     private static async Task<ModelResolutionResult> ValidateAndCompleteModelSelectionAsync(AltaCommandContext context, AltaModelSelection selection, AgentReasoningEffort? requestedReasoning, string commandPath)
     {
@@ -2356,19 +2352,38 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
     private static async Task<ThreadModelSelectionResult> ResolveThreadModelSelectionAsync(AltaCommandContext context, string threadId)
     {
-        var infos = await LoadSessionInfosAsync(context).ConfigureAwait(false);
-        if (infos is null)
-        {
-            return ThreadModelSelectionResult.Fail(AltaExitCodes.ServiceUnavailable);
-        }
-
-        var info = FindThread(infos, threadId);
-        if (info is null)
+        if (context.Services.Get<WorkThreadRuntimeService>() is not { } runtime)
         {
             return ThreadModelSelectionResult.NotFound();
         }
 
-        return ThreadModelSelectionResult.Success(CreateModelSelection(info.Thread, info.Preference));
+        var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        WorkThreadDescriptor? thread = null;
+        AltaModelSelection? selection = null;
+        var currentThreadId = threadId;
+        while (!string.IsNullOrWhiteSpace(currentThreadId) && visited.Add(currentThreadId))
+        {
+            thread = await runtime.TryGetActiveThreadDescriptorAsync(currentThreadId, context.CancellationToken).ConfigureAwait(false);
+            if (thread is null)
+            {
+                break;
+            }
+
+            var candidate = CreateModelSelection(thread, preference: null);
+            selection = MergeModelSelection(selection, candidate);
+            if (!string.IsNullOrWhiteSpace(selection.ProviderKey) &&
+                !string.IsNullOrWhiteSpace(selection.ModelId) &&
+                selection.ReasoningEffort is not null)
+            {
+                break;
+            }
+
+            currentThreadId = thread.ParentThreadId;
+        }
+
+        return selection is null
+            ? ThreadModelSelectionResult.NotFound()
+            : ThreadModelSelectionResult.Success(selection);
     }
 
     private static string? GetDefaultProviderKey(AltaCommandContext context)
@@ -2389,6 +2404,25 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         var providerKey = thread.ResolvedProviderKey;
         var modelId = preference?.ModelId ?? thread.ModelId;
         var reasoning = preference?.ReasoningEffort ?? thread.ReasoningEffort;
+        return new AltaModelSelection
+        {
+            ProviderKey = providerKey,
+            ModelId = modelId,
+            ReasoningEffort = reasoning,
+            ModelRef = AltaModelRef.Format(providerKey, modelId, reasoning),
+        };
+    }
+
+    private static AltaModelSelection MergeModelSelection(AltaModelSelection? primary, AltaModelSelection fallback)
+    {
+        if (primary is null)
+        {
+            return fallback;
+        }
+
+        var providerKey = FirstNonEmpty(primary.ProviderKey, fallback.ProviderKey) ?? fallback.ProviderKey;
+        var modelId = FirstNonEmpty(primary.ModelId, fallback.ModelId);
+        var reasoning = primary.ReasoningEffort ?? fallback.ReasoningEffort;
         return new AltaModelSelection
         {
             ProviderKey = providerKey,
@@ -2538,41 +2572,30 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             _ => "alta session send",
         };
 
-    private static async Task PersistThreadPreferenceAsync(AltaCommandContext context, string threadId, AltaModelSelection selection)
+    private static async Task PersistThreadPreferenceAsync(AltaCommandContext context, WorkThreadDescriptor thread, AltaModelSelection selection)
     {
         if (context.Services.Get<WorkThreadCatalog>() is not { } threadCatalog)
         {
             return;
         }
 
-        var header = (await threadCatalog.JournalStore.ListHeadersAsync(context.CancellationToken).ConfigureAwait(false))
-            .FirstOrDefault(candidate => string.Equals(candidate.ThreadId, threadId, StringComparison.OrdinalIgnoreCase));
-        if (header is null)
-        {
-            return;
-        }
-
         var state = await threadCatalog.JournalStore
-            .ReadLatestStateAsync(threadId, header.CreatedAt, context.CancellationToken)
+            .ReadLatestStateAsync(thread.ThreadId, thread.CreatedAt, context.CancellationToken)
             .ConfigureAwait(false) ?? new WorkThreadLocalState();
         state.ProviderKey = selection.ProviderKey;
         state.ModelId = selection.ModelId;
         state.ReasoningEffort = selection.ReasoningEffort;
-        await threadCatalog.JournalStore.AppendStateAsync(header.ToDescriptor(), state, context.CancellationToken).ConfigureAwait(false);
+        await threadCatalog.JournalStore.AppendStateAsync(thread, state, context.CancellationToken).ConfigureAwait(false);
     }
 
-    private static async Task<WorkThreadLocalState?> TryReadThreadJournalStateAsync(
+    private static async Task<WorkThreadLocalState?> TryReadLatestThreadStateAsync(
         WorkThreadCatalog threadCatalog,
-        string threadId,
+        WorkThreadDescriptor thread,
         CancellationToken cancellationToken)
     {
         try
         {
-            var header = (await threadCatalog.JournalStore.ListHeadersAsync(cancellationToken).ConfigureAwait(false))
-                .FirstOrDefault(candidate => string.Equals(candidate.ThreadId, threadId, StringComparison.OrdinalIgnoreCase));
-            return header is null
-                ? null
-                : await threadCatalog.JournalStore.ReadLatestStateAsync(threadId, header.CreatedAt, cancellationToken).ConfigureAwait(false);
+            return await threadCatalog.JournalStore.ReadLatestStateAsync(thread.ThreadId, thread.CreatedAt, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or System.Text.Json.JsonException)
         {
@@ -2707,19 +2730,18 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         if (!string.IsNullOrWhiteSpace(options.ParentThreadId))
         {
             var parentThreadId = options.ParentThreadId.Trim();
-            var infos = await LoadSessionInfosAsync(context).ConfigureAwait(false);
-            if (infos is null)
+            if (context.Services.Get<WorkThreadRuntimeService>() is not { } runtime)
             {
                 return ParentThreadResolutionResult.Fail(AltaExitCodes.ServiceUnavailable);
             }
 
-            var parent = FindThread(infos, parentThreadId);
+            var parent = await runtime.TryGetActiveThreadDescriptorAsync(parentThreadId, context.CancellationToken).ConfigureAwait(false);
             if (parent is null)
             {
                 return ParentThreadResolutionResult.Fail(NotFound(context, "session.parentNotFound", $"Parent session '{parentThreadId}' was not found."));
             }
 
-            return ParentThreadResolutionResult.Success(parent.Thread.ThreadId);
+            return ParentThreadResolutionResult.Success(parent.ThreadId);
         }
 
         var automaticParentThreadId = !string.IsNullOrWhiteSpace(context.Caller.SourceThreadId)
@@ -3588,6 +3610,13 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         public static SessionResultBuildResult Success(AltaSessionInfo info, SessionResult result) => new(AltaExitCodes.Success, info, result);
 
         public static SessionResultBuildResult Fail(int exitCode) => new(exitCode, null, null);
+    }
+
+    private sealed record SessionInfoResolutionResult(int ExitCode, AltaSessionInfo? Info, IReadOnlyList<AltaSessionInfo> Infos)
+    {
+        public static SessionInfoResolutionResult Success(AltaSessionInfo info, IReadOnlyList<AltaSessionInfo> infos) => new(AltaExitCodes.Success, info, infos);
+
+        public static SessionInfoResolutionResult Fail(int exitCode) => new(exitCode, null, []);
     }
 
     private sealed record ThreadModelSelectionResult(int ExitCode, bool Found, AltaModelSelection? Selection)

@@ -12,6 +12,8 @@ public sealed class AgentHub : IAsyncDisposable
     private readonly Dictionary<AgentId, SessionEntry> _sessions = new();
     private readonly Dictionary<string, IAgentBackend> _backends = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Task<IAgentBackend>> _backendInitializationTasks = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, IReadOnlyList<AgentModelInfo>> _modelCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Task<IReadOnlyList<AgentModelInfo>>> _modelListTasks = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, IReadOnlyList<AgentSessionMetadata>> _sessionMetadataCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly BoundedRuntimeEventStream<OrchestrationEvent> _events = new();
     private readonly SemaphoreSlim _gate = new(initialCount: 1, maxCount: 1);
@@ -200,8 +202,28 @@ public sealed class AgentHub : IAsyncDisposable
         AgentBackendId backendId,
         CancellationToken cancellationToken = default)
     {
-        var backend = await GetOrCreateBackendAsync(backendId, cancellationToken).ConfigureAwait(false);
-        return await backend.ListModelsAsync(cancellationToken).ConfigureAwait(false);
+        var key = backendId.Value;
+        Task<IReadOnlyList<AgentModelInfo>> task;
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (_modelCache.TryGetValue(key, out var models))
+            {
+                return models;
+            }
+
+            if (!_modelListTasks.TryGetValue(key, out task!))
+            {
+                task = ListModelsCoreAsync(backendId, key, CancellationToken.None);
+                _modelListTasks[key] = task;
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        return await task.WaitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -303,6 +325,7 @@ public sealed class AgentHub : IAsyncDisposable
                 _backends.Remove(backendId.Value);
             }
 
+            InvalidateModelCacheUnsafe(backendId);
             InvalidateSessionMetadataCacheUnsafe(backendId);
         }
         finally
@@ -593,6 +616,8 @@ public sealed class AgentHub : IAsyncDisposable
 
         _sessions.Clear();
         _sessionMetadataCache.Clear();
+        _modelCache.Clear();
+        _modelListTasks.Clear();
 
         foreach (var backend in _backends.Values)
         {
@@ -638,6 +663,45 @@ public sealed class AgentHub : IAsyncDisposable
         }
 
         return await initializationTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<IReadOnlyList<AgentModelInfo>> ListModelsCoreAsync(
+        AgentBackendId backendId,
+        string key,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var backend = await GetOrCreateBackendAsync(backendId, cancellationToken).ConfigureAwait(false);
+            var models = await backend.ListModelsAsync(cancellationToken).ConfigureAwait(false);
+
+            await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                _modelListTasks.Remove(key);
+                _modelCache[key] = models;
+            }
+            finally
+            {
+                _gate.Release();
+            }
+
+            return models;
+        }
+        catch
+        {
+            await _gate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+            try
+            {
+                _modelListTasks.Remove(key);
+            }
+            finally
+            {
+                _gate.Release();
+            }
+
+            throw;
+        }
     }
 
     private async Task<IAgentBackend> CreateAndStartBackendAsync(
@@ -710,6 +774,12 @@ public sealed class AgentHub : IAsyncDisposable
         {
             _gate.Release();
         }
+    }
+
+    private void InvalidateModelCacheUnsafe(AgentBackendId backendId)
+    {
+        _modelCache.Remove(backendId.Value);
+        _modelListTasks.Remove(backendId.Value);
     }
 
     private async Task<SessionEntry> AcquireSessionEntryAsync(AgentId agentId, CancellationToken cancellationToken)
