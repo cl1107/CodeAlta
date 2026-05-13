@@ -5,27 +5,21 @@ namespace CodeAlta.LiveTool;
 
 internal interface IAltaSessionQueryService
 {
-    Task<IReadOnlyList<AltaSessionInfo>?> LoadAsync(AltaCommandContext context);
+    IAsyncEnumerable<AltaSessionInfo> LoadAsync(AltaCommandContext context);
 }
 
 internal sealed class AltaSessionQueryService : IAltaSessionQueryService
 {
-    public async Task<IReadOnlyList<AltaSessionInfo>?> LoadAsync(AltaCommandContext context)
+    public async IAsyncEnumerable<AltaSessionInfo> LoadAsync(
+        AltaCommandContext context,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(context);
+        cancellationToken = cancellationToken == default ? context.CancellationToken : cancellationToken;
 
         var runtime = context.Services.Get<WorkThreadRuntimeService>();
         var threadCatalog = context.Services.Get<WorkThreadCatalog>();
-        IReadOnlyList<WorkThreadDescriptor> threads;
-        if (runtime is not null)
-        {
-            threads = await runtime.ListRecoverableThreadsAsync(context.CancellationToken).ConfigureAwait(false);
-        }
-        else if (threadCatalog is not null)
-        {
-            threads = await threadCatalog.LoadInternalAsync(context.CancellationToken).ConfigureAwait(false);
-        }
-        else
+        if (runtime is null && threadCatalog is null)
         {
             AltaJsonlWriter.WriteError(
                 context.Stderr,
@@ -33,7 +27,7 @@ internal sealed class AltaSessionQueryService : IAltaSessionQueryService
                 "service.unavailable",
                 AltaExitCodes.ServiceUnavailable,
                 $"Required in-process service '{nameof(WorkThreadRuntimeService)}' or '{nameof(WorkThreadCatalog)}' is unavailable.");
-            return null;
+            yield break;
         }
 
         WorkThreadViewState? viewState = null;
@@ -41,7 +35,7 @@ internal sealed class AltaSessionQueryService : IAltaSessionQueryService
         {
             try
             {
-                viewState = await threadCatalog.LoadViewStateAsync(context.CancellationToken).ConfigureAwait(false);
+                viewState = await threadCatalog.LoadViewStateAsync(cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
             {
@@ -49,52 +43,72 @@ internal sealed class AltaSessionQueryService : IAltaSessionQueryService
             }
         }
 
-        var results = new List<AltaSessionInfo>(threads.Count);
-        foreach (var thread in threads)
+        if (runtime is not null)
         {
-            var localState = await TryGetLocalStateAsync(threadCatalog, viewState, thread, context.CancellationToken).ConfigureAwait(false);
-            var preference = TryGetPreference(viewState, thread.ThreadId);
-            var isRunning = runtime is not null && await runtime.HasActiveRunAsync(thread, context.CancellationToken).ConfigureAwait(false);
-            var hasActiveSession = isRunning || (runtime is not null && await runtime.HasActiveCoordinatorSessionAsync(thread.ThreadId, context.CancellationToken).ConfigureAwait(false));
-            if (localState?.Archived == true)
+            await foreach (var thread in runtime.StreamRecoverableThreadsAsync(cancellationToken: cancellationToken).ConfigureAwait(false))
             {
-                thread.Status = WorkThreadStatus.Archived;
+                yield return await BuildSessionInfoAsync(runtime, threadCatalog, viewState, thread, cancellationToken).ConfigureAwait(false);
             }
 
-            if (localState?.MessageCount is not null)
-            {
-                thread.MessageCount = localState.MessageCount;
-            }
-
-            if (!string.IsNullOrWhiteSpace(localState?.ParentThreadId))
-            {
-                thread.ParentThreadId = localState.ParentThreadId;
-            }
-
-            if (localState?.CreatedBy is not null)
-            {
-                thread.CreatedBy = localState.CreatedBy;
-            }
-
-            if (!string.IsNullOrWhiteSpace(localState?.ProviderKey))
-            {
-                thread.ProviderKey = localState.ProviderKey;
-            }
-
-            if (!string.IsNullOrWhiteSpace(localState?.ModelId))
-            {
-                thread.ModelId = localState.ModelId;
-            }
-
-            if (localState?.ReasoningEffort is not null)
-            {
-                thread.ReasoningEffort = localState.ReasoningEffort;
-            }
-
-            results.Add(new AltaSessionInfo(thread, localState, preference, isRunning, hasActiveSession, ResolveState(thread, isRunning, hasActiveSession)));
+            yield break;
         }
 
-        return results;
+        foreach (var thread in await threadCatalog!.LoadInternalAsync(cancellationToken).ConfigureAwait(false))
+        {
+            yield return await BuildSessionInfoAsync(runtime, threadCatalog, viewState, thread, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    IAsyncEnumerable<AltaSessionInfo> IAltaSessionQueryService.LoadAsync(AltaCommandContext context)
+        => LoadAsync(context);
+
+    private static async Task<AltaSessionInfo> BuildSessionInfoAsync(
+        WorkThreadRuntimeService? runtime,
+        WorkThreadCatalog? threadCatalog,
+        WorkThreadViewState? viewState,
+        WorkThreadDescriptor thread,
+        CancellationToken cancellationToken)
+    {
+        var localState = await TryGetLocalStateAsync(threadCatalog, viewState, thread, cancellationToken).ConfigureAwait(false);
+        var preference = TryGetPreference(viewState, thread.ThreadId);
+        var isRunning = runtime is not null && await runtime.HasActiveRunAsync(thread, cancellationToken).ConfigureAwait(false);
+        var hasActiveSession = isRunning || (runtime is not null && await runtime.HasActiveCoordinatorSessionAsync(thread.ThreadId, cancellationToken).ConfigureAwait(false));
+        if (localState?.Archived == true)
+        {
+            thread.Status = WorkThreadStatus.Archived;
+        }
+
+        if (localState?.MessageCount is not null)
+        {
+            thread.MessageCount = localState.MessageCount;
+        }
+
+        if (!string.IsNullOrWhiteSpace(localState?.ParentThreadId))
+        {
+            thread.ParentThreadId = localState.ParentThreadId;
+        }
+
+        if (localState?.CreatedBy is not null)
+        {
+            thread.CreatedBy = localState.CreatedBy;
+        }
+
+        if (!string.IsNullOrWhiteSpace(localState?.ProviderKey))
+        {
+            thread.ProviderKey = localState.ProviderKey;
+        }
+
+        if (!string.IsNullOrWhiteSpace(localState?.ModelId))
+        {
+            thread.ModelId = localState.ModelId;
+        }
+
+        if (localState?.ReasoningEffort is not null)
+        {
+            thread.ReasoningEffort = localState.ReasoningEffort;
+        }
+
+        return new AltaSessionInfo(thread, localState, preference, isRunning, hasActiveSession, ResolveState(thread, isRunning, hasActiveSession));
     }
 
     private static async Task<WorkThreadLocalState?> TryGetLocalStateAsync(

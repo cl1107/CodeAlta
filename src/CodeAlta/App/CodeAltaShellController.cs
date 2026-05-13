@@ -84,12 +84,11 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
 
             await _knownProjectImporter.ImportAsync(cancellationToken).ConfigureAwait(false);
             var projects = await _projectCatalog.LoadAsync(cancellationToken).ConfigureAwait(false);
-            var threads = await _recoverableThreadSource.ListRecoverableThreadsAsync(cancellationToken).ConfigureAwait(false);
+            await ApplyRecoverableThreadsProgressivelyAsync(projects, shouldListBackendSessions: null, cancellationToken).ConfigureAwait(false);
 
             await UiDispatcher.InvokeAsync(
                     () =>
                     {
-                        _shell.ApplyRecoveredCatalogState(projects, threads);
                         _shell.SetReadyStatusForCurrentSelection();
                     })
                 .ConfigureAwait(false);
@@ -493,16 +492,7 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
             await progressiveRecovery.WhenStartedRecoveriesCompleteAsync().ConfigureAwait(false);
 
             var projects = await _projectCatalog.LoadAsync(cancellationToken).ConfigureAwait(false);
-            var threads = await _recoverableThreadSource.ListRecoverableThreadsAsync(cancellationToken).ConfigureAwait(false);
-
-            // Catalog application mutates frontend state, so it always re-enters through the UI dispatcher.
-            await UiDispatcher.InvokeAsync(
-                    () =>
-                    {
-                        _shell.ApplyRecoveredCatalogState(projects, threads);
-                        _shell.TrySchedulePendingStartupThreadRestore(CancellationToken.None);
-                    })
-                .ConfigureAwait(false);
+            await ApplyRecoverableThreadsProgressivelyAsync(projects, shouldListBackendSessions: null, cancellationToken).ConfigureAwait(false);
             await SetProviderSessionLoadStatusAsync(null)
                 .ConfigureAwait(false);
         }
@@ -525,14 +515,22 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
         SemaphoreSlim applyGate,
         CancellationToken cancellationToken)
     {
-        IReadOnlyList<WorkThreadDescriptor> backendThreads;
+        var projects = await _projectCatalog.LoadAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            backendThreads = await _recoverableThreadSource
-                .ListRecoverableThreadsAsync(
-                    candidate => candidate == backendId,
-                    cancellationToken)
-                .ConfigureAwait(false);
+            await foreach (var thread in _recoverableThreadSource
+                               .StreamRecoverableThreadsAsync(candidate => candidate == backendId, cancellationToken)
+                               .ConfigureAwait(false))
+            {
+                await ApplyRecoveredThreadSnapshotAsync(
+                        projects,
+                        recoveredThreads,
+                        thread,
+                        applyGate,
+                        pruneMissingThreads: false,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -547,24 +545,78 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
 
             return;
         }
+    }
 
+    private async Task ApplyRecoverableThreadsProgressivelyAsync(
+        IReadOnlyList<ProjectDescriptor> projects,
+        Func<AgentBackendId, bool>? shouldListBackendSessions,
+        CancellationToken cancellationToken)
+    {
+        var recoveredThreads = new Dictionary<string, WorkThreadDescriptor>(StringComparer.OrdinalIgnoreCase);
+        using var applyGate = new SemaphoreSlim(initialCount: 1, maxCount: 1);
+        var appliedAny = false;
+        var threads = shouldListBackendSessions is null
+            ? _recoverableThreadSource.StreamRecoverableThreadsAsync(cancellationToken)
+            : _recoverableThreadSource.StreamRecoverableThreadsAsync(shouldListBackendSessions, cancellationToken);
+        await foreach (var thread in threads.ConfigureAwait(false))
+        {
+            appliedAny = true;
+            await ApplyRecoveredThreadSnapshotAsync(
+                    projects,
+                    recoveredThreads,
+                    thread,
+                    applyGate,
+                    pruneMissingThreads: false,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        if (!appliedAny)
+        {
+            await UiDispatcher.InvokeAsync(
+                    () =>
+                    {
+                        _shell.ApplyRecoveredCatalogState(projects, []);
+                        _shell.TrySchedulePendingStartupThreadRestore(CancellationToken.None);
+                    })
+                .ConfigureAwait(false);
+            return;
+        }
+
+        await ApplyRecoveredThreadSnapshotAsync(
+                projects,
+                recoveredThreads,
+                thread: null,
+                applyGate,
+                pruneMissingThreads: true,
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async Task ApplyRecoveredThreadSnapshotAsync(
+        IReadOnlyList<ProjectDescriptor> projects,
+        Dictionary<string, WorkThreadDescriptor> recoveredThreads,
+        WorkThreadDescriptor? thread,
+        SemaphoreSlim applyGate,
+        bool pruneMissingThreads,
+        CancellationToken cancellationToken)
+    {
         await applyGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            foreach (var thread in backendThreads)
+            if (thread is not null)
             {
                 recoveredThreads[thread.ThreadId] = thread;
             }
 
-            var projects = await _projectCatalog.LoadAsync(cancellationToken).ConfigureAwait(false);
             var threads = recoveredThreads.Values
-                .OrderByDescending(static thread => thread.LastActiveAt)
+                .OrderByDescending(static item => item.LastActiveAt)
                 .ToArray();
 
             await UiDispatcher.InvokeAsync(
                     () =>
                     {
-                        _shell.ApplyRecoveredCatalogState(projects, threads, pruneMissingThreads: false);
+                        _shell.ApplyRecoveredCatalogState(projects, threads, pruneMissingThreads);
                         _shell.TrySchedulePendingStartupThreadRestore(CancellationToken.None);
                     })
                 .ConfigureAwait(false);

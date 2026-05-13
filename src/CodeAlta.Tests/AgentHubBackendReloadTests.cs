@@ -174,7 +174,7 @@ public sealed class AgentHubBackendReloadTests
     }
 
     [TestMethod]
-    public async Task ListSessionsAsync_DoesNotCacheRegularBackendSessions()
+    public async Task ListSessionsAsync_CachesRegularBackendSessions()
     {
         using var temp = TempDirectory.Create();
         var backendFactory = new AgentBackendFactory();
@@ -190,7 +190,7 @@ public sealed class AgentHubBackendReloadTests
         _ = await CollectSessionsAsync(hub.ListSessionsAsync(backendId)).ConfigureAwait(false);
         _ = await CollectSessionsAsync(hub.ListSessionsAsync(backendId)).ConfigureAwait(false);
 
-        Assert.AreEqual(2, backend.ListSessionsCount);
+        Assert.AreEqual(1, backend.ListSessionsCount);
     }
 
     [TestMethod]

@@ -342,7 +342,7 @@ State semantics:
 Implementation source:
 
 - live host runtime registry for active entries and queue counts;
-- `WorkThreadRuntimeService.ListRecoverableThreadsAsync` for recoverable user-facing sessions;
+- `WorkThreadRuntimeService.StreamRecoverableThreadsAsync` for recoverable user-facing sessions, preserving local-runtime-first progressive loading and using the runtime/provider session cache for repeat queries;
 - `WorkThreadCatalog.LoadInternalAsync` for legacy host-owned internal thread metadata;
 - `IWorkThreadOrchestrator.GetThreadSnapshotAsync` for a live snapshot when a thread id is known;
 - thread view state, execution options, and backend/session metadata for `session model` and model selection fields;

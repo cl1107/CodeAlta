@@ -2770,7 +2770,7 @@ public sealed class AltaLiveToolTests
 
     private sealed class ThrowingSessionQueryService : IAltaSessionQueryService
     {
-        public Task<IReadOnlyList<AltaSessionInfo>?> LoadAsync(AltaCommandContext context)
+        public IAsyncEnumerable<AltaSessionInfo> LoadAsync(AltaCommandContext context)
             => throw new InvalidOperationException("Session infos must not be loaded for this path.");
     }
 

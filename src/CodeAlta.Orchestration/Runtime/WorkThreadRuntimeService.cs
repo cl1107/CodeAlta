@@ -32,6 +32,8 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
     private readonly BoundedRuntimeEventStream<WorkThreadRuntimeEvent> _events = new();
     private readonly WorkThreadActorRegistry _threadActors = new(mailboxCapacity: 128);
     private readonly ConcurrentDictionary<string, ThreadSessionEntry> _entries = new(StringComparer.OrdinalIgnoreCase);
+    private readonly SemaphoreSlim _recoverableThreadCacheGate = new(initialCount: 1, maxCount: 1);
+    private readonly Dictionary<string, IReadOnlyList<WorkThreadDescriptor>> _recoverableThreadCache = new(StringComparer.Ordinal);
     private bool _disposed;
 
     /// <summary>
@@ -99,7 +101,7 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
     /// Lists recoverable user-facing threads from backend session history.
     /// </summary>
     public async Task<IReadOnlyList<WorkThreadDescriptor>> ListRecoverableThreadsAsync(CancellationToken cancellationToken = default)
-        => await ListRecoverableThreadsAsync(shouldListBackendSessions: null, cancellationToken).ConfigureAwait(false);
+        => await CollectRecoverableThreadsAsync(shouldListBackendSessions: null, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Lists recoverable user-facing threads from selected backend session history.
@@ -110,79 +112,81 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
     public async Task<IReadOnlyList<WorkThreadDescriptor>> ListRecoverableThreadsAsync(
         Func<AgentBackendId, bool>? shouldListBackendSessions,
         CancellationToken cancellationToken = default)
+        => await CollectRecoverableThreadsAsync(shouldListBackendSessions, cancellationToken).ConfigureAwait(false);
+
+    /// <summary>
+    /// Streams recoverable user-facing threads from selected backend session history.
+    /// </summary>
+    /// <param name="shouldListBackendSessions">Optional predicate that returns whether a backend's sessions should be listed.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The recoverable user-facing threads as they are loaded.</returns>
+    public async IAsyncEnumerable<WorkThreadDescriptor> StreamRecoverableThreadsAsync(
+        Func<AgentBackendId, bool>? shouldListBackendSessions = null,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var projects = await _projectCatalog.LoadAsync(cancellationToken).ConfigureAwait(false);
         var results = new List<RecoverableThreadCandidate>();
+        var candidatesByThreadId = new Dictionary<string, RecoverableThreadCandidate>(StringComparer.OrdinalIgnoreCase);
 
         var backendIds = _agentHub.ListRegisteredBackends()
             .Where(backendId => shouldListBackendSessions?.Invoke(backendId) != false)
             .OrderBy(static backendId => IsProviderManagedBackend(backendId) ? 1 : 0)
             .ToArray();
 
-        var sharedSessionMetadataBackendIds = await LoadSharedSessionMetadataBackendIdsAsync(backendIds, cancellationToken).ConfigureAwait(false);
-        results.AddRange(await LoadSharedLocalRuntimeThreadsAsync(backendIds, projects, cancellationToken).ConfigureAwait(false));
-
-        var sessionResults = await Task.WhenAll(
-                backendIds
-                    .Where(backendId => !sharedSessionMetadataBackendIds.Contains(backendId.Value))
-                    .Select(LoadBackendSessionsAsync))
-            .ConfigureAwait(false);
-
-        foreach (var (backendId, sessions) in sessionResults)
+        var cacheKey = BuildRecoverableThreadCacheKey(backendIds);
+        var cachedThreads = await TryGetRecoverableThreadCacheAsync(cacheKey, cancellationToken).ConfigureAwait(false);
+        if (cachedThreads is not null)
         {
-            if (sessions is null)
+            foreach (var thread in cachedThreads)
             {
-                continue;
+                cancellationToken.ThrowIfCancellationRequested();
+                yield return thread;
             }
 
-            foreach (var session in sessions)
+            yield break;
+        }
+
+        await foreach (var candidate in StreamSharedLocalRuntimeThreadsAsync(backendIds, projects, cancellationToken).ConfigureAwait(false))
+        {
+            if (await TryAddRecoverableThreadCandidateAsync(candidate, results, candidatesByThreadId, cancellationToken).ConfigureAwait(false) is { } thread)
             {
-                var thread = TryCreateRecoverableThread(backendId, session, projects);
-                if (thread is not null)
+                yield return thread;
+            }
+        }
+
+        var sharedSessionMetadataBackendIds = await LoadSharedSessionMetadataBackendIdsAsync(backendIds, cancellationToken).ConfigureAwait(false);
+
+        foreach (var backendId in backendIds.Where(backendId => !sharedSessionMetadataBackendIds.Contains(backendId.Value)))
+        {
+            await foreach (var candidate in StreamBackendRecoverableThreadsAsync(backendId, projects, cancellationToken).ConfigureAwait(false))
+            {
+                if (await TryAddRecoverableThreadCandidateAsync(candidate, results, candidatesByThreadId, cancellationToken).ConfigureAwait(false) is { } thread)
                 {
-                    results.Add(new RecoverableThreadCandidate(thread, !IsProviderManagedBackend(backendId)));
+                    yield return thread;
                 }
             }
         }
 
-        var deduplicatedByThreadId = results
-            .GroupBy(static candidate => candidate.Thread.ThreadId, StringComparer.OrdinalIgnoreCase)
-            .Select(static group => group.OrderByDescending(static candidate => candidate.IsCodeAltaSession).First())
+        var loadedThreads = results
+            .Select(static candidate => candidate.Thread)
             .ToArray();
 
-        var threads = deduplicatedByThreadId
-            .Select(static candidate => candidate.Thread)
+        await SetRecoverableThreadCacheAsync(cacheKey, loadedThreads, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<IReadOnlyList<WorkThreadDescriptor>> CollectRecoverableThreadsAsync(
+        Func<AgentBackendId, bool>? shouldListBackendSessions,
+        CancellationToken cancellationToken)
+    {
+        var threads = new List<WorkThreadDescriptor>();
+        await foreach (var thread in StreamRecoverableThreadsAsync(shouldListBackendSessions, cancellationToken).ConfigureAwait(false))
+        {
+            threads.Add(thread);
+        }
+
+        return threads
             .OrderByDescending(static thread => thread.LastActiveAt)
             .ToArray();
-
-        await ApplyPersistedThreadLocalStateAsync(threads, cancellationToken).ConfigureAwait(false);
-        return threads;
-
-        async Task<(AgentBackendId BackendId, IReadOnlyList<AgentSessionMetadata>? Sessions)> LoadBackendSessionsAsync(AgentBackendId backendId)
-        {
-            try
-            {
-                var sessions = new List<AgentSessionMetadata>();
-                await foreach (var session in _agentHub.ListSessionsAsync(backendId, cancellationToken: cancellationToken).ConfigureAwait(false))
-                {
-                    sessions.Add(session);
-                }
-
-                return (backendId, sessions);
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (KeyNotFoundException)
-            {
-                return (backendId, null);
-            }
-            catch
-            {
-                return (backendId, null);
-            }
-        }
     }
 
     private async Task ApplyPersistedThreadLocalStateAsync(
@@ -191,31 +195,85 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
     {
         foreach (var thread in threads)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            WorkThreadLocalState? localState;
-            try
-            {
-                localState = await _threadCatalog.JournalStore
-                    .ReadLatestStateAsync(thread.ThreadId, thread.CreatedAt, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            catch (IOException)
-            {
-                continue;
-            }
-            catch (System.Text.Json.JsonException)
-            {
-                continue;
-            }
-
-            if (localState is null)
-            {
-                continue;
-            }
-
-            ApplyPersistedThreadLocalState(thread, localState);
+            await ApplyPersistedThreadLocalStateAsync(thread, cancellationToken).ConfigureAwait(false);
         }
     }
+
+    private async Task ApplyPersistedThreadLocalStateAsync(
+        WorkThreadDescriptor thread,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        WorkThreadLocalState? localState;
+        try
+        {
+            localState = await _threadCatalog.JournalStore
+                .ReadLatestStateAsync(thread.ThreadId, thread.CreatedAt, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (IOException)
+        {
+            return;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return;
+        }
+
+        if (localState is null)
+        {
+            return;
+        }
+
+        ApplyPersistedThreadLocalState(thread, localState);
+    }
+
+    private async Task<IReadOnlyList<WorkThreadDescriptor>?> TryGetRecoverableThreadCacheAsync(
+        string cacheKey,
+        CancellationToken cancellationToken)
+    {
+        await _recoverableThreadCacheGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return _recoverableThreadCache.TryGetValue(cacheKey, out var threads) ? threads : null;
+        }
+        finally
+        {
+            _recoverableThreadCacheGate.Release();
+        }
+    }
+
+    private async Task SetRecoverableThreadCacheAsync(
+        string cacheKey,
+        IReadOnlyList<WorkThreadDescriptor> threads,
+        CancellationToken cancellationToken)
+    {
+        await _recoverableThreadCacheGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            _recoverableThreadCache[cacheKey] = threads;
+        }
+        finally
+        {
+            _recoverableThreadCacheGate.Release();
+        }
+    }
+
+    private void ClearRecoverableThreadCache()
+    {
+        _recoverableThreadCacheGate.Wait(CancellationToken.None);
+        try
+        {
+            _recoverableThreadCache.Clear();
+        }
+        finally
+        {
+            _recoverableThreadCacheGate.Release();
+        }
+    }
+
+    private static string BuildRecoverableThreadCacheKey(IReadOnlyList<AgentBackendId> backendIds)
+        => string.Join('\n', backendIds.Select(static backendId => backendId.Value));
 
     private static void ApplyPersistedThreadLocalState(WorkThreadDescriptor thread, WorkThreadLocalState localState)
     {
@@ -286,17 +344,16 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
         }
     }
 
-    private async Task<IReadOnlyList<RecoverableThreadCandidate>> LoadSharedLocalRuntimeThreadsAsync(
+    private async IAsyncEnumerable<RecoverableThreadCandidate> StreamSharedLocalRuntimeThreadsAsync(
         IReadOnlyList<AgentBackendId> backendIds,
         IReadOnlyList<ProjectDescriptor> projects,
-        CancellationToken cancellationToken)
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var loadableBackendIds = backendIds
             .Select(static backendId => backendId.Value)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var store = new FileSystemLocalAgentSessionStore(new LocalAgentRuntimePathLayout(_catalogOptions.GlobalRoot));
-        var results = new List<RecoverableThreadCandidate>();
         await foreach (var session in store.ListSessionsAsync(cancellationToken).ConfigureAwait(false))
         {
             if (string.IsNullOrWhiteSpace(session.ProviderKey) || !loadableBackendIds.Contains(session.ProviderKey))
@@ -308,11 +365,86 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
             var thread = TryCreateRecoverableThread(backendId, ToAgentSessionMetadata(session), projects);
             if (thread is not null)
             {
-                results.Add(new RecoverableThreadCandidate(thread, IsCodeAltaSession: true));
+                yield return new RecoverableThreadCandidate(thread, IsCodeAltaSession: true);
             }
         }
+    }
 
-        return results;
+    private async IAsyncEnumerable<RecoverableThreadCandidate> StreamBackendRecoverableThreadsAsync(
+        AgentBackendId backendId,
+        IReadOnlyList<ProjectDescriptor> projects,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        IAsyncEnumerable<AgentSessionMetadata> sessions;
+        try
+        {
+            sessions = _agentHub.ListSessionsAsync(backendId, cancellationToken: cancellationToken);
+        }
+        catch (KeyNotFoundException)
+        {
+            yield break;
+        }
+
+        await using var enumerator = sessions.GetAsyncEnumerator(cancellationToken);
+        while (true)
+        {
+            AgentSessionMetadata session;
+            try
+            {
+                if (!await enumerator.MoveNextAsync().ConfigureAwait(false))
+                {
+                    yield break;
+                }
+
+                session = enumerator.Current;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (KeyNotFoundException)
+            {
+                yield break;
+            }
+            catch
+            {
+                yield break;
+            }
+
+            var thread = TryCreateRecoverableThread(backendId, session, projects);
+            if (thread is not null)
+            {
+                yield return new RecoverableThreadCandidate(thread, !IsProviderManagedBackend(backendId));
+            }
+        }
+    }
+
+    private async Task<WorkThreadDescriptor?> TryAddRecoverableThreadCandidateAsync(
+        RecoverableThreadCandidate candidate,
+        List<RecoverableThreadCandidate> results,
+        Dictionary<string, RecoverableThreadCandidate> candidatesByThreadId,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (candidatesByThreadId.TryGetValue(candidate.Thread.ThreadId, out var existing) &&
+            (existing.IsCodeAltaSession || !candidate.IsCodeAltaSession))
+        {
+            return null;
+        }
+
+        await ApplyPersistedThreadLocalStateAsync(candidate.Thread, cancellationToken).ConfigureAwait(false);
+        candidatesByThreadId[candidate.Thread.ThreadId] = candidate;
+        var existingIndex = results.FindIndex(item => string.Equals(item.Thread.ThreadId, candidate.Thread.ThreadId, StringComparison.OrdinalIgnoreCase));
+        if (existingIndex >= 0)
+        {
+            results[existingIndex] = candidate;
+        }
+        else
+        {
+            results.Add(candidate);
+        }
+
+        return candidate.Thread;
     }
 
     /// <summary>
@@ -346,6 +478,7 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
         }
 
         thread.Status = WorkThreadStatus.Archived;
+        ClearRecoverableThreadCache();
 
         await UpdateThreadLocalStateAsync(thread, cancellationToken).ConfigureAwait(false);
         return deletedByBackend;
@@ -359,6 +492,7 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
     public async Task PersistThreadLocalStateAsync(WorkThreadDescriptor thread, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(thread);
+        ClearRecoverableThreadCache();
         await UpdateThreadLocalStateAsync(thread, cancellationToken).ConfigureAwait(false);
     }
 
@@ -628,6 +762,7 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
             }
         }
 
+        ClearRecoverableThreadCache();
         thread.BackendId = options.BackendId.Value;
         thread.ProviderKey = options.ProviderKey ?? options.BackendId.Value;
         thread.WorkingDirectory = options.WorkingDirectory;
@@ -1186,6 +1321,7 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
         }
 
         _entries.Clear();
+        _recoverableThreadCacheGate.Dispose();
     }
 
     private static bool CanCreateSessionWithRequestedThreadId(AgentBackendId backendId)

@@ -522,7 +522,7 @@ Mapping notes:
 | `ListModelsAsync()` | `CopilotClient.ListModelsAsync()` |
 | `ListSessionsAsync(filter)` streams `AgentSessionMetadata` | `CopilotClient.ListSessionsAsync(SessionListFilter)` |
 
-Session listing streams results so callers can begin processing metadata before every backend/page has completed. Backends should yield sessions in the most useful order exposed by the provider; local runtime stores enumerate recently written session journals first.
+Session listing streams results so callers can begin processing metadata before every backend/page has completed. Backends should yield sessions in the most useful order exposed by the provider; local runtime stores enumerate recently written session journals first. Recoverable thread/session loading should preserve the async stream through the shell/UI boundary: CodeAlta-owned local-runtime sessions are emitted first, provider-owned sessions follow as each backend produces metadata, and completed listings are cached until session/backend state changes so repeated session-list consumers do not re-query providers.
 
 Model mapping notes (Copilot):
 - `AgentModelInfo.Description` is `null` (Copilot model payload does not expose a description field).

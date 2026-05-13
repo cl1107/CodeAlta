@@ -833,8 +833,7 @@ public sealed class AgentHub : IAsyncDisposable
         => _sessionMetadataCache.Remove(backendId.Value);
 
     private static bool CanCacheSessionMetadata(AgentBackendId backendId)
-        => string.Equals(backendId.Value, AgentBackendIds.Codex.Value, StringComparison.OrdinalIgnoreCase) ||
-           string.Equals(backendId.Value, AgentBackendIds.Copilot.Value, StringComparison.OrdinalIgnoreCase);
+        => !string.IsNullOrWhiteSpace(backendId.Value);
 
     private static IReadOnlyList<AgentSessionMetadata> FilterSessionMetadata(
         IReadOnlyList<AgentSessionMetadata> sessions,

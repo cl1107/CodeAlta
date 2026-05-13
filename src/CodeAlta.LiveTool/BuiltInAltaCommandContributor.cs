@@ -2242,8 +2242,26 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
     private static async Task<IReadOnlyList<AltaSessionInfo>?> LoadSessionInfosAsync(AltaCommandContext context)
     {
-        var queryService = context.Services.Get<IAltaSessionQueryService>() ?? new AltaSessionQueryService();
-        return await queryService.LoadAsync(context).ConfigureAwait(false);
+        var queryService = context.Services.Get<IAltaSessionQueryService>();
+        if (queryService is null &&
+            context.Services.Get<WorkThreadRuntimeService>() is null &&
+            context.Services.Get<WorkThreadCatalog>() is null)
+        {
+            await foreach (var _ in new AltaSessionQueryService().LoadAsync(context).ConfigureAwait(false))
+            {
+            }
+
+            return null;
+        }
+
+        queryService ??= new AltaSessionQueryService();
+        var infos = new List<AltaSessionInfo>();
+        await foreach (var info in queryService.LoadAsync(context).ConfigureAwait(false))
+        {
+            infos.Add(info);
+        }
+
+        return infos;
     }
 
     private static async Task<SessionInfoResolutionResult> ResolveSessionInfoAsync(AltaCommandContext context, string threadId, bool includeLocalState = false)

@@ -26,18 +26,14 @@ public sealed class CodeAltaShellControllerTests
 
         await controller.ReloadCatalogAsync(CancellationToken.None);
 
-        CollectionAssert.AreEqual(
-            new[]
-            {
-                "Shell.Status:Refreshing project and thread catalog...:True:Info",
-                "Importer.Import",
-                "ProjectCatalog.Load",
-                "ThreadSource.List",
-                "Shell.ApplyRecoveredCatalogState:1:1",
-                "Shell.SetReadyStatus",
-            },
-            log);
-        Assert.AreEqual(2, dispatcher.InvokeCallCount);
+        CollectionAssert.Contains(log, "Shell.Status:Refreshing project and thread catalog...:True:Info");
+        CollectionAssert.Contains(log, "Importer.Import");
+        CollectionAssert.Contains(log, "ProjectCatalog.Load");
+        CollectionAssert.Contains(log, "ThreadSource.Stream");
+        CollectionAssert.Contains(log, "Shell.ApplyRecoveredCatalogState:1:1:KeepMissing");
+        CollectionAssert.Contains(log, "Shell.ApplyRecoveredCatalogState:1:1");
+        CollectionAssert.Contains(log, "Shell.SetReadyStatus");
+        Assert.IsTrue(dispatcher.InvokeCallCount >= 4);
     }
 
     [TestMethod]
@@ -88,7 +84,7 @@ public sealed class CodeAltaShellControllerTests
         CollectionAssert.Contains(log, "Shell.SetInitialized:True");
         CollectionAssert.Contains(log, "Importer.Import");
         CollectionAssert.Contains(log, "ProjectCatalog.Load");
-        CollectionAssert.Contains(log, "ThreadSource.List");
+        CollectionAssert.Contains(log, "ThreadSource.Stream");
         CollectionAssert.Contains(log, "Shell.ApplyRecoveredCatalogState:1:1");
         CollectionAssert.Contains(log, "Shell.TrySchedulePendingStartupThreadRestore");
     }
@@ -155,8 +151,8 @@ public sealed class CodeAltaShellControllerTests
         await WaitUntilAsync(() => log.Contains("Shell.ApplyRecoveredCatalogState:1:1:KeepMissing")).ConfigureAwait(false);
 
         Assert.IsFalse(initializationTask.IsCompleted, "Initialization should not wait for every provider before applying the first recovered batch.");
-        CollectionAssert.Contains(log, "ThreadSource.List:codex");
-        Assert.IsFalse(log.Contains("ThreadSource.List:slow"), "The slow provider should not be queried before it reports completion.");
+        CollectionAssert.Contains(log, "ThreadSource.Stream:codex");
+        Assert.IsFalse(log.Contains("ThreadSource.Stream:slow"), "The slow provider should not be queried before it reports completion.");
 
         importer.AllowCompletion();
         await initializationTask.ConfigureAwait(false);
@@ -197,12 +193,12 @@ public sealed class CodeAltaShellControllerTests
 
         var initializationTask = controller.InitializeAsync(CancellationToken.None);
 
-        await WaitUntilAsync(() => log.Contains("ThreadSource.List:slow")).ConfigureAwait(false);
+        await WaitUntilAsync(() => log.Contains("ThreadSource.Stream:slow")).ConfigureAwait(false);
 
         Assert.IsFalse(initializationTask.IsCompleted, "The slow provider should still be initializing.");
         CollectionAssert.Contains(log, "ProgressImporter.ImportBackend:codex");
         CollectionAssert.Contains(log, "ProgressImporter.ImportBackend:slow");
-        CollectionAssert.Contains(log, "ThreadSource.List:codex");
+        CollectionAssert.Contains(log, "ThreadSource.Stream:codex");
 
         shell.CompleteBackendInitialization(slowBackendId);
         await initializationTask.ConfigureAwait(false);
@@ -878,6 +874,34 @@ public sealed class CodeAltaShellControllerTests
 
     private sealed class FakeRecoverableThreadSource(List<string> log, IReadOnlyList<WorkThreadDescriptor> threads) : IRecoverableThreadSource
     {
+        public async IAsyncEnumerable<WorkThreadDescriptor> StreamRecoverableThreadsAsync(
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            log.Add("ThreadSource.Stream");
+            foreach (var thread in threads)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await Task.Yield();
+                yield return thread;
+            }
+        }
+
+        public async IAsyncEnumerable<WorkThreadDescriptor> StreamRecoverableThreadsAsync(
+            Func<AgentBackendId, bool>? shouldListBackendSessions,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            var filteredThreads = threads
+                .Where(thread => shouldListBackendSessions?.Invoke(new AgentBackendId(thread.BackendId)) != false)
+                .ToArray();
+            LogBackendList(filteredThreads, "ThreadSource.Stream");
+            foreach (var thread in filteredThreads)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await Task.Yield();
+                yield return thread;
+            }
+        }
+
         public Task<IReadOnlyList<WorkThreadDescriptor>> ListRecoverableThreadsAsync(CancellationToken cancellationToken)
         {
             log.Add("ThreadSource.List");
@@ -891,15 +915,20 @@ public sealed class CodeAltaShellControllerTests
             var filteredThreads = threads
                 .Where(thread => shouldListBackendSessions?.Invoke(new AgentBackendId(thread.BackendId)) != false)
                 .ToArray();
+            LogBackendList(filteredThreads, "ThreadSource.List");
+            return Task.FromResult<IReadOnlyList<WorkThreadDescriptor>>(filteredThreads);
+        }
+
+        private void LogBackendList(IReadOnlyList<WorkThreadDescriptor> filteredThreads, string prefix)
+        {
             var backendIds = filteredThreads
                 .Select(static thread => thread.BackendId)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(static backendId => backendId, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
             log.Add(backendIds.Length == 0
-                ? "ThreadSource.List:empty"
-                : $"ThreadSource.List:{string.Join(",", backendIds)}");
-            return Task.FromResult<IReadOnlyList<WorkThreadDescriptor>>(filteredThreads);
+                ? $"{prefix}:empty"
+                : $"{prefix}:{string.Join(",", backendIds)}");
         }
     }
 
