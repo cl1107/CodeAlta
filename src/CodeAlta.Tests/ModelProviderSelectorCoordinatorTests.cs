@@ -156,6 +156,53 @@ public sealed class ModelProviderSelectorCoordinatorTests
     }
 
     [TestMethod]
+    public void RefreshForDraftScope_DoesNotDisplayFirstModelWhenPersistedModelIsMissingFromCatalog()
+    {
+        var workspaceViewModel = new ThreadWorkspaceViewModel();
+        var promptComposerViewModel = new PromptComposerViewModel();
+        AgentBackendDescriptor[] backendDescriptors =
+        [
+            new(new AgentBackendId("codex_subscription"), "Codex subscription"),
+        ];
+        var backendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
+        var backendState = backendStates["codex_subscription"];
+        backendState.Availability = ChatBackendAvailability.Ready;
+        backendState.Models.Add(new AgentModelInfo("gpt-5.2", DisplayName: "GPT-5.2"));
+
+        var selectorState = new ModelProviderSelectorStateStore(workspaceViewModel, new InlineUiDispatcher());
+        var preferences = new FrontendModelProviderPreferencePort(
+            state =>
+            {
+                state.SelectedModelId = "gpt-5.5";
+                state.SelectedReasoningEffort = AgentReasoningEffort.High;
+            },
+            static _ => throw new NotSupportedException(),
+            static (_, _, _) => { },
+            static (_, _, _, _) => { });
+        var coordinator = new ModelProviderSelectorCoordinator(
+            backendDescriptors,
+            workspaceViewModel,
+            promptComposerViewModel,
+            backendStates,
+            selectorState,
+            CreateThreadSelectionContext(),
+            preferences,
+            new WorkspaceRefreshContext(static _ => { }),
+            static _ => null,
+            static () => { },
+            getDraftModelProviderPreference: static () => new ModelProviderPreference(
+                new ModelProviderId("codex_subscription"),
+                "gpt-5.5",
+                AgentReasoningEffort.High));
+
+        coordinator.RefreshForDraftScope();
+
+        Assert.AreEqual(0, workspaceViewModel.SelectedModelIndex);
+        Assert.AreEqual("gpt-5.5", workspaceViewModel.ModelOptions[0].ModelId);
+        Assert.AreEqual("gpt-5.2", workspaceViewModel.ModelOptions[1].ModelId);
+    }
+
+    [TestMethod]
     public void GetPreferredModelProviderId_FallsBackToFirstReadyProviderDeterministically()
     {
         var workspaceViewModel = new ThreadWorkspaceViewModel();

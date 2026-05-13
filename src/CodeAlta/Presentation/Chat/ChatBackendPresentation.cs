@@ -47,18 +47,30 @@ internal static class ChatBackendPresentation
             .ToList();
     }
 
-    public static List<ChatModelOption> BuildModelOptions(ChatBackendState backendState)
+    public static List<ChatModelOption> BuildModelOptions(ChatBackendState backendState, string? selectedModelId = null)
     {
         ArgumentNullException.ThrowIfNull(backendState);
+        var effectiveSelectedModelId = string.IsNullOrWhiteSpace(selectedModelId)
+            ? backendState.SelectedModelId
+            : selectedModelId.Trim();
 
         if (backendState.Models.Count == 0)
         {
-            return [new ChatModelOption(null, "(default)")];
+            return string.IsNullOrWhiteSpace(effectiveSelectedModelId)
+                ? [new ChatModelOption(null, "(default)")]
+                : [new ChatModelOption(effectiveSelectedModelId, effectiveSelectedModelId)];
         }
 
-        return backendState.Models
+        var options = backendState.Models
             .Select(model => new ChatModelOption(model.Id, model.DisplayName ?? model.Id))
             .ToList();
+        if (!string.IsNullOrWhiteSpace(effectiveSelectedModelId) &&
+            options.All(option => !string.Equals(option.ModelId, effectiveSelectedModelId, StringComparison.Ordinal)))
+        {
+            options.Insert(0, new ChatModelOption(effectiveSelectedModelId, effectiveSelectedModelId));
+        }
+
+        return options;
     }
 
     public static List<ChatReasoningOption> BuildReasoningOptions(AgentModelInfo? model)

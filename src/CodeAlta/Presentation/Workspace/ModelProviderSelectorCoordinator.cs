@@ -213,7 +213,7 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
             var backendState = _chatBackendStates[tab.BackendId.Value];
             _preferences.ApplyThreadModelProviderState(tab);
 
-            var modelOptions = ChatBackendPresentation.BuildModelOptions(backendState);
+            var modelOptions = ChatBackendPresentation.BuildModelOptions(backendState, tab.ModelId);
             _selectorState.SetModelSelection(
                 modelOptions,
                 Math.Clamp(
@@ -329,7 +329,7 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
 
         var tab = _threadSelection.EnsureThreadTab(thread);
         var backendState = _chatBackendStates[tab.BackendId.Value];
-        var options = ChatBackendPresentation.BuildModelOptions(backendState);
+        var options = ChatBackendPresentation.BuildModelOptions(backendState, tab.ModelId);
         if ((uint)newIndex >= (uint)options.Count)
         {
             return;

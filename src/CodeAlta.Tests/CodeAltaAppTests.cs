@@ -1915,6 +1915,36 @@ public sealed class CodeAltaAppTests
     }
 
     [TestMethod]
+    public void BuildModelOptions_PreservesSelectedModelMissingFromCatalog()
+    {
+        var backendState = new ChatBackendState(new AgentBackendId("codex_subscription"), "Codex subscription")
+        {
+            SelectedModelId = "gpt-5.5",
+        };
+        backendState.Models.Add(new AgentModelInfo("gpt-5.2", DisplayName: "GPT-5.2"));
+
+        var options = ChatBackendPresentation.BuildModelOptions(backendState);
+
+        Assert.AreEqual("gpt-5.5", options[0].ModelId);
+        Assert.AreEqual("gpt-5.5", options[0].Label);
+        Assert.AreEqual("gpt-5.2", options[1].ModelId);
+    }
+
+    [TestMethod]
+    public void BuildModelOptions_UsesSelectedModelWhenCatalogIsEmpty()
+    {
+        var backendState = new ChatBackendState(new AgentBackendId("codex_subscription"), "Codex subscription")
+        {
+            SelectedModelId = "gpt-5.5",
+        };
+
+        var options = ChatBackendPresentation.BuildModelOptions(backendState);
+
+        Assert.AreEqual(1, options.Count);
+        Assert.AreEqual("gpt-5.5", options[0].ModelId);
+    }
+
+    [TestMethod]
     public void ShouldDisplayCompletedContent_HidesEmptyReasoning()
     {
         var completed = new AgentContentCompletedEvent(
