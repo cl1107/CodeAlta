@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Security.Cryptography;
 using System.Text;
 
 namespace CodeAlta;
@@ -10,13 +9,11 @@ internal sealed class CodeAltaSingleInstanceGuard : IDisposable
     private const int PidReadRetryCount = 20;
     private static readonly TimeSpan PidReadRetryDelay = TimeSpan.FromMilliseconds(25);
     private readonly FileStream _lockStream;
-    private readonly Mutex _mutex;
     private bool _disposed;
 
-    private CodeAltaSingleInstanceGuard(FileStream lockStream, Mutex mutex, string lockFilePath)
+    private CodeAltaSingleInstanceGuard(FileStream lockStream, string lockFilePath)
     {
         _lockStream = lockStream;
-        _mutex = mutex;
         LockFilePath = lockFilePath;
     }
 
@@ -36,29 +33,6 @@ internal sealed class CodeAltaSingleInstanceGuard : IDisposable
             Directory.CreateDirectory(directory);
         }
 
-        var mutex = new Mutex(initiallyOwned: false, BuildMutexName(fullLockFilePath));
-        var ownsMutex = false;
-        try
-        {
-            ownsMutex = mutex.WaitOne(TimeSpan.Zero);
-        }
-        catch (AbandonedMutexException)
-        {
-            ownsMutex = true;
-        }
-        catch
-        {
-            mutex.Dispose();
-            throw;
-        }
-
-        if (!ownsMutex)
-        {
-            mutex.Dispose();
-            var runningProcessId = ReadRunningProcessId(fullLockFilePath);
-            throw new CodeAltaAlreadyRunningException(runningProcessId, null);
-        }
-
         FileStream lockStream;
         try
         {
@@ -70,8 +44,6 @@ internal sealed class CodeAltaSingleInstanceGuard : IDisposable
         }
         catch (IOException ex)
         {
-            mutex.ReleaseMutex();
-            mutex.Dispose();
             var runningProcessId = ReadRunningProcessId(fullLockFilePath);
             throw new CodeAltaAlreadyRunningException(runningProcessId, ex);
         }
@@ -79,13 +51,11 @@ internal sealed class CodeAltaSingleInstanceGuard : IDisposable
         try
         {
             WriteCurrentProcessId(lockStream);
-            return new CodeAltaSingleInstanceGuard(lockStream, mutex, fullLockFilePath);
+            return new CodeAltaSingleInstanceGuard(lockStream, fullLockFilePath);
         }
         catch
         {
             lockStream.Dispose();
-            mutex.ReleaseMutex();
-            mutex.Dispose();
             throw;
         }
     }
@@ -98,8 +68,6 @@ internal sealed class CodeAltaSingleInstanceGuard : IDisposable
         }
 
         _lockStream.Dispose();
-        _mutex.ReleaseMutex();
-        _mutex.Dispose();
         _disposed = true;
     }
 
@@ -116,9 +84,6 @@ internal sealed class CodeAltaSingleInstanceGuard : IDisposable
 
         return Path.Combine(userProfile, ".alta");
     }
-
-    private static string BuildMutexName(string lockFilePath)
-        => "CodeAlta.SingleInstance." + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(lockFilePath)));
 
     private static void WriteCurrentProcessId(FileStream lockStream)
     {

@@ -260,6 +260,22 @@ internal sealed class LocalAgentSessionJournalFile
         Func<Task> action,
         CancellationToken cancellationToken)
     {
+        await WithPathLockAsync(
+                path,
+                async () =>
+                {
+                    await action().ConfigureAwait(false);
+                    return true;
+                },
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<T> WithPathLockAsync<T>(
+        string path,
+        Func<Task<T>> action,
+        CancellationToken cancellationToken)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         ArgumentNullException.ThrowIfNull(action);
 
@@ -267,7 +283,7 @@ internal sealed class LocalAgentSessionJournalFile
         await pathLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await action().ConfigureAwait(false);
+            return await action().ConfigureAwait(false);
         }
         finally
         {
@@ -275,15 +291,26 @@ internal sealed class LocalAgentSessionJournalFile
         }
     }
 
-    private static async Task RetryFileOperationAsync(Func<Task> action, CancellationToken cancellationToken)
+    internal static async Task RetryFileOperationAsync(Func<Task> action, CancellationToken cancellationToken)
+    {
+        await RetryFileOperationAsync(
+                async () =>
+                {
+                    await action().ConfigureAwait(false);
+                    return true;
+                },
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    internal static async Task<T> RetryFileOperationAsync<T>(Func<Task<T>> action, CancellationToken cancellationToken)
     {
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                await action().ConfigureAwait(false);
-                return;
+                return await action().ConfigureAwait(false);
             }
             catch (IOException ex) when (IsRetryableFileAccessException(ex))
             {

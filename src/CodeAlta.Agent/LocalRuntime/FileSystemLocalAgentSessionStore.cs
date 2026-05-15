@@ -371,9 +371,13 @@ public sealed class FileSystemLocalAgentSessionStore : ILocalAgentSessionStore
         bool includeHistory,
         CancellationToken cancellationToken)
     {
-        return includeHistory
-            ? await ProjectSessionFileWithHistoryAsync(sessionFile, cancellationToken).ConfigureAwait(false)
-            : await ProjectSessionMetadataFileAsync(sessionFile, cancellationToken).ConfigureAwait(false);
+        return await _journalFile.WithPathLockAsync(
+                sessionFile,
+                () => includeHistory
+                    ? ProjectSessionFileWithHistoryAsync(sessionFile, cancellationToken)
+                    : ProjectSessionMetadataFileAsync(sessionFile, cancellationToken),
+                cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private async Task<SessionProjection> ProjectSessionMetadataFileAsync(
@@ -525,13 +529,7 @@ public sealed class FileSystemLocalAgentSessionStore : ILocalAgentSessionStore
         string path,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        await using var stream = new FileStream(
-            path,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.ReadWrite | FileShare.Delete,
-            bufferSize: 4096,
-            useAsync: true);
+        await using var stream = await OpenReadStreamAsync(path, cancellationToken).ConfigureAwait(false);
         using var reader = new StreamReader(stream, Utf8WithoutBom, detectEncodingFromByteOrderMarks: true);
         string? line;
         while ((line = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false)) is not null)
@@ -562,13 +560,7 @@ public sealed class FileSystemLocalAgentSessionStore : ILocalAgentSessionStore
         int byteCount,
         CancellationToken cancellationToken)
     {
-        await using var stream = new FileStream(
-            path,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.ReadWrite | FileShare.Delete,
-            bufferSize: 4096,
-            useAsync: true);
+        await using var stream = await OpenReadStreamAsync(path, cancellationToken).ConfigureAwait(false);
         var length = stream.Length;
         var count = (int)Math.Min(byteCount, length);
         if (count == 0)
@@ -612,13 +604,7 @@ public sealed class FileSystemLocalAgentSessionStore : ILocalAgentSessionStore
         int byteCount,
         CancellationToken cancellationToken)
     {
-        await using var stream = new FileStream(
-            path,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.ReadWrite | FileShare.Delete,
-            bufferSize: 4096,
-            useAsync: true);
+        await using var stream = await OpenReadStreamAsync(path, cancellationToken).ConfigureAwait(false);
         var length = stream.Length;
         var count = (int)Math.Min(byteCount, length);
         if (count == 0)
@@ -669,6 +655,17 @@ public sealed class FileSystemLocalAgentSessionStore : ILocalAgentSessionStore
             .ConfigureAwait(false);
         InvalidateMetadataProjectionCache(path);
     }
+
+    private static Task<FileStream> OpenReadStreamAsync(string path, CancellationToken cancellationToken)
+        => LocalAgentSessionJournalFile.RetryFileOperationAsync(
+            () => Task.FromResult(new FileStream(
+                path,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete,
+                bufferSize: 4096,
+                useAsync: true)),
+            cancellationToken);
 
     private static FileStamp? GetFileStamp(string path)
     {

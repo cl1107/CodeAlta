@@ -147,6 +147,64 @@ public sealed class FileSystemLocalAgentSessionStoreTests
     }
 
     [TestMethod]
+    public async Task UpsertStateAsync_WaitsForJournalPathLockBeforeReadingMetadata()
+    {
+        using var temp = TestTempDirectory.Create();
+        var layout = new LocalAgentRuntimePathLayout(temp.Path);
+        var journalFile = new LocalAgentSessionJournalFile();
+        var store = new FileSystemLocalAgentSessionStore(layout, journalFile);
+        var session = CreateSession("session-locked-read", createdAt: "2026-04-06T10:00:00+00:00", updatedAt: "2026-04-06T10:00:00+00:00");
+        await store.UpsertSessionAsync(session).ConfigureAwait(false);
+        var sessionFile = layout.GetSessionFilePath(session.SessionId, session.CreatedAt);
+        var lockEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseLock = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var lockTask = journalFile.WithPathLockAsync(
+            sessionFile,
+            async () =>
+            {
+                lockEntered.SetResult();
+                await releaseLock.Task.ConfigureAwait(false);
+            },
+            CancellationToken.None);
+        await lockEntered.Task.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+
+        var upsertTask = store.UpsertStateAsync(CreateState(session, "resp_after_lock"));
+
+        await Task.Delay(100).ConfigureAwait(false);
+        Assert.IsFalse(upsertTask.IsCompleted);
+
+        releaseLock.SetResult();
+        await Task.WhenAll(lockTask, upsertTask).WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+        var persistedState = await store.GetStateAsync(session.ProtocolFamily, session.ProviderKey, session.SessionId).ConfigureAwait(false);
+        Assert.IsNotNull(persistedState);
+        Assert.AreEqual("resp_after_lock", persistedState.ProviderSessionId);
+    }
+
+    [TestMethod]
+    public async Task UpsertStateAsync_RetriesWhenSessionFileIsTemporarilyLocked()
+    {
+        using var temp = TestTempDirectory.Create();
+        var layout = new LocalAgentRuntimePathLayout(temp.Path);
+        var store = new FileSystemLocalAgentSessionStore(layout);
+        var session = CreateSession("session-sharing-violation", createdAt: "2026-04-06T10:00:00+00:00", updatedAt: "2026-04-06T10:00:00+00:00");
+        await store.UpsertSessionAsync(session).ConfigureAwait(false);
+        var sessionFile = layout.GetSessionFilePath(session.SessionId, session.CreatedAt);
+
+        await using var exclusiveStream = new FileStream(sessionFile, FileMode.Open, FileAccess.ReadWrite, FileShare.None, bufferSize: 4096, useAsync: true);
+        var upsertTask = store.UpsertStateAsync(CreateState(session, "resp_after_retry"));
+
+        await Task.Delay(100).ConfigureAwait(false);
+        Assert.IsFalse(upsertTask.IsCompleted);
+
+        await exclusiveStream.DisposeAsync().ConfigureAwait(false);
+        await upsertTask.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+        var persistedState = await store.GetStateAsync(session.ProtocolFamily, session.ProviderKey, session.SessionId).ConfigureAwait(false);
+        Assert.IsNotNull(persistedState);
+        Assert.AreEqual("resp_after_retry", persistedState.ProviderSessionId);
+    }
+
+    [TestMethod]
     public async Task ListSessionsAsync_UsesMetadataProbeWithoutParsingWholeJournal()
     {
         using var temp = TestTempDirectory.Create();
@@ -195,4 +253,14 @@ public sealed class FileSystemLocalAgentSessionStoreTests
             Metadata = metadata.RootElement.Clone(),
         };
     }
+
+    private static LocalAgentSessionState CreateState(LocalAgentSessionSummary session, string providerSessionId)
+        => new()
+        {
+            SessionId = session.SessionId,
+            ProtocolFamily = session.ProtocolFamily,
+            ProviderKey = session.ProviderKey,
+            ProviderSessionId = providerSessionId,
+            UpdatedAt = session.UpdatedAt.AddMinutes(1),
+        };
 }

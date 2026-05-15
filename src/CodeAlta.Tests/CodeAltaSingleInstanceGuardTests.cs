@@ -78,6 +78,26 @@ public sealed class CodeAltaSingleInstanceGuardTests
         }
     }
 
+    [TestMethod]
+    public async Task Dispose_CanRunOnDifferentThreadThanAcquire()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var lockFilePath = Path.Combine(directory, "alta.lock");
+            var guard = CodeAltaSingleInstanceGuard.Acquire(lockFilePath);
+
+            await Task.Run(guard.Dispose).ConfigureAwait(false);
+
+            using var reacquired = CodeAltaSingleInstanceGuard.Acquire(lockFilePath);
+            Assert.AreEqual(lockFilePath, reacquired.LockFilePath);
+        }
+        finally
+        {
+            DeleteTemporaryDirectory(directory);
+        }
+    }
+
     private static string ReadSharedLockFile(string lockFilePath)
     {
         using var stream = new FileStream(lockFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
