@@ -549,7 +549,7 @@ public sealed class CodeAltaAppTabStripTests
                 static _ => null,
                 static _ => { },
                 closeFileTab ?? (static _ => { })));
-        return new ThreadTabStripCoordinator(selection, context, tabs);
+        return new ThreadTabStripCoordinator(selection, context, tabs, new State<float>(0));
     }
 
     private static ThreadTabStripCoordinator CreateCoordinator(
@@ -578,7 +578,7 @@ public sealed class CodeAltaAppTabStripTests
                 static _ => null,
                 static _ => { },
                 static _ => { }));
-        return new ThreadTabStripCoordinator(selection, context, tabs);
+        return new ThreadTabStripCoordinator(selection, context, tabs, new State<float>(0));
     }
 
     private static ThreadWorkspaceView CreateThreadWorkspaceView(Action<int>? selectTab = null)

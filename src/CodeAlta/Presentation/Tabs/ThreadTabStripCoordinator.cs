@@ -16,6 +16,7 @@ internal sealed class ThreadTabStripCoordinator
     private readonly ThreadTabContext _threadTabs;
     private readonly IShellTabService _shellTabs;
     private readonly Func<bool> _hasDraftPrompt;
+    private readonly State<float> _welcomeAnimationPhase01;
     private bool _syncingSelection;
     private bool _syncingPages;
     private int _lastObservedSelectedIndex = -1;
@@ -26,15 +27,18 @@ internal sealed class ThreadTabStripCoordinator
         ThreadSelectionContext threadSelection,
         ThreadTabContext threadTabs,
         IShellTabService shellTabs,
+        State<float> welcomeAnimationPhase01,
         Func<bool>? hasDraftPrompt = null)
     {
         ArgumentNullException.ThrowIfNull(threadSelection);
         ArgumentNullException.ThrowIfNull(threadTabs);
         ArgumentNullException.ThrowIfNull(shellTabs);
+        ArgumentNullException.ThrowIfNull(welcomeAnimationPhase01);
 
         _threadSelection = threadSelection;
         _threadTabs = threadTabs;
         _shellTabs = shellTabs;
+        _welcomeAnimationPhase01 = welcomeAnimationPhase01;
         _hasDraftPrompt = hasDraftPrompt ?? (static () => false);
     }
 
@@ -605,7 +609,7 @@ internal sealed class ThreadTabStripCoordinator
                     () => WelcomePaneFactory.Build(
                         _threadSelection.GetSelectedProject(),
                         _threadSelection.IsGlobalDraftSelected(),
-                        new State<float>(0))),
+                        _welcomeAnimationPhase01)),
                 session: null),
             ViewModel = new DraftTabProjectionHandle(CodeAltaApp.DraftTabId),
         });

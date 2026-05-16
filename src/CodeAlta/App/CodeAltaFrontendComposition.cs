@@ -12,7 +12,6 @@ using CodeAlta.Presentation.Workspace;
 using CodeAlta.Threading;
 using CodeAlta.ViewModels;
 using CodeAlta.Views;
-using XenoAtom.Terminal.UI;
 
 namespace CodeAlta.App;
 
@@ -59,7 +58,6 @@ internal sealed class CodeAltaFrontendComposition
         IProjectFileSearchService projectFileSearchService,
         ICodeAltaShell shell,
         KnownProjectImporter knownProjectImporter,
-        State<float> welcomePhase01,
         CodeAltaApp frontend,
         CodexInstallProgressReporter? codexInstallProgress = null,
         PluginHostBridge? pluginHostBridge = null)
@@ -73,7 +71,6 @@ internal sealed class CodeAltaFrontendComposition
         ArgumentNullException.ThrowIfNull(projectFileSearchService);
         ArgumentNullException.ThrowIfNull(shell);
         ArgumentNullException.ThrowIfNull(knownProjectImporter);
-        ArgumentNullException.ThrowIfNull(welcomePhase01);
         ArgumentNullException.ThrowIfNull(frontend);
 
         var shellViewModel = new CodeAltaShellViewModel();
@@ -287,8 +284,7 @@ internal sealed class CodeAltaFrontendComposition
             sessionUsageViewModel,
             chatBackendStates,
             threadSelectionContext,
-            shellWorkspaceContext,
-            welcomePhase01);
+            shellWorkspaceContext);
         threadPromptQueueCoordinator = new ThreadPromptQueueCoordinator(
             threadWorkspaceViewModel,
             threadSelectionContext,

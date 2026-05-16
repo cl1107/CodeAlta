@@ -63,8 +63,7 @@ public sealed class ShellWorkspaceCoordinatorTests
             new SessionUsageViewModel(),
             CreateChatBackendStates(),
             threadSelection,
-            workspaceContext,
-            new State<float>(0));
+            workspaceContext);
 
         workspace.ApplySelectionProjection();
 
@@ -128,8 +127,7 @@ public sealed class ShellWorkspaceCoordinatorTests
             new SessionUsageViewModel(),
             CreateChatBackendStates(),
             threadSelection,
-            workspaceContext,
-            new State<float>(0));
+            workspaceContext);
 
         workspace.ApplySelectionProjection();
         Drain(deferredActions);
@@ -322,8 +320,7 @@ public sealed class ShellWorkspaceCoordinatorTests
             sessionUsage,
             chatBackendStates,
             threadSelection,
-            workspaceContext,
-            new State<float>(0));
+            workspaceContext);
 
         return (workspace, sessionUsage);
     }

@@ -6,7 +6,6 @@ using CodeAlta.ViewModels;
 using CodeAlta.Views;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Controls;
-using FloatState = XenoAtom.Terminal.UI.State<float>;
 using IntState = XenoAtom.Terminal.UI.State<int>;
 
 namespace CodeAlta.App;
@@ -27,8 +26,7 @@ internal sealed class ShellWorkspaceCoordinator : IWorkspaceProjectionController
         SessionUsageViewModel sessionUsageViewModel,
         Dictionary<string, ChatBackendState> chatBackendStates,
         ThreadSelectionContext threadSelection,
-        ShellWorkspaceContext workspaceContext,
-        FloatState welcomeAnimationPhase01)
+        ShellWorkspaceContext workspaceContext)
     {
         ArgumentNullException.ThrowIfNull(shellViewModel);
         ArgumentNullException.ThrowIfNull(threadWorkspaceViewModel);
@@ -36,7 +34,6 @@ internal sealed class ShellWorkspaceCoordinator : IWorkspaceProjectionController
         ArgumentNullException.ThrowIfNull(chatBackendStates);
         ArgumentNullException.ThrowIfNull(threadSelection);
         ArgumentNullException.ThrowIfNull(workspaceContext);
-        ArgumentNullException.ThrowIfNull(welcomeAnimationPhase01);
 
         _shellViewModel = shellViewModel;
         _workspaceContext = workspaceContext;

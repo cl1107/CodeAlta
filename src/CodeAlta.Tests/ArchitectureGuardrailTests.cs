@@ -556,10 +556,10 @@ public sealed class ArchitectureGuardrailTests
             "Presentation/Prompting/ProjectFileReferencePopupController.cs:164:_ = sessionCreateTask.ContinueWith(",
             "Presentation/Prompting/ProjectFileReferencePopupController.cs:377:_ = CloseAsync();",
             "Presentation/Prompting/ProjectFileReferencePopupController.cs:378:_ = RecordUsageAsync(selected);",
-            "Presentation/Tabs/ThreadTabStripCoordinator.cs:491:_ = CloseTabFromViewAsync(currentThreadId, ShellTabCloseReason.UserDetached);",
-            "Presentation/Tabs/ThreadTabStripCoordinator.cs:697:_ = CloseTabFromViewAsync(CodeAltaApp.DraftTabId, ShellTabCloseReason.UserDetached);",
-            "Presentation/Tabs/ThreadTabStripCoordinator.cs:732:_ = CloseTabFromViewAsync(currentTabId, ShellTabCloseReason.FileEditorClosed);",
-            "Presentation/Tabs/ThreadTabStripCoordinator.cs:773:_ = CloseTabFromViewAsync(currentTabId, ShellTabCloseReason.UserDetached);",
+            "Presentation/Tabs/ThreadTabStripCoordinator.cs:495:_ = CloseTabFromViewAsync(currentThreadId, ShellTabCloseReason.UserDetached);",
+            "Presentation/Tabs/ThreadTabStripCoordinator.cs:701:_ = CloseTabFromViewAsync(CodeAltaApp.DraftTabId, ShellTabCloseReason.UserDetached);",
+            "Presentation/Tabs/ThreadTabStripCoordinator.cs:736:_ = CloseTabFromViewAsync(currentTabId, ShellTabCloseReason.FileEditorClosed);",
+            "Presentation/Tabs/ThreadTabStripCoordinator.cs:777:_ = CloseTabFromViewAsync(currentTabId, ShellTabCloseReason.UserDetached);",
             "Presentation/Threads/ThreadInfoPresenter.cs:96:_ = LoadAsync(cancellationTokenSource.Token);",
         };
         var violations = new[]
@@ -1475,10 +1475,14 @@ public sealed class ArchitectureGuardrailTests
     public void WelcomePaneFactory_KeepsAnimatedAltaGradientStyle()
     {
         var welcomeSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Presentation", "Shell", "WelcomePaneFactory.cs"));
+        var tabStripSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Presentation", "Tabs", "ThreadTabStripCoordinator.cs"));
 
         Assert.IsTrue(welcomeSource.Contains(".Style(() => BuildWelcomeAltaFigletStyle(welcomeAnimationPhase01.Value))", StringComparison.Ordinal));
+        Assert.IsTrue(tabStripSource.Contains("private readonly State<float> _welcomeAnimationPhase01", StringComparison.Ordinal));
+        Assert.IsTrue(tabStripSource.Contains("_welcomeAnimationPhase01)),", StringComparison.Ordinal));
         Assert.IsFalse(welcomeSource.Contains("DateTime.UtcNow.Ticks", StringComparison.Ordinal));
         Assert.IsFalse(welcomeSource.Contains("private static readonly TextFigletStyle WelcomeAltaFigletStyle", StringComparison.Ordinal));
+        Assert.IsFalse(tabStripSource.Contains("new State<float>(0)", StringComparison.Ordinal));
     }
 
     [TestMethod]

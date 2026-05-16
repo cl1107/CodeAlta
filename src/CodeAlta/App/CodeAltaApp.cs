@@ -166,7 +166,6 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
             projectFileSearchService,
             new CodeAltaShellBridge(this),
             _knownProjectImporter,
-            _shellAnimationRuntime.WelcomePhase01,
             this,
             codexInstallProgress,
             ownedServices?.PluginHostBridge);
@@ -257,6 +256,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
             _threadSelectionContext,
             _threadTabContext,
             _shellTabService,
+            _shellAnimationRuntime.WelcomePhase01,
             () => _promptDraftUiCoordinator.HasCurrentPromptDraft);
         composition.DraftTabReplacement.Bind(_threadTabStripCoordinator.ReplaceDraftTabWithThread);
         var input = new DelegatingShellPromptInputService(() => ReadBindableState(() => _promptDraftUiCoordinator.PromptText), _threadCommandCoordinator.IsCurrentPromptEmpty);
