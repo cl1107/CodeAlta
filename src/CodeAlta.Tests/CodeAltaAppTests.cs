@@ -80,6 +80,20 @@ public sealed class CodeAltaAppTests
     }
 
     [TestMethod]
+    public void UiPalette_UsesThemeSelectionStyleForSidebarSelectedRows()
+    {
+        var theme = CodeAltaThemeResolver.Resolve(ColorScheme.ElderberryDarkSoft.Name);
+        var treeStyle = UiPalette.GetSidebarTreeStyle(theme);
+
+        Assert.IsNotNull(treeStyle.SelectedFocused);
+        Assert.IsNotNull(treeStyle.SelectedUnfocused);
+        Assert.IsTrue(treeStyle.SelectedFocused.Value.TryGetBackground(out var focusedBackground));
+        Assert.IsTrue(treeStyle.SelectedUnfocused.Value.TryGetBackground(out var unfocusedBackground));
+        Assert.AreEqual(theme.Selection, focusedBackground);
+        Assert.AreEqual(theme.Selection, unfocusedBackground);
+    }
+
+    [TestMethod]
     public void UiPalette_UsesVisibleOpaqueTimelineBackgroundsForLightThemes()
     {
         var lightTheme = CodeAltaThemeResolver.Resolve(ColorScheme.BlueberryLight.Name);

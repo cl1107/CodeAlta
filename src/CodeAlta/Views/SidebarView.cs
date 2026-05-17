@@ -58,6 +58,7 @@ internal sealed class SidebarView
             HorizontalAlignment = Align.Stretch,
             VerticalAlignment = Align.Stretch,
         };
+        Tree.Style(() => UiPalette.GetSidebarTreeStyle(Tree.GetTheme()));
         Tree.KeyDown((_, _) => onSelectedTargetChanged(SelectedTarget));
         Tree.PointerPressed((_, _) => onSelectedTargetChanged(SelectedTarget));
         Tree.AddCommand(new Command

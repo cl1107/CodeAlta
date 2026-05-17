@@ -75,6 +75,18 @@ namespace CodeAlta.Presentation.Styling
             };
         }
 
+        internal static TreeViewStyle GetSidebarTreeStyle(Theme theme)
+        {
+            ArgumentNullException.ThrowIfNull(theme);
+
+            var selectedStyle = theme.ForegroundTextStyle() | theme.SelectionStyle();
+            return TreeViewStyle.Default with
+            {
+                SelectedFocused = selectedStyle,
+                SelectedUnfocused = selectedStyle,
+            };
+        }
+
         internal static ButtonStyle GetToolChipButtonStyle(Theme theme, ToolCallDisplayStatus status)
         {
             ArgumentNullException.ThrowIfNull(theme);
