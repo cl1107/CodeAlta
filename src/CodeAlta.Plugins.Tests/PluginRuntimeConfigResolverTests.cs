@@ -125,6 +125,35 @@ public sealed class PluginRuntimeConfigResolverTests
         Assert.IsTrue(result.Diagnostics.Any(diagnostic => diagnostic.Source == PluginRuntimeDiagnosticSource.Config));
     }
 
+    [TestMethod]
+    public async Task PluginRuntimeStartAsync_InvalidGlobalConfig_ReturnsConfigDiagnosticWithoutThrowing()
+    {
+        using var temp = new TestTempDirectory();
+        var projectRoot = Path.Combine(temp.Path, "project");
+        Directory.CreateDirectory(projectRoot);
+        File.WriteAllText(Path.Combine(temp.Path, "config.toml"), "@");
+        await using var runtime = new PluginRuntimeManager();
+
+        var result = await runtime.StartAsync(new PluginRuntimeManagerOptions
+        {
+            GlobalRoot = temp.Path,
+            ProjectContext = new PluginProjectContext
+            {
+                ProjectId = "current",
+                ProjectPath = projectRoot,
+            },
+            BuiltIns = [new BuiltInPluginDefinition
+            {
+                Id = "sample",
+                DisplayName = "Sample",
+                Factory = static () => new SamplePlugin(),
+            }],
+        });
+
+        Assert.AreEqual(0, result.ActivePlugins.Count);
+        Assert.IsTrue(result.Diagnostics.Any(diagnostic => diagnostic.Source == PluginRuntimeDiagnosticSource.Config));
+    }
+
     private static SourcePluginPackage CreatePackage(PluginScope scope)
         => new()
         {

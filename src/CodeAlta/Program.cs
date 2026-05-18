@@ -64,8 +64,7 @@ internal partial class Program
 
         if (options.PluginsStatus)
         {
-            PrintPluginsStatus(options.PluginSafeMode);
-            return 0;
+            return PrintPluginsStatus(options.PluginSafeMode);
         }
 
         using var singleInstanceGuard = CodeAltaSingleInstanceGuard.Acquire();
@@ -115,6 +114,11 @@ internal partial class Program
         CodeAltaLogging.Initialize(homeRoot);
         var currentDirectory = Environment.CurrentDirectory;
         var pluginBootstrapOptions = CodeAltaCliOptions.GetPluginBootstrapOptions(args);
+        if (!CanStartPluginRuntimeBeforeConfigRecovery(homeRoot))
+        {
+            return null;
+        }
+
         var runtime = new PluginRuntimeManager();
         var stopwatch = Stopwatch.StartNew();
         try
@@ -222,6 +226,34 @@ internal partial class Program
 
     private static string GetDefaultHomeRoot()
         => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".alta");
+
+    internal static bool CanStartPluginRuntimeBeforeConfigRecovery(string homeRoot)
+    {
+        var validation = ValidateExistingGlobalConfigForStartup(homeRoot, out _);
+        return validation.IsValid;
+    }
+
+    private static CodeAltaConfigValidationResult ValidateExistingGlobalConfigForStartup(string homeRoot, out string configPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(homeRoot);
+        configPath = Path.Combine(homeRoot, "config.toml");
+        if (!File.Exists(configPath))
+        {
+            return CodeAltaConfigValidationResult.Valid;
+        }
+
+        string content;
+        try
+        {
+            content = File.ReadAllText(configPath);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return new CodeAltaConfigValidationResult(false, $"Unable to read config file: {ex.Message}", null, null);
+        }
+
+        return CodeAltaConfigStore.ValidateGlobalConfigContent(content, configPath);
+    }
 
     private static void LogRuntimeDiagnostic(Logger logger, PluginRuntimeDiagnostic diagnostic)
     {
@@ -396,9 +428,26 @@ internal partial class Program
             $"Program.RunAsync must start on the process main thread. Expected thread {mainThreadId}, but the current thread is {currentThreadId}.");
     }
 
-    private static void PrintPluginsStatus(bool pluginSafeMode)
+    private static int PrintPluginsStatus(bool pluginSafeMode)
     {
-        var homeRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".alta");
+        var homeRoot = GetDefaultHomeRoot();
+        var validation = ValidateExistingGlobalConfigForStartup(homeRoot, out var configPath);
+        if (!validation.IsValid)
+        {
+            Terminal.WriteLine($"CodeAlta config is invalid: {configPath}");
+            if (validation.Line is { } line)
+            {
+                Terminal.WriteLine($"Line {line}, column {validation.Column.GetValueOrDefault(1)}: {validation.Message ?? "Configuration is invalid."}");
+            }
+            else
+            {
+                Terminal.WriteLine(validation.Message ?? "Configuration is invalid.");
+            }
+
+            Terminal.WriteLine("Start CodeAlta without --plugins-status to repair ~/.alta/config.toml in recovery mode.");
+            return 1;
+        }
+
         var currentProject = new ProjectDescriptor
         {
             Id = "current",
@@ -424,5 +473,7 @@ internal partial class Program
                 Terminal.WriteLine($"  {diagnostic.Severity}: {diagnostic.Message}");
             }
         }
+
+        return 0;
     }
 }

@@ -40,6 +40,44 @@ public sealed class ProgramThreadGuardTests
         Assert.IsTrue(programSource.Contains("internal static void ThrowIfCurrentThreadIsNotMainThread(int mainThreadId)", StringComparison.Ordinal));
     }
 
+    [TestMethod]
+    public void CanStartPluginRuntimeBeforeConfigRecovery_MalformedGlobalConfig_ReturnsFalse()
+    {
+        var homeRoot = Path.Combine(Path.GetTempPath(), "CodeAlta.Tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(homeRoot);
+        try
+        {
+            File.WriteAllText(Path.Combine(homeRoot, "config.toml"), "@");
+
+            Assert.IsFalse(InvokeCanStartPluginRuntimeBeforeConfigRecovery(homeRoot));
+        }
+        finally
+        {
+            if (Directory.Exists(homeRoot))
+            {
+                Directory.Delete(homeRoot, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
+    public void CanStartPluginRuntimeBeforeConfigRecovery_MissingGlobalConfig_ReturnsTrue()
+    {
+        var homeRoot = Path.Combine(Path.GetTempPath(), "CodeAlta.Tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(homeRoot);
+        try
+        {
+            Assert.IsTrue(InvokeCanStartPluginRuntimeBeforeConfigRecovery(homeRoot));
+        }
+        finally
+        {
+            if (Directory.Exists(homeRoot))
+            {
+                Directory.Delete(homeRoot, recursive: true);
+            }
+        }
+    }
+
     private static string GetCodeAltaSourceRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
@@ -80,6 +118,25 @@ public sealed class ProgramThreadGuardTests
         try
         {
             guardMethod.Invoke(null, [mainThreadId]);
+        }
+        catch (TargetInvocationException ex) when (ex.InnerException is not null)
+        {
+            throw ex.InnerException;
+        }
+    }
+
+    private static bool InvokeCanStartPluginRuntimeBeforeConfigRecovery(string homeRoot)
+    {
+        var programType = typeof(CodeAltaCliOptions).Assembly.GetType("Program");
+        Assert.IsNotNull(programType);
+        var method = programType.GetMethod(
+            "CanStartPluginRuntimeBeforeConfigRecovery",
+            BindingFlags.Static | BindingFlags.NonPublic);
+        Assert.IsNotNull(method);
+
+        try
+        {
+            return (bool)method.Invoke(null, [homeRoot])!;
         }
         catch (TargetInvocationException ex) when (ex.InnerException is not null)
         {

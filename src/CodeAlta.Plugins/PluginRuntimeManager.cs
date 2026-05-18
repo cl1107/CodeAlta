@@ -110,8 +110,29 @@ public sealed class PluginRuntimeManager : IAsyncDisposable
         var buildResults = new List<PluginBuildResult>();
         var catalogOptions = new CatalogOptions { GlobalRoot = options.GlobalRoot };
         var configStore = new CodeAltaConfigStore(catalogOptions);
-        var globalConfig = configStore.LoadGlobal();
-        var projectConfig = configStore.LoadProject(options.ProjectContext?.ProjectPath);
+        var projectRoot = options.ProjectContext?.ProjectPath;
+        var projectConfigPath = string.IsNullOrWhiteSpace(projectRoot)
+            ? null
+            : Path.Combine(projectRoot, ".alta", "config.toml");
+        var configLoad = PluginRuntimeConfigResolver.LoadValidatedConfig(
+            configStore,
+            catalogOptions.ConfigPath,
+            projectConfigPath,
+            projectRoot);
+        diagnostics.AddRange(configLoad.Diagnostics);
+        if (!configLoad.Succeeded)
+        {
+            _diagnostics.AddRange(diagnostics);
+            return new PluginRuntimeManagerStartResult
+            {
+                ActivePlugins = activePlugins,
+                BuildResults = buildResults,
+                Diagnostics = diagnostics,
+            };
+        }
+
+        var globalConfig = configLoad.GlobalConfig!;
+        var projectConfig = configLoad.ProjectConfig;
         var hostInfo = CreateHostInfo(options);
         var activator = new PluginRuntimeActivator(_registry);
 
