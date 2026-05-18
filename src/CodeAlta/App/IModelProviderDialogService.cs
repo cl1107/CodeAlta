@@ -4,7 +4,15 @@ namespace CodeAlta.App;
 
 internal interface IModelProviderDialogService
 {
+    string ConfigurationPath { get; }
+
     IReadOnlyList<CodeAltaProviderDocument> LoadDefinitions();
+
+    string LoadConfigurationContent();
+
+    CodeAltaConfigValidationResult ValidateConfigurationContent(string? content);
+
+    Task<ProviderConfigurationSaveResult> SaveConfigurationContentAsync(string? content);
 
     Task<ProviderConfigurationSaveResult> SaveDefinitionsAsync(IReadOnlyList<CodeAltaProviderDocument> definitions);
 
@@ -44,8 +52,19 @@ internal sealed class ModelProviderDialogService : IModelProviderDialogService
         _providerUi = providerUi;
     }
 
+    public string ConfigurationPath => _providerUi.ConfigurationPath;
+
     public IReadOnlyList<CodeAltaProviderDocument> LoadDefinitions()
         => _providerUi.LoadProviderDefinitions();
+
+    public string LoadConfigurationContent()
+        => _providerUi.LoadProviderConfigurationContent();
+
+    public CodeAltaConfigValidationResult ValidateConfigurationContent(string? content)
+        => _providerUi.ValidateProviderConfigurationContent(content);
+
+    public Task<ProviderConfigurationSaveResult> SaveConfigurationContentAsync(string? content)
+        => _providerUi.SaveProviderConfigurationContentAsync(content, CancellationToken.None);
 
     public Task<ProviderConfigurationSaveResult> SaveDefinitionsAsync(IReadOnlyList<CodeAltaProviderDocument> definitions)
         => _providerUi.SaveProviderDefinitionsAsync(definitions, CancellationToken.None);

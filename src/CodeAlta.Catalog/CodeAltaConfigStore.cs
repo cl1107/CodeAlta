@@ -73,6 +73,11 @@ public sealed class CodeAltaConfigStore
     }
 
     /// <summary>
+    /// Gets the global user configuration file path.
+    /// </summary>
+    public string ConfigPath => _options.ConfigPath;
+
+    /// <summary>
     /// Loads the global user configuration.
     /// </summary>
     /// <returns>The parsed configuration document.</returns>
@@ -93,6 +98,36 @@ public sealed class CodeAltaConfigStore
         Directory.CreateDirectory(Path.GetDirectoryName(_options.ConfigPath)!);
         File.WriteAllText(_options.ConfigPath, GetDefaultGlobalConfigContent());
         return true;
+    }
+
+    /// <summary>
+    /// Loads the global user configuration TOML content.
+    /// </summary>
+    /// <returns>The existing config content, or the bundled first-run template when the config file is missing.</returns>
+    /// <exception cref="IOException">Thrown when the config file or default template cannot be read.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when the bundled first-run template is unavailable.</exception>
+    public string LoadGlobalConfigContent()
+        => File.Exists(_options.ConfigPath)
+            ? File.ReadAllText(_options.ConfigPath)
+            : GetDefaultGlobalConfigContent();
+
+    /// <summary>
+    /// Validates and saves the global user configuration TOML content without reformatting it.
+    /// </summary>
+    /// <param name="content">The complete TOML content to save.</param>
+    /// <exception cref="InvalidDataException">Thrown when the supplied configuration cannot be loaded.</exception>
+    /// <exception cref="IOException">Thrown when the config file cannot be written.</exception>
+    /// <exception cref="UnauthorizedAccessException">Thrown when the config file cannot be written because access is denied.</exception>
+    public void SaveGlobalConfigContent(string? content)
+    {
+        var validation = ValidateGlobalConfigContent(content, _options.ConfigPath);
+        if (!validation.IsValid)
+        {
+            throw new InvalidDataException(validation.Message ?? "CodeAlta configuration is invalid.");
+        }
+
+        Directory.CreateDirectory(Path.GetDirectoryName(_options.ConfigPath)!);
+        File.WriteAllText(_options.ConfigPath, content ?? string.Empty);
     }
 
     /// <summary>

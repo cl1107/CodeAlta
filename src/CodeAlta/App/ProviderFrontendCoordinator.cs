@@ -58,6 +58,14 @@ internal sealed class ProviderFrontendCoordinator
         return definitions;
     }
 
+    public string ConfigurationPath => _configStore.ConfigPath;
+
+    public string LoadProviderConfigurationContent()
+        => _configStore.LoadGlobalConfigContent();
+
+    public CodeAltaConfigValidationResult ValidateProviderConfigurationContent(string? content)
+        => CodeAltaConfigStore.ValidateGlobalConfigContent(content, _configStore.ConfigPath);
+
     public bool HasAnyEnabledProviders()
     {
         if (_hasAnyEnabledProviders is { } cached)
@@ -70,6 +78,14 @@ internal sealed class ProviderFrontendCoordinator
         return hasEnabledProviders;
     }
 
+    public async Task<ProviderConfigurationSaveResult> SaveProviderConfigurationContentAsync(
+        string? content,
+        CancellationToken cancellationToken = default)
+    {
+        _configStore.SaveGlobalConfigContent(content);
+        return await RefreshAfterProviderConfigurationSaveAsync(cancellationToken);
+    }
+
     public async Task<ProviderConfigurationSaveResult> SaveProviderDefinitionsAsync(
         IReadOnlyList<CodeAltaProviderDocument> definitions,
         CancellationToken cancellationToken = default)
@@ -77,6 +93,11 @@ internal sealed class ProviderFrontendCoordinator
         ArgumentNullException.ThrowIfNull(definitions);
 
         _configStore.SaveGlobalProviderDefinitions(definitions);
+        return await RefreshAfterProviderConfigurationSaveAsync(cancellationToken);
+    }
+
+    private async Task<ProviderConfigurationSaveResult> RefreshAfterProviderConfigurationSaveAsync(CancellationToken cancellationToken)
+    {
         _hasAnyEnabledProviders = null;
         if (_ownedServices is null)
         {

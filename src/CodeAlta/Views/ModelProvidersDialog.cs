@@ -114,12 +114,15 @@ internal sealed class ModelProvidersDialog
         var reloadButton = new Button("Reload")
             .Tone(ControlTone.Warning)
             .Click(() => StartReload(confirmWhenDirty: true));
+        var advancedButton = new Button($"{NerdFont.MdCodeBraces} Advanced TOML")
+            .Tone(ControlTone.Default)
+            .Click(OpenAdvancedEditor);
         _saveButton = new Button("Save")
             .Tone(ControlTone.Success)
             .IsEnabled(() => _activeOperationCount.Value == 0 && HasUnsavedChanges())
             .Click(StartSave);
 
-        var toolbar = new HStack(addButton, deleteButton, reloadButton, _saveButton)
+        var toolbar = new HStack(addButton, deleteButton, reloadButton, advancedButton, _saveButton)
         {
             HorizontalAlignment = Align.End,
             Spacing = 1,
@@ -164,7 +167,7 @@ internal sealed class ModelProvidersDialog
             MinSecond = 50,
         };
 
-        var intro = new Markup("[dim]Enable the providers you want available in CodeAlta. Warnings explain why a provider may not start, and Test Provider verifies the current settings before you save.[/]")
+        var intro = new Markup("[dim]Enable the providers you want available in CodeAlta. Warnings explain why a provider may not start, Test Provider verifies current settings before you save, and Advanced TOML opens the full config editor for provider settings not exposed here.[/]")
         {
             Wrap = true,
         };
@@ -333,6 +336,52 @@ internal sealed class ModelProvidersDialog
                     loadedStatusText: FormatProviderSaveStatus(result.SaveResult));
             },
             ex => SetStatus($"[error]{AnsiMarkup.Escape(ex.GetBaseException().Message)}[/]"));
+    }
+
+    private void OpenAdvancedEditor()
+    {
+        if (_activeOperationCount.Value > 0)
+        {
+            SetStatus("[warning]Please wait for the current provider operation to complete before opening Advanced TOML.[/]");
+            return;
+        }
+
+        if (HasUnsavedChanges())
+        {
+            SetStatus("[warning]Save or Reload the form changes before opening Advanced TOML so the code editor starts from the on-disk config.[/]");
+            return;
+        }
+
+        try
+        {
+            new ConfigAdvancedEditorDialog(
+                _modelProviders,
+                _modelProviders.ConfigurationPath,
+                _modelProviders.LoadConfigurationContent(),
+                OnAdvancedEditorSaved,
+                _getBounds,
+                () => _dialog)
+                .Show();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            SetStatus($"[error]{AnsiMarkup.Escape(ex.GetBaseException().Message)}[/]");
+        }
+    }
+
+    private void OnAdvancedEditorSaved(ProviderConfigurationSaveResult saveResult)
+    {
+        try
+        {
+            LoadDefinitionsIntoDialog(
+                _modelProviders.LoadDefinitions(),
+                emptyStatusText: "[warning]Provider configuration saved, but no providers are configured yet. Add one, or enable Codex/Copilot.[/]",
+                loadedStatusText: FormatProviderSaveStatus(saveResult));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            SetStatus($"[error]Saved TOML, but failed to reload provider configuration: {AnsiMarkup.Escape(ex.GetBaseException().Message)}[/]");
+        }
     }
 
     private void StartTest(ModelProviderEditorItemViewModel item)
@@ -541,7 +590,7 @@ internal sealed class ModelProvidersDialog
             AddTextRow(form, ref row, "Model Discovery", CreateDefaultTextField(bindings.ModelDiscovery, () => item.UseDefaultModelDiscovery), CreateDefaultCheckBox("Default", bindings.UseDefaultModelDiscovery));
         }
 
-        var advancedNotice = new Markup("[dim]Advanced provider TOML sections such as profile, compaction, extra_body, and model_overrides are preserved unchanged when you save from this dialog.[/]")
+        var advancedNotice = new Markup("[dim]Advanced provider TOML sections such as profile, compaction, extra_body, and model_overrides are preserved when you save from this form. Use Advanced TOML to edit them directly.[/]")
         {
             Wrap = true,
         };

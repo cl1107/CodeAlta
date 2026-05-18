@@ -5,7 +5,6 @@ using XenoAtom.Terminal;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Commands;
 using XenoAtom.Terminal.UI.Controls;
-using XenoAtom.Terminal.UI.Extensions.CodeEditor.TextMateSharp;
 using XenoAtom.Terminal.UI.Input;
 using XenoAtom.Terminal.UI.Styling;
 using XenoAtom.Terminal.UI.Text;
@@ -39,7 +38,7 @@ internal sealed class ConfigRecoveryDialog
         _exit = exit;
         _validation = initialValidation;
 
-        _editor = CreateEditor(initialText ?? string.Empty);
+        _editor = ConfigTomlEditor.Create(initialText ?? string.Empty, _configPath);
         _editor.TextDocument.Changed += OnEditorChanged;
         var diagnosticMargin = CodeEditor.CreateDiffIndicatorMargin(
             lineIndex => !_validation.IsValid && _validation.Line is { } line && lineIndex == line - 1
@@ -148,30 +147,6 @@ internal sealed class ConfigRecoveryDialog
             Execute = _ => Exit(),
         });
         return dialog;
-    }
-
-    private CodeEditor CreateEditor(string text)
-    {
-        var editor = new CodeEditor()
-            .AutoFocus(true)
-            .WordWrap(false)
-            .ShowLineNumbers(true)
-            .HighlightCurrentLine(true)
-            .MinHeight(12);
-        editor.TextDocument = new TextDocument(text);
-        try
-        {
-            editor.SyntaxHighlighter = new TextMateCodeEditorSyntaxHighlighter(new TextMateCodeEditorOptions
-            {
-                FileName = _configPath,
-            });
-        }
-        catch (ArgumentException)
-        {
-            editor.SyntaxHighlighter = null;
-        }
-
-        return editor;
     }
 
     private void OnEditorChanged(object? sender, TextDocumentChangedEventArgs e)

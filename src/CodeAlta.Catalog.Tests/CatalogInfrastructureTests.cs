@@ -825,6 +825,36 @@ public sealed class CatalogInfrastructureTests
     }
 
     [TestMethod]
+    public void CodeAltaConfigStore_LoadGlobalConfigContent_ReturnsDefaultWhenMissing()
+    {
+        using var root = TempDirectory.Create();
+        var store = new CodeAltaConfigStore(new CatalogOptions { GlobalRoot = root.Path });
+
+        var content = store.LoadGlobalConfigContent();
+
+        StringAssert.Contains(content, "[providers.codex_cli]");
+        Assert.IsFalse(File.Exists(Path.Combine(root.Path, "config.toml")));
+    }
+
+    [TestMethod]
+    public void CodeAltaConfigStore_SaveGlobalConfigContent_RejectsInvalidWithoutOverwrite()
+    {
+        using var root = TempDirectory.Create();
+        var configPath = Path.Combine(root.Path, "config.toml");
+        const string validContent = """
+            [providers.openai]
+            enabled = false
+            type = "openai-responses"
+            """;
+        File.WriteAllText(configPath, validContent);
+        var store = new CodeAltaConfigStore(new CatalogOptions { GlobalRoot = root.Path });
+
+        Assert.ThrowsExactly<InvalidDataException>(() => store.SaveGlobalConfigContent("[providers.openai]\ntype = \"not-supported\""));
+
+        Assert.AreEqual(validContent, File.ReadAllText(configPath));
+    }
+
+    [TestMethod]
     public void CodeAltaConfigStore_GetEffectiveProviderPreference_ProjectConfigOverridesGlobalPerField()
     {
         using var root = TempDirectory.Create();

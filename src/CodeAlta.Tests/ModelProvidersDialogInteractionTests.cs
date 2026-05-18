@@ -571,7 +571,17 @@ public sealed class ModelProvidersDialogInteractionTests
             _testProviderAsync = testProviderAsync ?? (definition => Task.FromResult(new ProviderTestResult(true, $"Connected successfully · {definition.ProviderKey}", 1)));
         }
 
+        public string ConfigurationPath => Path.Combine(Path.GetTempPath(), "config.toml");
+
         public IReadOnlyList<CodeAltaProviderDocument> LoadDefinitions() => _loadDefinitions();
+
+        public string LoadConfigurationContent() => "[providers]";
+
+        public CodeAltaConfigValidationResult ValidateConfigurationContent(string? content)
+            => CodeAltaConfigStore.ValidateGlobalConfigContent(content, ConfigurationPath);
+
+        public Task<ProviderConfigurationSaveResult> SaveConfigurationContentAsync(string? content)
+            => Task.FromResult(ProviderConfigurationSaveResult.Success);
 
         public Task<ProviderConfigurationSaveResult> SaveDefinitionsAsync(IReadOnlyList<CodeAltaProviderDocument> definitions) => _saveDefinitionsAsync(definitions);
 
