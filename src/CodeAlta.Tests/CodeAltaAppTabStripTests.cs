@@ -230,7 +230,7 @@ public sealed class CodeAltaAppTabStripTests
     }
 
     [TestMethod]
-    public void SyncControl_RestoresSelectedThreadAfterStartupDraftWasCreated()
+    public void SyncControl_PreservesSelectedDraftAfterStartupDraftWasCreated()
     {
         using var temp = TempDirectory.Create();
         var options = new CatalogOptions { GlobalRoot = temp.Path };
@@ -263,9 +263,10 @@ public sealed class CodeAltaAppTabStripTests
         coordinator.SyncControl();
 
         Assert.IsTrue(tabs.TryGetTab(new ShellTabId(firstThread.ThreadId), out _));
-        Assert.IsTrue(tabs.TryGetTab(new ShellTabId(lastThread.ThreadId), out var selectedTab));
+        Assert.IsTrue(tabs.TryGetTab(new ShellTabId(lastThread.ThreadId), out _));
+        Assert.IsTrue(tabs.TryGetTab(new ShellTabId(CodeAltaApp.DraftTabId), out var selectedTab));
         Assert.IsTrue(selectedTab.IsSelected);
-        Assert.AreEqual(2, workspaceView.ThreadTabControl.SelectedIndex);
+        Assert.AreEqual(0, workspaceView.ThreadTabControl.SelectedIndex);
     }
 
     [TestMethod]

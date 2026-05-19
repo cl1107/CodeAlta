@@ -463,7 +463,7 @@ public sealed class ShellThreadStateCoordinatorTests
     }
 
     [TestMethod]
-    public void ApplyInitialCatalogState_RestoresLastOpenProjectThreadWhenStartupSelectionIsDraft()
+    public void ApplyInitialCatalogState_PreservesPersistedDraftSelectionEvenWhenOpenThreadsExist()
     {
         using var temp = TempDirectory.Create();
         var options = new CatalogOptions { GlobalRoot = temp.Path };
@@ -481,9 +481,14 @@ public sealed class ShellThreadStateCoordinatorTests
                 Selection = WorkThreadSelectionState.ProjectDraft(project.Id),
             }));
 
-        Assert.AreEqual(lastThread.ThreadId, coordinator.SelectedThreadId);
-        Assert.AreEqual(lastThread.ThreadId, coordinator.PendingStartupThreadRestoreId);
-        Assert.AreEqual(WorkThreadSelectionSurface.Thread, coordinator.ViewState.Selection.Surface);
+        Assert.AreEqual(ShellSurface.DraftWorkspace, coordinator.Selection.Surface);
+        Assert.IsInstanceOfType<WorkspaceTarget.Draft>(coordinator.Selection.Target);
+        Assert.IsFalse(coordinator.GlobalScopeSelected);
+        Assert.AreEqual(project.Id, coordinator.SelectedProjectId);
+        Assert.IsNull(coordinator.SelectedThreadId);
+        Assert.IsNull(coordinator.PendingStartupThreadRestoreId);
+        Assert.AreEqual(WorkThreadSelectionSurface.Draft, coordinator.ViewState.Selection.Surface);
+        Assert.AreEqual(WorkThreadDraftScope.Project, coordinator.ViewState.Selection.DraftScope);
     }
 
     [TestMethod]

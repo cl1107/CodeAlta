@@ -122,7 +122,6 @@ internal sealed partial class ShellThreadStateCoordinator
         ArgumentNullException.ThrowIfNull(state);
 
         _catalogStateCoordinator.ApplyInitialCatalogState(state);
-        RestoreStartupOpenThreadSelection(state.ViewState, Threads);
         _selectionCoordinator.ApplyInitialSelection(state.ViewState, Projects, Threads);
         SyncStateStore(catalogChanged: true, selectionChanged: true);
     }
@@ -134,53 +133,6 @@ internal sealed partial class ShellThreadStateCoordinator
 
     public async Task PersistViewStateAsync()
         => await _viewStateCoordinator.PersistViewStateAsync(ViewState);
-
-    private static void RestoreStartupOpenThreadSelection(
-        WorkThreadViewState viewState,
-        IReadOnlyList<WorkThreadDescriptor> threads)
-    {
-        ArgumentNullException.ThrowIfNull(viewState);
-        ArgumentNullException.ThrowIfNull(threads);
-
-        if (viewState.Selection.Surface == WorkThreadSelectionSurface.Thread ||
-            viewState.OpenThreadIds.Count == 0)
-        {
-            return;
-        }
-
-        var selectedThread = ResolveStartupOpenThread(viewState, threads);
-        if (selectedThread is null)
-        {
-            return;
-        }
-
-        viewState.Selection = WorkThreadSelectionState.Thread(selectedThread.ThreadId, selectedThread.ProjectRef);
-        viewState.SelectedThreadId = selectedThread.ThreadId;
-    }
-
-    private static WorkThreadDescriptor? ResolveStartupOpenThread(
-        WorkThreadViewState viewState,
-        IReadOnlyList<WorkThreadDescriptor> threads)
-    {
-        var preferredProjectId = viewState.Selection.ProjectId;
-        foreach (var threadId in Enumerable.Reverse(viewState.OpenThreadIds))
-        {
-            var thread = threads.FirstOrDefault(candidate =>
-                string.Equals(candidate.ThreadId, threadId, StringComparison.OrdinalIgnoreCase));
-            if (thread is null)
-            {
-                continue;
-            }
-
-            if (string.IsNullOrWhiteSpace(preferredProjectId) ||
-                string.Equals(thread.ProjectRef, preferredProjectId, StringComparison.OrdinalIgnoreCase))
-            {
-                return thread;
-            }
-        }
-
-        return null;
-    }
 
     public void ApplyRecoveredCatalogState(
         IReadOnlyList<ProjectDescriptor> projects,
