@@ -183,7 +183,7 @@ internal sealed class ChatBackendInitializationCoordinator
                 {
                     state.Models.Clear();
                     state.Models.AddRange(models);
-                    state.SelectedModelId = ChatBackendPresentation.ResolvePreferredModelId(models, state.SelectedModelId);
+                    state.SelectedModelId = ResolveSelectedModelIdAfterDiscovery(models, state.SelectedModelId);
                     state.SelectedReasoningEffort = ChatBackendPresentation.ResolvePreferredReasoningEffort(
                         ModelProviderPreferenceCoordinator.FindModel(models, state.SelectedModelId),
                         state.SelectedReasoningEffort);
@@ -213,6 +213,17 @@ internal sealed class ChatBackendInitializationCoordinator
                     PublishProviderStateChanged(backendId);
                 });
         }
+    }
+
+    private static string? ResolveSelectedModelIdAfterDiscovery(
+        IReadOnlyList<AgentModelInfo> models,
+        string? selectedModelId)
+    {
+        ArgumentNullException.ThrowIfNull(models);
+
+        return string.IsNullOrWhiteSpace(selectedModelId)
+            ? ChatBackendPresentation.ResolvePreferredModelId(models, selectedModelId)
+            : selectedModelId.Trim();
     }
 
     private async Task<ChatBackendState> EnsureBackendStateAsync(

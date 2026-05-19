@@ -44,6 +44,41 @@ public sealed class ChatBackendInitializationCoordinatorTests
     }
 
     [TestMethod]
+    public async Task RefreshBackendAsync_PreservesSelectedModelWhenMissingFromDiscoveredModels()
+    {
+        var backendId = new AgentBackendId("codex");
+        var backendFactory = new AgentBackendFactory();
+        var backend = new CountingBackend(
+            backendId,
+            [
+                new AgentModelInfo(
+                    "gpt-5.2",
+                    SupportedReasoningEfforts: [AgentReasoningEffort.Low, AgentReasoningEffort.Medium]),
+            ]);
+        backendFactory.Register(backendId, () => backend);
+
+        await using var hub = new AgentHub(backendFactory);
+        var state = new ChatBackendState(backendId, "Codex")
+        {
+            SelectedModelId = "gpt-5.5",
+            SelectedReasoningEffort = AgentReasoningEffort.High,
+        };
+        var coordinator = CreateCoordinator(
+            hub,
+            [new AgentBackendDescriptor(backendId, "Codex")],
+            new Dictionary<string, ChatBackendState>(StringComparer.OrdinalIgnoreCase)
+            {
+                [backendId.Value] = state,
+            });
+
+        await coordinator.RefreshBackendAsync(backendId, CancellationToken.None).ConfigureAwait(false);
+
+        CollectionAssert.AreEqual(new[] { "gpt-5.2" }, state.Models.Select(static model => model.Id).ToArray());
+        Assert.AreEqual("gpt-5.5", state.SelectedModelId);
+        Assert.AreEqual(AgentReasoningEffort.High, state.SelectedReasoningEffort);
+    }
+
+    [TestMethod]
     public async Task RefreshBackendAsync_EnablesSessionLoadingBeforeUiStateIsApplied()
     {
         using var temp = TempDirectory.Create();
@@ -203,9 +238,17 @@ public sealed class ChatBackendInitializationCoordinatorTests
             => Task.FromResult(action());
     }
 
-    private sealed class CountingBackend(AgentBackendId backendId) : IAgentBackend
+    private sealed class CountingBackend : IAgentBackend
     {
-        public AgentBackendId BackendId { get; } = backendId;
+        private readonly IReadOnlyList<AgentModelInfo> _models;
+
+        public CountingBackend(AgentBackendId backendId, IReadOnlyList<AgentModelInfo>? models = null)
+        {
+            BackendId = backendId;
+            _models = models ?? [new AgentModelInfo("new-model")];
+        }
+
+        public AgentBackendId BackendId { get; }
 
         public string DisplayName => BackendId.Value;
 
@@ -224,7 +267,7 @@ public sealed class ChatBackendInitializationCoordinatorTests
         public Task<IReadOnlyList<AgentModelInfo>> ListModelsAsync(CancellationToken cancellationToken = default)
         {
             ListModelsCount++;
-            return Task.FromResult<IReadOnlyList<AgentModelInfo>>([new AgentModelInfo("new-model")]);
+            return Task.FromResult(_models);
         }
 
         public async IAsyncEnumerable<AgentSessionMetadata> ListSessionsAsync(
