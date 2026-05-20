@@ -1,6 +1,6 @@
-# CodeAlta [![ci](https://github.com/xoofx/CodeAlta/actions/workflows/ci.yml/badge.svg)](https://github.com/xoofx/CodeAlta/actions/workflows/ci.yml) [![NuGet](https://img.shields.io/nuget/v/CodeAlta.svg)](https://www.nuget.org/packages/CodeAlta/)
+# CodeAlta [![ci](https://github.com/CodeAlta/CodeAlta/actions/workflows/ci.yml/badge.svg)](https://github.com/CodeAlta/CodeAlta/actions/workflows/ci.yml) [![NuGet](https://img.shields.io/nuget/v/CodeAlta.svg)](https://www.nuget.org/packages/CodeAlta/)
 
-<img align="right" width="160px" height="160px" src="https://raw.githubusercontent.com/xoofx/CodeAlta/main/img/CodeAlta.png">
+<img align="right" width="160px" height="160px" src="https://raw.githubusercontent.com/CodeAlta/CodeAlta/main/img/CodeAlta.png">
 
 An agentic AI coding CLI assistant developed in .NET.
 
@@ -38,7 +38,7 @@ An agentic AI coding CLI assistant developed in .NET.
 
 ## 📖 User Guide
 
-For more details on how to use CodeAlta, please visit the [user guide](https://github.com/xoofx/CodeAlta/blob/main/doc/readme.md).
+For more details on how to use CodeAlta, please visit the [CodeAlta website](https://codealta.github.io/) or the [repository user guide](doc/readme.md).
 
 See also [CodeAlta live tool](doc/readme.md#alta-live-tool) for in-session `alta` command examples and [CodeAlta skills](doc/skills.md) for skill locations, validation rules, and backend behavior.
 

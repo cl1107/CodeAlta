@@ -10,8 +10,9 @@ Paths/commands below are relative to this directory.
 
 - Library: `src/CodeAlta/`
 - Tests: `src/CodeAlta.Tests/` (MSTest)
+- Website: `site/` (Lunet end-user documentation)
 - Development rules to keep in sync: `doc/development-guide.md`
-- Docs to keep in sync with behavior: `readme.md` and the docs under `doc/` (e.g., `doc/**/*.md`)
+- Docs to keep in sync with behavior: `readme.md`, the public website under `site/`, and the internal docs under `doc/` (e.g., `doc/**/*.md`)
 
 ## Build & Test
 
@@ -20,9 +21,13 @@ Paths/commands below are relative to this directory.
 cd src
 dotnet build -c Release
 dotnet test -c Release
+
+# from the website folder; install once with: dotnet tool install -g lunet
+cd ../site
+lunet build
 ```
 
-All tests must pass and docs must be updated before submitting.
+All tests and the Lunet website build must pass, and docs must be updated before submitting.
 
 ## Contribution Rules (Do/Don't)
 

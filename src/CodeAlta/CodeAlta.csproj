@@ -30,7 +30,7 @@
     <PackageReadmeFile>readme.md</PackageReadmeFile>
     <PackageIcon>CodeAlta.png</PackageIcon>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <PackageProjectUrl>https://github.com/xoofx/CodeAlta</PackageProjectUrl>
+    <PackageProjectUrl>https://github.com/CodeAlta/CodeAlta</PackageProjectUrl>
     <PackageLicenseExpression>BSD-2-Clause</PackageLicenseExpression>
     <!--Add support for sourcelink-->
     <PublishRepositoryUrl>true</PublishRepositoryUrl>

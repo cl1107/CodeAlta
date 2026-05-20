@@ -1,0 +1,145 @@
+---
+title: Plugins
+---
+
+# Plugins
+
+CodeAlta plugins are trusted source packages that can extend the shell, prompt flow, agent runtime, timeline projections, and the in-session `alta` live tool.
+
+Plugins are for local automation you choose to run. Building a source plugin can execute SDK/NuGet/MSBuild logic, and loading it executes .NET code inside the CodeAlta process.
+
+## Plugin locations
+
+CodeAlta discovers dynamic source plugins from:
+
+- `~/.alta/plugins/<package-id>/plugin.cs` for global plugins;
+- `<project>/.alta/plugins/<package-id>/plugin.cs` for project-scoped plugins.
+
+Project-scoped plugins apply only to the matching project. Global plugins apply across workspaces.
+
+## Manage plugins
+
+Open plugin management with `Ctrl+G Ctrl+N`, `/plugins`, or `/plugin`.
+
+<!-- screenshot: plugin management dialog plugin list and selected plugin diagnostics -->
+
+The dialog shows:
+
+- plugin scope and state;
+- diagnostics from discovery, config, build, load, activation, contributions, callbacks, source changes, and unload;
+- contribution summaries;
+- unknown config entries;
+- source and README open actions when available.
+
+You can also use a headless status summary:
+
+```sh
+alta --plugins-status
+```
+
+## Disable or bypass plugins
+
+Source plugins are enabled by default when discovered. Disable a plugin in TOML when you do not want it built or loaded:
+
+```toml
+[plugins.HelloWorld]
+enabled = false
+```
+
+When a plugin is broken, start CodeAlta with a bypass:
+
+```sh
+alta --no-plugins
+alta --plugin-safe-mode
+```
+
+Or set:
+
+```sh
+CODEALTA_DISABLE_PLUGINS=1
+```
+
+These bypasses are recognized before plugin-contributed command-line options.
+
+## Minimal source plugin
+
+Create `~/.alta/plugins/HelloWorld/plugin.cs`:
+
+```csharp
+using CodeAlta.Plugins.Abstractions;
+using XenoAtom.Terminal.UI.Controls;
+using CliCommand = XenoAtom.CommandLine.Command;
+
+[Plugin(DisplayName = "Hello Plugin", Description = "Adds a command, prompt note, and status row.")]
+public sealed class HelloPlugin : PluginBase
+{
+    public override IEnumerable<PluginCommandContribution> GetCommands()
+    {
+        yield return Command.Prompt(
+            "hello",
+            "Show a hello notification.",
+            static async (context, cancellationToken) =>
+            {
+                await context.Ui.NotifyAsync("Hello from a plugin.", cancellationToken);
+                return PluginCommandResult.Handled;
+            });
+    }
+
+    public override IEnumerable<PluginSystemPromptContribution> GetSystemPromptContributions()
+    {
+        yield return Prompt.Developer("When the user asks about the hello plugin, explain that it is installed.");
+    }
+
+    public override IEnumerable<XenoAtom.CommandLine.CommandNode> GetCommandLineContributions()
+    {
+        yield return new CliCommand("hello", "Run hello plugin command-line actions.");
+    }
+
+    public override IEnumerable<PluginUiContribution> GetUiContributions()
+    {
+        yield return PluginUi.Status("Hello", static _ => "hello plugin active");
+        yield return PluginUi.Visual(PluginUiRegion.ThreadFooter, static _ => new Markup("[dim]Hello plugin[/]"));
+    }
+}
+```
+
+Restart CodeAlta or refresh plugin state from the management UI. CodeAlta generates the plugin-root build files it owns and invokes `dotnet build plugin.cs` from the plugin package directory.
+
+## What plugins can contribute
+
+Plugins can contribute:
+
+- startup hooks and command-line commands;
+- shell, prompt, and thread commands;
+- UI visuals, status rows, dialogs, and renderers;
+- prompt processors and system/developer prompt parts;
+- before-agent-run hooks;
+- LLM-callable agent tools and tool-call/result interception;
+- provider factories;
+- plugin-lifetime background tasks;
+- resource roots such as skills, prompts, templates, themes, MCP manifests, and agent definitions;
+- compaction hooks;
+- normalized agent event observers;
+- transient thread event projections for plugin-owned timeline cards.
+
+Built-in plugins use the same model. For example, the statistics plugin projects per-turn/session statistics from normalized agent events without writing plugin messages into canonical conversation history.
+
+## Extend the `alta` live tool
+
+Plugins can add in-session live-tool command roots by returning `PluginAltaCommandContribution` records from `PluginBase.GetAltaCommands()`.
+
+Those commands appear in:
+
+```text
+alta --help
+alta tool capability list
+```
+
+Trusted plugins can also invoke built-in `alta` commands through `Services.Alta.InvokeAsync(...)`. Mutating plugin-originated commands include the plugin key in provenance so later sidebars, timelines, and reports can explain who created or submitted work.
+
+## Safe authoring notes
+
+- Use `Services.Tasks.Run(...)` or the `PluginBase.Tasks` shortcut for background work so CodeAlta can cancel and track plugin tasks during unload.
+- Keep plugin package roots simple. For v1 source-folder plugins, do not add your own root `Directory.Build.props`, `Directory.Build.targets`, `Directory.Packages.props`, or `global.json`.
+- Plugin-owned dependencies should be copied by the SDK (`EnableDynamicLoading=true`) so the plugin load context can resolve them.
+- Avoid untracked background work, static references to host objects, pinned native resources, or host-static delegates that can prevent unload.
