@@ -16,11 +16,11 @@ Add a rule here when it is important enough that contributors and agents should 
 ## Architecture Boundaries
 
 - Keep reusable agent/session/thread orchestration out of the `CodeAlta` frontend project. Frontend code should own terminal controls, view models, visual projections, dialogs, and adapters from user actions to application/runtime commands.
-- Keep `CodeAlta.Orchestration`, `CodeAlta.Plugins`, `CodeAlta.Catalog`, and future shared hosting code independent from the TUI project and terminal UI controls.
+- Keep `CodeAlta.Orchestration`, `CodeAlta.Orchestration.Hosting`, `CodeAlta.Plugins`, and `CodeAlta.Catalog` independent from the TUI project and terminal UI controls.
 - Keep plugin orchestration hooks headless. Frontend code may render plugin-derived projections or adapt plugin UI/tab services, but should not own agent event observer dispatch or derived-event creation.
 - Treat plugin-derived thread events as transient projections. Do not persist them as canonical user/agent transcript events unless a future decision explicitly changes the event model.
 - Prefer named ports, request/response DTOs, immutable snapshots, and event streams over large callback aggregates or callback-wrapper context classes.
-- New shell/application contracts should use `ModelProvider` terminology for selectable LLM runtime and endpoint configuration. Keep `Backend` names only for low-level runtime adapters or explicitly marked legacy compatibility seams.
+- New shell/application contracts should use `ModelProvider` terminology for selectable LLM runtime and endpoint configuration. Keep `Backend` names for low-level runtime adapters such as `IAgentBackend`.
 
 ## Frontend Shell Shape
 
@@ -28,16 +28,16 @@ The TUI frontend should stay organized around explicit state, commands, events, 
 
 ```mermaid
 flowchart LR
-    Views[Views and dialogs\nview models + narrow controllers]
-    Commands[ShellCommandDispatcher\ncommand registry + handlers]
-    App[CodeAltaApp\ncomposition root + compatibility facade]
-    State[ShellStateStore\nselection, tabs, prompt sessions]
-    Domain[Domain services\nselection, catalog, prompts, model providers]
+    Views[Views and dialogs - view models + narrow controllers]
+    Commands[ShellCommandDispatcher - command registry + handlers]
+    App[CodeAltaApp - composition facade]
+    State[ShellStateStore - selection, tabs, prompt sessions]
+    Domain[Domain services - selection, catalog, prompts, model providers]
     Events[ShellFrontendEvent publisher]
-    Projections[Projection controllers\nsidebar, workspace, status, prompts]
-    Runtime[Runtime adapter\nagent sessions and runs]
-    Persistence[Persistence adapters\nview state, config, catalogs]
-    Plugins[Plugin bridge\nheadless runtime + UI tab adapter]
+    Projections[Projection controllers - sidebar, workspace, status, prompts]
+    Runtime[Runtime adapter - agent sessions and runs]
+    Persistence[Persistence adapters - view state, config, catalogs]
+    Plugins[Plugin bridge - headless runtime + UI tab adapter]
 
     Views --> Commands
     Commands --> Domain
@@ -71,8 +71,24 @@ flowchart LR
 - Use bounded queues or documented overflow/coalescing policies for runtime and plugin event streams.
 - Do not add Akka.NET or another actor framework as a default dependency. A framework dependency requires a separate decision record/spike showing that it simplifies supervision, testing, shutdown, and host integration compared with the internal mailbox pattern.
 
+## State And Mutability
+
+- Do not add static mutable data anywhere in the codebase. Prefer instance-owned state, DI-managed services, immutable static data, frozen collections, or generated constants.
+- Runtime/session state should be owned by explicit services or mailbox actors. Avoid process-wide lock maps and static caches for runtime/session ownership.
+- Persist user-owned state only through the catalog/runtime stores that own that data. Do not write config, session journals, prompt drafts, plugin state, or UI state from unrelated layers.
+- Treat logs, traces, journals, prompts, command output, provider payloads, and plugin diagnostics as potentially sensitive user data.
+
+## Public APIs
+
+- Public APIs require XML documentation and should document thrown exceptions.
+- Validate inputs early with specific exceptions. Use `ArgumentNullException.ThrowIfNull()` and `ArgumentException.ThrowIfNullOrWhiteSpace()` where appropriate.
+- Keep APIs small and hard to misuse. Prefer named request/response records over positional parameter lists when a boundary is likely to evolve.
+- Preserve nullable annotations. Do not suppress warnings without a justification comment.
+
 ## Documentation
 
 - If a repository-wide development rule should be enforced, add or update it here.
 - Keep `AGENTS.md` aligned with this document when agent-facing instructions depend on it.
-- Update user-facing docs when behavior changes.
+- Update public docs, internal docs, and website pages when behavior changes.
+- Internal docs must describe current implementation. Move completed plans or superseded drafts out of tracked docs rather than leaving them as active references.
+- Keep `doc/readme.md` as the top-down navigation entry point and link detailed implementation docs from it.

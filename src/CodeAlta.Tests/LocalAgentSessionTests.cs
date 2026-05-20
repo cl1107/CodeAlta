@@ -3253,7 +3253,7 @@ public sealed class LocalAgentSessionTests
                           - Keep the configurable compaction ratio.
                           - Cover very large prompts and oversized attachments.
                           ## Files and Identifiers
-                          - doc/specs/agent_compaction_specs.md
+                          - doc/runtime.md
                           - tmp/agent_compaction_plan_v2.md
                           ## Exact Literals and Errors
                           - "ratio = 0.95"
@@ -3280,7 +3280,7 @@ public sealed class LocalAgentSessionTests
                           ## Critical Context
                           - The large latest user input was intentionally reduced before replay.
                           ## Relevant Files
-                          - doc/specs/agent_compaction_specs.md
+                          - doc/runtime.md
                           - tmp/agent_compaction_plan_v2.md
                           """;
                     return Task.FromResult(
@@ -3321,7 +3321,7 @@ public sealed class LocalAgentSessionTests
                 "Requirements: " +
                 string.Join(
                     Environment.NewLine,
-                    Enumerable.Range(1, 160).Select(index => $"{index}. Keep detail #{index} and mention doc/specs/agent_compaction_specs.md"))),
+                    Enumerable.Range(1, 160).Select(index => $"{index}. Keep detail #{index} and mention doc/runtime.md"))),
         }).ConfigureAwait(false);
 
         Assert.IsTrue(summaryPayloads.Count >= 2);

@@ -36,11 +36,11 @@ An agentic AI coding CLI assistant developed in .NET.
 - `CodeAlta --test` runs the real terminal app for a short smoke-test window and exits automatically after 10 seconds by default
 - CLI entry points use generated visual `--help` / parse-error output via `XenoAtom.CommandLine`
 
-## 📖 User Guide
+## 📖 Documentation
 
-For more details on how to use CodeAlta, please visit the [CodeAlta website](https://codealta.github.io/) or the [repository user guide](doc/readme.md).
+For end-user guidance, visit the [CodeAlta website](https://codealta.github.io/). For maintainer architecture notes, start with the [repository internal documentation](doc/readme.md).
 
-See also [CodeAlta live tool](doc/readme.md#alta-live-tool) for in-session `alta` command examples and [CodeAlta skills](doc/skills.md) for skill locations, validation rules, and backend behavior.
+See also the [`alta` live tool](doc/live-tool.md) for in-session command examples and [CodeAlta skills](doc/skills.md) for skill locations, validation rules, and runtime behavior.
 
 ## 🪪 License
 

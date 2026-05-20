@@ -1,0 +1,124 @@
+# Catalog, configuration, and state
+
+CodeAlta keeps user-owned durable state under a global root and project-local `.alta` directories. The default global root is `~/.alta`, resolved from the current user's profile directory by `CodeAltaOwnedServices` and `CodeAltaHost` unless a host overrides it.
+
+## Global root layout
+
+`CatalogOptions` defines the current global layout:
+
+| Path under `~/.alta` | Owner | Purpose |
+| --- | --- | --- |
+| `config.toml` | `CodeAltaConfigStore` | Global chat defaults, providers, plugins, and ACP agent definitions. |
+| `projects/` | `ProjectCatalog` | Markdown project descriptors keyed by project slug. |
+| `checkouts/` | `ProjectCatalog` helpers | Default checkout root used by catalog planning APIs. |
+| `machines/` | Catalog model | Machine-specific override profile root. |
+| `agents/` | Catalog model | File-backed agent-definition root used by host-owned coordinator setup. |
+| `cache/` | Process/runtime services | Machine-local cache root, including refreshed model metadata and plugin build cache. |
+| `sessions/` | Local agent runtime and thread catalog | Date-sharded session journals and optional protocol traces. |
+| `saved_prompts/` | Frontend prompt draft service | Unsent per-thread prompt drafts. |
+| `ui-state.yaml` | Frontend view-state service | Open/selected tabs, thread/model preferences, theme, and shell view state. |
+| `plugins/` | Plugin runtime | User-scoped source plugin packages. |
+| `skills/` | Skill catalog | User-scoped CodeAlta skill roots. |
+| `acp/registry/` | ACP registry service | Cached ACP registry document. |
+| `acp/downloads/` | ACP installer | Download cache for installable ACP agents. |
+| `acp/installs/` | ACP installer | Installed ACP agent payloads. |
+| `acp/manifests/` | ACP installer/store | ACP install manifests. |
+| `acp/state/` | ACP/backend integration | ACP-specific state files. |
+| `threads/internal/` | Work-thread catalog | Internal thread linkage descriptors still read by the catalog. |
+
+The runtime creates directories as needed. Provider auth managers also write under `~/.alta/auth/`, for example subscription credentials and direct-provider token caches. Protocol traces, session journals, auth files, and provider caches can contain prompts, tool arguments, model output, file paths, command output, or credentials; treat them as private user data.
+
+## Project-local state
+
+Project-local CodeAlta state lives under `<project>/.alta/`:
+
+| Path | Purpose |
+| --- | --- |
+| `<project>/.alta/config.toml` | Project-local config overrides. |
+| `<project>/.alta/plugins/<package-id>/plugin.cs` | Project-scoped trusted source plugin packages. |
+| `<project>/.alta/skills/<skill-name>/SKILL.md` | Project-scoped skills. |
+
+The skill catalog also reads `<project>/.agents/skills/` and `~/.agents/skills/` as common `SKILL.md` roots. Use `.alta` roots when the content depends on CodeAlta-specific behavior.
+
+## Configuration model
+
+The top-level TOML document has four sections:
+
+```toml
+[chat]
+default_provider = "my_provider"
+
+[providers.my_provider]
+type = "openai-responses"
+enabled = true
+model = "model-id"
+api_key_env = "MY_PROVIDER_API_KEY"
+
+[plugins.statistics]
+enabled = true
+
+[acp.agents.example]
+agent_id = "example"
+command = "example-agent"
+args = ["--stdio"]
+```
+
+`CodeAltaConfigDocument` maps these sections to:
+
+- `chat`: chat-level defaults, currently the default provider key;
+- `providers`: configured model-provider documents keyed by provider key;
+- `plugins`: plugin enablement keyed by built-in id or source package id;
+- `acp.agents`: ACP backend definitions keyed by agent id.
+
+Global config is loaded from `~/.alta/config.toml`. Project config is loaded from `<project>/.alta/config.toml` when a project scope is active. The provider-management UI edits the same global file and validates TOML before saving.
+
+### Provider enablement
+
+The bundled template is `src/CodeAlta.Catalog/DefaultConfig/config.toml`; all built-in provider entries are explicitly disabled there. For user-authored provider entries, an omitted `enabled` value normalizes to `true`.
+
+Provider registrations are skipped at startup when required credentials or provider-specific authentication settings are missing. Skipped providers remain in config and can be corrected through the UI or TOML editor.
+
+### Project overrides
+
+Project-local config can override effective chat/provider behavior for that project. The frontend also persists thread-specific provider/model/reasoning selections in `ui-state.yaml`, so an existing thread can keep its selected runtime after global defaults change.
+
+## Project catalog
+
+`ProjectCatalog` stores project descriptors under `~/.alta/projects`. Current saves use flat `<slug>.md` files; the loader still reads older `<slug>/readme.md` descriptor paths so existing user state can be opened.
+
+A project descriptor includes stable id, slug, display name, project path, archive/visibility state, and timestamps. Opening a folder upserts a descriptor for that path, then the shell selects it in the sidebar.
+
+## Work-thread and session storage
+
+CodeAlta uses two related records for active work:
+
+- **Work-thread descriptors** are catalog/runtime metadata for global, project, and internal threads. They carry title, project reference, provider/model/reasoning preferences, parent/created-by attribution, and last-active timestamps.
+- **Agent session journals** are local-runtime JSONL files under `~/.alta/sessions/yyyy/MM/dd/<session-id>.jsonl`. They contain replayable normalized `AgentEvent` records plus raw snapshot events for `local.sessionSummary`, `local.sessionState`, `codealta.threadHeader`, and `codealta.threadState`.
+
+`WorkThreadJournalStore` reads and writes CodeAlta thread headers/state in the same journal used by the local agent runtime. This avoids maintaining separate provider-bound state files for the same thread.
+
+Optional protocol traces are written to `~/.alta/sessions/traces/<session-id>.trace` only when a provider has tracing enabled. Credential headers are redacted, but trace files can still contain sensitive prompts, outputs, tool arguments, and streamed protocol updates.
+
+## Prompt drafts and view state
+
+Unsent per-thread prompts are stored under `~/.alta/saved_prompts/` so closing a tab or restarting the app does not discard edited drafts. The frontend stores view state in `~/.alta/ui-state.yaml`, including open/selected tabs, theme and navigator settings, and thread-specific model preferences.
+
+`ShellStateStore` is a UI-thread projection of currently open shell state; it is not a replacement for the durable catalog, session journals, or runtime-owned thread state.
+
+## ACP state
+
+ACP install and runtime state is grouped under `~/.alta/acp/`:
+
+- `registry/latest/registry.json` caches the downloaded registry document;
+- `downloads/` stores downloaded archives or package payloads;
+- `installs/` stores resolved install directories;
+- `manifests/` and `state/` store install/runtime metadata;
+- effective ACP backend definitions are merged from installed definitions and `[acp.agents]` config.
+
+See [ACP integration](acp.md) for runtime capabilities and limits.
+
+## Plugin and skill state
+
+Source plugins are discovered from user and project roots and are enabled by default unless disabled in config or safe mode is active. CodeAlta owns generated plugin-root build files and plugin build manifests under its roots; plugin package directories should contain only package-owned source/content files.
+
+Skills are plain directories containing `SKILL.md` plus optional helper files. Discovery validates metadata, applies precedence/shadowing, and reads resources without executing scripts.

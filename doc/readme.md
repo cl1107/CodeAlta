@@ -1,342 +1,101 @@
-# CodeAlta User Guide
+# CodeAlta internal documentation
 
-An agentic AI coding CLI assistant developed in .NET.
+This folder documents the current CodeAlta 1.0 implementation. It is not a backlog, comparison document, or archive of earlier design drafts. Public user documentation lives under `site/`; the files here are for maintainers who need to understand the code, runtime boundaries, and extension points.
 
-Additional guides:
+## Reading path
 
-- [Plugin abstractions](plugins.md)
-- [Skills](skills.md)
+Read the documents in this order when onboarding or reviewing architecture-sensitive changes:
 
-## Infrastructure Status
+| Step | Document | Purpose |
+| --- | --- | --- |
+| 1 | [Architecture overview](architecture.md) | Process composition, project layering, frontend/runtime boundaries, and the main data flow. |
+| 2 | [Catalog, configuration, and state](catalog-and-config.md) | `~/.alta` layout, project-local state, TOML configuration, projects, threads, sessions, and prompt drafts. |
+| 3 | [Runtime and agent sessions](runtime.md) | `IAgentBackend`/`IAgentSession`, `AgentHub`, work-thread orchestration, system prompts, tools, compaction, and journals. |
+| 4 | [Model providers](providers.md) | Provider registration, configured provider types, local-runtime adapters, model metadata, credentials, and protocol tracing. |
+| 5 | [`alta` live tool](live-tool.md) | In-process command registry, JSONL output contract, session control commands, queueing, delegated work, and plugin commands. |
+| 6 | [ACP integration](acp.md) | ACP stdio transport, backend registration, install registry support, client capability bridges, and unsupported operations. |
+| 7 | [Plugins](plugins.md) | Trusted source plugins, public authoring API, runtime build/load flow, contributions, safe mode, and built-in plugins. |
+| 8 | [Skills](skills.md) | Filesystem `SKILL.md` discovery, validation, precedence, UI/live-tool activation, and runtime injection. |
+| 9 | [Orchestration actor model](orchestration-actor-model.md) | Internal mailbox/actor ownership rules for runtime mutation and event backpressure. |
+| 10 | [Development guide](development-guide.md) | Repository-wide rules that contributors and automation should follow. |
+| 11 | [Specs index](specs/readme.md) | Current policy for adding focused implementation specs. |
 
-Current infrastructure-first progress includes project catalog and checkout primitives:
+## System map
 
-- `CodeAlta.Catalog`: project descriptors, machine override profiles, catalog loading.
-- Scope resolution (`global`, `project`) into concrete checkout and `.alta` roots.
-- Checkout planning (`clone` vs `update`) without network side effects.
-- `CodeAlta.Plugins`: foundational plugin runtime services for source package discovery, generated plugin-root build files, explicit enablement, structured build/load, contribution ownership, lifecycle helpers, and change monitoring.
+```mermaid
+flowchart TD
+    Program[CodeAlta executable - Program + CodeAltaOwnedServices]
+    Host[CodeAltaHost - shared runtime composition]
+    Frontend[CodeAlta TUI frontend - CodeAltaApp + views + coordinators]
+    LiveTool[CodeAlta.LiveTool - alta registry + dispatcher]
+    Orchestration[CodeAlta.Orchestration - AgentHub + WorkThreadRuntimeService]
+    Agent[CodeAlta.Agent - backend/session/event contracts - local runtime]
+    Providers[Provider packages - OpenAI-compatible, Anthropic, Google, direct HTTP, ACP]
+    Catalog[CodeAlta.Catalog - projects, config, threads, skills]
+    Plugins[CodeAlta.Plugins - runtime + adapters]
+    PluginApi[CodeAlta.Plugins.Abstractions - public authoring API]
+    State[(~/.alta - config, cache, sessions, projects)]
 
-## Project Catalog Layout
-
-Global repository layout (implemented reader support):
-
-- `projects/<projectSlug>.md`
-- `machines/<machineId>.yaml`
-- `checkouts/<projectName>/`
-
-The catalog model uses UUID v7 strings for project `id` values, validates slugs
-using `^[a-z0-9][a-z0-9\\-_.]{1,63}$`, and keeps a separate project `name` for checkout directories.
-
-## Catalog and Orchestration
-
-Current infrastructure includes:
-
-- `CodeAlta.Catalog`: project descriptors, machine override profiles, catalog loading, checkout planning, filesystem skill discovery, and in-memory project file usage tracking.
-- Scope resolution (`global`, `project`) into concrete checkout and `.alta` roots.
-- `CodeAlta.Orchestration`: lightweight thread/session runtime primitives and file-backed default thread instruction composition.
-- `CodeAlta.Plugins`: foundational plugin runtime services for source package discovery, generated plugin-root build files, explicit enablement, structured build/load, contribution ownership, lifecycle helpers, and change monitoring.
-## Terminal Shell
-
-The `CodeAlta` executable now runs as an interactive terminal shell instead of a playground script. Internally, the shell is organized around an explicit controller, UI dispatcher, focused views, and presenter seams rather than one monolithic host bucket.
-
-Launch helpers:
-
-- `dotnet run --project src/CodeAlta -- --test`
-- `dotnet run --project src/CodeAlta -- --test --test-duration 15`
-
-`CodeAlta` and the small CLI utilities under `src/` now use `XenoAtom.CommandLine` with `TerminalVisualCommandOutput`, so `--help` and parse errors render through the shared visual command help/error path.
-
-Only one `alta` application instance can run on a machine at a time via `~/.alta/alta.lock`, the same lock-file location on every OS/platform. If another instance is already running, startup exits with an error that reports the PID of the existing alta process and explains that multiple instances would share thread/session state unsafely.
-
-`--test` still starts the real terminal UI, but it schedules cancellation after the requested duration so a smoke test can verify startup and a short steady-state run without manual Ctrl+C. Smoke-test lifecycle markers and normal diagnostic activity are written to the rolling logs under `~/.alta/logs/`.
-
-Current terminal shell capabilities:
-
-- Chat (global and project thread) operations:
-  - Chat screen powered by `PromptEditor` (input) and `DocumentFlow` + `MarkdownControl` (rendered conversation history).
-  - Automatically probes and initializes enabled provider backends. Codex and Copilot are direct endpoint providers backed by local-runtime session journals rather than the removed Codex app-server and Copilot CLI integrations.
-  - Provider, model, and reasoning-effort selectors are shown under the prompt, while the footer now shows a compact provider summary button with enabled-provider and error counts.
-  - In a thread tab, `F3` / `F4` jump to previous / next user or assistant messages, while `Ctrl+F3` jumps to the first message and `Ctrl+F4` returns to the bottom of the latest message. The same actions are available as `/msg_prev`, `/msg_next`, `/msg_first`, and `/msg_last`.
-  - Press `F6` or use the `Full Prompt` button to edit the current draft in a large 80%-screen prompt window; `Enter`, `Esc`, or `Ctrl+Enter` closes it and keeps the edited draft, while `Shift+Enter` inserts a new line.
-  - Type `@` in the prompt to open a resizable project file/folder picker dialog with its own search box. Accepted entries become markdown links such as `[Program.cs](src/CodeAlta/Program.cs)`, raw `@path` and `@"path with spaces"` references still resolve on submit, optional `:line` or `:start-end` suffixes map to attachment line ranges, and accepted references are sent as structured file/directory inputs.
-  - Press `Ctrl+E` or run `/edit` to open the project file picker in editor mode. Selected files open in reusable tabs beside thread/session tabs with TextMate syntax highlighting, line/column status, dirty markers, `Ctrl+S` save, reload prompts for on-disk changes, and close confirmation for unsaved edits.
-  - Press `F1`, type `/help`, or enter `?` in the prompt to open shell command discovery. Textual shell commands now include `/open`, `/edit`, `/settings`, `/logs`, `/abort`, `/compact`, `/close`, `/exit`, `/tab_left`, `/tab_right`, `/msg_prev`, `/msg_next`, `/msg_first`, `/msg_last`, `/go_to_sidebar`, `/go_to_prompt`, `/model`, and `/models`; `Ctrl+Enter` steers, `F7` delegates, and `ALT+LEFT` / `ALT+RIGHT` switch between open tabs.
-  - Press `Ctrl+O`, run `/open`, or use the always-visible `+` action on the `Projects` sidebar row to open a project dialog with project-name and directory completion. Rooted paths such as `/`, `C:`, `D:`, and `~` open folders, visible projects match the sidebar display names by default, and an `Include hidden` toggle opts archived projects back into completion and opening while successful opens return focus to the prompt.
-  - Press `Ctrl+G Ctrl+S` to focus the sidebar on the current selection, `Ctrl+G Ctrl+P` to focus the prompt, `/model` to focus the provider/model selector, `Ctrl+G Ctrl+R` or use the footer provider summary to open the model providers dialog, `Ctrl+G Ctrl+W` or `/settings` to open workspace settings, `Ctrl+G Ctrl+N` or `/plugins` to open plugin management, `Ctrl+G Ctrl+O` or `/models` to browse enriched provider/model metadata and select the current model, `Ctrl+G Ctrl+U` or use the footer usage indicator to open the context/usage popup, and press `Ctrl+G Ctrl+T` or use the thread info icon in the footer to open the selected thread report.
-  - Use the workspace settings button in the navigator footer, `Ctrl+G Ctrl+W`, or `/settings` to choose the UI theme and navigator behavior. The selected theme is saved to `~/.alta/ui-state.yaml`; unknown saved theme names fall back to the default theme.
-  - Use `Ctrl+G Ctrl+L`, `/logs`, or the `Show Logs` button in the navigator footer to open an 80%-size in-app log viewer. It replays retained diagnostic output from startup, wraps by default, supports `Ctrl+F` search, and offers `Wrap` and `Clear Logs` controls without leaving the TUI.
-  - Closing either popup restores focus to the thread prompt editor so the workflow stays keyboard-first.
-  - Per-provider model and reasoning defaults are stored in `~/.alta/config.toml`, with project-local overrides read from `<project>/.alta/config.toml`.
-  - On startup, CodeAlta validates an existing `~/.alta/config.toml` before creating provider runtimes or sessions. If the file cannot be loaded, an 80%-size modal recovery editor opens with TextMate TOML highlighting, a left-margin marker for the first syntax/config diagnostic, live parse feedback while typing, `Ctrl+S`/`Save and Continue` enabled only after the config is valid, and `Ctrl+Q`/`Exit` for leaving without changing the file. If the file is missing, startup continues to the model providers flow for first-time setup.
-  - The model providers dialog supports add/delete, enable/disable, save/reload, validation, per-provider connectivity tests, and an Advanced TOML editor for direct `config.toml` edits. Advanced edits use the same validation gate before saving and refresh model providers after a valid save. If no enabled providers are configured, CodeAlta opens this dialog on startup and prompts the user to configure one.
-  - OpenAI-compatible, Anthropic, and Google GenAI providers can also be configured in `~/.alta/config.toml`; only providers with usable credentials or Vertex settings are registered at startup. Local raw-API providers enrich model metadata from the bundled `models_dev_db.json` snapshot, apply per-provider `models_dev_provider_id` mappings and optional `model_overrides`, and refresh the models.dev catalog in the background at runtime.
-  - Thread-specific model and reasoning selections are preserved for reopened tabs through `~/.alta/ui-state.yaml`, so an existing thread keeps its model by default even after global or project defaults change.
-  - The reasoning selector only shows concrete effort values. When a selected model supports `high`, CodeAlta prefers `high` by default.
-  - Sending a prompt now follows an enqueue-first workflow for busy threads: `Enter` adds the prompt to a waiting list above the status line, while `Shift+Enter` inserts a new line. Queued prompts can be edited, repeated, steered immediately when the backend supports live steering, deleted, or cleared with `F10`. Steer requests that have been sent locally but not yet echoed back by the backend also appear at the top of that strip as transient pending rows, and unsupported backends such as the current local raw-API OpenAI/Anthropic/Google runtimes automatically re-queue the prompt for the next turn.
-  - A temporary `AlwaysQueue` checkbox in the prompt bar forces normal sends to enqueue for the selected thread even when it is idle, which is useful for exercising the waiting-list controls without dispatching work immediately.
-  - Pressing `Ctrl+Enter` with an empty draft now steers the first queued prompt immediately when the selected thread has queued work.
-  - If a steer is requested while the thread has no active provider run, CodeAlta now falls back to a normal send instead of surfacing a provider steer error. If prompt dispatch still fails, the prompt is preserved in the UI instead of being dropped.
-  - Closing a thread tab no longer stops an active run or drops an edited thread draft. Running threads stay live in the sidebar, edited prompts surface with a draft indicator, and unsent per-thread prompts are persisted under `~/.alta/saved_prompts/` so reopening the app restores them.
-  - Idle local-runtime threads can now switch providers directly from the provider selector. CodeAlta rebinds the local session onto the newly selected raw-API runtime and preserves the replayable thread history; Codex and Copilot threads remain locked to their original provider because their hidden runtime instructions and compaction state cannot be reconstructed safely.
-  - A compact button now sits beside the provider/model/reasoning selectors. Press `F11` or click it to trigger a manual session compaction when the selected thread has already started and is currently idle; if the reopened thread's provider session had already shut down, CodeAlta now resumes it again before compacting. Manual compaction keeps a dedicated status line and emits visible started/completed notices in the timeline even when the backend does not emit its own compaction events.
-  - The footer usage indicator stays compact as `ctx --`, `ctx N tok`, or `ctx NN%`, while the usage popup leads with compaction pressure (`active context / input-token limit`) and shows context-window/max-output limits only as indicative metadata alongside limits, quotas, and backend-specific details.
-  - CodeAlta now auto-approves provider permission requests and auto-resolves `ask_user` prompts by preferring continue/inspect-style choices (or a neutral fallback for freeform prompts).
-  - Sequential Codex/Copilot tool activity is grouped into compact "Tool Calls" timeline cards so verbose command/tool logs stay out of the main document flow; each chip shows a live status icon, inferred tool/command label, compact context, and an expandable `LogControl` detail dialog with full output, wrapping toggle, and compact execution stats.
-  - When a run finishes, CodeAlta emits a separate compact "Modified Files" recap card that aggregates all files changed during that run, shows per-file and total `+/-` line counts, and opens an inline diff viewer for each file when diff data is available from the backend.
-  - The terminal shell writes rolling diagnostic logs under `~/.alta/logs/`, including chat prompt submission, selected provider/model/tool set, normalized agent events, and Copilot permission/user-input callback traffic.
-- Project operations:
-  - list discovered projects
-  - resolve global/project scopes.
-
-## Alta Live Tool
-
-CodeAlta-managed/local-runtime sessions receive one in-process live tool named `alta`. It uses the same `XenoAtom.CommandLine` command registry as host/test command dispatch, so agents can discover commands progressively with help instead of relying on a large prompt schema:
-
-```text
-alta --help
-alta session --help
-alta session result --help
-alta session tail --help
-alta tool capability list
-alta tool capability list --detailed
+    Program --> Host
+    Program --> Frontend
+    Program --> LiveTool
+    Host --> Catalog
+    Host --> Plugins
+    Host --> Orchestration
+    Host --> Agent
+    Orchestration --> Agent
+    Orchestration --> Catalog
+    Orchestration --> Plugins
+    Agent --> Providers
+    Frontend --> Orchestration
+    Frontend --> Catalog
+    Frontend --> LiveTool
+    Plugins --> PluginApi
+    Catalog --> State
+    Agent --> State
 ```
 
-Help commands return normal help text. Non-help commands return finite newline-delimited JSON records headed by an `alta.result` record that includes command execution `durationMs`; they do not keep a stream open for future activity. Discovery lists default to compact aggregate records (`*.refs`, `*.keys`, `*.paths`, or `*.capabilities`) and use `--detailed` only when per-item metadata is needed. Use small limits when inspecting history so the result stays model-friendly:
+The executable is the interactive terminal host. Reusable session/thread orchestration lives in runtime libraries, not in terminal controls. `CodeAltaHost.CreateAsync` is the shared composition entry point: it creates the catalog, plugin runtime, skill catalog, backend factory, `AgentHub`, `WorkThreadRuntimeService`, and project-file search service. The TUI then composes views and frontend coordinators around those services.
 
-```text
-alta project list
-alta project list --detailed
-alta project current
-alta project show CodeAlta
-alta session list --project CodeAlta --state all --limit 20
-alta session show <thread-id>
-alta session status <thread-id>
-alta session children <thread-id> --recursive
-alta session model <thread-id>
-alta session result <thread-id>
-alta session report <thread-id-1> <thread-id-2> --include=result,metrics
-alta session metrics <thread-id> --scope last-turn
-alta session tail <thread-id> --last 10
-alta session events <thread-id> --kind assistant.message --fields timestamp,kind,text
-```
+## Current source roles
 
-Use `session result` after a completion notification when you need the final answer/error plus compact timing, model, tool-call, and usage data for one session. Use `session report` to aggregate several session ids in one bounded call for multi-model evaluations; it accepts multiple positional ids or all ids from `--stdin` and emits one ordered item per requested id. Use `session metrics` when you only need compact timing, final-answer, tool-call, and token/usage summaries without replaying a full transcript. `session show` includes last-turn metrics when history is available, and `session list --metrics` adds the same compact metrics to each emitted row. `session events` and `session tail` can be narrowed with `--kind`, `--fields`, and `--no-tool-output` to avoid large tool-result payloads during diagnostics.
+| Source root | Role |
+| --- | --- |
+| `src/CodeAlta` | Executable, terminal UI composition, shell controller, dialogs, view models, provider-management UI, and owned process services. |
+| `src/CodeAlta.Orchestration` | Headless runtime composition and work-thread orchestration. It references `CodeAlta.Agent`, `CodeAlta.Catalog`, and `CodeAlta.Plugins`, not the TUI. |
+| `src/CodeAlta.Agent` | Normalized backend/session/event contracts plus the local raw-API session runtime, tools, journals, prompt instruction composition, and compaction. |
+| `src/CodeAlta.Agent.*` | Provider-specific adapters and ACP backend integration that implement the agent contracts. |
+| `src/CodeAlta.Catalog` | Global/project catalog, config loading/normalization, project descriptors, work-thread metadata, skill discovery, and ACP install/config metadata. |
+| `src/CodeAlta.LiveTool` | In-process `alta` command contributors, registry, dispatcher, transcript formatter, and agent-tool wrapper. |
+| `src/CodeAlta.Plugins.Abstractions` | Public plugin authoring contracts. |
+| `src/CodeAlta.Plugins` | Trusted plugin discovery, source builds, loading, activation, contribution registry, adapters, and plugin resource roots. |
+| `src/CodeAlta.Plugin.Statistics` | Built-in plugin implemented through the same plugin model used by source plugins. |
+| `src/CodeAlta.Acp` | ACP JSON-RPC, protocol models, registry/install support, and generated protocol helpers. |
+| `src/CodeAlta.Tests`, `src/CodeAlta.*.Tests` | MSTest suites, including architecture guardrails for frontend/runtime boundaries and concurrency decisions. |
 
-Session control commands submit work and return submission/queue metadata instead of waiting for the target agent to finish. Agent-originated submissions can return `detached: true` after the runtime accepts a long-running turn. For parent/child delegated work, do not poll or actively wait by default: CodeAlta forwards the child final reply or a child-run error back to the parent thread automatically. Parented delegated submissions include `notificationExpected: true`, `shouldPoll: false`, `shouldYield: true`, `activeWaitAllowed: false`, `waitForCompletion: false`, `followUpMode: "notification"`, `recommendedAction: "stop"`, `forbiddenWaitActions`, and `nextStep` so coordinators yield instead of calling tools, shell sleeps, timers, status/tail/events, or polling commands to wait for completion. Use `session status`, `tail`, or `events` only for diagnostics, explicit observation, or when no parent notification is expected. `send --queue-if-busy` and explicit `queue` persist durable queue items with caller attribution; the runtime drains at most one queued prompt for a thread when the active run becomes idle.
+`src/CodeAlta.Hosting` is not an active project in the solution. Shared host composition is `CodeAlta.Orchestration.Hosting.CodeAltaHost`.
 
-```text
-alta session create --project CodeAlta --title "Investigate parser" --same-model-as <thread-id> --reasoning low
-alta session send <thread-id> --message "Summarize the latest failing test."
-alta session send <thread-id> --stdin --queue-if-busy
-alta session queue <thread-id> --message "Run this after the current turn."
-alta session steer <thread-id> --message "Focus on the smallest fix."
-alta session abort <thread-id> --reason "Superseded by user request"
-alta session compact <thread-id>
-alta session join <thread-id>
-```
+## Durable state quick reference
 
-Use `session send` for actionable delegated prompts that should make the target model run as its next normal turn. Use the peer-agent wrappers for attributed notes, handoffs, or coordination messages where the target should see a non-authoritative delegated-agent header rather than a user/developer/system instruction:
+CodeAlta's default global root is `~/.alta`. Important roots are:
 
-```text
-alta session message <thread-id> --kind handoff --message "Here is the context I collected."
-alta session request <thread-id> --reply-requested --stdin
-```
+- `config.toml` for global chat/provider/plugin/ACP configuration;
+- `projects/` for project descriptors;
+- `sessions/yyyy/MM/dd/<session-id>.jsonl` for local-runtime session journals and CodeAlta thread headers/state;
+- `sessions/traces/<session-id>.trace` for optional protocol traces;
+- `cache/` for machine-local caches such as refreshed model metadata;
+- `auth/` for provider credential/token stores owned by provider auth managers;
+- `acp/` for ACP registry cache, downloads, installs, manifests, and state;
+- `saved_prompts/` for unsent prompt drafts;
+- `ui-state.yaml` for frontend view/thread selection state;
+- `plugins/` and `skills/` for user-scoped source plugins and skills.
 
-Optional live-tool caps such as `maxOutputRecords`, `maxOutputBytes`, and `timeoutMs` should be omitted unless setting positive integers; explicit JSON `null` is treated like omission for compatibility.
+Project-local configuration and extensions live under `<project>/.alta/`, including `<project>/.alta/config.toml`, `<project>/.alta/plugins/`, and `<project>/.alta/skills/`.
 
-Model and provider discovery use the same model-ref rules as session creation:
+## Documentation rules
 
-```text
-alta provider list
-alta provider list --detailed
-alta provider model list --provider codex
-alta model list --provider anthropic --contains sonnet
-alta model list --provider codex --reasoning low
-alta model list --provider anthropic --detailed
-alta model show --model-ref copilot:claude-sonnet-4.6@low
-alta model resolve --model-ref codex:gpt-5.5@high
-```
-
-Provider/model discovery remains deterministic and id/ref based. `provider list` defaults to one compact `providerKeys` array. `model list` filters are simple field filters over provider id, model id, display name, model ref, reasoning support, and tool-call support; by default it emits one compact `modelRefs` array for copy/paste workflows. Use `--detailed` when per-provider or per-model metadata such as display names, reasoning status, and capabilities is needed. `model show`/`model resolve` validate exact model refs when model metadata is available and include requested/effective reasoning fields so callers can see whether reasoning was applied, defaulted, or unsupported.
-
-Skills are available through the singular `skill` group; compatibility aliases exist for older `skills activate`/`skills_activate` guidance. Activation succeeds only when CodeAlta can inject local-runtime skill context; provider-managed native skill systems report an unsupported-capability diagnostic instead of pretending to activate.
-
-```text
-alta skill list --project CodeAlta
-alta skill list --project CodeAlta --detailed
-alta skill show codealta-plugin-runtime
-alta skill activate codealta-plugin-runtime --session <thread-id>
-```
-
-Visibility and provenance are recorded by the host. Agent/plugin-originated live-tool calls can inspect and coordinate across global/project sessions; project context is still used for defaults, child-session placement, and attribution. Sessions created or controlled by agents/plugins carry `createdBy`/`submittedBy` metadata so sidebars and timelines can reconstruct parent/child relationships and prompt ownership after restart.
-
-Plugins can add fresh `alta` command roots that appear in `alta --help`, and trusted plugins can invoke built-in `alta` commands through `Services.Alta.InvokeAsync(...)`. `plugin list` defaults to compact runtime refs; add `--detailed` for version, scope, state, and diagnostics. Plugin-originated mutating commands include the runtime-owned plugin key in provenance.
-
-## Provider Configuration
-
-CodeAlta exposes providers as the single user-facing execution concept. Each provider entry owns:
-
-- whether it is enabled
-- how it is displayed
-- which runtime/protocol `type` it uses
-- its credentials and endpoint settings
-- its default `model`
-- its default `reasoning_effort`
-
-Built-in direct endpoint providers use conventional keys:
-
-- `providers.codex` → `type = "codex"`
-- `providers.copilot` → `type = "copilot"`
-
-CodeAlta no longer ships the legacy Codex app-server or Copilot CLI integrations. Codex and Copilot support now goes through their direct endpoints and local-runtime session journals.
-
-Additional local providers can target raw provider SDKs such as:
-
-- `OpenAI Responses`
-- `OpenAI Chat`
-- `Codex` ChatGPT subscription Responses endpoint access
-- `Copilot` local-runtime HTTP endpoint access
-- `Anthropic`
-- `Google GenAI`
-- `Vertex AI`
-
-These providers are configured from `~/.alta/config.toml` under `providers.<provider-key>`. Each entry represents one provider registration and uses a single canonical `type` field such as `codex`, `copilot`, `openai-chat`, `openai-responses`, `anthropic`, `google-genai`, or `vertex-ai`. OpenAI-compatible and Anthropic-compatible endpoints may set `api_url`; Vertex uses `project` and `location` instead. Each provider can optionally map to a models.dev provider id and override individual model limits so context usage stays consistent even when the upstream SDK does not expose context-window metadata.
-
-The preferred workflow is now the in-app model providers dialog (`Ctrl+G Ctrl+R`), which edits the same file. The dialog:
-
-- uses a left/right split layout for provider selection and editing
-- supports provider add/delete plus enable/disable toggles
-- validates provider keys, endpoint URLs, required credentials, and conflicting entries before save
-- lets users store API keys directly in config or point to an environment variable
-- can save, reload from disk, and test a provider before applying changes
-- keeps Codex/Copilot login instructions visible while authorization is pending, lets Browser Login/Device Login be canceled from the action button or `Ctrl+G Ctrl+C`, and exposes `Ctrl+G Ctrl+U` / `Ctrl+G Ctrl+D` to copy the current login URL or device code
-- preserves advanced TOML settings such as `profile`, `compaction`, `extra_body`, `model_overrides`, and `protocol_trace` from the form and exposes an Advanced TOML editor for direct validated edits to the same `config.toml` file
-
-When CodeAlta writes `config.toml` back, it omits properties that match built-in defaults such as `enabled = true`, provider `display_name`, and default compaction values. Local raw-API compaction uses a simplified optional block; automatic compaction starts when the projected active context reaches `inputTokenLimit * ratio`, defaulting to `0.95`. Post-compaction planning targets `inputTokenLimit * post_compaction_target_ratio` by default (`0.10`) while still allowing explicit hard-fit fallbacks with target-miss diagnostics. Compaction summarizer calls are capped by `inputTokenLimit * summary_output_ratio`, defaulting to `0.10` and configurable up to `0.50`, and the default request budget is additionally bounded by `summary_share_of_target` (`0.40`) while still respecting any smaller model output limit:
-
-```toml
-[providers.openai_responses.compaction]
-enabled = true
-ratio = 0.95
-summary_output_ratio = 0.10
-post_compaction_target_ratio = 0.10
-summary_share_of_target = 0.40
-file_context_share_of_summary_target = 0.15
-keep_last_user_message = true
-allow_split_turn = true
-```
-
-The context-usage indicator uses the same input-token denominator. If only a total `context_window` is known it is treated as the practical input limit; if both total context and output limit are known, CodeAlta derives the input side from `context_window - output_token_limit` unless an explicit input limit is configured.
-
-Default provider selection is configured separately:
-
-```toml
-[chat]
-default_provider = "codex"
-```
-
-Example:
-
-```toml
-[chat]
-default_provider = "openai_responses"
-
-[providers.openai_chat]
-display_name = "OpenAI"
-type = "openai-chat"
-api_key_env = "OPENAI_API_KEY"
-model = "gpt-5"
-reasoning_effort = "high"
-models_dev_provider_id = "openai"
-# Dev-only: writes raw HTTP request/response metadata and SDK stream updates to
-# ~/.alta/sessions/traces/<session-id>.trace. Trace files contain prompts/outputs.
-# protocol_trace = true
-
-[providers.openai_chat.model_overrides.gpt-5]
-context_window = 400000
-output_token_limit = 128000
-
-[providers.openai_responses]
-display_name = "OpenAI Responses"
-type = "openai-responses"
-api_key_env = "OPENAI_API_KEY"
-api_url = "https://api.openai.com/v1"
-model = "gpt-5.4"
-reasoning_effort = "high"
-
-[providers.codex]
-display_name = "Codex"
-type = "codex"
-model = "gpt-5.3-codex"
-reasoning_effort = "high"
-# Optional: set to "http" to disable the default WebSocket + HTTP fallback transport.
-# response_transport = "http"
-
-[providers.copilot]
-display_name = "Copilot"
-type = "copilot"
-# Default: start a GitHub OAuth device flow, cache the GitHub token and exchanged
-# Copilot API token under CodeAlta state, and refresh the Copilot token before expiry.
-auth_source = "github_device_flow"
-model_discovery = "copilot_endpoint_with_static_fallback"
-# Non-interactive alternatives:
-# auth_source = "github_token_env"
-# github_token_env = "GITHUB_COPILOT_GITHUB_TOKEN"
-# auth_source = "copilot_token_env"
-# copilot_token_env = "GITHUB_COPILOT_TOKEN"
-# Optional: enable only after accepting that traces contain prompts/outputs.
-# protocol_trace = true
-
-[providers.minimax]
-display_name = "MiniMax 2.7"
-type = "anthropic"
-api_key_env = "MINIMAX_API_KEY"
-api_url = "https://api.minimax.io/anthropic"
-single_model_id = "MiniMax-M2.7"
-model = "MiniMax-M2.7"
-reasoning_effort = "high"
-
-[providers.anthropic]
-display_name = "Anthropic"
-type = "anthropic"
-api_key_env = "ANTHROPIC_API_KEY"
-models_dev_provider_id = "anthropic"
-model = "claude-sonnet-4"
-reasoning_effort = "high"
-
-[providers.vertex]
-display_name = "Vertex"
-type = "vertex-ai"
-project = "my-gcp-project"
-location = "europe-west4"
-models_dev_provider_id = "google"
-model = "gemini-2.5-pro"
-reasoning_effort = "high"
-```
-
-Model discovery still comes from the upstream provider API when supported. `model_overrides` enriches or corrects discovered model metadata, while `single_model_id` can pin a provider to one fixed model for single-model endpoints. When an OpenAI-compatible endpoint does not implement `/models`, CodeAlta can also fall back to the local `models.dev` catalog if the provider key or `models_dev_provider_id` maps to a known catalog provider such as `minimax`.
-
-The `codex` provider type is ChatGPT subscription endpoint access and intentionally distinct from public OpenAI platform access:
-
-- it rejects `api_key`, `api_key_env`, and arbitrary `extra_body`;
-- it uses ChatGPT/Codex OAuth credentials stored in CodeAlta-owned state and never treats ChatGPT tokens as OpenAI platform API keys;
-- requests target `https://chatgpt.com/backend-api/codex` by default and use WebSocket Responses transport with HTTP/SSE fallback; set `response_transport = "http"` to force HTTP-only mode;
-- `previous_response_id` continuation is used only for active in-memory CodeAlta sessions and is not resumed from sessions reloaded from disk;
-- model discovery defaults to a bundled Codex subscription picker allow-list (`gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.3-codex`, `gpt-5.2`); set `model_discovery` to `codex_endpoint` or `codex_endpoint_with_static_fallback` to opt into authenticated endpoint discovery;
-- `model` is optional and only sets the preferred default selection; it does not narrow the picker to a single entry;
-- requests may count against the user's ChatGPT/Codex subscription limits, and CodeAlta does not rotate accounts, bypass limits, or automatically fall back to a different provider;
-- `send_installation_id` defaults to `false`; when explicitly enabled, CodeAlta sends a stable CodeAlta-owned UUID in `client_metadata.x-codex-installation-id`.
-
-Supported Codex subscription auth sources are `codealta_oauth`, `codex_auth_import`, and `codex_auth_file_readonly`. `codex_auth_import` is a one-time read-only copy from Codex's `auth.json` into CodeAlta state; `codex_auth_file_readonly` is intended for development/test scenarios and never writes Codex-owned files.
-
-The `copilot` provider type is direct Copilot HTTP access. It fetches Copilot `/models`, filters disabled/unsupported models, and dispatches turns per model to Copilot `/responses`, `/chat/completions`, or `/v1/messages` through the existing OpenAI Responses, OpenAI Chat, and Anthropic local-runtime executors. Supported auth sources are `github_device_flow`, `github_token_env`, and `copilot_token_env`; device flow and GitHub-token auth exchange a GitHub OAuth token through `https://api.github.com/copilot_internal/v2/token` (or the configured Enterprise domain) and never log bearer tokens. The model providers dialog includes Copilot Browser Login/Device Login actions: Browser Login opens GitHub's device authorization page, displays the user code in the dialog status, polls until authorization completes, and stores CodeAlta-owned credentials for the provider; pending login operations can be canceled and the displayed URL/code can be copied with dialog-wide shortcuts. `github_enterprise_url`, `model_discovery`, `enable_model_policies`, and `include_preview_models` provide Copilot-specific controls.
-
-CodeAlta also applies known provider defaults through a small defaults catalog before config overrides are applied. For example, MiniMax Chat registrations automatically disable the `developer` message role and merge developer instructions into the system prompt instead. DeepSeek Chat registrations replay assistant reasoning through `reasoning_content` so thinking-mode tool calls can continue across tool-result turns. An explicit `profile` section in `config.toml` can still override those defaults, including `reasoning_input_field_name` for OpenAI-compatible providers that require a different assistant reasoning replay field.
-
-The bundled snapshot lives in `src/CodeAlta.Agent/Data/models_dev_db.json`. To refresh it manually, run:
-
-```sh
-dotnet run --project src/CodeAlta.Agent.ModelsDev.Updater/CodeAlta.Agent.ModelsDev.Updater.csproj -c Release
-```
-
-Session state for these local runtimes is stored under `~/.alta/sessions/yyyy/mm/dd/<session-id>.jsonl`. The journal contains replayable agent events plus internal session summary/state snapshots, so provider or model switches are captured as events in the same durable file instead of rewriting multiple provider-bound files. For protocol debugging, `protocol_trace = true` on an OpenAI-compatible provider enables a per-session trace at `~/.alta/sessions/traces/<session-id>.trace`; this redacts credential headers but otherwise may contain prompts, tool arguments, model output, and streamed SDK updates, so keep it disabled outside targeted local investigations.
+- Describe current implementation first. Do not keep superseded plans in tracked docs.
+- Verify behavior against `src/**`, tests, default config, and solution metadata before documenting it.
+- Keep high-level documents linked from this page; add focused specs only when a stable implementation contract needs more detail.
+- Prefer implementation terms used in the code: model provider for user-facing runtime configuration; backend for low-level `IAgentBackend` adapters.
+- Keep comparisons to other products and agents out of internal docs unless a configured provider/protocol name is required to explain CodeAlta behavior.
