@@ -50,7 +50,9 @@ internal sealed class ShellCommandRegistryFactory
         registry.RegisterFactory("CodeAlta.Shell.Help", static () => new OpenHelpCommand());
         registry.RegisterFactory("CodeAlta.Shell.ToggleCommandBarMultiLine", static () => new ToggleCommandBarMultiLineCommand());
         registry.RegisterFactory("CodeAlta.Project.OpenFolder", static () => new OpenFolderCommand());
-        registry.RegisterFactory("CodeAlta.Acp.Manage", static () => new OpenAcpManagementCommand());
+        // ACP frontend command registration is intentionally disabled until the
+        // TUI integration is exercised and validated.
+        // registry.RegisterFactory("CodeAlta.Acp.Manage", static () => new OpenAcpManagementCommand());
         registry.RegisterFactory("CodeAlta.Providers.Manage", static () => new OpenModelProvidersCommand());
         registry.RegisterFactory("CodeAlta.Models.Browse", static () => new OpenModelsCommand());
         registry.RegisterFactory("CodeAlta.ApplicationLogs.Open", static () => new OpenApplicationLogsCommand());

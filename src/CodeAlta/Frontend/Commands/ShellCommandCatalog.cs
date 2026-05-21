@@ -103,17 +103,19 @@ internal static class ShellCommandCatalog
             Gesture: new KeyGesture(TerminalChar.CtrlE, TerminalModifiers.Ctrl),
             CommandName: "edit",
             Aliases: ["open_file"]),
-        new(
-            "CodeAlta.Acp.Manage",
-            "ACP Agents",
-            "Browse the ACP registry and inspect installed ACP backends.",
-            ShellCommandHelpCategory.General,
-            ShellCommandScope.AnyShell,
-            ShellCommandAvailability.Always,
-            Sequence: AcpAgentsShortcutSequence,
-            CommandName: "acp_agents",
-            Aliases: ["acp"],
-            ShowInCommandBar: true),
+        // ACP frontend command registration is intentionally disabled until the
+        // TUI integration is exercised and validated.
+        // new(
+        //     "CodeAlta.Acp.Manage",
+        //     "ACP Agents",
+        //     "Browse the ACP registry and inspect installed ACP backends.",
+        //     ShellCommandHelpCategory.General,
+        //     ShellCommandScope.AnyShell,
+        //     ShellCommandAvailability.Always,
+        //     Sequence: AcpAgentsShortcutSequence,
+        //     CommandName: "acp_agents",
+        //     Aliases: ["acp"],
+        //     ShowInCommandBar: true),
         new(
             "CodeAlta.Skills.Manage",
             "Skills",

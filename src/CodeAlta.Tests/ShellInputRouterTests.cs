@@ -39,8 +39,6 @@ public sealed class ShellInputRouterTests
         Assert.IsInstanceOfType<OpenHelpIntent>(_router.Route("/help", steerRequested: false));
         Assert.IsInstanceOfType<OpenCommandPaletteIntent>(_router.Route("/command_palette", steerRequested: false));
         Assert.IsInstanceOfType<OpenFolderIntent>(_router.Route("/open", steerRequested: false));
-        Assert.IsInstanceOfType<OpenAcpManagementIntent>(_router.Route("/acp_agents", steerRequested: false));
-        Assert.IsInstanceOfType<OpenAcpManagementIntent>(_router.Route("/acp", steerRequested: false));
         Assert.IsInstanceOfType<OpenFileEditorIntent>(_router.Route("/edit", steerRequested: false));
         Assert.IsInstanceOfType<OpenSkillsIntent>(_router.Route("/skills", steerRequested: false));
         Assert.IsInstanceOfType<OpenSkillsIntent>(_router.Route("/skill", steerRequested: false));
@@ -73,6 +71,13 @@ public sealed class ShellInputRouterTests
     public void Route_RemovedQueueCommand_IsUnknownTextCommand()
     {
         Assert.IsInstanceOfType<UnknownTextCommandIntent>(_router.Route("/queue", steerRequested: false));
+    }
+
+    [TestMethod]
+    public void Route_AcpCommands_AreUnknownTextCommands()
+    {
+        Assert.IsInstanceOfType<UnknownTextCommandIntent>(_router.Route("/acp_agents", steerRequested: false));
+        Assert.IsInstanceOfType<UnknownTextCommandIntent>(_router.Route("/acp", steerRequested: false));
     }
 
     [TestMethod]

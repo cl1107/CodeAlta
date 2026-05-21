@@ -16,7 +16,6 @@ public sealed class ShellCommandHelpTests
         var exitCommand = ShellCommandCatalog.Get("CodeAlta.Shell.Exit");
         var openFolderCommand = ShellCommandCatalog.Get("CodeAlta.Project.OpenFolder");
         var editFileCommand = ShellCommandCatalog.Get("CodeAlta.File.Edit");
-        var acpCommand = ShellCommandCatalog.Get("CodeAlta.Acp.Manage");
         var skillsCommand = ShellCommandCatalog.Get("CodeAlta.Skills.Manage");
         var pluginsCommand = ShellCommandCatalog.Get("CodeAlta.Plugins.Manage");
         var workspaceSettingsCommand = ShellCommandCatalog.Get("CodeAlta.Workspace.Settings");
@@ -41,9 +40,6 @@ public sealed class ShellCommandHelpTests
         var editFileEntry = sections
             .SelectMany(static section => section.Entries)
             .Single(candidate => string.Equals(candidate.Label, editFileCommand.Label, StringComparison.Ordinal));
-        var acpEntry = sections
-            .SelectMany(static section => section.Entries)
-            .Single(candidate => string.Equals(candidate.Label, acpCommand.Label, StringComparison.Ordinal));
         var skillsEntry = sections
             .SelectMany(static section => section.Entries)
             .Single(candidate => string.Equals(candidate.Label, skillsCommand.Label, StringComparison.Ordinal));
@@ -85,9 +81,6 @@ public sealed class ShellCommandHelpTests
         CollectionAssert.Contains(openFolderEntry.Bindings.ToArray(), "/open_folder");
         CollectionAssert.Contains(openFolderEntry.Bindings.ToArray(), "/open");
         CollectionAssert.Contains(editFileEntry.Bindings.ToArray(), "/edit");
-        CollectionAssert.Contains(acpEntry.Bindings.ToArray(), ShellCommandCatalog.AcpAgentsShortcutSequence.ToString()!);
-        CollectionAssert.Contains(acpEntry.Bindings.ToArray(), "/acp_agents");
-        CollectionAssert.Contains(acpEntry.Bindings.ToArray(), "/acp");
         CollectionAssert.Contains(skillsEntry.Bindings.ToArray(), "/skills");
         CollectionAssert.Contains(skillsEntry.Bindings.ToArray(), "/skill");
         CollectionAssert.Contains(pluginsEntry.Bindings.ToArray(), ShellCommandCatalog.PluginsShortcutSequence.ToString()!);
@@ -106,6 +99,19 @@ public sealed class ShellCommandHelpTests
         CollectionAssert.DoesNotContain(sendEntry.Bindings.ToArray(), new KeyGesture(TerminalKey.F5, TerminalModifiers.Ctrl).ToString()!);
         CollectionAssert.Contains(sendEntry.Bindings.ToArray(), "/send");
         CollectionAssert.Contains(compactEntry.Bindings.ToArray(), new KeyGesture(TerminalKey.F11, TerminalModifiers.Ctrl).ToString()!);
+    }
+
+    [TestMethod]
+    public void BuildSections_DoesNotExposeAcpManagementCommand()
+    {
+        Assert.IsFalse(ShellCommandCatalog.Contains("CodeAlta.Acp.Manage"));
+
+        var entries = ShellHelpContentBuilder.BuildSections()
+            .SelectMany(static section => section.Entries)
+            .ToArray();
+
+        Assert.IsFalse(entries.Any(static entry => string.Equals(entry.Label, "ACP Agents", StringComparison.Ordinal)));
+        Assert.IsFalse(entries.SelectMany(static entry => entry.Bindings).Any(static binding => binding.Contains("acp", StringComparison.OrdinalIgnoreCase)));
     }
 
     [TestMethod]
