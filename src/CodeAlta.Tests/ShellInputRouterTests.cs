@@ -50,6 +50,7 @@ public sealed class ShellInputRouterTests
         Assert.IsInstanceOfType<FocusModelProviderIntent>(_router.Route("/model", steerRequested: false));
         Assert.IsInstanceOfType<OpenModelsIntent>(_router.Route("/models", steerRequested: false));
         Assert.IsInstanceOfType<OpenApplicationLogsIntent>(_router.Route("/logs", steerRequested: false));
+        Assert.IsInstanceOfType<OpenAboutIntent>(_router.Route("/about", steerRequested: false));
         Assert.IsInstanceOfType<OpenSessionUsageIntent>(_router.Route("/context_usage", steerRequested: false));
         Assert.IsInstanceOfType<OpenThreadInfoIntent>(_router.Route("/thread_info", steerRequested: false));
         Assert.IsInstanceOfType<OpenExpandedPromptIntent>(_router.Route("/full_prompt", steerRequested: false));

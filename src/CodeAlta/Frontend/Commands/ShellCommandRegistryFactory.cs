@@ -53,6 +53,7 @@ internal sealed class ShellCommandRegistryFactory
         // ACP frontend command registration is intentionally disabled until the
         // TUI integration is exercised and validated.
         // registry.RegisterFactory("CodeAlta.Acp.Manage", static () => new OpenAcpManagementCommand());
+        registry.RegisterFactory("CodeAlta.Shell.About", static () => new OpenAboutCommand());
         registry.RegisterFactory("CodeAlta.Providers.Manage", static () => new OpenModelProvidersCommand());
         registry.RegisterFactory("CodeAlta.Models.Browse", static () => new OpenModelsCommand());
         registry.RegisterFactory("CodeAlta.ApplicationLogs.Open", static () => new OpenApplicationLogsCommand());

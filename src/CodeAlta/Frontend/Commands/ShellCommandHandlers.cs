@@ -120,6 +120,11 @@ internal static class DialogCommandHandlers
         //     dialogCommandService.OpenAcpManagement();
         //     return ValueTask.CompletedTask;
         // });
+        registry.Register<OpenAboutCommand>((_, _) =>
+        {
+            dialogCommandService.OpenAbout();
+            return ValueTask.CompletedTask;
+        });
         registry.Register<OpenModelProvidersCommand>((_, _) => ToValueTask(dialogCommandService.OpenModelProvidersAsync()));
         registry.Register<OpenModelsCommand>((_, _) =>
         {

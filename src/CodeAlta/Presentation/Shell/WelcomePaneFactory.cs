@@ -87,7 +87,7 @@ internal static class WelcomePaneFactory
         return FigletFont.Parse(reader.ReadToEnd(), new FigletFontInfo("3-D", "Daniel Henninger"));
     }
 
-    private static Visual BuildWelcomeLogo(State<float> welcomeAnimationPhase01)
+    public static Visual BuildWelcomeLogo(State<float> welcomeAnimationPhase01)
     {
         ArgumentNullException.ThrowIfNull(welcomeAnimationPhase01);
 

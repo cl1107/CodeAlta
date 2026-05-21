@@ -78,6 +78,7 @@ internal sealed class ShellInputCoordinator
             ExitAppIntent => new ExitAppCommand(),
             ToggleCommandBarMultiLineIntent => new ToggleCommandBarMultiLineCommand(),
             OpenFolderIntent openFolder => new OpenFolderCommand(openFolder.InitialPath),
+            OpenAboutIntent => new OpenAboutCommand(),
             OpenAcpManagementIntent => new OpenAcpManagementCommand(),
             OpenModelProvidersIntent => new OpenModelProvidersCommand(),
             OpenModelsIntent => new OpenModelsCommand(),

@@ -277,6 +277,7 @@ internal sealed class ThreadWorkspaceView
     private static bool IsSharedEditorCommand(string commandId)
         => commandId is
             "CodeAlta.Shell.Help" or
+            "CodeAlta.Shell.About" or
             "CodeAlta.Providers.Manage" or
             "CodeAlta.Thread.CloseTab" or
             "CodeAlta.Thread.TabLeft" or

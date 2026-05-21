@@ -34,6 +34,8 @@ internal sealed record OpenFolderCommand(string? InitialPath = null) : ShellComm
 
 internal sealed record OpenModelProvidersCommand : ShellCommand;
 
+internal sealed record OpenAboutCommand : ShellCommand;
+
 internal sealed record OpenModelsCommand : ShellCommand;
 
 internal sealed record OpenApplicationLogsCommand : ShellCommand;

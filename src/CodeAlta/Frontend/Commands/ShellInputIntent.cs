@@ -24,6 +24,8 @@ internal sealed record FocusModelProviderIntent : ShellInputIntent;
 
 internal sealed record OpenModelProvidersIntent : ShellInputIntent;
 
+internal sealed record OpenAboutIntent : ShellInputIntent;
+
 internal sealed record OpenModelsIntent : ShellInputIntent;
 
 internal sealed record OpenApplicationLogsIntent : ShellInputIntent;

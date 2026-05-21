@@ -17,6 +17,10 @@ internal static class ShellCommandCatalog
         new KeyGesture(TerminalChar.CtrlG, TerminalModifiers.Ctrl),
         new KeyGesture(TerminalChar.CtrlA, TerminalModifiers.Ctrl));
 
+    public static readonly KeySequence AboutShortcutSequence = new(
+        new KeyGesture(TerminalChar.CtrlG, TerminalModifiers.Ctrl),
+        new KeyGesture(TerminalChar.CtrlA, TerminalModifiers.Ctrl));
+
     public static readonly KeySequence ModelProvidersShortcutSequence = new(
         new KeyGesture(TerminalChar.CtrlG, TerminalModifiers.Ctrl),
         new KeyGesture(TerminalChar.CtrlR, TerminalModifiers.Ctrl));
@@ -103,6 +107,16 @@ internal static class ShellCommandCatalog
             Gesture: new KeyGesture(TerminalChar.CtrlE, TerminalModifiers.Ctrl),
             CommandName: "edit",
             Aliases: ["open_file"]),
+        new(
+            "CodeAlta.Shell.About",
+            "About",
+            "Show CodeAlta version, copyright, and update status.",
+            ShellCommandHelpCategory.General,
+            ShellCommandScope.AnyShell,
+            ShellCommandAvailability.Always,
+            Sequence: AboutShortcutSequence,
+            CommandName: "about",
+            ShowInCommandBar: true),
         // ACP frontend command registration is intentionally disabled until the
         // TUI integration is exercised and validated.
         // new(

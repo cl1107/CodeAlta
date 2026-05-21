@@ -151,6 +151,8 @@ internal interface IShellDialogCommandService
 
     Task OpenModelProvidersAsync();
 
+    void OpenAbout();
+
     void OpenModels();
 
     void OpenApplicationLogs();
@@ -182,6 +184,7 @@ internal sealed class DelegatingShellDialogCommandService : IShellDialogCommandS
     private readonly Func<string, bool, Task> _openFolderAsync;
     private readonly Action _openAcpManagement;
     private readonly Func<Task> _openModelProvidersAsync;
+    private readonly Action _openAbout;
     private readonly Action _openModels;
     private readonly Action _openApplicationLogs;
     private readonly Func<Task> _openFileEditorAsync;
@@ -200,6 +203,7 @@ internal sealed class DelegatingShellDialogCommandService : IShellDialogCommandS
         Func<string, bool, Task> openFolderAsync,
         Action openAcpManagement,
         Func<Task> openModelProvidersAsync,
+        Action openAbout,
         Action openModels,
         Action openApplicationLogs,
         Func<Task> openFileEditorAsync,
@@ -217,6 +221,7 @@ internal sealed class DelegatingShellDialogCommandService : IShellDialogCommandS
         ArgumentNullException.ThrowIfNull(openFolderAsync);
         ArgumentNullException.ThrowIfNull(openAcpManagement);
         ArgumentNullException.ThrowIfNull(openModelProvidersAsync);
+        ArgumentNullException.ThrowIfNull(openAbout);
         ArgumentNullException.ThrowIfNull(openModels);
         ArgumentNullException.ThrowIfNull(openApplicationLogs);
         ArgumentNullException.ThrowIfNull(openFileEditorAsync);
@@ -233,6 +238,7 @@ internal sealed class DelegatingShellDialogCommandService : IShellDialogCommandS
         _openFolderAsync = openFolderAsync;
         _openAcpManagement = openAcpManagement;
         _openModelProvidersAsync = openModelProvidersAsync;
+        _openAbout = openAbout;
         _openModels = openModels;
         _openApplicationLogs = openApplicationLogs;
         _openFileEditorAsync = openFileEditorAsync;
@@ -256,6 +262,8 @@ internal sealed class DelegatingShellDialogCommandService : IShellDialogCommandS
     public void OpenAcpManagement() => _openAcpManagement();
 
     public Task OpenModelProvidersAsync() => _openModelProvidersAsync();
+
+    public void OpenAbout() => _openAbout();
 
     public void OpenModels() => _openModels();
 
