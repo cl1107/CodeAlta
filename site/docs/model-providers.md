@@ -8,6 +8,9 @@ A model provider is the user-facing execution target in CodeAlta: it owns creden
 
 The preferred workflow is the **Model Providers** dialog (`Ctrl+G Ctrl+R`). Advanced users can edit the same TOML file directly at `~/.alta/config.toml`.
 
+> [!IMPORTANT]
+> Use **Test** before saving provider changes. It catches missing credentials, unsupported models, endpoint mistakes, and login-flow issues before the provider becomes the active execution target.
+
 ## Default configuration file
 
 On first run, CodeAlta creates a default `~/.alta/config.toml` with common providers disabled. Enable only the providers you want to use.
@@ -32,6 +35,9 @@ default_provider = "openai"
 ```
 
 Project-local overrides can live in `<project>/.alta/config.toml`. CodeAlta resolves project settings first, then falls back to the global `~/.alta/config.toml`.
+
+> [!NOTE]
+> Project-local provider settings are useful for repository-specific defaults, but avoid committing secrets. Prefer `api_key_env` for API-key providers so credentials stay in your user environment.
 
 ## Provider dialog
 

@@ -13,6 +13,9 @@ A CodeAlta thread is a durable work session with provider/model state, prompt hi
 
 The sidebar keeps running threads visible even when their tab is closed. Closing a tab does not stop active work, and unsent thread drafts are saved under `~/.alta/saved_prompts/`.
 
+> [!NOTE]
+> Closing a tab only closes that view. Check the sidebar for running threads before assuming work has stopped.
+
 ## Starting and reopening work
 
 Open a project with `Ctrl+O`, select a provider/model/reasoning combination, and send a prompt. CodeAlta stores local raw-API session journals under `~/.alta/sessions/yyyy/mm/dd/<session-id>.jsonl`.
@@ -131,6 +134,9 @@ risk, and recommended next step.
 ```
 
 This works best when you ask for a bounded result from each child: summary, relevant files, proposed patch outline, test command, or risk assessment. Let one parent thread synthesize the answers before you choose what to apply.
+
+> [!TIP]
+> Give delegated agents a narrow expected output, such as “do not edit files; return likely cause, files inspected, and one recommended test.” Bounded child results are easier for the parent thread to compare.
 
 ## Scope, visibility, and provenance
 

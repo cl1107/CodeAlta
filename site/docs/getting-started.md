@@ -8,6 +8,9 @@ title: Getting Started
 
 CodeAlta is distributed as a .NET global tool. The package id is `CodeAlta`; the installed command is `alta`.
 
+> [!IMPORTANT]
+> CodeAlta is currently distributed as preview `0.x` releases before the final `1.0`. Expect behavior, configuration shape, screenshots, and extension APIs to evolve between preview versions; review release notes before upgrading a workflow you depend on.
+
 Install [.NET 10](https://dotnet.microsoft.com/en-us/download/dotnet/10.0) first, then install/update CodeAlta:
 
 ```sh
@@ -45,6 +48,9 @@ You can reopen this dialog any time with `Ctrl+G Ctrl+R` or from the provider su
 ## Configure one provider quickly
 
 For OpenAI platform access, set an environment variable and enable the default OpenAI provider:
+
+> [!TIP]
+> Environment variables keep API keys out of `~/.alta/config.toml` and project files. Set the variable in the same shell or profile that launches `alta`.
 
 ```sh
 # macOS/Linux

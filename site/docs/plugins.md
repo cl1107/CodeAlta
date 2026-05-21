@@ -8,6 +8,12 @@ CodeAlta plugins are trusted source packages that can extend the shell, prompt f
 
 Plugins are for local automation you choose to run. Building a source plugin can execute SDK/NuGet/MSBuild logic, and loading it executes .NET code inside the CodeAlta process.
 
+> [!WARNING]
+> Install and enable only plugins you trust. Source plugins are built on your machine and loaded into the CodeAlta process, so a plugin has the same practical risk profile as running local code.
+
+> [!IMPORTANT]
+> Plugin APIs are preview surface area before CodeAlta `1.0`. Interfaces, contribution points, service exposure, and behavior can change between `0.x` releases; some CodeAlta capabilities may not be exposed yet, and some exposed capabilities may still be incomplete or incorrectly shaped.
+
 ## Plugin locations
 
 CodeAlta discovers dynamic source plugins from:
@@ -67,6 +73,9 @@ These bypasses are recognized before plugin-contributed command-line options.
 ## Minimal source plugin
 
 Create `~/.alta/plugins/HelloWorld/plugin.cs`:
+
+> [!TIP]
+> Keep early plugins small and focused. The preview API is easiest to track when each plugin owns one narrow workflow and avoids depending on undocumented host internals.
 
 ```csharp
 using CodeAlta.Plugins.Abstractions;
@@ -151,3 +160,6 @@ Trusted plugins can also invoke built-in `alta` commands through `Services.Alta.
 - Keep plugin package roots simple. For v1 source-folder plugins, do not add your own root `Directory.Build.props`, `Directory.Build.targets`, `Directory.Packages.props`, or `global.json`.
 - Plugin-owned dependencies should be copied by the SDK (`EnableDynamicLoading=true`) so the plugin load context can resolve them.
 - Avoid untracked background work, static references to host objects, pinned native resources, or host-static delegates that can prevent unload.
+
+> [!CAUTION]
+> A plugin that starts unmanaged background work, captures host-static state, or pins native resources can keep running after you expect it to unload. Prefer CodeAlta-managed task services and cancellable operations.

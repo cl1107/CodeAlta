@@ -20,6 +20,9 @@ The main screen has four important areas:
 - **Timeline**: user messages, assistant messages, reasoning/status updates, tool-call chips, results, statistics cards, compaction notices, and modified-file summaries.
 - **Prompt/footer**: prompt editor, queue strip, provider/model/reasoning selectors, context usage, compact button, and status text.
 
+> [!TIP]
+> Press `F1`, type `/help`, or type `?` when you are unsure where an action lives. Help and command discovery are designed to return you to the prompt quickly.
+
 Use `Alt+Left` and `Alt+Right` to move between tabs. Use `Ctrl+G Ctrl+S` to focus the sidebar and `Ctrl+G Ctrl+P` to return to the prompt.
 
 ## Timeline cards
@@ -98,6 +101,9 @@ The dialog supports project-name and directory completion. Rooted paths such as 
 </figure>
 
 Type `@` in the prompt to search project files and folders. Accepted entries become Markdown links and are sent as structured attachments. You can also type raw references such as:
+
+> [!NOTE]
+> Attach only the files or folders that are relevant to the task. Smaller, focused context usually makes provider responses easier to review and keeps compaction pressure lower.
 
 ```text
 @src/CodeAlta/Program.cs

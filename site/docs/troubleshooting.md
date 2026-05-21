@@ -18,6 +18,9 @@ Logs are the first place to check for provider startup, credential, plugin build
 
 CodeAlta validates `~/.alta/config.toml` before creating providers or sessions. If the file is invalid at startup, CodeAlta opens a TOML recovery editor with syntax highlighting, an error marker, live parse feedback, `Ctrl+S` Save and Continue when valid, and `Ctrl+Q` Exit.
 
+> [!IMPORTANT]
+> Fix configuration parse errors before starting agent work. Provider creation, project overrides, and plugin configuration depend on a valid TOML file.
+
 Common fixes:
 
 - keep table names unique;
@@ -37,6 +40,9 @@ For API-key providers, verify that the environment variable exists in the shell 
 The Model Providers dialog keeps Browser Login and Device Login instructions visible while authorization is pending. The current operation can be canceled from the dialog or with `Ctrl+G Ctrl+C`. Use `Ctrl+G Ctrl+U` / `Ctrl+G Ctrl+D` to copy the current login URL or device code.
 
 ## A plugin is broken
+
+> [!WARNING]
+> Broken plugins can fail during discovery, build, load, activation, or callbacks. Use safe mode or `--no-plugins` first if CodeAlta cannot start normally.
 
 Start CodeAlta without dynamic plugins:
 
@@ -65,6 +71,9 @@ Source plugins require a .NET SDK that supports native file-based C# builds. Res
 ## Another CodeAlta instance is already running
 
 Only one `alta` application instance can run on a machine at a time. CodeAlta uses:
+
+> [!CAUTION]
+> Do not delete the lock file for a running process. Multiple active instances would share user state, sessions, and provider/runtime files unsafely.
 
 ```text
 ~/.alta/alta.lock
