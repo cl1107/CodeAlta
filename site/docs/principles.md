@@ -52,14 +52,15 @@ CodeAlta should support normal work from the keyboard, with mouse interactions a
 
 ## Thread-oriented workspace
 
-CodeAlta should model agent work as durable threads rather than disposable chat scrollback. Threads should keep history, provider state, queue state, journals, and project scope together.
+CodeAlta should model agent work as durable threads rather than disposable chat scrollback. Threads should keep history, provider state, queue state, journals, and project scope together, including parent and child sessions when multiple agents cooperate on the same goal.
 
 ### What this means in practice
 
-- Global threads should support planning and cross-project coordination.
+- Global threads should support planning, cross-project coordination, and multi-agent delegation.
 - Project threads should keep project context, prompt history, provider state, queues, and session journals together.
 - Closing a tab should not have to stop running work.
 - Delegated child sessions should be visible and able to report back to the parent thread.
+- Parent threads should make it possible to compare, merge, or route results from multiple agents without losing which session produced which answer.
 - Busy threads should preserve prompts through queues and steering fallback behavior.
 
 ## Provider-agnostic runtime

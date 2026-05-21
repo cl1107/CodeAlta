@@ -96,10 +96,10 @@ result     1 file modified · +12 -3</code></pre>
     <article class="principle-feature" style="--accent: #22d3ee; --accent-2: #a78bfa;">
       <div class="principle-copy">
         <span class="principle-kicker">Thread-oriented workspace</span>
-        <h3><i class="bi bi-diagram-3"></i> Keeping work in durable threads</h3>
+        <h3><i class="bi bi-diagram-3"></i> Coordinating multiple agents in durable threads</h3>
       </div>
-      <div class="principle-shot" role="img" aria-label="Screenshot placeholder for project threads and delegated child sessions">
-        <div class="shot-topline"><span></span><span></span><span></span><strong>Threads</strong></div>
+      <div class="principle-shot" role="img" aria-label="Screenshot placeholder for project threads and delegated child agents">
+        <div class="shot-topline"><span></span><span></span><span></span><strong>Agents &amp; threads</strong></div>
         <div class="shot-body shot-body--tree"><span></span><span></span><span></span><span></span><span></span></div>
       </div>
     </article>
