@@ -3,5 +3,5 @@ home:
   - {path: docs/readme.md, title: "<i class='bi bi-book' aria-hidden='true'></i> Docs", folder: true}
 
 home2:
-  - {url: "https://www.nuget.org/packages/CodeAlta/", title: '<i class="bi bi-box-seam"></i> NuGet', link_class: btn btn-outline-secondary }
+  - {url: "https://github.com/sponsors/xoofx", title: '<i class="bi bi-heart" style="color: pink"></i> Sponsor', link_class: btn btn-outline-secondary }
   - {url: "https://github.com/CodeAlta/CodeAlta", title: '<i class="bi bi-github"></i> GitHub', link_class: btn btn-info}
