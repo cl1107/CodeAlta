@@ -32,6 +32,45 @@ public sealed class CatalogInfrastructureTests
     }
 
     [TestMethod]
+    public async Task ProjectCatalog_UpsertFromPathAsync_AllowsFileSystemRootProjectPath()
+    {
+        using var root = TempDirectory.Create();
+        var projectRoot = Path.GetPathRoot(Environment.CurrentDirectory);
+        Assert.IsFalse(string.IsNullOrWhiteSpace(projectRoot));
+
+        var catalog = new ProjectCatalog(new CatalogOptions { GlobalRoot = root.Path });
+        var descriptor = await catalog.UpsertFromPathAsync(projectRoot!).ConfigureAwait(false);
+        var reloaded = await catalog.LoadAsync().ConfigureAwait(false);
+
+        Assert.AreEqual(projectRoot, descriptor.DisplayName);
+        Assert.AreEqual(projectRoot, descriptor.ProjectPath);
+        Assert.IsTrue(IsValidSingleDirectoryName(descriptor.Name));
+        Assert.AreEqual(1, reloaded.Count);
+        Assert.AreEqual(projectRoot, reloaded[0].DisplayName);
+        Assert.AreEqual(projectRoot, reloaded[0].ProjectPath);
+        Assert.IsTrue(IsValidSingleDirectoryName(reloaded[0].Name));
+    }
+
+    [TestMethod]
+    public void ProjectDescriptor_Validate_InfersRootPathNameAndDisplayName()
+    {
+        var projectRoot = Path.GetPathRoot(Environment.CurrentDirectory);
+        Assert.IsFalse(string.IsNullOrWhiteSpace(projectRoot));
+        var descriptor = new ProjectDescriptor
+        {
+            Id = ProjectId.NewVersion7().ToString(),
+            Slug = "root-project",
+            ProjectPath = projectRoot!,
+            DefaultBranch = "main",
+        };
+
+        descriptor.Validate();
+
+        Assert.AreEqual(projectRoot, descriptor.DisplayName);
+        Assert.IsTrue(IsValidSingleDirectoryName(descriptor.Name));
+    }
+
+    [TestMethod]
     public async Task ProjectCatalog_UpsertFromPathAsync_ReusesExistingProjectForSamePath()
     {
         using var root = TempDirectory.Create();
@@ -1030,6 +1069,12 @@ public sealed class CatalogInfrastructureTests
             Checkout = new CheckoutRule { PathTemplate = @"{projectName}" },
         };
     }
+
+    private static bool IsValidSingleDirectoryName(string name)
+        => !string.IsNullOrWhiteSpace(name) &&
+           name.IndexOfAny(Path.GetInvalidFileNameChars()) < 0 &&
+           !name.Contains(Path.DirectorySeparatorChar) &&
+           !name.Contains(Path.AltDirectorySeparatorChar);
 
     private static PathTemplateContext CreatePathTemplateContext(string baseRoot)
     {

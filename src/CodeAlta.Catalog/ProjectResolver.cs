@@ -147,15 +147,6 @@ public sealed class ProjectResolver
 
     private static string GetRepositoryName(string projectPath)
     {
-        if (Uri.TryCreate(projectPath, UriKind.Absolute, out var uri))
-        {
-            var name = Path.GetFileNameWithoutExtension(uri.AbsolutePath);
-            if (!string.IsNullOrWhiteSpace(name))
-            {
-                return name;
-            }
-        }
-
-        return Path.GetFileName(projectPath.TrimEnd('/', '\\'));
+        return ProjectPathNameFormatter.InferName(projectPath);
     }
 }

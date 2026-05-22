@@ -89,9 +89,14 @@ public sealed class ProjectDescriptor
     /// <exception cref="ArgumentException">Thrown when required values are missing or invalid.</exception>
     public void Validate()
     {
+        if (string.IsNullOrWhiteSpace(DisplayName))
+        {
+            DisplayName = ProjectPathNameFormatter.InferDisplayName(ProjectPath);
+        }
+
         if (string.IsNullOrWhiteSpace(Name))
         {
-            Name = InferProjectName(ProjectPath, DisplayName);
+            Name = ProjectPathNameFormatter.InferName(ProjectPath, DisplayName);
         }
 
         if (!ProjectId.TryParse(Id, out _))
@@ -106,9 +111,7 @@ public sealed class ProjectDescriptor
             throw new ArgumentException("Project name is required.", nameof(Name));
         }
 
-        if (Name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
-            Name.Contains(Path.DirectorySeparatorChar) ||
-            Name.Contains(Path.AltDirectorySeparatorChar))
+        if (!ProjectPathNameFormatter.IsValidProjectName(Name))
         {
             throw new ArgumentException("Project name must be a valid single directory name.", nameof(Name));
         }
@@ -129,27 +132,5 @@ public sealed class ProjectDescriptor
         }
     }
 
-    private static string InferProjectName(string projectPath, string displayName)
-    {
-        if (!string.IsNullOrWhiteSpace(projectPath))
-        {
-            if (Uri.TryCreate(projectPath, UriKind.Absolute, out var uri))
-            {
-                var remoteName = Path.GetFileNameWithoutExtension(uri.AbsolutePath);
-                if (!string.IsNullOrWhiteSpace(remoteName))
-                {
-                    return remoteName;
-                }
-            }
-
-            var localName = Path.GetFileName(projectPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
-            if (!string.IsNullOrWhiteSpace(localName))
-            {
-                return localName;
-            }
-        }
-
-        return displayName;
-    }
 }
 

@@ -106,13 +106,19 @@ public sealed class CatalogYamlSerializer
         var document = ParseFrontMatter(markdown);
         var frontMatter = YamlSerializer.Deserialize<ProjectFrontMatter>(document.FrontMatter) ?? new ProjectFrontMatter();
         var projectPath = frontMatter.Path ?? frontMatter.LegacyRepoUrl ?? string.Empty;
+        var inferredDisplayName = ProjectPathNameFormatter.InferDisplayName(projectPath);
+        var displayName = frontMatter.DisplayName ??
+            (!string.IsNullOrWhiteSpace(inferredDisplayName) &&
+             !ProjectPathNameFormatter.IsValidProjectName(inferredDisplayName)
+                ? inferredDisplayName
+                : frontMatter.Name ?? inferredDisplayName);
 
         return new ProjectDescriptor
         {
             Id = frontMatter.Id ?? string.Empty,
             Slug = frontMatter.Slug ?? string.Empty,
-            Name = frontMatter.Name ?? InferProjectName(projectPath),
-            DisplayName = frontMatter.DisplayName ?? frontMatter.Name ?? InferProjectName(projectPath),
+            Name = frontMatter.Name ?? ProjectPathNameFormatter.InferName(projectPath),
+            DisplayName = displayName,
             Description = frontMatter.Description,
             ProjectPath = projectPath,
             DefaultBranch = frontMatter.DefaultBranch ?? "main",
@@ -188,22 +194,4 @@ public sealed class CatalogYamlSerializer
         return $"---\n{yaml}\n---\n\n{markdownBody}\n";
     }
 
-    private static string InferProjectName(string projectPath)
-    {
-        if (string.IsNullOrWhiteSpace(projectPath))
-        {
-            return string.Empty;
-        }
-
-        if (Uri.TryCreate(projectPath, UriKind.Absolute, out var uri))
-        {
-            var remoteName = Path.GetFileNameWithoutExtension(uri.AbsolutePath);
-            if (!string.IsNullOrWhiteSpace(remoteName))
-            {
-                return remoteName;
-            }
-        }
-
-        return Path.GetFileName(projectPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
-    }
 }

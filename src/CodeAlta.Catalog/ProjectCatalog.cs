@@ -166,18 +166,19 @@ public sealed partial class ProjectCatalog
             return existing;
         }
 
-        var directory = new DirectoryInfo(normalizedPath);
-        var baseSlug = Slugify(directory.Name);
+        var projectName = ProjectPathNameFormatter.InferName(normalizedPath);
+        var displayName = ProjectPathNameFormatter.InferDisplayName(normalizedPath);
+        var baseSlug = Slugify(projectName);
         var slug = EnsureUniqueSlug(baseSlug, projects);
         var descriptor = new ProjectDescriptor
         {
             Id = ProjectId.NewVersion7().ToString(),
             Slug = slug,
-            Name = directory.Name,
-            DisplayName = directory.Name,
+            Name = projectName,
+            DisplayName = displayName,
             ProjectPath = normalizedPath,
             DefaultBranch = "main",
-            MarkdownBody = $"# {directory.Name}\n\nAutomatically discovered from local usage.",
+            MarkdownBody = $"# {displayName}\n\nAutomatically discovered from local usage.",
         };
 
         await SaveAsync(descriptor, cancellationToken).ConfigureAwait(false);
@@ -291,7 +292,15 @@ public sealed partial class ProjectCatalog
             trimmed = trimmed[4..];
         }
 
-        return Path.GetFullPath(trimmed).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var fullPath = Path.GetFullPath(trimmed);
+        var root = Path.GetPathRoot(fullPath);
+        if (!string.IsNullOrWhiteSpace(root) &&
+            string.Equals(fullPath, root, StringComparison.OrdinalIgnoreCase))
+        {
+            return fullPath;
+        }
+
+        return fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
     }
 
     private static bool IsInsideGlobalRoot(string path, string globalRoot)
