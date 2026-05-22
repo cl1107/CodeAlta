@@ -116,7 +116,17 @@ Type `@` in the prompt editor to open the project file/folder picker. Accepted e
   <figcaption class="small text-secondary mt-2">Type <code>@</code>, search for files or folders, and accept entries to add them to the prompt as structured attachments.</figcaption>
 </figure>
 
-Paste images with `Ctrl+V` when the selected model supports image input. CodeAlta opens a preview/title dialog and stores the image beside the session journal.
+## Add images to a prompt
+
+When the selected model supports image input, copy an image to the clipboard and press `Ctrl+V` in the prompt editor. CodeAlta opens a preview/title dialog so you can confirm the image before it is attached, then stores the image beside the session journal.
+
+<figure class="my-4">
+  <img class="img-fluid rounded-4 shadow" src="{{site.basepath}}/img/alta-image-prompt-copy-paste.png" alt="CodeAlta image paste dialog showing an image copied into a prompt" loading="lazy">
+  <figcaption class="small text-secondary mt-2">Paste an image into the prompt, preview it, give it a title, and send it as model context when the provider/model accepts image input.</figcaption>
+</figure>
+
+> [!IMPORTANT]
+> Image preview requires a terminal with inline image protocol support. Use a terminal that supports Sixel, such as Windows Terminal, or the Kitty/iTerm2 image protocols. Without that support, pasted-image previews may not render correctly even when the selected model can accept images.
 
 ## Essential shortcuts
 
