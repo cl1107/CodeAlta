@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Reflection;
 using System.Text.Json;
 using NuGet.Versioning;
@@ -43,6 +44,20 @@ internal static class CodeAltaUpdateChecker
         ArgumentNullException.ThrowIfNull(currentVersion);
 
         using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+        return await CheckNuGetOrgAsync(packageId, currentVersion, includePrerelease, httpClient, cancellationToken);
+    }
+
+    internal static async Task<CodeAltaNuGetUpdateCheckResult> CheckNuGetOrgAsync(
+        string packageId,
+        NuGetVersion currentVersion,
+        bool includePrerelease,
+        HttpClient httpClient,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(packageId);
+        ArgumentNullException.ThrowIfNull(currentVersion);
+        ArgumentNullException.ThrowIfNull(httpClient);
+
         var listedVersions = await GetListedVersionsAsync(httpClient, packageId, cancellationToken);
         if (listedVersions.Length == 0)
         {
@@ -88,8 +103,7 @@ internal static class CodeAltaUpdateChecker
         }
 
         response.EnsureSuccessStatusCode();
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+        using var document = await ReadJsonDocumentAsync(response, cancellationToken);
 
         var versions = new List<NuGetVersion>();
         await AddListedVersionsAsync(httpClient, document.RootElement, versions, cancellationToken);
@@ -124,8 +138,7 @@ internal static class CodeAltaUpdateChecker
 
             using var response = await httpClient.GetAsync(pageUri, cancellationToken);
             response.EnsureSuccessStatusCode();
-            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-            using var pageDocument = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+            using var pageDocument = await ReadJsonDocumentAsync(response, cancellationToken);
             if (pageDocument.RootElement.TryGetProperty("items", out var pageItems) && pageItems.ValueKind == JsonValueKind.Array)
             {
                 AddListedVersions(pageItems, versions);
@@ -154,5 +167,31 @@ internal static class CodeAltaUpdateChecker
                 versions.Add(version);
             }
         }
+    }
+
+    private static async Task<JsonDocument> ReadJsonDocumentAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var decodedStream = CreateDecodedStream(stream, response.Content.Headers.ContentEncoding);
+        return await JsonDocument.ParseAsync(decodedStream, cancellationToken: cancellationToken);
+    }
+
+    private static Stream CreateDecodedStream(Stream stream, ICollection<string> contentEncodings)
+    {
+        var decodedStream = stream;
+        foreach (var contentEncoding in contentEncodings.Reverse())
+        {
+            decodedStream = contentEncoding switch
+            {
+                _ when contentEncoding.Equals("gzip", StringComparison.OrdinalIgnoreCase)
+                    || contentEncoding.Equals("x-gzip", StringComparison.OrdinalIgnoreCase) => new GZipStream(decodedStream, CompressionMode.Decompress),
+                _ when contentEncoding.Equals("deflate", StringComparison.OrdinalIgnoreCase) => new DeflateStream(decodedStream, CompressionMode.Decompress),
+                _ when contentEncoding.Equals("br", StringComparison.OrdinalIgnoreCase) => new BrotliStream(decodedStream, CompressionMode.Decompress),
+                _ when contentEncoding.Equals("identity", StringComparison.OrdinalIgnoreCase) => decodedStream,
+                _ => throw new InvalidOperationException($"Unsupported NuGet registration content encoding '{contentEncoding}'."),
+            };
+        }
+
+        return decodedStream;
     }
 }
