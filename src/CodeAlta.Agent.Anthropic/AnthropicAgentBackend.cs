@@ -1,5 +1,6 @@
 using Anthropic;
 using Anthropic.Core;
+using Anthropic.Credentials;
 using Anthropic.Models.Models;
 using CodeAlta.Agent.LocalRuntime;
 using CodeAlta.Agent.LocalRuntime.Compaction;
@@ -205,9 +206,16 @@ public sealed class AnthropicAgentBackend : IAgentBackend, IAgentSharedSessionMe
         var options = new ClientOptions
         {
             ApiKey = provider.ApiKey,
-            AuthToken = provider.AuthToken,
             ExtraHeaders = provider.ExtraHeaders,
         };
+        if (!string.IsNullOrEmpty(provider.AuthToken))
+        {
+            // Route bearer tokens through the SDK's Credentials pipeline so the Authorization
+            // header is set via the HttpRequestHeaders.Authorization setter (which accepts
+            // tokens containing characters such as ';' or ',' that GitHub Copilot tokens
+            // include) instead of the validating Headers.Add path used by ClientOptions.AuthToken.
+            options.Credentials = new StaticTokenCredentials(provider.AuthToken);
+        }
         if (provider.HttpClient is not null)
         {
             options.HttpClient = provider.HttpClient;
