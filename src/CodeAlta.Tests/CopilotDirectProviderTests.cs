@@ -585,6 +585,111 @@ public sealed class CopilotDirectProviderTests
     }
 
     [TestMethod]
+    public async Task CopilotDirect_AnthropicMessages_AcceptsTokenWithReservedHeaderCharacters()
+    {
+        // Regression test: GitHub Copilot bearer tokens contain ';' and ',' separators
+        // that are rejected by HttpRequestHeaders.Add validation but accepted by the
+        // Authorization setter. The backend must route these tokens through the SDK's
+        // Credentials pipeline rather than ClientOptions.AuthToken to avoid throwing
+        // "The format of value 'Bearer ...' is invalid." while sending the prompt.
+        const string CopilotToken = "tid=aaaa;ol=bbbb,cccc;exp=1;iat=2;chat=1";
+
+        var sawAnthropicRequest = false;
+        var handler = new StubHandler(request =>
+        {
+            if (request.RequestUri == new Uri("https://api.individual.githubcopilot.com/v1/messages"))
+            {
+                sawAnthropicRequest = true;
+                Assert.AreEqual($"Bearer {CopilotToken}", request.Headers.Authorization?.ToString());
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(
+                        """
+                        {
+                          "id": "msg_test",
+                          "type": "message",
+                          "role": "assistant",
+                          "model": "claude-haiku-4.5",
+                          "content": [{ "type": "text", "text": "ok" }],
+                          "stop_reason": "end_turn",
+                          "stop_sequence": null,
+                          "usage": { "input_tokens": 1, "output_tokens": 1 }
+                        }
+                        """,
+                        Encoding.UTF8,
+                        "application/json"),
+                };
+            }
+
+            Assert.Fail($"Unexpected request: {request.Method} {request.RequestUri}");
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        });
+        var executor = new CopilotDirectTurnExecutor(new CopilotDirectProviderOptions
+        {
+            ProviderKey = "github-copilot",
+            Auth = new CopilotDirectAuthOptions
+            {
+                AuthSource = CopilotDirectAuthSources.CopilotTokenEnvironment,
+                CopilotTokenEnvironmentVariable = "CODEALTA_TEST_COPILOT_TOKEN",
+            },
+            HttpClient = new HttpClient(handler),
+        });
+        var provider = new LocalAgentProviderDescriptor
+        {
+            ProtocolFamily = CopilotDirectAgentBackend.ProtocolFamily,
+            ProviderKey = "github-copilot",
+            DisplayName = "Copilot",
+            BackendId = new AgentBackendId("github-copilot"),
+            TransportKind = LocalAgentTransportKind.AnthropicMessages,
+            BaseUri = new Uri("https://api.individual.githubcopilot.com"),
+        };
+
+        Environment.SetEnvironmentVariable("CODEALTA_TEST_COPILOT_TOKEN", CopilotToken);
+        try
+        {
+            var response = await executor.ExecuteTurnAsync(
+                new LocalAgentTurnRequest
+                {
+                    Provider = provider,
+                    BackendId = provider.BackendId,
+                    SessionId = "session-test",
+                    RunId = new AgentRunId("run-test"),
+                    ModelId = "claude-haiku-4.5",
+                    ModelInfo = new AgentModelInfo(
+                        "claude-haiku-4.5",
+                        Provider: "github-copilot",
+                        Capabilities: new Dictionary<string, object?>
+                        {
+                            ["copilotEndpointKind"] = "AnthropicMessages",
+                            ["family"] = "claude",
+                        }),
+                    Conversation =
+                    [
+                        new LocalAgentConversationMessage(
+                            LocalAgentConversationRole.User,
+                            [new LocalAgentMessagePart.Text("hi")]),
+                    ],
+                    Tools = [],
+                    State = new LocalAgentSessionState
+                    {
+                        SessionId = "session-test",
+                        ProtocolFamily = CopilotDirectAgentBackend.ProtocolFamily,
+                        ProviderKey = "github-copilot",
+                        UpdatedAt = DateTimeOffset.UtcNow,
+                    },
+                },
+                static (_, _) => ValueTask.CompletedTask).ConfigureAwait(false);
+
+            Assert.IsTrue(sawAnthropicRequest);
+            Assert.IsTrue(response.AssistantMessage.Parts.OfType<LocalAgentMessagePart.Text>().Any());
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("CODEALTA_TEST_COPILOT_TOKEN", null);
+        }
+    }
+
+    [TestMethod]
     public async Task CopilotDirect_ChatCompletions_OmitsReasoningAndDeveloperRoleForGeminiCompat()
     {
         var handler = new StubHandler(request =>
