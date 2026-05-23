@@ -2170,6 +2170,33 @@ public sealed class CodeAltaAppTests
     }
 
     [TestMethod]
+    public void BuildModelOptions_FallsBackToIdWhenDisplayNameIsBlank()
+    {
+        var backendState = new ChatBackendState(new AgentBackendId("qwen"), "Qwen");
+        backendState.Models.Add(new AgentModelInfo("qwen3-flash", DisplayName: " "));
+
+        var options = ChatBackendPresentation.BuildModelOptions(backendState);
+
+        Assert.AreEqual("qwen3-flash", options[0].Label);
+    }
+
+    [TestMethod]
+    public void BuildModelOptionMarkup_IncludesDimModelIdWhenDisplayNameDiffers()
+    {
+        var markup = ChatBackendPresentation.BuildModelOptionMarkup(new ChatModelOption("qwen3-flash", "Qwen3.6 Flash"));
+
+        Assert.AreEqual("Qwen3.6 Flash [dim](qwen3-flash)[/]", markup);
+    }
+
+    [TestMethod]
+    public void BuildModelOptionMarkup_OmitsModelIdWhenLabelAlreadyIsId()
+    {
+        var markup = ChatBackendPresentation.BuildModelOptionMarkup(new ChatModelOption("qwen3-flash", "qwen3-flash"));
+
+        Assert.AreEqual("qwen3-flash", markup);
+    }
+
+    [TestMethod]
     public void BuildModelOptions_UsesSelectedModelWhenCatalogIsEmpty()
     {
         var backendState = new ChatBackendState(new AgentBackendId("codex"), "Codex subscription")

@@ -4,6 +4,7 @@ using CodeAlta.Presentation.Styling;
 using CodeAlta.ViewModels;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Controls;
+using XenoAtom.Terminal.UI.Templating;
 
 namespace CodeAlta.Views;
 
@@ -25,6 +26,13 @@ internal sealed class ModelProviderSelectorView
             .IsEnabled(workspaceViewModel.Bind.CanSelectModelProvider);
         ChatModelSelect = new Select<ChatModelOption>()
             .SelectedIndex(workspaceViewModel.Bind.SelectedModelIndex)
+            .ItemTemplate(new DataTemplate<ChatModelOption>(
+                static (DataTemplateValue<ChatModelOption> value, in DataTemplateContext _) =>
+                    new Markup(ChatBackendPresentation.BuildModelOptionMarkup(value.GetValue()))
+                    {
+                        Wrap = false,
+                    },
+                null))
             .MinWidth(18)
             .MaxWidth(36)
             .IsEnabled(workspaceViewModel.Bind.CanSelectModel);

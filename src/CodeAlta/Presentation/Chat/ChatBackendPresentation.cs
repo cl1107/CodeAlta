@@ -62,7 +62,9 @@ internal static class ChatBackendPresentation
         }
 
         var options = backendState.Models
-            .Select(model => new ChatModelOption(model.Id, model.DisplayName ?? model.Id))
+            .Select(static model => new ChatModelOption(
+                model.Id,
+                string.IsNullOrWhiteSpace(model.DisplayName) ? model.Id : model.DisplayName!))
             .ToList();
         if (!string.IsNullOrWhiteSpace(effectiveSelectedModelId) &&
             options.All(option => !string.Equals(option.ModelId, effectiveSelectedModelId, StringComparison.Ordinal)))
@@ -71,6 +73,15 @@ internal static class ChatBackendPresentation
         }
 
         return options;
+    }
+
+    public static string BuildModelOptionMarkup(ChatModelOption option)
+    {
+        var label = string.IsNullOrWhiteSpace(option.Label) ? option.ModelId ?? string.Empty : option.Label;
+        var id = string.IsNullOrWhiteSpace(option.ModelId) || string.Equals(label, option.ModelId, StringComparison.Ordinal)
+            ? string.Empty
+            : $" [dim]({AnsiMarkup.Escape(option.ModelId)})[/]";
+        return $"{AnsiMarkup.Escape(label)}{id}";
     }
 
     public static List<ChatReasoningOption> BuildReasoningOptions(AgentModelInfo? model)
