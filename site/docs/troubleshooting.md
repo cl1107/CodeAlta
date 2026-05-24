@@ -29,6 +29,18 @@ Platform-specific places to check for stale font copies include Windows **Settin
 
 If only some icons are wrong after updating, verify that the active terminal profile is not falling back to a different font family.
 
+## Windows Terminal shortcuts do not reach CodeAlta
+
+Windows Terminal can reserve shortcuts for its own paste, pane, and navigation actions before CodeAlta can receive them. If `Ctrl+V`, `Alt+Left`, `Alt+Right`, or another CodeAlta shortcut does not behave as expected, review your Windows Terminal settings and unbind terminal-level shortcuts that CodeAlta needs to receive directly.
+
+Add entries like these to the `keybindings` array in Windows Terminal's `settings.json` when those keys are currently assigned to terminal actions:
+
+```json
+{ "keys": "ctrl+v", "id": "unbound" },
+{ "keys": "alt+left", "id": "unbound" },
+{ "keys": "alt+right", "id": "unbound" }
+```
+
 ## Windows Terminal feels slow after a long session
 
 > [!NOTE]
