@@ -1,4 +1,12 @@
 [providers]
+[providers.alibaba]
+enabled = false
+display_name = "Alibaba"
+type = "openai-chat"
+model = "qwen3.7-max"
+api_key_env = "CODEALTA_ALIBABA_API_KEY"
+api_url = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+
 [providers.anthropic]
 enabled = false
 display_name = "Anthropic"

@@ -23,7 +23,7 @@ Update an existing installation with:
 dotnet tool update -g CodeAlta
 ```
 
-On first launch, CodeAlta creates `~/.alta/config.toml`. If no provider is enabled yet, the Model Providers dialog opens so you can configure Codex, Copilot, OpenAI/Azure OpenAI APIs, Anthropic, Gemini/Vertex, or custom endpoints.
+On first launch, CodeAlta creates `~/.alta/config.toml`. If no provider is enabled yet, the Model Providers dialog opens so you can configure Codex, Copilot, OpenAI/Azure OpenAI/Alibaba APIs, Anthropic, Gemini/Vertex, or custom endpoints.
 
 CodeAlta also expects a current [Nerd Fonts](https://www.nerdfonts.com/) patched font in your terminal profile. If icons or tree glyphs look wrong, update to the latest Nerd Fonts release, remove stale older font copies, and select the refreshed Nerd Font family, such as `CaskaydiaCove Nerd Font`.
 

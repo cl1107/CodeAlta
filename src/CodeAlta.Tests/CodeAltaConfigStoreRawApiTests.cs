@@ -479,6 +479,8 @@ public sealed class CodeAltaConfigStoreRawApiTests
         Assert.IsFalse(store.EnsureGlobalConfigExists());
 
         var content = File.ReadAllText(Path.Combine(temp.Path, "config.toml"));
+        StringAssert.Contains(content, "[providers.alibaba]");
+        StringAssert.Contains(content, "api_key_env = \"CODEALTA_ALIBABA_API_KEY\"");
         StringAssert.Contains(content, "type = \"codex\"");
         StringAssert.Contains(content, "type = \"copilot\"");
         Assert.IsFalse(content.Contains("pc-ai", StringComparison.OrdinalIgnoreCase));

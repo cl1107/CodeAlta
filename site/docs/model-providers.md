@@ -17,6 +17,7 @@ On first run, CodeAlta creates a default `~/.alta/config.toml` with common provi
 
 | Provider key | Display name | Type | Default model or role | Credential field |
 | --- | --- | --- | --- | --- |
+| `alibaba` | Alibaba | `openai-chat` | `qwen3.7-max` | `CODEALTA_ALIBABA_API_KEY` |
 | `anthropic` | Anthropic | `anthropic` | `claude-sonnet-4-6` | `CODEALTA_ANTHROPIC_API_KEY` |
 | `azure-openai` | Azure OpenAI | `azure-openai` | Azure deployment name | `CODEALTA_AZURE_OPENAI_API_KEY` |
 | `codex` | Codex | `codex` | `gpt-5.5`, high reasoning | ChatGPT/Codex OAuth state |
@@ -177,6 +178,20 @@ api_url = "https://api.openai.com/v1"
 ```
 
 Use `openai-chat` for OpenAI-compatible Chat Completions endpoints.
+
+### Alibaba Cloud Model Studio
+
+Alibaba Cloud Model Studio exposes an [OpenAI-compatible Chat API](https://modelstudio.console.alibabacloud.com/ap-southeast-1?tab=api#/api/?type=model&url=3016807) that works with CodeAlta's `openai-chat` provider type:
+
+```toml
+[providers.alibaba]
+enabled = true
+display_name = "Alibaba"
+type = "openai-chat"
+model = "qwen3.7-max"
+api_key_env = "CODEALTA_ALIBABA_API_KEY"
+api_url = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+```
 
 ### Azure OpenAI
 
