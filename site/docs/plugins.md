@@ -134,7 +134,7 @@ Plugins can contribute:
 - normalized agent event observers;
 - transient thread event projections for plugin-owned timeline cards.
 
-Prompt-editor attachments can attach plugin-owned behavior to prompt editors. CodeAlta provides only a small editor host, including the prompt project path; each plugin owns its trigger detection and visual presentation.
+Prompt-editor attachments can attach plugin-owned behavior to prompt editors. CodeAlta provides only a small editor host, including the prompt project path; each plugin owns its trigger detection and visual presentation. Attachments can also set `PluginPromptEditorContribution.PlaceholderText` with a short placeholder segment such as `[#] to reference a GitHub issue`, which appears in the ready prompt placeholder while that contribution applies.
 
 Built-in plugins use the same model. The GitHub plugin owns its `#` issue lookup UI in GitHub repositories and inserts Markdown links such as `[#18](https://github.com/org/repo/issues/18)`. It also exposes the `gh` CLI as an agent tool only when `gh` is installed; the tool receives arguments as an array of strings and passes them to `ProcessStartInfo.ArgumentList` instead of a shell command string. The statistics plugin projects per-turn/session statistics from normalized agent events without writing plugin messages into canonical conversation history.
 

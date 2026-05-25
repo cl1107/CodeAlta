@@ -232,7 +232,8 @@ internal sealed class CodeAltaFrontendComposition
                 threadStateCoordinator.ViewState,
                 threadStateCoordinator.Selection.Target is WorkspaceTarget.Draft { IsGlobal: true }
                     ? null
-                    : threadStateCoordinator.GetSelectedProject()?.Id));
+                    : threadStateCoordinator.GetSelectedProject()?.Id),
+            pluginHostBridge is null ? null : pluginHostBridge.GetPromptPlaceholderContributions);
         var modelCatalogCoordinator = new ModelCatalogCoordinator(
             chatBackendStates,
             modelProviderSelectorCoordinator,

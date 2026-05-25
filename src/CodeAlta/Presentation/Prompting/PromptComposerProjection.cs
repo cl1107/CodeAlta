@@ -38,14 +38,15 @@ namespace CodeAlta.Presentation.Prompting
             bool selectedThreadHasQueuedPrompts,
             bool selectedThreadCanAlwaysEnqueue,
             bool selectedThreadCanCompact,
-            bool selectedThreadCanAbort)
+            bool selectedThreadCanAbort,
+            IReadOnlyList<string>? promptPlaceholderContributions = null)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(providerDisplayName);
 
             var isUnavailable = availability != ChatBackendAvailability.Ready;
             var placeholder = isUnavailable
                 ? BuildPromptUnavailablePlaceholder(selectedThread, providerDisplayName, availability, anyBackendReady)
-                : BuildPromptPlaceholder(selectedThread, selectedProject, globalScopeSelected);
+                : BuildPromptPlaceholder(selectedThread, selectedProject, globalScopeSelected, promptPlaceholderContributions);
             var unavailableStatusMessage = isUnavailable
                 ? BuildPromptUnavailableStatusText(selectedThread, providerDisplayName, availability, anyBackendReady)
                 : null;
@@ -71,13 +72,14 @@ namespace CodeAlta.Presentation.Prompting
         internal static string BuildPromptPlaceholder(
             WorkThreadDescriptor? thread,
             ProjectDescriptor? selectedProject,
-            bool globalScopeSelected)
+            bool globalScopeSelected,
+            IReadOnlyList<string>? promptPlaceholderContributions = null)
         {
             var hasProjectContext =
                 thread?.Kind == WorkThreadKind.ProjectThread ||
                 (!globalScopeSelected && selectedProject is not null);
 
-            return BuildReadyPromptPlaceholder(thread is not null, hasProjectContext);
+            return BuildReadyPromptPlaceholder(thread is not null, hasProjectContext, promptPlaceholderContributions);
         }
 
         internal static string BuildPromptUnavailablePlaceholder(
@@ -126,18 +128,25 @@ namespace CodeAlta.Presentation.Prompting
                 : "No model provider is ready. Open Model Providers (Ctrl+G Ctrl+R) to configure one.";
         }
 
-        private static string BuildReadyPromptPlaceholder(bool isContinuation, bool hasProjectContext)
+        private static string BuildReadyPromptPlaceholder(
+            bool isContinuation,
+            bool hasProjectContext,
+            IReadOnlyList<string>? promptPlaceholderContributions = null)
         {
             var action = isContinuation
                 ? "Continue the selected thread."
                 : "Start a thread.";
 
-            return $"{action} {BuildReadyPromptGuidance(hasProjectContext)}";
+            return $"{action} {BuildReadyPromptGuidance(hasProjectContext, promptPlaceholderContributions)}";
         }
 
-        private static string BuildReadyPromptGuidance(bool hasProjectContext)
+        private static string BuildReadyPromptGuidance(bool hasProjectContext, IReadOnlyList<string>? promptPlaceholderContributions)
         {
-            var segments = new List<string>(6)
+            var contributionSegments = promptPlaceholderContributions?
+                .Where(static segment => !string.IsNullOrWhiteSpace(segment))
+                .Select(static segment => segment.Trim())
+                .ToArray() ?? [];
+            var segments = new List<string>(6 + contributionSegments.Length)
             {
                 "[/] commands",
                 "[?] help",
@@ -146,6 +155,8 @@ namespace CodeAlta.Presentation.Prompting
             {
                 segments.Add("[@] to reference a project file");
             }
+
+            segments.AddRange(contributionSegments);
 
             segments.Add("[ENTER] to send");
             segments.Add("[SHIFT+ENTER] for new line");

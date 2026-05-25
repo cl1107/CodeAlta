@@ -46,6 +46,9 @@ internal sealed class PluginHostBridge
     public IReadOnlyList<PluginPromptEditorContribution> GetPromptEditorContributions()
         => _frontend.GetPromptEditorContributions();
 
+    public IReadOnlyList<string> GetPromptPlaceholderContributions()
+        => _frontend.GetPromptPlaceholderContributions();
+
     public IReadOnlyList<PluginStatusItem> GetStatusItems(PluginUiRegion region)
         => _frontend.GetStatusItems(region);
 

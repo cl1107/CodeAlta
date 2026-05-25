@@ -117,6 +117,7 @@ public sealed class GitHubPlugin : PluginBase
         yield return new PluginPromptEditorContribution
         {
             Name = "GitHub issue prompt picker",
+            PlaceholderText = "[#] to reference a GitHub issue",
             Attach = host => new GitHubIssuePromptAttachment(this, host),
         };
     }

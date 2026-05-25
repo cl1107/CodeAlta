@@ -119,6 +119,7 @@ public sealed class GitHubPluginTests
         var contribution = new GitHubPlugin().GetPromptEditorContributions().Single();
 
         Assert.AreEqual("GitHub issue prompt picker", contribution.Name);
+        Assert.AreEqual("[#] to reference a GitHub issue", contribution.PlaceholderText);
         Assert.IsNotNull(contribution.Attach);
     }
 

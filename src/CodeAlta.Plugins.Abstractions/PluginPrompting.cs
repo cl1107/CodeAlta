@@ -23,6 +23,15 @@ public sealed record PluginPromptEditorContribution
     /// <summary>Gets the contribution name.</summary>
     public required string Name { get; init; }
 
+    /// <summary>
+    /// Gets optional ready-prompt placeholder guidance shown while the contribution applies.
+    /// </summary>
+    /// <remarks>
+    /// Keep this short and phrase it as a single placeholder segment, for example
+    /// <c>[#] to reference a GitHub issue</c>.
+    /// </remarks>
+    public string? PlaceholderText { get; init; }
+
     /// <summary>Gets the ordering hint.</summary>
     public int Order { get; init; }
 

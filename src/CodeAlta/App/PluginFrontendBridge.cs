@@ -32,6 +32,14 @@ internal sealed class PluginFrontendBridge
             .Select(static registration => (PluginPromptEditorContribution)registration.Contribution)
             .ToArray();
 
+    public IReadOnlyList<string> GetPromptPlaceholderContributions()
+        => GetPromptEditorContributions()
+            .Select(static contribution => contribution.PlaceholderText)
+            .Where(static text => !string.IsNullOrWhiteSpace(text))
+            .Select(static text => text!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
     public IReadOnlyList<PluginStatusItem> GetStatusItems(PluginUiRegion region)
         => _runtime.Adapter.GetStatusItems(_runtime.ActivePlugins, region, CreateOptions())
             .Where(static item => !string.IsNullOrWhiteSpace(item.Text))

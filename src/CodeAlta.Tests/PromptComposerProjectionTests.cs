@@ -82,6 +82,57 @@ public sealed class PromptComposerProjectionTests
     }
 
     [TestMethod]
+    public void Build_IncludesPluginPlaceholderContributionsInReadyPrompts()
+    {
+        var project = new ProjectDescriptor
+        {
+            Id = "project-1",
+            DisplayName = "CodeAlta",
+            ProjectPath = @"C:\code\CodeAlta",
+            Slug = "codealta",
+        };
+        var placeholderContributions = new[] { "[#] to reference a GitHub issue" };
+
+        var draftProjection = PromptComposerProjectionBuilder.Build(
+            selectedThread: null,
+            selectedProject: project,
+            globalScopeSelected: false,
+            providerDisplayName: "Codex",
+            availability: ChatBackendAvailability.Ready,
+            anyBackendReady: true,
+            draftTabOpen: true,
+            openTabCount: 1,
+            selectedThreadId: null,
+            selectedThreadHasQueuedPrompts: false,
+            selectedThreadCanAlwaysEnqueue: false,
+            selectedThreadCanCompact: false,
+            selectedThreadCanAbort: false,
+            promptPlaceholderContributions: placeholderContributions);
+        var threadProjection = PromptComposerProjectionBuilder.Build(
+            CreateThread("Review startup"),
+            selectedProject: null,
+            globalScopeSelected: false,
+            providerDisplayName: "Codex",
+            availability: ChatBackendAvailability.Ready,
+            anyBackendReady: true,
+            draftTabOpen: false,
+            openTabCount: 1,
+            selectedThreadId: "thread-1",
+            selectedThreadHasQueuedPrompts: false,
+            selectedThreadCanAlwaysEnqueue: true,
+            selectedThreadCanCompact: true,
+            selectedThreadCanAbort: false,
+            promptPlaceholderContributions: placeholderContributions);
+
+        Assert.AreEqual(
+            "Start a thread. [/] commands, [?] help, [@] to reference a project file, [#] to reference a GitHub issue, [ENTER] to send, [SHIFT+ENTER] for new line, [CTRL+ENTER] to steer.",
+            draftProjection.Placeholder);
+        Assert.AreEqual(
+            "Continue the selected thread. [/] commands, [?] help, [@] to reference a project file, [#] to reference a GitHub issue, [ENTER] to send, [SHIFT+ENTER] for new line, [CTRL+ENTER] to steer.",
+            threadProjection.Placeholder);
+    }
+
+    [TestMethod]
     public void Build_UsesMissingProviderMessagingWhenNoProviderIsReady()
     {
         var projection = PromptComposerProjectionBuilder.Build(

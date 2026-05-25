@@ -30,6 +30,7 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
     private readonly Action _refreshSelectionAndThreadWorkspace;
     private readonly Func<IReadOnlyList<string>>? _getConfiguredProviderKeys;
     private readonly Func<ModelProviderPreference?> _getDraftModelProviderPreference;
+    private readonly Func<IReadOnlyList<string>> _getPromptPlaceholderContributions;
     private readonly Dictionary<string, AgentBackendId> _draftBackendIdsByScope = new(StringComparer.OrdinalIgnoreCase);
     private AgentBackendId? _draftBackendId;
     private bool _selectorsRefreshing;
@@ -48,7 +49,8 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
         Func<WorkThreadDescriptor, OpenThreadState, AgentBackendId, Task<bool>>? trySwitchThreadBackendAsync = null,
         Action? refreshSelectionAndThreadWorkspace = null,
         Func<IReadOnlyList<string>>? getConfiguredProviderKeys = null,
-        Func<ModelProviderPreference?>? getDraftModelProviderPreference = null)
+        Func<ModelProviderPreference?>? getDraftModelProviderPreference = null,
+        Func<IReadOnlyList<string>>? getPromptPlaceholderContributions = null)
         : this(
             ChatBackendPresentation.CreateBackendStates().Values
                 .Select(static state => new AgentBackendDescriptor(state.BackendId, state.DisplayName))
@@ -66,7 +68,8 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
             trySwitchThreadBackendAsync,
             refreshSelectionAndThreadWorkspace,
             getConfiguredProviderKeys,
-            getDraftModelProviderPreference)
+            getDraftModelProviderPreference,
+            getPromptPlaceholderContributions)
     {
     }
 
@@ -85,7 +88,8 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
         Func<WorkThreadDescriptor, OpenThreadState, AgentBackendId, Task<bool>>? trySwitchThreadBackendAsync = null,
         Action? refreshSelectionAndThreadWorkspace = null,
         Func<IReadOnlyList<string>>? getConfiguredProviderKeys = null,
-        Func<ModelProviderPreference?>? getDraftModelProviderPreference = null)
+        Func<ModelProviderPreference?>? getDraftModelProviderPreference = null,
+        Func<IReadOnlyList<string>>? getPromptPlaceholderContributions = null)
     {
         ArgumentNullException.ThrowIfNull(backendDescriptors);
         ArgumentNullException.ThrowIfNull(workspaceViewModel);
@@ -113,6 +117,7 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
         _refreshSelectionAndThreadWorkspace = refreshSelectionAndThreadWorkspace ?? (() => { });
         _getConfiguredProviderKeys = getConfiguredProviderKeys;
         _getDraftModelProviderPreference = getDraftModelProviderPreference ?? (static () => null);
+        _getPromptPlaceholderContributions = getPromptPlaceholderContributions ?? (static () => []);
     }
 
     public void RefreshForDraftScope(AgentBackendId? preferredBackendId = null)
@@ -733,7 +738,8 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
             !selectedThreadTab.StatusBusy,
             selectedThread is not null &&
             _threadSelection.FindOpenThread(selectedThread.ThreadId) is { } selectedAbortTab &&
-            selectedAbortTab.StatusBusy);
+            selectedAbortTab.StatusBusy,
+            _getPromptPlaceholderContributions());
     }
 
     private AgentBackendId GetDefaultBackendId()
