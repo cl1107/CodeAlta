@@ -113,7 +113,7 @@ internal static class RawApiBackendRegistrar
             case "copilot":
                 return TryCreateCopilotDirectProvider(definition, stateRootPath, out descriptor, out createBackend);
             case "xai":
-                return TryCreateXaiProvider(definition, stateRootPath, out descriptor, out createBackend);
+                return TryCreateXaiProvider(definition, stateRootPath, modelCatalog, out descriptor, out createBackend);
             case "anthropic":
                 return TryCreateAnthropicProvider(definition, stateRootPath, modelCatalog, out descriptor, out createBackend);
             case "google-genai":
@@ -437,6 +437,7 @@ internal static class RawApiBackendRegistrar
     private static bool TryCreateXaiProvider(
         CodeAltaProviderDocument definition,
         string stateRootPath,
+        ModelsDevCatalogService? modelCatalog,
         out AgentBackendDescriptor descriptor,
         out Func<IAgentBackend> createBackend)
     {
@@ -467,7 +468,9 @@ internal static class RawApiBackendRegistrar
             },
             ModelDiscovery = NormalizeText(definition.ModelDiscovery) ?? XaiModelDiscoveryModes.EndpointWithStaticFallback,
             SingleModelId = NormalizeText(definition.SingleModelId),
+            ModelsDevProviderId = NormalizeText(definition.ModelsDevProviderId),
             ModelOverrides = CreateModelOverrides(definition.ModelOverrides),
+            ModelCatalog = modelCatalog,
             ProtocolTraceEnabled = definition.ProtocolTrace == true,
         };
 

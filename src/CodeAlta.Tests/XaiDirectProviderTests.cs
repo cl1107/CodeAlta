@@ -1,6 +1,8 @@
 using System.Net;
 using System.Text;
 using CodeAlta.Agent;
+using CodeAlta.Agent.LocalRuntime;
+using CodeAlta.Agent.ModelCatalog;
 using CodeAlta.Agent.Xai;
 using CodeAlta.Catalog;
 
@@ -222,6 +224,73 @@ public sealed class XaiDirectProviderTests
         {
             await backend.DisposeAsync().ConfigureAwait(false);
         }
+    }
+
+    [TestMethod]
+    public async Task XaiDirect_ListModels_EnrichesStaticCatalogWithModelsDevMetadata()
+    {
+        await using var catalog = new ModelsDevCatalogService();
+        var executor = new XaiDirectTurnExecutor(new XaiProviderOptions
+        {
+            ProviderKey = "xai",
+            ModelDiscovery = XaiModelDiscoveryModes.Static,
+            ModelsDevProviderId = "auriko",
+            ModelCatalog = catalog,
+        });
+
+        var models = await executor.ListModelsAsync(
+            new LocalAgentProviderDescriptor
+            {
+                ProtocolFamily = XaiDirectAgentBackend.ProtocolFamily,
+                ProviderKey = "xai",
+                DisplayName = "xAI Grok",
+                BackendId = new AgentBackendId("xai"),
+                TransportKind = LocalAgentTransportKind.OpenAIResponses,
+            }).ConfigureAwait(false);
+
+        var grok43 = models.Single(static model => model.Id == "grok-4.3");
+        Assert.IsNotNull(grok43.Capabilities);
+        Assert.AreEqual("auriko", grok43.Capabilities!["modelsDevProviderId"]);
+        Assert.AreEqual(1000000L, grok43.Capabilities["contextWindow"]);
+    }
+
+    [TestMethod]
+    public async Task XaiDirectAuthManager_ForceRefresh_RefreshesCachedTokenEvenBeforeExpiry()
+    {
+        using var temp = TestTempDirectory.Create();
+        WriteCachedCredential(temp.Path, "xai", accessToken: "cached-token");
+        var refreshRequests = 0;
+        var handler = new StubHandler(request =>
+        {
+            refreshRequests++;
+            Assert.AreEqual(new Uri("https://auth.x.ai/oauth2/token"), request.RequestUri);
+            var body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            StringAssert.Contains(body, "grant_type=refresh_token");
+            StringAssert.Contains(body, "refresh_token=refresh-token");
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(
+                    "{\"access_token\":\"refreshed-token\",\"refresh_token\":\"next-refresh-token\",\"expires_in\":3600}",
+                    Encoding.UTF8,
+                    "application/json"),
+            };
+        });
+        var authManager = new XaiDirectAuthManager(
+            new XaiProviderOptions
+            {
+                ProviderKey = "xai",
+                StateRootPath = temp.Path,
+            },
+            new HttpClient(handler));
+
+        var cached = await authManager.GetCredentialAsync(CancellationToken.None).ConfigureAwait(false);
+        Assert.AreEqual("cached-token", cached.Token);
+
+        await authManager.ForceRefreshAsync(CancellationToken.None).ConfigureAwait(false);
+        var refreshed = await authManager.GetCredentialAsync(CancellationToken.None).ConfigureAwait(false);
+
+        Assert.AreEqual("refreshed-token", refreshed.Token);
+        Assert.AreEqual(1, refreshRequests);
     }
 
     [TestMethod]

@@ -13,6 +13,7 @@ internal sealed class XaiDirectAuthManager
     private readonly XaiDirectCredentialStore _credentialStore;
     private readonly XaiOAuthClient _oauthClient;
     private XaiDirectCredential? _credential;
+    private bool _forceRefresh;
 
     public XaiDirectAuthManager(XaiProviderOptions provider, HttpClient httpClient)
     {
@@ -26,7 +27,7 @@ internal sealed class XaiDirectAuthManager
 
     public async ValueTask<XaiDirectCredential> GetCredentialAsync(CancellationToken cancellationToken)
     {
-        if (_credential is { } current && !current.ShouldRefresh(_provider.Auth.TokenRefreshSkew))
+        if (!_forceRefresh && _credential is { } current && !current.ShouldRefresh(_provider.Auth.TokenRefreshSkew))
         {
             return current;
         }
@@ -34,12 +35,13 @@ internal sealed class XaiDirectAuthManager
         await _refreshLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (_credential is { } refreshed && !refreshed.ShouldRefresh(_provider.Auth.TokenRefreshSkew))
+            if (!_forceRefresh && _credential is { } refreshed && !refreshed.ShouldRefresh(_provider.Auth.TokenRefreshSkew))
             {
                 return refreshed;
             }
 
-            _credential = await ResolveCredentialCoreAsync(cancellationToken).ConfigureAwait(false);
+            _credential = await ResolveCredentialCoreAsync(_forceRefresh, cancellationToken).ConfigureAwait(false);
+            _forceRefresh = false;
             return _credential;
         }
         finally
@@ -54,6 +56,7 @@ internal sealed class XaiDirectAuthManager
         try
         {
             _credential = null;
+            _forceRefresh = true;
         }
         finally
         {
@@ -61,25 +64,25 @@ internal sealed class XaiDirectAuthManager
         }
     }
 
-    private async ValueTask<XaiDirectCredential> ResolveCredentialCoreAsync(CancellationToken cancellationToken)
+    private async ValueTask<XaiDirectCredential> ResolveCredentialCoreAsync(bool forceRefresh, CancellationToken cancellationToken)
     {
         var auth = _provider.Auth;
         return auth.AuthSource switch
         {
             XaiAuthSources.XaiBrowserOAuth or XaiAuthSources.XaiDeviceFlow
-                => await LoadOrRefreshCachedCredentialAsync(cancellationToken).ConfigureAwait(false),
+                => await LoadOrRefreshCachedCredentialAsync(forceRefresh, cancellationToken).ConfigureAwait(false),
             _ => throw new InvalidOperationException($"Unsupported xAI direct auth source '{auth.AuthSource}'."),
         };
     }
 
-    private async ValueTask<XaiDirectCredential> LoadOrRefreshCachedCredentialAsync(CancellationToken cancellationToken)
+    private async ValueTask<XaiDirectCredential> LoadOrRefreshCachedCredentialAsync(bool forceRefresh, CancellationToken cancellationToken)
     {
         var cache = await _credentialStore.ReadAsync(cancellationToken).ConfigureAwait(false)
             ?? throw new InvalidOperationException(
                 $"xAI login is required before this provider can be used (provider={_provider.ProviderKey}).");
         var baseUri = _provider.BaseUri ?? XaiDefaults.DefaultApiBaseUri;
         var cached = cache.ToCredential(baseUri, _provider.Auth.TokenRefreshSkew);
-        if (cached is not null)
+        if (!forceRefresh && cached is not null)
         {
             return cached;
         }
