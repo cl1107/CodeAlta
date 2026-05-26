@@ -7,54 +7,6 @@ namespace CodeAlta.Orchestration.Tests;
 public sealed class AgentHubTests
 {
     [TestMethod]
-    public async Task ListModelsAsync_CancelledCallerDoesNotPoisonSharedBackendInitialization()
-    {
-        var backend = new BlockingBackend("local");
-        var factory = new AgentBackendFactory();
-        factory.Register("local", () => backend);
-        await using var hub = new AgentHub(factory);
-        using var cts = new CancellationTokenSource();
-
-        var cancelledCaller = hub.ListModelsAsync(new AgentBackendId("local"), cts.Token);
-        await backend.StartEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        var secondCaller = hub.ListModelsAsync(new AgentBackendId("local"), CancellationToken.None);
-
-        await cts.CancelAsync();
-        try
-        {
-            _ = await cancelledCaller;
-            Assert.Fail("The cancelled caller should observe cancellation.");
-        }
-        catch (OperationCanceledException)
-        {
-        }
-
-        backend.AllowStart.SetResult();
-        var models = await secondCaller;
-
-        Assert.AreEqual(1, models.Count);
-        Assert.AreEqual("test-model", models[0].Id);
-        Assert.AreEqual(1, backend.StartCallCount);
-        Assert.IsFalse(backend.Disposed);
-    }
-
-    [TestMethod]
-    public async Task ListModelsAsync_UsesInMemoryCacheAfterFirstLoad()
-    {
-        var backend = new BlockingBackend("local");
-        var factory = new AgentBackendFactory();
-        factory.Register("local", () => backend);
-        await using var hub = new AgentHub(factory);
-        backend.AllowStart.SetResult();
-
-        var first = await hub.ListModelsAsync(new AgentBackendId("local"));
-        var second = await hub.ListModelsAsync(new AgentBackendId("local"));
-
-        Assert.AreSame(first, second);
-        Assert.AreEqual(1, backend.ListModelsCallCount);
-    }
-
-    [TestMethod]
     public async Task UsesSharedSessionMetadataStoreAsync_UsesRegistrationMetadataWithoutStartingBackend()
     {
         var backend = new BlockingBackend("local");

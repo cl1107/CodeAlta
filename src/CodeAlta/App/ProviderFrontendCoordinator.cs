@@ -18,7 +18,7 @@ internal sealed class ProviderFrontendCoordinator
     private readonly CodeAltaOwnedServices? _ownedServices;
     private readonly CodeAltaConfigStore _configStore;
     private readonly ChatBackendInitializationCoordinator _chatBackendInitializationCoordinator;
-    private readonly Dictionary<string, ChatBackendState> _chatBackendStates;
+    private readonly Dictionary<string, ModelProviderState> _chatBackendStates;
     private readonly Action<Action> _dispatchToUi;
     private readonly FrontendEventPublisher _frontendEvents;
     private readonly Action<string, bool, StatusTone> _setStatus;
@@ -28,7 +28,7 @@ internal sealed class ProviderFrontendCoordinator
         CodeAltaOwnedServices? ownedServices,
         CatalogOptions catalogOptions,
         ChatBackendInitializationCoordinator chatBackendInitializationCoordinator,
-        Dictionary<string, ChatBackendState> chatBackendStates,
+        Dictionary<string, ModelProviderState> chatBackendStates,
         Action<Action> dispatchToUi,
         FrontendEventPublisher frontendEvents,
         Action<string, bool, StatusTone> setStatus)
@@ -445,7 +445,7 @@ internal sealed class ProviderFrontendCoordinator
 
     internal static bool TryBuildActiveBackendTestResult(
         CodeAltaProviderDocument definition,
-        IReadOnlyDictionary<string, ChatBackendState> chatBackendStates,
+        IReadOnlyDictionary<string, ModelProviderState> chatBackendStates,
         out ProviderTestResult result)
     {
         ArgumentNullException.ThrowIfNull(definition);
@@ -459,15 +459,15 @@ internal sealed class ProviderFrontendCoordinator
 
         switch (state.Availability)
         {
-            case ChatBackendAvailability.Ready:
+            case ModelProviderAvailability.Ready:
                 result = new ProviderTestResult(
                     true,
                     $"Using active provider backend · {state.Models.Count} model(s) discovered.",
                     state.Models.Count);
                 return true;
-            case ChatBackendAvailability.Connecting:
-            case ChatBackendAvailability.Failed:
-            case ChatBackendAvailability.Unsupported:
+            case ModelProviderAvailability.Probing:
+            case ModelProviderAvailability.Failed:
+            case ModelProviderAvailability.Unsupported:
                 result = new ProviderTestResult(false, state.StatusMessage, 0);
                 return true;
             default:
@@ -477,7 +477,7 @@ internal sealed class ProviderFrontendCoordinator
 
     internal static bool TryBuildActiveBackendModelListResult(
         CodeAltaProviderDocument definition,
-        IReadOnlyDictionary<string, ChatBackendState> chatBackendStates,
+        IReadOnlyDictionary<string, ModelProviderState> chatBackendStates,
         out ProviderModelListResult result)
     {
         ArgumentNullException.ThrowIfNull(definition);
@@ -485,7 +485,7 @@ internal sealed class ProviderFrontendCoordinator
 
         result = default;
         if (!chatBackendStates.TryGetValue(definition.ProviderKey, out var state) ||
-            state.Availability != ChatBackendAvailability.Ready)
+            state.Availability != ModelProviderAvailability.Ready)
         {
             return false;
         }
@@ -637,7 +637,7 @@ internal sealed class ProviderFrontendCoordinator
                 continue;
             }
 
-            _chatBackendStates[descriptor.ProviderId.Value] = new ChatBackendState(descriptor.ProviderId, descriptor.DisplayName);
+            _chatBackendStates[descriptor.ProviderId.Value] = new ModelProviderState(descriptor.ProviderId, descriptor.DisplayName);
         }
 
         foreach (var backendId in _chatBackendStates.Keys.Where(key => !activeBackendIds.Contains(key)).ToArray())

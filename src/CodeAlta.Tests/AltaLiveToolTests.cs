@@ -1347,7 +1347,13 @@ public sealed class AltaLiveToolTests
         };
         var factory = new AgentBackendFactory();
         factory.Register(backendId, () => backend);
-        var dispatcher = CreateDispatcher(new AltaServiceCollection().Add(new AgentHub(factory)));
+        var providerRegistry = new ModelProviderRegistry();
+        providerRegistry.RegisterOrReplaceBackendRuntime(new ModelProviderDescriptor(backendId, "Models"), () => backend);
+        var providerInitializationService = new ModelProviderInitializationService(providerRegistry);
+        var dispatcher = CreateDispatcher(new AltaServiceCollection()
+            .Add(new AgentHub(factory))
+            .Add<IModelProviderRegistry>(providerRegistry)
+            .Add<IModelProviderInitializationService>(providerInitializationService));
 
         var refs = await dispatcher.InvokeAsync(["model", "list", "--provider", backendId.Value, "--contains", "sonnet", "--reasoning", "low", "--supports-tools"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
         var detailed = await dispatcher.InvokeAsync(["model", "list", "--provider", backendId.Value, "--contains", "sonnet", "--reasoning", "low", "--supports-tools", "--detailed"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);

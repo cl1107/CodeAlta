@@ -2,7 +2,6 @@ using System.ComponentModel;
 using CodeAlta.Agent;
 using CodeAlta.App.Events;
 using CodeAlta.Models;
-using CodeAlta.Orchestration.Runtime;
 using CodeAlta.Presentation.Chat;
 using XenoAtom.Logging;
 
@@ -11,37 +10,34 @@ namespace CodeAlta.App;
 internal sealed class ChatBackendInitializationCoordinator
 {
     private static readonly Logger Logger = LogManager.GetLogger("CodeAlta.App.ChatBackendInitialization");
-    private readonly AgentHub _agentHub;
+    private readonly IModelProviderInitializationService _providerInitializationService;
     private readonly IReadOnlyList<ModelProviderDescriptor> _backendDescriptors;
-    private readonly Dictionary<string, ChatBackendState> _chatBackendStates;
+    private readonly Dictionary<string, ModelProviderState> _modelProviderStates;
     private readonly Action<Action> _dispatchToUi;
     private readonly FrontendEventPublisher _frontendEvents;
     private readonly Action<string?>? _setProviderInitializationStatus;
-    private readonly Action<AgentBackendId, bool>? _setBackendSessionLoadingEnabled;
     private long _providerInitializationStatusVersion;
 
     public ChatBackendInitializationCoordinator(
-        AgentHub agentHub,
+        IModelProviderInitializationService providerInitializationService,
         IReadOnlyList<ModelProviderDescriptor> backendDescriptors,
-        Dictionary<string, ChatBackendState> chatBackendStates,
+        Dictionary<string, ModelProviderState> modelProviderStates,
         Action<Action> dispatchToUi,
         FrontendEventPublisher frontendEvents,
-        Action<string?>? setProviderInitializationStatus = null,
-        Action<AgentBackendId, bool>? setBackendSessionLoadingEnabled = null)
+        Action<string?>? setProviderInitializationStatus = null)
     {
-        ArgumentNullException.ThrowIfNull(agentHub);
+        ArgumentNullException.ThrowIfNull(providerInitializationService);
         ArgumentNullException.ThrowIfNull(backendDescriptors);
-        ArgumentNullException.ThrowIfNull(chatBackendStates);
+        ArgumentNullException.ThrowIfNull(modelProviderStates);
         ArgumentNullException.ThrowIfNull(dispatchToUi);
         ArgumentNullException.ThrowIfNull(frontendEvents);
 
-        _agentHub = agentHub;
+        _providerInitializationService = providerInitializationService;
         _backendDescriptors = backendDescriptors;
-        _chatBackendStates = chatBackendStates;
+        _modelProviderStates = modelProviderStates;
         _dispatchToUi = dispatchToUi;
         _frontendEvents = frontendEvents;
         _setProviderInitializationStatus = setProviderInitializationStatus;
-        _setBackendSessionLoadingEnabled = setBackendSessionLoadingEnabled;
     }
 
     public async Task InitializeAsync(CancellationToken cancellationToken)
@@ -70,8 +66,8 @@ internal sealed class ChatBackendInitializationCoordinator
         return Task.WhenAll(backendIds.Distinct().Select(backendId => RefreshAsync(new ModelProviderId(backendId.Value), cancellationToken)));
     }
 
-    internal static (ChatBackendAvailability Availability, string StatusMessage) ClassifyFailure(
-        ChatBackendState state,
+    internal static (ModelProviderAvailability Availability, string StatusMessage) ClassifyFailure(
+        ModelProviderState state,
         Exception exception)
     {
         ArgumentNullException.ThrowIfNull(state);
@@ -80,30 +76,30 @@ internal sealed class ChatBackendInitializationCoordinator
         var root = exception.GetBaseException();
         if (root is FileNotFoundException or DirectoryNotFoundException)
         {
-            return (ChatBackendAvailability.Unsupported, ChatBackendPresentation.BuildUnsupportedBackendMessage(state, root.Message));
+            return (ModelProviderAvailability.Unsupported, ChatBackendPresentation.BuildUnsupportedBackendMessage(state, root.Message));
         }
 
         if (root is Win32Exception win32Exception && win32Exception.NativeErrorCode == 2)
         {
-            return (ChatBackendAvailability.Unsupported, ChatBackendPresentation.BuildUnsupportedBackendMessage(state, root.Message));
+            return (ModelProviderAvailability.Unsupported, ChatBackendPresentation.BuildUnsupportedBackendMessage(state, root.Message));
         }
 
         var message = root.Message.Trim();
         if (message.Contains("not found", StringComparison.OrdinalIgnoreCase) ||
             message.Contains("No such file", StringComparison.OrdinalIgnoreCase))
         {
-            return (ChatBackendAvailability.Unsupported, ChatBackendPresentation.BuildUnsupportedBackendMessage(state, message));
+            return (ModelProviderAvailability.Unsupported, ChatBackendPresentation.BuildUnsupportedBackendMessage(state, message));
         }
 
-        return (ChatBackendAvailability.Failed, ChatBackendPresentation.BuildFailedBackendMessage(state, message));
+        return (ModelProviderAvailability.Failed, ChatBackendPresentation.BuildFailedBackendMessage(state, message));
     }
 
-    internal static bool CanReuseLoadedBackendState(ModelProviderId providerId, ChatBackendState state)
+    internal static bool CanReuseLoadedBackendState(ModelProviderId providerId, ModelProviderState state)
     {
         ArgumentNullException.ThrowIfNull(state);
 
         return IsProcessBackedProviderBackend(providerId) &&
-               state.Availability == ChatBackendAvailability.Ready;
+               state.Availability == ModelProviderAvailability.Ready;
     }
 
     internal static string? FormatProviderInitializationStatus(
@@ -154,50 +150,45 @@ internal sealed class ChatBackendInitializationCoordinator
         CancellationToken cancellationToken)
     {
         var state = await EnsureBackendStateAsync(providerId, displayName, cancellationToken).ConfigureAwait(false);
-        var backendId = new AgentBackendId(providerId.Value);
         if (CanReuseLoadedBackendState(providerId, state))
         {
-            _setBackendSessionLoadingEnabled?.Invoke(backendId, true);
             LogInfo(
                 $"Skipping chat backend refresh for loaded process-backed backend provider={providerId.Value} displayName={state.DisplayName} models={state.Models.Count}");
             return;
         }
 
-        _setBackendSessionLoadingEnabled?.Invoke(backendId, false);
         LogInfo($"Refreshing chat backend provider={providerId.Value} displayName={state.DisplayName}");
         _dispatchToUi(
             () =>
             {
-                state.Availability = ChatBackendAvailability.Connecting;
+                state.Availability = ModelProviderAvailability.Probing;
                 state.StatusMessage = "Detecting provider...";
                 PublishProviderStateChanged(providerId);
             });
 
         try
         {
-            // Backend discovery is explicit background I/O. Any state mutation after this point
+            // Provider discovery is explicit background I/O. Any state mutation after this point
             // must go back through the UI dispatcher.
-            var models = await _agentHub.ListModelsAsync(backendId, cancellationToken).ConfigureAwait(false);
-            _setBackendSessionLoadingEnabled?.Invoke(backendId, true);
+            await _providerInitializationService.RefreshProviderAsync(providerId, cancellationToken).ConfigureAwait(false);
+            var providerState = _providerInitializationService.CurrentStates.FirstOrDefault(
+                snapshot => snapshot.ProviderId == providerId);
+            if (providerState is null)
+            {
+                throw new InvalidOperationException($"Model provider '{providerId.Value}' did not publish an initialization state.");
+            }
+
             _dispatchToUi(
                 () =>
                 {
-                    state.Models.Clear();
-                    state.Models.AddRange(models);
-                    state.SelectedModelId = ResolveSelectedModelIdAfterDiscovery(models, state.SelectedModelId);
-                    state.SelectedReasoningEffort = ChatBackendPresentation.ResolvePreferredReasoningEffort(
-                        ModelProviderPreferenceCoordinator.FindModel(models, state.SelectedModelId),
-                        state.SelectedReasoningEffort);
-                    state.Availability = ChatBackendAvailability.Ready;
-                    state.StatusMessage = ChatBackendPresentation.BuildReadyStatusMessage(state);
+                    ApplyProviderState(providerState, state);
                     LogInfo(
-                        $"Chat backend ready provider={providerId.Value} displayName={state.DisplayName} models={models.Count} status={state.StatusMessage}");
+                        $"Chat backend state updated provider={providerId.Value} displayName={state.DisplayName} availability={state.Availability} models={state.Models.Count} status={state.StatusMessage}");
                     PublishProviderStateChanged(providerId);
                 });
         }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
-            _setBackendSessionLoadingEnabled?.Invoke(backendId, false);
             var (availability, statusMessage) = ClassifyFailure(state, ex);
             LogWarn(
                 ex,
@@ -216,6 +207,30 @@ internal sealed class ChatBackendInitializationCoordinator
         }
     }
 
+    private static void ApplyProviderState(ModelProviderStateSnapshot providerState, ModelProviderState state)
+    {
+        state.DisplayName = providerState.Descriptor.DisplayName;
+        state.Models.Clear();
+        state.Models.AddRange(providerState.Models);
+        state.Availability = providerState.Availability;
+        state.StatusMessage = providerState.Availability == ModelProviderAvailability.Ready
+            ? ChatBackendPresentation.BuildReadyStatusMessage(state)
+            : providerState.StatusMessage ?? $"{state.DisplayName} is {providerState.Availability.ToString().ToLowerInvariant()}.";
+
+        if (providerState.Availability == ModelProviderAvailability.Ready)
+        {
+            state.SelectedModelId = ResolveSelectedModelIdAfterDiscovery(providerState.Models, state.SelectedModelId ?? providerState.SelectedModelId);
+            state.SelectedReasoningEffort = ChatBackendPresentation.ResolvePreferredReasoningEffort(
+                ModelProviderPreferenceCoordinator.FindModel(providerState.Models, state.SelectedModelId),
+                state.SelectedReasoningEffort ?? providerState.SelectedReasoningEffort);
+            return;
+        }
+
+        state.SelectedModelId = providerState.SelectedModelId;
+        state.SelectedReasoningEffort = providerState.SelectedReasoningEffort;
+        state.DraftScopeKey = null;
+    }
+
     private static string? ResolveSelectedModelIdAfterDiscovery(
         IReadOnlyList<AgentModelInfo> models,
         string? selectedModelId)
@@ -227,28 +242,28 @@ internal sealed class ChatBackendInitializationCoordinator
             : selectedModelId.Trim();
     }
 
-    private async Task<ChatBackendState> EnsureBackendStateAsync(
+    private async Task<ModelProviderState> EnsureBackendStateAsync(
         ModelProviderId providerId,
         string? displayName,
         CancellationToken cancellationToken)
     {
-        if (_chatBackendStates.TryGetValue(providerId.Value, out var state))
+        if (_modelProviderStates.TryGetValue(providerId.Value, out var state))
         {
             return state;
         }
 
-        var completion = new TaskCompletionSource<ChatBackendState>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var completion = new TaskCompletionSource<ModelProviderState>(TaskCreationOptions.RunContinuationsAsynchronously);
         _dispatchToUi(
             () =>
             {
                 try
                 {
-                    if (!_chatBackendStates.TryGetValue(providerId.Value, out var state))
+                    if (!_modelProviderStates.TryGetValue(providerId.Value, out var state))
                     {
-                        state = new ChatBackendState(
+                        state = new ModelProviderState(
                             providerId,
                             string.IsNullOrWhiteSpace(displayName) ? providerId.Value : displayName.Trim());
-                        _chatBackendStates[providerId.Value] = state;
+                        _modelProviderStates[providerId.Value] = state;
                     }
 
                     completion.SetResult(state);

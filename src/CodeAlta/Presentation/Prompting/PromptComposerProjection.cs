@@ -1,3 +1,4 @@
+using CodeAlta.Agent;
 using CodeAlta.Catalog;
 using CodeAlta.Models;
 
@@ -30,7 +31,7 @@ namespace CodeAlta.Presentation.Prompting
             ProjectDescriptor? selectedProject,
             bool globalScopeSelected,
             string providerDisplayName,
-            ChatBackendAvailability availability,
+            ModelProviderAvailability availability,
             bool anyBackendReady,
             bool draftTabOpen,
             int openTabCount,
@@ -43,14 +44,14 @@ namespace CodeAlta.Presentation.Prompting
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(providerDisplayName);
 
-            var isUnavailable = availability != ChatBackendAvailability.Ready;
+            var isUnavailable = availability != ModelProviderAvailability.Ready;
             var placeholder = isUnavailable
                 ? BuildPromptUnavailablePlaceholder(selectedThread, providerDisplayName, availability, anyBackendReady)
                 : BuildPromptPlaceholder(selectedThread, selectedProject, globalScopeSelected, promptPlaceholderContributions);
             var unavailableStatusMessage = isUnavailable
                 ? BuildPromptUnavailableStatusText(selectedThread, providerDisplayName, availability, anyBackendReady)
                 : null;
-            var unavailableStatusTone = availability == ChatBackendAvailability.Connecting
+            var unavailableStatusTone = availability == ModelProviderAvailability.Probing
                 ? StatusTone.Info
                 : StatusTone.Warning;
             var hasThread = selectedThread is not null;
@@ -85,17 +86,17 @@ namespace CodeAlta.Presentation.Prompting
         internal static string BuildPromptUnavailablePlaceholder(
             WorkThreadDescriptor? thread,
             string providerDisplayName,
-            ChatBackendAvailability availability,
+            ModelProviderAvailability availability,
             bool anyBackendReady)
         {
             if (thread is not null)
             {
-                return availability == ChatBackendAvailability.Connecting
+                return availability == ModelProviderAvailability.Probing
                     ? $"Waiting for {providerDisplayName} to reconnect..."
                     : $"'{thread.Title}' is unavailable until {providerDisplayName} is connected.";
             }
 
-            if (availability == ChatBackendAvailability.Connecting)
+            if (availability == ModelProviderAvailability.Probing)
             {
                 return $"Connecting to {providerDisplayName}...";
             }
@@ -108,17 +109,17 @@ namespace CodeAlta.Presentation.Prompting
         internal static string BuildPromptUnavailableStatusText(
             WorkThreadDescriptor? thread,
             string providerDisplayName,
-            ChatBackendAvailability availability,
+            ModelProviderAvailability availability,
             bool anyBackendReady)
         {
             if (thread is not null)
             {
-                return availability == ChatBackendAvailability.Connecting
+                return availability == ModelProviderAvailability.Probing
                     ? $"Reconnecting '{thread.Title}' to {providerDisplayName}. Prompt sending is temporarily unavailable."
                     : $"'{thread.Title}' is unavailable because {providerDisplayName} is not connected.";
             }
 
-            if (availability == ChatBackendAvailability.Connecting)
+            if (availability == ModelProviderAvailability.Probing)
             {
                 return $"Connecting to {providerDisplayName}. Prompt sending will be available once the provider is ready.";
             }

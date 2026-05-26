@@ -29,7 +29,7 @@ internal interface IModelProviderPreferencePort
 
     void RememberThreadPreference(string threadId, ModelProviderPreference preference, bool persistNow);
 
-    void ApplyDraftModelProviderState(ChatBackendState modelProviderState);
+    void ApplyDraftModelProviderState(ModelProviderState modelProviderState);
 
     void ApplyThreadModelProviderState(OpenThreadState threadState);
 
@@ -44,7 +44,7 @@ internal sealed class DelegatingModelProviderPreferencePort : IModelProviderPref
     private readonly Action<string, ModelProviderPreference> _applyThreadPreference;
     private readonly Action<ProjectId, ModelProviderPreference> _rememberProjectPreference;
     private readonly Action<string, ModelProviderPreference, bool> _rememberThreadPreference;
-    private readonly Action<ChatBackendState> _applyDraftModelProviderState;
+    private readonly Action<ModelProviderState> _applyDraftModelProviderState;
     private readonly Action<OpenThreadState> _applyThreadModelProviderState;
     private readonly Action<ModelProviderPreference> _rememberGlobalPreference;
 
@@ -55,7 +55,7 @@ internal sealed class DelegatingModelProviderPreferencePort : IModelProviderPref
         Action<string, ModelProviderPreference> applyThreadPreference,
         Action<ProjectId, ModelProviderPreference> rememberProjectPreference,
         Action<string, ModelProviderPreference, bool> rememberThreadPreference,
-        Action<ChatBackendState>? applyDraftModelProviderState = null,
+        Action<ModelProviderState>? applyDraftModelProviderState = null,
         Action<OpenThreadState>? applyThreadModelProviderState = null,
         Action<ModelProviderPreference>? rememberGlobalPreference = null)
     {
@@ -125,7 +125,7 @@ internal sealed class DelegatingModelProviderPreferencePort : IModelProviderPref
         _rememberThreadPreference(threadId, preference.Normalize(), persistNow);
     }
 
-    public void ApplyDraftModelProviderState(ChatBackendState modelProviderState)
+    public void ApplyDraftModelProviderState(ModelProviderState modelProviderState)
     {
         ArgumentNullException.ThrowIfNull(modelProviderState);
         _applyDraftModelProviderState(modelProviderState);
@@ -160,13 +160,13 @@ internal sealed class DelegatingModelProviderPreferencePort : IModelProviderPref
 
 internal sealed class FrontendModelProviderPreferencePort : IModelProviderPreferencePort
 {
-    private readonly Action<ChatBackendState> _applyDraftModelProviderState;
+    private readonly Action<ModelProviderState> _applyDraftModelProviderState;
     private readonly Action<OpenThreadState> _applyThreadModelProviderState;
     private readonly Action<ModelProviderId, string?, AgentReasoningEffort?> _rememberGlobalPreference;
     private readonly Action<string, string?, AgentReasoningEffort?, bool> _rememberThreadPreference;
 
     public FrontendModelProviderPreferencePort(
-        Action<ChatBackendState> applyDraftModelProviderState,
+        Action<ModelProviderState> applyDraftModelProviderState,
         Action<OpenThreadState> applyThreadModelProviderState,
         Action<ModelProviderId, string?, AgentReasoningEffort?> rememberGlobalPreference,
         Action<string, string?, AgentReasoningEffort?, bool> rememberThreadPreference)
@@ -205,7 +205,7 @@ internal sealed class FrontendModelProviderPreferencePort : IModelProviderPrefer
         _rememberThreadPreference(threadId, normalized.ModelId, normalized.ReasoningEffort, persistNow);
     }
 
-    public void ApplyDraftModelProviderState(ChatBackendState modelProviderState)
+    public void ApplyDraftModelProviderState(ModelProviderState modelProviderState)
     {
         ArgumentNullException.ThrowIfNull(modelProviderState);
         _applyDraftModelProviderState(modelProviderState);
@@ -224,10 +224,10 @@ internal sealed class FrontendModelProviderPreferencePort : IModelProviderPrefer
         _rememberGlobalPreference(normalized.ModelProviderId, normalized.ModelId, normalized.ReasoningEffort);
     }
 
-    private static ChatBackendState CreateLegacyModelProviderState(ModelProviderPreference preference)
+    private static ModelProviderState CreateLegacyModelProviderState(ModelProviderPreference preference)
     {
         EnsurePreference(preference);
-        return new ChatBackendState(preference.ModelProviderId, preference.ModelProviderId.Value)
+        return new ModelProviderState(preference.ModelProviderId, preference.ModelProviderId.Value)
         {
             SelectedModelId = preference.ModelId,
             SelectedReasoningEffort = preference.ReasoningEffort,

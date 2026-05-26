@@ -27,7 +27,7 @@ using XenoAtom.Terminal.UI.Threading;
 
 namespace CodeAlta.Views;
 
-// CodeAltaApp intentionally remains the TUI shell composition root; Add behavior to named owners first
+// CodeAltaApp intentionally remains the TUI shell composition root Add behavior to named owners first
 internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycle
 {
     internal static readonly Logger UiLogger = LogManager.GetLogger("CodeAlta.UI");
@@ -59,7 +59,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
     private readonly ThreadWorkspaceViewModel _threadWorkspaceViewModel;
     private readonly PromptComposerViewModel _promptComposerViewModel;
     private readonly SessionUsageViewModel _sessionUsageViewModel;
-    private readonly Dictionary<string, ChatBackendState> _chatBackendStates;
+    private readonly Dictionary<string, ModelProviderState> _chatBackendStates;
     private readonly SidebarCoordinator _sidebarCoordinator;
     private readonly NavigatorActionCoordinator _navigatorActionCoordinator;
     private readonly ModelProviderSelectorCoordinator _modelProviderSelectorCoordinator;
@@ -166,7 +166,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
             new CodeAltaShellBridge(this),
             _knownProjectImporter,
             this,
-            ownedServices?.PluginHostBridge,ownedServices?.ModelProviderRegistry);
+            ownedServices?.PluginHostBridge,ownedServices?.ModelProviderRegistry,ownedServices?.ProviderInit);
         _modelProviderPreferences = composition.ModelProviderPreferences;
         _shellController = composition.ShellController;
         _runtimeEventPump = composition.RuntimeEventPump;
@@ -186,7 +186,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
         _threadWorkspaceViewModel = composition.ThreadWorkspaceViewModel;
         _promptComposerViewModel = composition.PromptComposerViewModel;
         _sessionUsageViewModel = composition.SessionUsageViewModel;
-        _chatBackendStates = composition.ChatBackendStates;
+        _chatBackendStates = composition.ModelProviderStates;
         _sidebarCoordinator = composition.SidebarCoordinator;
         _navigatorActionCoordinator = composition.NavigatorActionCoordinator;
         _modelProviderSelectorCoordinator = composition.ModelProviderSelectorCoordinator;
@@ -325,7 +325,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
         => GetProjectById(thread.ProjectRef)?.ProjectPath;
 
 
-    internal void ApplyDraftModelProviderPreference(ChatBackendState backendState)
+    internal void ApplyDraftModelProviderPreference(ModelProviderState backendState)
         => _modelProviderPreferences.ApplyDraftModelProviderPreference(backendState, _viewState, GetDraftProjectRoot(), GetDraftProjectId());
 
     internal void ApplyThreadPreference(OpenThreadState tab)

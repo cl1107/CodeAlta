@@ -17,8 +17,12 @@ public sealed class AgentHubBackendReloadTests
 
         await using var hub = new AgentHub(backendFactory);
 
-        var models = await hub.ListModelsAsync(new AgentBackendId("reloadable")).ConfigureAwait(false);
-        Assert.AreEqual(1, models.Count);
+        var sessions = new List<AgentSessionMetadata>();
+        await foreach (var session in hub.ListSessionsAsync(new AgentBackendId("reloadable")).ConfigureAwait(false))
+        {
+            sessions.Add(session);
+        }
+        Assert.AreEqual(0, sessions.Count);
 
         var unloaded = await hub.UnloadBackendAsync(new AgentBackendId("reloadable")).ConfigureAwait(false);
 

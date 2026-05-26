@@ -12,14 +12,14 @@ namespace CodeAlta.App;
 internal sealed class SessionUsageProjectionController
 {
     private readonly SessionUsageViewModel _sessionUsageViewModel;
-    private readonly Dictionary<string, ChatBackendState> _chatBackendStates;
+    private readonly Dictionary<string, ModelProviderState> _chatBackendStates;
     private readonly ThreadSelectionContext _threadSelection;
     private readonly ShellWorkspaceContext _workspaceContext;
     private readonly IntState _usageRefreshState;
 
     public SessionUsageProjectionController(
         SessionUsageViewModel sessionUsageViewModel,
-        Dictionary<string, ChatBackendState> chatBackendStates,
+        Dictionary<string, ModelProviderState> chatBackendStates,
         ThreadSelectionContext threadSelection,
         ShellWorkspaceContext workspaceContext,
         IntState usageRefreshState)
@@ -92,6 +92,6 @@ internal sealed class SessionUsageProjectionController
         _sessionUsageViewModel.PluginTransientEvents = [];
     }
 
-    private static string ResolveBackendDisplayName(string providerKey, ChatBackendState? backendState)
+    private static string ResolveBackendDisplayName(string providerKey, ModelProviderState? backendState)
         => SidebarThreadPresentation.ResolveProviderDisplayName(providerKey, backendState?.DisplayName);
 }

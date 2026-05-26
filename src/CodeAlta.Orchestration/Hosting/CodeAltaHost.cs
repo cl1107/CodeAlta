@@ -24,6 +24,7 @@ public sealed class CodeAltaHost : IAsyncDisposable
         SkillCatalog skillCatalog,
         AgentBackendFactory backendFactory,
         ModelProviderRegistry modelProviderRegistry,
+        ModelProviderInitializationService modelProviderInitializationService,
         AgentHub agentHub,
         WorkThreadRuntimeService runtimeService,
         IProjectFileSearchService projectFileSearchService,
@@ -38,6 +39,7 @@ public sealed class CodeAltaHost : IAsyncDisposable
         SkillCatalog = skillCatalog;
         BackendFactory = backendFactory;
         ModelProviderRegistry = modelProviderRegistry;
+        ModelProviderInitializationService = modelProviderInitializationService;
         AgentHub = agentHub;
         RuntimeService = runtimeService;
         ProjectFileSearchService = projectFileSearchService;
@@ -76,6 +78,11 @@ public sealed class CodeAltaHost : IAsyncDisposable
     /// Gets the model provider registry used by the host.
     /// </summary>
     public ModelProviderRegistry ModelProviderRegistry { get; }
+
+    /// <summary>
+    /// Gets the model provider initialization and model-catalog service used by the host.
+    /// </summary>
+    public ModelProviderInitializationService ModelProviderInitializationService { get; }
 
     /// <summary>
     /// Gets the agent hub.
@@ -180,7 +187,8 @@ public sealed class CodeAltaHost : IAsyncDisposable
         var modelProviderRegistry = new ModelProviderRegistry();
         options.ConfigureModelProviders?.Invoke(modelProviderRegistry, backendFactory);
         options.ConfigureAgentBackends?.Invoke(backendFactory);
-        _ = CodeAltaHostPluginBackendRegistrar.RegisterPluginBackends(backendFactory, pluginRuntime, pluginOperationOptions);
+        _ = CodeAltaHostPluginBackendRegistrar.RegisterPluginBackends(backendFactory, modelProviderRegistry, pluginRuntime, pluginOperationOptions);
+        var modelProviderInitializationService = new ModelProviderInitializationService(modelProviderRegistry);
         var agentHub = new AgentHub(backendFactory);
         var runtimeService = new WorkThreadRuntimeService(
             agentHub,
@@ -200,6 +208,7 @@ public sealed class CodeAltaHost : IAsyncDisposable
             skillCatalog,
             backendFactory,
             modelProviderRegistry,
+            modelProviderInitializationService,
             agentHub,
             runtimeService,
             projectFileSearchService,

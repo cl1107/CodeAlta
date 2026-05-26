@@ -61,7 +61,7 @@ public sealed class ShellWorkspaceCoordinatorTests
             new CodeAltaShellViewModel(),
             new ThreadWorkspaceViewModel(),
             new SessionUsageViewModel(),
-            CreateChatBackendStates(),
+            CreateModelProviderStates(),
             threadSelection,
             workspaceContext);
 
@@ -125,7 +125,7 @@ public sealed class ShellWorkspaceCoordinatorTests
             new CodeAltaShellViewModel(),
             new ThreadWorkspaceViewModel(),
             new SessionUsageViewModel(),
-            CreateChatBackendStates(),
+            CreateModelProviderStates(),
             threadSelection,
             workspaceContext);
 
@@ -160,7 +160,7 @@ public sealed class ShellWorkspaceCoordinatorTests
         var (workspace, sessionUsage) = CreateWorkspaceCoordinator(
             threadStateCoordinator,
             threadSelection,
-            new Dictionary<string, ChatBackendState>(StringComparer.OrdinalIgnoreCase),
+            new Dictionary<string, ModelProviderState>(StringComparer.OrdinalIgnoreCase),
             static () => ModelProviderIds.Codex);
 
         workspace.ApplySelectionProjection();
@@ -187,7 +187,7 @@ public sealed class ShellWorkspaceCoordinatorTests
         var (workspace, sessionUsage) = CreateWorkspaceCoordinator(
             threadStateCoordinator,
             threadSelection,
-            new Dictionary<string, ChatBackendState>(StringComparer.OrdinalIgnoreCase),
+            new Dictionary<string, ModelProviderState>(StringComparer.OrdinalIgnoreCase),
             static () => ModelProviderIds.Codex);
 
         workspace.ApplySelectionProjection();
@@ -286,7 +286,7 @@ public sealed class ShellWorkspaceCoordinatorTests
     private static (ShellWorkspaceCoordinator Workspace, SessionUsageViewModel SessionUsage) CreateWorkspaceCoordinator(
         ShellThreadStateCoordinator threadStateCoordinator,
         ThreadSelectionContext threadSelection,
-        Dictionary<string, ChatBackendState> chatBackendStates,
+        Dictionary<string, ModelProviderState> chatBackendStates,
         Func<ModelProviderId> getPreferredBackendId)
     {
         var workspaceContext = new ShellWorkspaceContext(
@@ -366,12 +366,12 @@ public sealed class ShellWorkspaceCoordinatorTests
             new InlineUiDispatcher(),
             new ShellStateStore(new InlineUiDispatcher()));
 
-    private static Dictionary<string, ChatBackendState> CreateChatBackendStates()
+    private static Dictionary<string, ModelProviderState> CreateModelProviderStates()
         => new(StringComparer.Ordinal)
         {
-            [ModelProviderIds.Codex.Value] = new ChatBackendState(ModelProviderIds.Codex, "Codex")
+            [ModelProviderIds.Codex.Value] = new ModelProviderState(ModelProviderIds.Codex, "Codex")
             {
-                Availability = ChatBackendAvailability.Ready,
+                Availability = ModelProviderAvailability.Ready,
             },
         };
 

@@ -9,7 +9,7 @@ internal sealed class AcpFrontendCoordinator
 {
     private readonly CodeAltaOwnedServices? _ownedServices;
     private readonly ChatBackendInitializationCoordinator _chatBackendInitializationCoordinator;
-    private readonly Dictionary<string, ChatBackendState> _chatBackendStates;
+    private readonly Dictionary<string, ModelProviderState> _chatBackendStates;
     private readonly Action<Action> _dispatchToUi;
     private readonly FrontendEventPublisher _frontendEvents;
     private readonly Action<string, bool, StatusTone> _setStatus;
@@ -17,7 +17,7 @@ internal sealed class AcpFrontendCoordinator
     public AcpFrontendCoordinator(
         CodeAltaOwnedServices? ownedServices,
         ChatBackendInitializationCoordinator chatBackendInitializationCoordinator,
-        Dictionary<string, ChatBackendState> chatBackendStates,
+        Dictionary<string, ModelProviderState> chatBackendStates,
         Action<Action> dispatchToUi,
         FrontendEventPublisher frontendEvents,
         Action<string, bool, StatusTone> setStatus)
@@ -86,7 +86,7 @@ internal sealed class AcpFrontendCoordinator
                 continue;
             }
 
-            _chatBackendStates[descriptor.ProviderId.Value] = new ChatBackendState(descriptor.ProviderId, descriptor.DisplayName);
+            _chatBackendStates[descriptor.ProviderId.Value] = new ModelProviderState(descriptor.ProviderId, descriptor.DisplayName);
         }
 
         foreach (var backendId in _chatBackendStates.Keys.Where(key => !activeBackendIds.Contains(key)).ToArray())

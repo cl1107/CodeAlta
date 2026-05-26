@@ -120,7 +120,7 @@ public sealed class HeadlessHostFixtureTests
             },
             CancellationToken.None);
 
-        var models = await host.AgentHub.ListModelsAsync(pluginBackendId, CancellationToken.None);
+        var models = await host.ModelProviderInitializationService.GetModelsAsync(new ModelProviderId(pluginBackendId.Value), CancellationToken.None);
         var skills = await host.SkillCatalog.ListAsync(
             new SkillCatalogQuery
             {

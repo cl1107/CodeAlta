@@ -8,7 +8,7 @@ namespace CodeAlta.App;
 
 internal sealed class ThreadProviderSwitchCoordinator
 {
-    private readonly IReadOnlyDictionary<string, ChatBackendState> _chatBackendStates;
+    private readonly IReadOnlyDictionary<string, ModelProviderState> _chatBackendStates;
     private readonly IReadOnlyDictionary<string, LocalRuntimeBackendInfo> _localRuntimeBackends;
     private readonly Func<OpenThreadState, Task> _applyThreadPreferenceAsync;
     private readonly Func<string, Task<bool>> _detachThreadSessionAsync;
@@ -17,7 +17,7 @@ internal sealed class ThreadProviderSwitchCoordinator
 
     public ThreadProviderSwitchCoordinator(
         CodeAltaConfigStore configStore,
-        IReadOnlyDictionary<string, ChatBackendState> chatBackendStates,
+        IReadOnlyDictionary<string, ModelProviderState> chatBackendStates,
         Func<OpenThreadState, Task> applyThreadPreferenceAsync,
         Func<string, Task<bool>> detachThreadSessionAsync,
         Action<WorkThreadDescriptor> updateThreadState,
@@ -43,7 +43,7 @@ internal sealed class ThreadProviderSwitchCoordinator
                 return new KeyValuePair<string, LocalRuntimeBackendInfo>(
                     definition.ProviderKey,
                     new LocalRuntimeBackendInfo(
-                        new AgentBackendId(definition.ProviderKey),
+                        new ModelProviderId(definition.ProviderKey),
                         definition.ProviderKey,
                         protocolFamily!));
             })
@@ -57,36 +57,36 @@ internal sealed class ThreadProviderSwitchCoordinator
 
         return !tab.StatusBusy &&
                tab.ActiveRunId is null &&
-               IsSwitchableSourceBackend(new AgentBackendId(thread.BackendId));
+               IsSwitchableSourceProvider(new ModelProviderId(thread.BackendId));
     }
 
     public bool CanSwitchThreadProvider(
         WorkThreadDescriptor thread,
         OpenThreadState tab,
-        AgentBackendId targetBackendId)
+        ModelProviderId targetProviderId)
     {
         ArgumentNullException.ThrowIfNull(thread);
         ArgumentNullException.ThrowIfNull(tab);
 
         return CanSelectThreadProvider(thread, tab) &&
-               !string.Equals(thread.BackendId, targetBackendId.Value, StringComparison.OrdinalIgnoreCase) &&
-               TryGetLocalRuntimeBackendInfo(targetBackendId, out _) &&
-               _chatBackendStates.TryGetValue(targetBackendId.Value, out var targetState) &&
-               targetState.Availability == ChatBackendAvailability.Ready;
+               !string.Equals(thread.BackendId, targetProviderId.Value, StringComparison.OrdinalIgnoreCase) &&
+               TryGetLocalRuntimeBackendInfo(targetProviderId, out _) &&
+               _chatBackendStates.TryGetValue(targetProviderId.Value, out var targetState) &&
+               targetState.Availability == ModelProviderAvailability.Ready;
     }
 
     public async Task<bool> SwitchThreadProviderAsync(
         WorkThreadDescriptor thread,
         OpenThreadState tab,
-        AgentBackendId targetBackendId,
+        ModelProviderId targetProviderId,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(thread);
         ArgumentNullException.ThrowIfNull(tab);
         cancellationToken.ThrowIfCancellationRequested();
 
-        if (!CanSwitchThreadProvider(thread, tab, targetBackendId) ||
-            !TryGetLocalRuntimeBackendInfo(targetBackendId, out var targetBackend))
+        if (!CanSwitchThreadProvider(thread, tab, targetProviderId) ||
+            !TryGetLocalRuntimeBackendInfo(targetProviderId, out var targetBackend))
         {
             return false;
         }
@@ -103,11 +103,11 @@ internal sealed class ThreadProviderSwitchCoordinator
         var oldTabReasoningEffort = tab.ReasoningEffort;
         var oldTabUsage = tab.Usage;
 
-        thread.BackendId = targetBackend.BackendId.Value;
+        thread.BackendId = targetBackend.ProviderId.Value;
         thread.ProviderKey = targetBackend.ProviderKey;
         thread.UpdatedAt = timestamp;
 
-        tab.BackendId = targetBackend.BackendId;
+        tab.BackendId = new AgentBackendId(targetBackend.ProviderId.Value);
         tab.ModelId = null;
         tab.ReasoningEffort = null;
         tab.Usage = null;
@@ -115,7 +115,7 @@ internal sealed class ThreadProviderSwitchCoordinator
         try
         {
             await _applyThreadPreferenceAsync(tab);
-            NormalizeTargetModelSelection(tab, targetBackend.BackendId);
+            NormalizeTargetModelSelection(tab, targetBackend.ProviderId);
             thread.ModelId = tab.ModelId;
             thread.ReasoningEffort = tab.ReasoningEffort;
             if (!string.IsNullOrWhiteSpace(oldThreadId))
@@ -142,17 +142,17 @@ internal sealed class ThreadProviderSwitchCoordinator
         return true;
     }
 
-    private bool TryGetLocalRuntimeBackendInfo(AgentBackendId backendId, out LocalRuntimeBackendInfo backendInfo)
+    private bool TryGetLocalRuntimeBackendInfo(ModelProviderId providerId, out LocalRuntimeBackendInfo backendInfo)
     {
-        return _localRuntimeBackends.TryGetValue(backendId.Value, out backendInfo!);
+        return _localRuntimeBackends.TryGetValue(providerId.Value, out backendInfo!);
     }
 
-    private bool IsSwitchableSourceBackend(AgentBackendId backendId)
-        => TryGetLocalRuntimeBackendInfo(backendId, out _) || IsNativeProviderBackend(backendId);
+    private bool IsSwitchableSourceProvider(ModelProviderId providerId)
+        => TryGetLocalRuntimeBackendInfo(providerId, out _) || IsNativeProvider(providerId);
 
-    private void NormalizeTargetModelSelection(OpenThreadState tab, AgentBackendId targetBackendId)
+    private void NormalizeTargetModelSelection(OpenThreadState tab, ModelProviderId targetProviderId)
     {
-        if (!_chatBackendStates.TryGetValue(targetBackendId.Value, out var targetState) ||
+        if (!_chatBackendStates.TryGetValue(targetProviderId.Value, out var targetState) ||
             targetState.Models.Count == 0 ||
             string.IsNullOrWhiteSpace(tab.ModelId) ||
             targetState.Models.Any(model => string.Equals(model.Id, tab.ModelId, StringComparison.Ordinal)))
@@ -167,9 +167,9 @@ internal sealed class ThreadProviderSwitchCoordinator
             targetState.SelectedReasoningEffort);
     }
 
-    private static bool IsNativeProviderBackend(AgentBackendId backendId)
-        => string.Equals(backendId.Value, AgentBackendIds.Codex.Value, StringComparison.OrdinalIgnoreCase) ||
-           string.Equals(backendId.Value, AgentBackendIds.Copilot.Value, StringComparison.OrdinalIgnoreCase);
+    private static bool IsNativeProvider(ModelProviderId providerId)
+        => string.Equals(providerId.Value, ModelProviderIds.Codex.Value, StringComparison.OrdinalIgnoreCase) ||
+           string.Equals(providerId.Value, ModelProviderIds.Copilot.Value, StringComparison.OrdinalIgnoreCase);
 
     private static bool TryMapProtocolFamily(string? providerType, out string? protocolFamily)
     {
@@ -191,7 +191,7 @@ internal sealed class ThreadProviderSwitchCoordinator
     }
 
     private sealed record LocalRuntimeBackendInfo(
-        AgentBackendId BackendId,
+        ModelProviderId ProviderId,
         string ProviderKey,
         string ProtocolFamily);
 }

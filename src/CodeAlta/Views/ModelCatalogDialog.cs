@@ -47,7 +47,7 @@ internal sealed class ModelCatalogDialog
     private readonly DataGridControl _grid;
 
     public ModelCatalogDialog(
-        IReadOnlyDictionary<string, ChatBackendState> chatBackendStates,
+        IReadOnlyDictionary<string, ModelProviderState> chatBackendStates,
         string? selectedProviderKey,
         string? selectedModelId,
         Func<ModelCatalogRowViewModel, Task> selectModelAsync,
@@ -222,7 +222,7 @@ internal sealed class ModelCatalogDialog
     }
 
     private static IReadOnlyList<ModelCatalogRowViewModel> BuildRows(
-        IReadOnlyDictionary<string, ChatBackendState> chatBackendStates,
+        IReadOnlyDictionary<string, ModelProviderState> chatBackendStates,
         string? selectedProviderKey,
         string? selectedModelId)
     {
@@ -237,7 +237,7 @@ internal sealed class ModelCatalogDialog
     }
 
     private static ModelCatalogRowViewModel CreateRow(
-        ChatBackendState state,
+        ModelProviderState state,
         AgentModelInfo model,
         string? selectedProviderKey,
         string? selectedModelId)

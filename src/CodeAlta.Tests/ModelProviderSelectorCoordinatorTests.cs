@@ -24,7 +24,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
         var backendStates = ChatBackendPresentation.CreateBackendStates();
 
         var codexState = backendStates[AgentBackendIds.Codex.Value];
-        codexState.Availability = ChatBackendAvailability.Ready;
+        codexState.Availability = ModelProviderAvailability.Ready;
         codexState.Models.Add(new AgentModelInfo(
             "gpt-5-codex",
             DisplayName: "GPT-5 Codex",
@@ -32,7 +32,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
             SupportedReasoningEfforts: [AgentReasoningEffort.Medium, AgentReasoningEffort.High]));
 
         var copilotState = backendStates[AgentBackendIds.Copilot.Value];
-        copilotState.Availability = ChatBackendAvailability.Ready;
+        copilotState.Availability = ModelProviderAvailability.Ready;
         copilotState.Models.Add(new AgentModelInfo(
             "gpt-4.1",
             DisplayName: "GPT-4.1",
@@ -75,7 +75,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
         CollectionAssert.AreEqual(new[] { "GPT-4.1", "o4-mini" }, workspaceViewModel.ModelOptions.Select(static option => option.Label).ToArray());
         Assert.AreEqual(2, syncCallCount);
 
-        static void ApplyDraftModelProviderPreference(ChatBackendState backendState)
+        static void ApplyDraftModelProviderPreference(ModelProviderState backendState)
         {
             backendState.SelectedModelId = ChatBackendPresentation.ResolvePreferredModelId(
                 backendState.Models,
@@ -97,8 +97,8 @@ public sealed class ModelProviderSelectorCoordinatorTests
             new ModelProviderDescriptor(new AgentBackendId("zai"), "ZAI"),
         ];
         var backendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
-        backendStates[AgentBackendIds.Codex.Value].Availability = ChatBackendAvailability.Ready;
-        backendStates["zai"].Availability = ChatBackendAvailability.Ready;
+        backendStates[AgentBackendIds.Codex.Value].Availability = ModelProviderAvailability.Ready;
+        backendStates["zai"].Availability = ModelProviderAvailability.Ready;
 
         var coordinator = CreateCoordinator(
             backendDescriptors,
@@ -123,9 +123,9 @@ public sealed class ModelProviderSelectorCoordinatorTests
             new(new AgentBackendId("anthropic"), "Anthropic"),
         ];
         var backendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
-        backendStates["openai"].Availability = ChatBackendAvailability.Ready;
+        backendStates["openai"].Availability = ModelProviderAvailability.Ready;
         backendStates["openai"].Models.Add(new AgentModelInfo("gpt-5.4"));
-        backendStates["anthropic"].Availability = ChatBackendAvailability.Connecting;
+        backendStates["anthropic"].Availability = ModelProviderAvailability.Probing;
 
         var selectorState = new ModelProviderSelectorStateStore(workspaceViewModel, new InlineUiDispatcher());
         var preferences = new FrontendModelProviderPreferencePort(
@@ -166,7 +166,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
         ];
         var backendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
         var backendState = backendStates["codex"];
-        backendState.Availability = ChatBackendAvailability.Ready;
+        backendState.Availability = ModelProviderAvailability.Ready;
         backendState.Models.Add(new AgentModelInfo("gpt-5.2", DisplayName: "GPT-5.2"));
 
         var selectorState = new ModelProviderSelectorStateStore(workspaceViewModel, new InlineUiDispatcher());
@@ -214,9 +214,9 @@ public sealed class ModelProviderSelectorCoordinatorTests
             new ModelProviderDescriptor(AgentBackendIds.Codex, "Codex"),
         ];
         var backendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
-        backendStates["zai"].Availability = ChatBackendAvailability.Unsupported;
-        backendStates["openai"].Availability = ChatBackendAvailability.Ready;
-        backendStates[AgentBackendIds.Codex.Value].Availability = ChatBackendAvailability.Ready;
+        backendStates["zai"].Availability = ModelProviderAvailability.Unsupported;
+        backendStates["openai"].Availability = ModelProviderAvailability.Ready;
+        backendStates[AgentBackendIds.Codex.Value].Availability = ModelProviderAvailability.Ready;
 
         var coordinator = CreateCoordinator(
             backendDescriptors,
@@ -241,8 +241,8 @@ public sealed class ModelProviderSelectorCoordinatorTests
             new ModelProviderDescriptor(AgentBackendIds.Copilot, "Copilot"),
         ];
         var backendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
-        backendStates[AgentBackendIds.Codex.Value].Availability = ChatBackendAvailability.Ready;
-        backendStates[AgentBackendIds.Copilot.Value].Availability = ChatBackendAvailability.Failed;
+        backendStates[AgentBackendIds.Codex.Value].Availability = ModelProviderAvailability.Ready;
+        backendStates[AgentBackendIds.Copilot.Value].Availability = ModelProviderAvailability.Failed;
 
         var coordinator = CreateCoordinator(
             backendDescriptors,
@@ -278,8 +278,8 @@ public sealed class ModelProviderSelectorCoordinatorTests
             new(new AgentBackendId("anthropic"), "Anthropic"),
         ];
         var backendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
-        backendStates["openai"].Availability = ChatBackendAvailability.Ready;
-        backendStates["anthropic"].Availability = ChatBackendAvailability.Ready;
+        backendStates["openai"].Availability = ModelProviderAvailability.Ready;
+        backendStates["anthropic"].Availability = ModelProviderAvailability.Ready;
 
         var selectorState = new ModelProviderSelectorStateStore(workspaceViewModel, new InlineUiDispatcher());
         var preferences = new FrontendModelProviderPreferencePort(
@@ -328,7 +328,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
             new(new AgentBackendId("openai"), "OpenAI"),
         ];
         var backendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
-        backendStates["openai"].Availability = ChatBackendAvailability.Ready;
+        backendStates["openai"].Availability = ModelProviderAvailability.Ready;
 
         var selectorState = new ModelProviderSelectorStateStore(workspaceViewModel, new InlineUiDispatcher());
         var preferences = new FrontendModelProviderPreferencePort(
@@ -384,8 +384,8 @@ public sealed class ModelProviderSelectorCoordinatorTests
             new(new AgentBackendId("anthropic"), "Anthropic"),
         ];
         var backendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
-        backendStates["openai"].Availability = ChatBackendAvailability.Ready;
-        backendStates["anthropic"].Availability = ChatBackendAvailability.Ready;
+        backendStates["openai"].Availability = ModelProviderAvailability.Ready;
+        backendStates["anthropic"].Availability = ModelProviderAvailability.Ready;
 
         var selectorState = new ModelProviderSelectorStateStore(workspaceViewModel, new InlineUiDispatcher());
         var preferences = new FrontendModelProviderPreferencePort(
@@ -439,8 +439,8 @@ public sealed class ModelProviderSelectorCoordinatorTests
             new(new AgentBackendId("anthropic"), "Anthropic"),
         ];
         var backendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
-        backendStates["openai"].Availability = ChatBackendAvailability.Ready;
-        backendStates["anthropic"].Availability = ChatBackendAvailability.Ready;
+        backendStates["openai"].Availability = ModelProviderAvailability.Ready;
+        backendStates["anthropic"].Availability = ModelProviderAvailability.Ready;
 
         var selectorState = new ModelProviderSelectorStateStore(workspaceViewModel, new InlineUiDispatcher());
         var preferences = new FrontendModelProviderPreferencePort(
@@ -499,8 +499,8 @@ public sealed class ModelProviderSelectorCoordinatorTests
             new(new AgentBackendId("anthropic"), "Anthropic"),
         ];
         var backendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
-        backendStates["openai"].Availability = ChatBackendAvailability.Ready;
-        backendStates["anthropic"].Availability = ChatBackendAvailability.Ready;
+        backendStates["openai"].Availability = ModelProviderAvailability.Ready;
+        backendStates["anthropic"].Availability = ModelProviderAvailability.Ready;
 
         var selectorState = new ModelProviderSelectorStateStore(workspaceViewModel, new InlineUiDispatcher());
         var preferences = new FrontendModelProviderPreferencePort(
@@ -522,10 +522,10 @@ public sealed class ModelProviderSelectorCoordinatorTests
             static _ => null,
             static () => { },
             static (_, _) => true,
-            (_, selectedTab, targetBackendId) =>
+            (_, selectedTab, targetProviderId) =>
             {
-                thread.BackendId = targetBackendId.Value;
-                selectedTab.BackendId = targetBackendId;
+                thread.BackendId = targetProviderId.Value;
+                selectedTab.BackendId = new AgentBackendId(targetProviderId.Value);
                 return switchCompletion.Task;
             });
 
@@ -585,7 +585,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
             new(new AgentBackendId("openai"), "OpenAI"),
         ];
         var backendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
-        backendStates["openai"].Availability = ChatBackendAvailability.Ready;
+        backendStates["openai"].Availability = ModelProviderAvailability.Ready;
         backendStates["openai"].Models.Add(new AgentModelInfo("gpt-5.4", DisplayName: "GPT-5.4"));
         backendStates["openai"].Models.Add(new AgentModelInfo("gpt-5.4-mini", DisplayName: "GPT-5.4 Mini"));
 
@@ -627,7 +627,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
         ];
         var backendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
         var backendState = backendStates["openai"];
-        backendState.Availability = ChatBackendAvailability.Ready;
+        backendState.Availability = ModelProviderAvailability.Ready;
         backendState.Models.Add(new AgentModelInfo("gpt-5.4", DisplayName: "GPT-5.4"));
         backendState.Models.Add(new AgentModelInfo("gpt-5.4-mini", DisplayName: "GPT-5.4 Mini"));
 
@@ -688,9 +688,9 @@ public sealed class ModelProviderSelectorCoordinatorTests
             new(new AgentBackendId("anthropic"), "Anthropic"),
         ];
         var backendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
-        backendStates["openai"].Availability = ChatBackendAvailability.Ready;
+        backendStates["openai"].Availability = ModelProviderAvailability.Ready;
         backendStates["openai"].Models.Add(new AgentModelInfo("gpt-5.4"));
-        backendStates["anthropic"].Availability = ChatBackendAvailability.Ready;
+        backendStates["anthropic"].Availability = ModelProviderAvailability.Ready;
         backendStates["anthropic"].Models.Add(new AgentModelInfo("claude-sonnet-4.5"));
 
         var coordinator = CreateCoordinator(
@@ -734,9 +734,9 @@ public sealed class ModelProviderSelectorCoordinatorTests
             new(new AgentBackendId("anthropic"), "Anthropic"),
         ];
         var backendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
-        backendStates["openai"].Availability = ChatBackendAvailability.Ready;
+        backendStates["openai"].Availability = ModelProviderAvailability.Ready;
         backendStates["openai"].Models.Add(new AgentModelInfo("gpt-5.4"));
-        backendStates["anthropic"].Availability = ChatBackendAvailability.Ready;
+        backendStates["anthropic"].Availability = ModelProviderAvailability.Ready;
         backendStates["anthropic"].Models.Add(new AgentModelInfo("claude-sonnet-4.5"));
 
         var coordinator = CreateCoordinator(
@@ -781,7 +781,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
         ];
         var backendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
         var backendState = backendStates["openai"];
-        backendState.Availability = ChatBackendAvailability.Ready;
+        backendState.Availability = ModelProviderAvailability.Ready;
         backendState.Models.Add(new AgentModelInfo("gpt-5.4", DisplayName: "GPT-5.4"));
         backendState.Models.Add(new AgentModelInfo("gpt-5.4-mini", DisplayName: "GPT-5.4 Mini"));
 
@@ -829,7 +829,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
             new(new AgentBackendId("openai"), "OpenAI"),
         ];
         var backendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
-        backendStates["openai"].Availability = ChatBackendAvailability.Ready;
+        backendStates["openai"].Availability = ModelProviderAvailability.Ready;
         backendStates["openai"].Models.Add(new AgentModelInfo(
             "gpt-5.4",
             DisplayName: "GPT-5.4",
@@ -874,7 +874,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
         ];
         var backendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
         var backendState = backendStates["openai"];
-        backendState.Availability = ChatBackendAvailability.Ready;
+        backendState.Availability = ModelProviderAvailability.Ready;
         backendState.Models.Add(new AgentModelInfo("gpt-5.4", DisplayName: "GPT-5.4"));
         backendState.Models.Add(new AgentModelInfo("gpt-5.4-mini", DisplayName: "GPT-5.4 Mini"));
 
@@ -910,7 +910,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
             new(new AgentBackendId("openai"), "OpenAI"),
         ];
         var backendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
-        backendStates["openai"].Availability = ChatBackendAvailability.Ready;
+        backendStates["openai"].Availability = ModelProviderAvailability.Ready;
         backendStates["openai"].Models.Add(new AgentModelInfo("gpt-5.4", DisplayName: "GPT-5.4"));
         backendStates["openai"].Models.Add(new AgentModelInfo("gpt-5.4-mini", DisplayName: "GPT-5.4 Mini"));
 
@@ -934,7 +934,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
         IReadOnlyList<ModelProviderDescriptor> backendDescriptors,
         ThreadWorkspaceViewModel workspaceViewModel,
         PromptComposerViewModel promptComposerViewModel,
-        Dictionary<string, ChatBackendState> backendStates,
+        Dictionary<string, ModelProviderState> backendStates,
         Func<string?, string?> getEffectiveDefaultProviderKey,
         Func<IReadOnlyList<string>>? getConfiguredProviderKeys = null,
         ThreadSelectionContext? threadSelection = null,
@@ -1012,7 +1012,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
         return coordinator;
     }
 
-    private static void ApplyDraftModelProviderPreference(ChatBackendState backendState)
+    private static void ApplyDraftModelProviderPreference(ModelProviderState backendState)
     {
         backendState.SelectedModelId = ChatBackendPresentation.ResolvePreferredModelId(
             backendState.Models,

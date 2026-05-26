@@ -80,9 +80,9 @@ public sealed class ThreadExecutionOptionsFactoryTests
             threadState,
             static (_, _) => Task.CompletedTask,
             static _ => false);
-        var backendState = new ChatBackendState(ModelProviderIds.Codex, "Codex")
+        var backendState = new ModelProviderState(ModelProviderIds.Codex, "Codex")
         {
-            Availability = ChatBackendAvailability.Ready,
+            Availability = ModelProviderAvailability.Ready,
             SelectedModelId = "gpt-selected",
             SelectedReasoningEffort = AgentReasoningEffort.High,
         };
@@ -94,7 +94,7 @@ public sealed class ThreadExecutionOptionsFactoryTests
             SupportedReasoningEfforts: [AgentReasoningEffort.High]));
         var factory = new ThreadExecutionOptionsFactory(
             catalogOptions,
-            new Dictionary<string, ChatBackendState>(StringComparer.Ordinal)
+            new Dictionary<string, ModelProviderState>(StringComparer.Ordinal)
             {
                 [AgentBackendIds.Codex.Value] = backendState,
             },
@@ -148,11 +148,11 @@ public sealed class ThreadExecutionOptionsFactoryTests
         var commandContext = CreateCommandContext(uiDispatcher);
         return new ThreadExecutionOptionsFactory(
             catalogOptions,
-            new Dictionary<string, ChatBackendState>(StringComparer.Ordinal)
+            new Dictionary<string, ModelProviderState>(StringComparer.Ordinal)
             {
-                [AgentBackendIds.Codex.Value] = new ChatBackendState(ModelProviderIds.Codex, "Codex")
+                [AgentBackendIds.Codex.Value] = new ModelProviderState(ModelProviderIds.Codex, "Codex")
                 {
-                    Availability = ChatBackendAvailability.Ready,
+                    Availability = ModelProviderAvailability.Ready,
                     SelectedModelId = "gpt-test",
                 },
             },

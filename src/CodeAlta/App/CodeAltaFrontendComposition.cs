@@ -35,7 +35,7 @@ internal sealed class CodeAltaFrontendComposition
     public required ThreadWorkspaceViewModel ThreadWorkspaceViewModel { get; init; }
     public required PromptComposerViewModel PromptComposerViewModel { get; init; }
     public required SessionUsageViewModel SessionUsageViewModel { get; init; }
-    public required Dictionary<string, ChatBackendState> ChatBackendStates { get; init; }
+    public required Dictionary<string, ModelProviderState> ModelProviderStates { get; init; }
     public required SidebarCoordinator SidebarCoordinator { get; init; }
     public required NavigatorActionCoordinator NavigatorActionCoordinator { get; init; }
     public required ModelProviderSelectorCoordinator ModelProviderSelectorCoordinator { get; init; }
@@ -60,7 +60,8 @@ internal sealed class CodeAltaFrontendComposition
         KnownProjectImporter knownProjectImporter,
         CodeAltaApp frontend,
         PluginHostBridge? pluginHostBridge = null,
-        IModelProviderRegistry? modelProviderRegistry = null)
+        IModelProviderRegistry? modelProviderRegistry = null,
+        IModelProviderInitializationService? modelProviderInitializationService = null)
     {
         ArgumentNullException.ThrowIfNull(projectCatalog);
         ArgumentNullException.ThrowIfNull(threadCatalog);
@@ -79,6 +80,9 @@ internal sealed class CodeAltaFrontendComposition
         var promptComposerViewModel = new PromptComposerViewModel();
         var sessionUsageViewModel = new SessionUsageViewModel();
         var chatBackendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
+        modelProviderInitializationService ??= modelProviderRegistry is not null
+            ? new ModelProviderInitializationService(modelProviderRegistry)
+            : new EmptyModelProviderInitializationService();
         var uiDispatcher = frontend.GetUiDispatcher();
         var shellStateStore = new ShellStateStore(uiDispatcher);
         var frontendEvents = new FrontendEventPublisher(uiDispatcher);
@@ -94,8 +98,6 @@ internal sealed class CodeAltaFrontendComposition
             frontend.GetPromptText,
             () => frontendEvents.Publish(new PromptAvailabilityChangedEvent()),
             frontend.UpdatePromptImageAttachmentsUi);
-        var sessionLoadableBackendIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var sessionLoadableBackendIdsGate = new object();
         knownProjectImporter.ShouldLoadProviderSessions = ShouldLoadProviderSessions;
         var configStore = new CodeAltaConfigStore(catalogOptions);
         var modelProviderPreferences = new ModelProviderPreferenceCoordinator(configStore, CodeAlta.Views.CodeAltaApp.UiLogger);
@@ -107,6 +109,7 @@ internal sealed class CodeAltaFrontendComposition
             .Add(runtimeService)
             .Add(runtimeService.SkillCatalog)
             .Add(agentHub)
+            .Add(modelProviderInitializationService)
             .Add(projectFileSearchService)
             .Add<IReadOnlyList<ModelProviderDescriptor>>(backendDescriptors)
             .Add<IAltaSessionToolBackendPolicy>(new AltaSessionToolBackendPolicy(altaToolBackendIds));
@@ -298,13 +301,12 @@ internal sealed class CodeAltaFrontendComposition
             (tab, prompt, cancellationToken) => threadCommandCoordinator!.DispatchQueuedPromptAsync(tab, prompt, steer: false, cancellationToken),
             (tab, prompt, cancellationToken) => threadCommandCoordinator!.DispatchQueuedPromptAsync(tab, prompt, steer: true, cancellationToken));
         var chatBackendInitializationCoordinator = new ChatBackendInitializationCoordinator(
-            agentHub,
+            modelProviderInitializationService,
             backendDescriptors,
             chatBackendStates,
             frontend.DispatchToUi,
             frontendEvents,
-            frontend.SetProviderSessionLoadStatus,
-            SetBackendSessionLoadingEnabled);
+            frontend.SetProviderSessionLoadStatus);
         var shellStatusPort = new ShellStatusPort(
             uiDispatcher,
             frontend.SetStatus,
@@ -387,7 +389,7 @@ internal sealed class CodeAltaFrontendComposition
             ThreadWorkspaceViewModel = threadWorkspaceViewModel,
             PromptComposerViewModel = promptComposerViewModel,
             SessionUsageViewModel = sessionUsageViewModel,
-            ChatBackendStates = chatBackendStates,
+            ModelProviderStates = chatBackendStates,
             SidebarCoordinator = sidebarCoordinator,
             NavigatorActionCoordinator = navigatorActionCoordinator,
             ModelProviderSelectorCoordinator = modelProviderSelectorCoordinator,
@@ -403,32 +405,27 @@ internal sealed class CodeAltaFrontendComposition
 
         bool ShouldLoadProviderSessions(AgentBackendId backendId)
         {
-            lock (sessionLoadableBackendIdsGate)
-            {
-                if (sessionLoadableBackendIds.Contains(backendId.Value))
-                {
-                    return true;
-                }
-            }
-
-            return chatBackendStates.TryGetValue(backendId.Value, out var state) &&
-                   state.Availability == ChatBackendAvailability.Ready;
+            return backendDescriptors.Any(descriptor => descriptor.BackendId == backendId);
         }
+    }
 
-        void SetBackendSessionLoadingEnabled(AgentBackendId backendId, bool enabled)
+    private sealed class EmptyModelProviderInitializationService : IModelProviderInitializationService
+    {
+        public IReadOnlyList<ModelProviderStateSnapshot> CurrentStates => [];
+
+        public async IAsyncEnumerable<ModelProviderStateChanged> StreamStateChangesAsync(
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            lock (sessionLoadableBackendIdsGate)
-            {
-                if (enabled)
-                {
-                    sessionLoadableBackendIds.Add(backendId.Value);
-                }
-                else
-                {
-                    sessionLoadableBackendIds.Remove(backendId.Value);
-                }
-            }
+            await Task.CompletedTask;
+            yield break;
         }
+
+        public Task InitializeAllAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task RefreshProviderAsync(ModelProviderId providerId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task<IReadOnlyList<AgentModelInfo>> GetModelsAsync(ModelProviderId providerId, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<AgentModelInfo>>([]);
     }
 
     private static IReadOnlySet<string> ResolveAltaToolBackendIds(CodeAltaConfigStore configStore)

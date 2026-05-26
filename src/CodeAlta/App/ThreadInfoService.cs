@@ -18,12 +18,12 @@ internal sealed class ThreadInfoService
 
     private readonly AgentHub _agentHub;
     private readonly ThreadSelectionContext _threadSelection;
-    private readonly IReadOnlyDictionary<string, ChatBackendState> _chatBackendStates;
+    private readonly IReadOnlyDictionary<string, ModelProviderState> _chatBackendStates;
 
     public ThreadInfoService(
         AgentHub agentHub,
         ThreadSelectionContext threadSelection,
-        IReadOnlyDictionary<string, ChatBackendState> chatBackendStates)
+        IReadOnlyDictionary<string, ModelProviderState> chatBackendStates)
     {
         ArgumentNullException.ThrowIfNull(agentHub);
         ArgumentNullException.ThrowIfNull(threadSelection);
@@ -85,7 +85,7 @@ internal sealed class ThreadInfoService
         var tab = _threadSelection.EnsureThreadTab(thread);
         var backendState = _chatBackendStates.TryGetValue(thread.BackendId, out var resolvedBackendState)
             ? resolvedBackendState
-            : new ChatBackendState(new ModelProviderId(thread.BackendId), thread.BackendId);
+            : new ModelProviderState(new ModelProviderId(thread.BackendId), thread.BackendId);
 
         if (!tab.HistoryLoaded || tab.HistoryEvents is null)
         {

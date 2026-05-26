@@ -62,11 +62,11 @@ public sealed class AcpManagementServiceTests
             Arguments = ["--yes", "@sample/agent@2.0.0", "--debug"],
         });
 
-        var runtimeState = new ChatBackendState(
+        var runtimeState = new ModelProviderState(
             new ModelProviderId(AcpAgentBackendFactoryExtensions.CreateBackendId("sample-agent").Value),
             "Configured Sample Agent")
         {
-            Availability = ChatBackendAvailability.Ready,
+            Availability = ModelProviderAvailability.Ready,
             StatusMessage = "Connected · debug",
         };
         runtimeState.Models.Add(new AgentModelInfo("model-a", DisplayName: "Model A"));
@@ -76,7 +76,7 @@ public sealed class AcpManagementServiceTests
             registryService,
             configStore,
             installedStore,
-            new Dictionary<string, ChatBackendState>(StringComparer.OrdinalIgnoreCase)
+            new Dictionary<string, ModelProviderState>(StringComparer.OrdinalIgnoreCase)
             {
                 [runtimeState.ProviderId.Value] = runtimeState,
             });
@@ -119,7 +119,7 @@ public sealed class AcpManagementServiceTests
             registryService,
             configStore,
             installedStore,
-            new Dictionary<string, ChatBackendState>(StringComparer.OrdinalIgnoreCase));
+            new Dictionary<string, ModelProviderState>(StringComparer.OrdinalIgnoreCase));
 
         var snapshot = await service.LoadSnapshotAsync(refreshRegistry: false).ConfigureAwait(false);
         var item = snapshot.Items.Single(static candidate => candidate.AgentId == "manual-agent");
@@ -171,7 +171,7 @@ public sealed class AcpManagementServiceTests
             registryService,
             configStore,
             installedStore,
-            new Dictionary<string, ChatBackendState>(StringComparer.OrdinalIgnoreCase));
+            new Dictionary<string, ModelProviderState>(StringComparer.OrdinalIgnoreCase));
 
         var snapshot = await service.LoadSnapshotAsync(refreshRegistry: false).ConfigureAwait(false);
         var item = snapshot.Items.Single(static candidate => candidate.AgentId == "registry-only-agent");
@@ -196,7 +196,7 @@ public sealed class AcpManagementServiceTests
             registryService,
             configStore,
             installedStore,
-            new Dictionary<string, ChatBackendState>(StringComparer.OrdinalIgnoreCase));
+            new Dictionary<string, ModelProviderState>(StringComparer.OrdinalIgnoreCase));
 
         service.SaveConfiguration(new AcpBackendDefinition
         {
@@ -228,7 +228,7 @@ public sealed class AcpManagementServiceTests
             registryService,
             configStore,
             installedStore,
-            new Dictionary<string, ChatBackendState>(StringComparer.OrdinalIgnoreCase));
+            new Dictionary<string, ModelProviderState>(StringComparer.OrdinalIgnoreCase));
 
         installedStore.Save(new AcpBackendDefinition
         {

@@ -2,7 +2,6 @@ using CodeAlta.Agent;
 using CodeAlta.App;
 using CodeAlta.App.Events;
 using CodeAlta.Models;
-using CodeAlta.Orchestration.Runtime;
 using CodeAlta.Threading;
 
 namespace CodeAlta.Tests;
@@ -13,24 +12,21 @@ public sealed class ChatBackendInitializationCoordinatorTests
     [TestMethod]
     public async Task InitializeAsync_RefreshesLoadedNonProcessBackedBackend()
     {
-        using var temp = TempDirectory.Create();
         var backendId = new AgentBackendId("openai");
-        var backendFactory = new AgentBackendFactory();
         var backend = new CountingBackend(backendId);
-        backendFactory.Register(backendId, () => backend);
-
-        await using var hub = new AgentHub(backendFactory);
-        var state = new ChatBackendState(new ModelProviderId(backendId.Value), "OpenAI")
+        var descriptor = new ModelProviderDescriptor(backendId, "OpenAI");
+        var initializationService = CreateInitializationService(descriptor, backend);
+        var state = new ModelProviderState(new ModelProviderId(backendId.Value), "OpenAI")
         {
-            Availability = ChatBackendAvailability.Ready,
+            Availability = ModelProviderAvailability.Ready,
             StatusMessage = "Ready",
         };
         state.Models.Add(new AgentModelInfo("old-model"));
 
         var coordinator = CreateCoordinator(
-            hub,
-            [new ModelProviderDescriptor(backendId, "OpenAI")],
-            new Dictionary<string, ChatBackendState>(StringComparer.OrdinalIgnoreCase)
+            initializationService,
+            [descriptor],
+            new Dictionary<string, ModelProviderState>(StringComparer.OrdinalIgnoreCase)
             {
                 [backendId.Value] = state,
             });
@@ -39,7 +35,7 @@ public sealed class ChatBackendInitializationCoordinatorTests
 
         Assert.AreEqual(1, backend.StartCount);
         Assert.AreEqual(1, backend.ListModelsCount);
-        Assert.AreEqual(ChatBackendAvailability.Ready, state.Availability);
+        Assert.AreEqual(ModelProviderAvailability.Ready, state.Availability);
         CollectionAssert.AreEqual(new[] { "new-model" }, state.Models.Select(static model => model.Id).ToArray());
     }
 
@@ -47,7 +43,6 @@ public sealed class ChatBackendInitializationCoordinatorTests
     public async Task RefreshBackendAsync_PreservesSelectedModelWhenMissingFromDiscoveredModels()
     {
         var backendId = new AgentBackendId("codex");
-        var backendFactory = new AgentBackendFactory();
         var backend = new CountingBackend(
             backendId,
             [
@@ -55,18 +50,17 @@ public sealed class ChatBackendInitializationCoordinatorTests
                     "gpt-5.2",
                     SupportedReasoningEfforts: [AgentReasoningEffort.Low, AgentReasoningEffort.Medium]),
             ]);
-        backendFactory.Register(backendId, () => backend);
-
-        await using var hub = new AgentHub(backendFactory);
-        var state = new ChatBackendState(new ModelProviderId(backendId.Value), "Codex")
+        var descriptor = new ModelProviderDescriptor(backendId, "Codex");
+        var initializationService = CreateInitializationService(descriptor, backend);
+        var state = new ModelProviderState(new ModelProviderId(backendId.Value), "Codex")
         {
             SelectedModelId = "gpt-5.5",
             SelectedReasoningEffort = AgentReasoningEffort.High,
         };
         var coordinator = CreateCoordinator(
-            hub,
-            [new ModelProviderDescriptor(backendId, "Codex")],
-            new Dictionary<string, ChatBackendState>(StringComparer.OrdinalIgnoreCase)
+            initializationService,
+            [descriptor],
+            new Dictionary<string, ModelProviderState>(StringComparer.OrdinalIgnoreCase)
             {
                 [backendId.Value] = state,
             });
@@ -79,42 +73,35 @@ public sealed class ChatBackendInitializationCoordinatorTests
     }
 
     [TestMethod]
-    public async Task RefreshBackendAsync_EnablesSessionLoadingBeforeUiStateIsApplied()
+    public async Task RefreshBackendAsync_UpdatesUiStateAfterProviderRefresh()
     {
-        using var temp = TempDirectory.Create();
         var backendId = new AgentBackendId("codex");
-        var backendFactory = new AgentBackendFactory();
-        backendFactory.Register(backendId, () => new CountingBackend(backendId));
-
-        await using var hub = new AgentHub(backendFactory);
-        var state = new ChatBackendState(new ModelProviderId(backendId.Value), "ChatGPT");
+        var backend = new CountingBackend(backendId);
+        var descriptor = new ModelProviderDescriptor(backendId, "ChatGPT");
+        var initializationService = CreateInitializationService(descriptor, backend);
+        var state = new ModelProviderState(new ModelProviderId(backendId.Value), "ChatGPT");
         var queuedUiActions = new Queue<Action>();
-        var sessionLoadingUpdates = new List<(AgentBackendId BackendId, bool Enabled)>();
         var publishedEvents = new List<ShellFrontendEvent>();
         var coordinator = new ChatBackendInitializationCoordinator(
-            hub,
-            [new ModelProviderDescriptor(backendId, "ChatGPT")],
-            new Dictionary<string, ChatBackendState>(StringComparer.OrdinalIgnoreCase)
+            initializationService,
+            [descriptor],
+            new Dictionary<string, ModelProviderState>(StringComparer.OrdinalIgnoreCase)
             {
                 [backendId.Value] = state,
             },
             action => queuedUiActions.Enqueue(action),
-            CreatePublisher(publishedEvents),
-            setBackendSessionLoadingEnabled: (id, enabled) => sessionLoadingUpdates.Add((id, enabled)));
+            CreatePublisher(publishedEvents));
 
         await coordinator.RefreshBackendAsync(backendId, CancellationToken.None).ConfigureAwait(false);
 
-        Assert.AreEqual(ChatBackendAvailability.Unknown, state.Availability);
-        Assert.IsTrue(
-            sessionLoadingUpdates.Any(update => update.BackendId == backendId && update.Enabled),
-            "Session loading should be enabled as soon as backend discovery succeeds, before queued UI state updates run.");
+        Assert.AreEqual(ModelProviderAvailability.Unknown, state.Availability);
 
         while (queuedUiActions.TryDequeue(out var action))
         {
             action();
         }
 
-        Assert.AreEqual(ChatBackendAvailability.Ready, state.Availability);
+        Assert.AreEqual(ModelProviderAvailability.Ready, state.Availability);
         Assert.IsTrue(publishedEvents.OfType<ModelProviderStateChangedEvent>().Any(evt => evt.ModelProviderId == backendId.Value));
         Assert.IsTrue(publishedEvents.OfType<HeaderChangedEvent>().Any());
     }
@@ -123,14 +110,13 @@ public sealed class ChatBackendInitializationCoordinatorTests
     public async Task InitializeAsync_CreatesMissingBackendStateBeforeRefreshingModels()
     {
         var backendId = new AgentBackendId("gemini");
-        var backendFactory = new AgentBackendFactory();
         var backend = new CountingBackend(backendId);
-        backendFactory.Register(backendId, () => backend);
-        await using var hub = new AgentHub(backendFactory);
-        var states = new Dictionary<string, ChatBackendState>(StringComparer.OrdinalIgnoreCase);
+        var descriptor = new ModelProviderDescriptor(backendId, "Gemini");
+        var initializationService = CreateInitializationService(descriptor, backend);
+        var states = new Dictionary<string, ModelProviderState>(StringComparer.OrdinalIgnoreCase);
         var coordinator = CreateCoordinator(
-            hub,
-            [new ModelProviderDescriptor(backendId, "Gemini")],
+            initializationService,
+            [descriptor],
             states);
 
         await coordinator.InitializeAsync(CancellationToken.None).ConfigureAwait(false);
@@ -138,7 +124,7 @@ public sealed class ChatBackendInitializationCoordinatorTests
         Assert.IsTrue(states.TryGetValue(backendId.Value, out var state));
         Assert.AreEqual("Gemini", state.DisplayName);
         Assert.AreEqual(1, backend.ListModelsCount);
-        Assert.AreEqual(ChatBackendAvailability.Ready, state.Availability);
+        Assert.AreEqual(ModelProviderAvailability.Ready, state.Availability);
         CollectionAssert.AreEqual(new[] { "new-model" }, state.Models.Select(static model => model.Id).ToArray());
     }
 
@@ -146,17 +132,15 @@ public sealed class ChatBackendInitializationCoordinatorTests
     public async Task InitializeAsync_DropsStaleQueuedProviderInitializationStatus()
     {
         var backendId = new AgentBackendId("openai");
-        var backendFactory = new AgentBackendFactory();
-        backendFactory.Register(backendId, () => new CountingBackend(backendId));
-
-        await using var hub = new AgentHub(backendFactory);
-        var state = new ChatBackendState(new ModelProviderId(backendId.Value), "OpenAI");
+        var descriptor = new ModelProviderDescriptor(backendId, "OpenAI");
+        var initializationService = CreateInitializationService(descriptor, new CountingBackend(backendId));
+        var state = new ModelProviderState(new ModelProviderId(backendId.Value), "OpenAI");
         var queuedUiActions = new List<Action>();
         var providerStatuses = new List<string?>();
         var coordinator = new ChatBackendInitializationCoordinator(
-            hub,
-            [new ModelProviderDescriptor(backendId, "OpenAI")],
-            new Dictionary<string, ChatBackendState>(StringComparer.OrdinalIgnoreCase)
+            initializationService,
+            [descriptor],
+            new Dictionary<string, ModelProviderState>(StringComparer.OrdinalIgnoreCase)
             {
                 [backendId.Value] = state,
             },
@@ -201,15 +185,24 @@ public sealed class ChatBackendInitializationCoordinatorTests
     }
 
     private static ChatBackendInitializationCoordinator CreateCoordinator(
-        AgentHub hub,
+        IModelProviderInitializationService initializationService,
         IReadOnlyList<ModelProviderDescriptor> descriptors,
-        Dictionary<string, ChatBackendState> states)
+        Dictionary<string, ModelProviderState> states)
         => new(
-            hub,
+            initializationService,
             descriptors,
             states,
             static action => action(),
             CreatePublisher());
+
+    private static ModelProviderInitializationService CreateInitializationService(
+        ModelProviderDescriptor descriptor,
+        CountingBackend backend)
+    {
+        var registry = new ModelProviderRegistry();
+        registry.RegisterOrReplaceBackendRuntime(descriptor, () => backend);
+        return new ModelProviderInitializationService(registry);
+    }
 
     private static FrontendEventPublisher CreatePublisher(List<ShellFrontendEvent>? events = null)
     {

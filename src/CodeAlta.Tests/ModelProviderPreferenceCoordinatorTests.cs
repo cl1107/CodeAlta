@@ -18,7 +18,7 @@ public sealed class ModelProviderPreferenceCoordinatorTests
         using var temp = TempDirectory.Create();
         var store = new CodeAltaConfigStore(new CatalogOptions { GlobalRoot = temp.Path });
         var coordinator = new ModelProviderPreferenceCoordinator(store, Views.CodeAltaApp.UiLogger);
-        var backendState = new ChatBackendState(new ModelProviderId("zai"), "ZAI");
+        var backendState = new ModelProviderState(new ModelProviderId("zai"), "ZAI");
         backendState.Models.Add(new AgentModelInfo(
             "gpt-5",
             SupportedReasoningEfforts: [AgentReasoningEffort.Low, AgentReasoningEffort.High]));
@@ -74,7 +74,7 @@ public sealed class ModelProviderPreferenceCoordinatorTests
                 },
             },
         };
-        var backendState = new ChatBackendState(new ModelProviderId("zai"), "ZAI");
+        var backendState = new ModelProviderState(new ModelProviderId("zai"), "ZAI");
 
         coordinator.ApplyDraftModelProviderPreference(backendState, viewState, draftProjectRoot: null, draftProjectId: "project-a");
 

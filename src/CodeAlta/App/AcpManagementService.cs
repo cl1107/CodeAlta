@@ -1,4 +1,5 @@
 using CodeAlta.Acp;
+using CodeAlta.Agent;
 using CodeAlta.Agent.Acp;
 using CodeAlta.Catalog;
 using CodeAlta.Models;
@@ -11,7 +12,7 @@ internal sealed class AcpManagementService
     private readonly AcpAgentRegistryService _registryService;
     private readonly CodeAltaConfigStore _configStore;
     private readonly AcpInstalledBackendStore _installedBackendStore;
-    private readonly IReadOnlyDictionary<string, ChatBackendState> _chatBackendStates;
+    private readonly IReadOnlyDictionary<string, ModelProviderState> _chatBackendStates;
     private readonly AcpInstallResolver _installResolver;
 
     public AcpManagementService(
@@ -19,7 +20,7 @@ internal sealed class AcpManagementService
         AcpAgentRegistryService registryService,
         CodeAltaConfigStore configStore,
         AcpInstalledBackendStore installedBackendStore,
-        IReadOnlyDictionary<string, ChatBackendState> chatBackendStates,
+        IReadOnlyDictionary<string, ModelProviderState> chatBackendStates,
         AcpInstallResolver? installResolver = null)
     {
         ArgumentNullException.ThrowIfNull(catalogOptions);
@@ -573,7 +574,7 @@ internal sealed record AcpAgentSummaryItem(
     string? CommandSummary,
     string? WorkingDirectory,
     string? RuntimeStatus,
-    ChatBackendAvailability? RuntimeAvailability,
+    ModelProviderAvailability? RuntimeAvailability,
     int? RuntimeModelCount,
     IReadOnlyList<string> RuntimeModels)
 {

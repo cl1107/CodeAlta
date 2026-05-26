@@ -12,15 +12,6 @@ namespace CodeAlta.Models
         MarkdownControl StreamingMarkdown,
         Markup TimestampText);
 
-    internal enum ChatBackendAvailability
-    {
-        Unknown,
-        Connecting,
-        Ready,
-        Unsupported,
-        Failed,
-    }
-
     internal enum ChatTimelineTone
     {
         User,
@@ -66,13 +57,13 @@ namespace CodeAlta.Models
         Func<Visual>? VisualFactory = null,
         Func<Visual>? HeaderVisualFactory = null);
 
-    internal sealed class ChatBackendState(ModelProviderId providerId, string displayName)
+    internal sealed class ModelProviderState(ModelProviderId providerId, string displayName)
     {
         public ModelProviderId ProviderId { get; } = providerId;
 
         public string DisplayName { get; set; } = displayName;
 
-        public ChatBackendAvailability Availability { get; set; }
+        public ModelProviderAvailability Availability { get; set; }
 
         public string StatusMessage { get; set; } = "Not initialized.";
 

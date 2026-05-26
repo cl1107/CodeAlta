@@ -20,6 +20,7 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
     private readonly bool _ownsLogging;
     private readonly AgentBackendFactory _backendFactory;
     private readonly ModelProviderRegistry _modelProviderRegistry;
+    private readonly IModelProviderInitializationService _modelProviderInitializationService;
     private readonly CodeAltaConfigStore _configStore;
     private readonly AcpInstalledBackendStore _installedBackendStore;
     private readonly List<ModelProviderDescriptor> _backendDescriptors;
@@ -29,6 +30,7 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
         bool ownsLogging,
         AgentBackendFactory backendFactory,
         ModelProviderRegistry modelProviderRegistry,
+        IModelProviderInitializationService modelProviderInitializationService,
         CodeAltaConfigStore configStore,
         AcpInstalledBackendStore installedBackendStore,
         ModelsDevCatalogService modelsDevCatalogService,
@@ -47,6 +49,7 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
         _ownsLogging = ownsLogging;
         _backendFactory = backendFactory;
         _modelProviderRegistry = modelProviderRegistry;
+        _modelProviderInitializationService = modelProviderInitializationService;
         _configStore = configStore;
         _installedBackendStore = installedBackendStore;
         _modelsDevCatalogService = modelsDevCatalogService;
@@ -68,6 +71,10 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
     public IReadOnlyList<ModelProviderDescriptor> BackendDescriptors => _backendDescriptors;
 
     public IModelProviderRegistry ModelProviderRegistry => _modelProviderRegistry;
+
+    public IModelProviderInitializationService ModelProviderInitializationService => _modelProviderInitializationService;
+
+    internal IModelProviderInitializationService ProviderInit => _modelProviderInitializationService;
 
     internal ModelsDevCatalogService ModelsDevCatalogService => _modelsDevCatalogService;
 
@@ -148,6 +155,7 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
             ownsLogging,
             backendFactory,
             sharedHost.ModelProviderRegistry,
+            sharedHost.ModelProviderInitializationService,
             configStore,
             installedBackendStore,
             modelsDevCatalogService,

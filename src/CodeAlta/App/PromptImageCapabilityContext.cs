@@ -11,13 +11,13 @@ internal sealed class PromptImageCapabilityContext
     private readonly Func<WorkThreadDescriptor?> _getSelectedThread;
     private readonly Func<string, OpenThreadState?> _findOpenThread;
     private readonly Func<AgentBackendId> _getPreferredBackendId;
-    private readonly IReadOnlyDictionary<string, ChatBackendState> _chatBackendStates;
+    private readonly IReadOnlyDictionary<string, ModelProviderState> _chatBackendStates;
 
     public PromptImageCapabilityContext(
         Func<WorkThreadDescriptor?> getSelectedThread,
         Func<string, OpenThreadState?> findOpenThread,
         Func<AgentBackendId> getPreferredBackendId,
-        IReadOnlyDictionary<string, ChatBackendState> chatBackendStates)
+        IReadOnlyDictionary<string, ModelProviderState> chatBackendStates)
     {
         ArgumentNullException.ThrowIfNull(getSelectedThread);
         ArgumentNullException.ThrowIfNull(findOpenThread);

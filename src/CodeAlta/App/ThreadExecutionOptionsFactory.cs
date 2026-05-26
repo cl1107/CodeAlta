@@ -12,7 +12,7 @@ namespace CodeAlta.App;
 internal sealed class ThreadExecutionOptionsFactory
 {
     private readonly CatalogOptions _catalogOptions;
-    private readonly Dictionary<string, ChatBackendState> _chatBackendStates;
+    private readonly Dictionary<string, ModelProviderState> _chatBackendStates;
     private readonly ThreadSelectionContext _threadSelection;
     private readonly ThreadPermissionRequestCoordinator _permissionRequests;
     private readonly ThreadUserInputRequestCoordinator _userInputRequests;
@@ -21,7 +21,7 @@ internal sealed class ThreadExecutionOptionsFactory
 
     public ThreadExecutionOptionsFactory(
         CatalogOptions catalogOptions,
-        Dictionary<string, ChatBackendState> chatBackendStates,
+        Dictionary<string, ModelProviderState> chatBackendStates,
         ThreadSelectionContext threadSelection,
         ThreadPermissionRequestCoordinator permissionRequests,
         ThreadUserInputRequestCoordinator userInputRequests,

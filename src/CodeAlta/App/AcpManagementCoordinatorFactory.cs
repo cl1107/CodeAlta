@@ -10,7 +10,7 @@ internal static class AcpManagementCoordinatorFactory
     public static AcpManagementCoordinator? Create(
         CodeAltaOwnedServices? ownedServices,
         CatalogOptions catalogOptions,
-        Dictionary<string, ChatBackendState> chatBackendStates,
+        Dictionary<string, ModelProviderState> chatBackendStates,
         Func<Task> reloadAcpBackendsAsync,
         Func<string, Task> probeAcpBackendAsync,
         Func<Rectangle?> getBounds,

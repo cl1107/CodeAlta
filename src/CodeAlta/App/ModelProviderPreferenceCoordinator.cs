@@ -25,7 +25,7 @@ internal sealed class ModelProviderPreferenceCoordinator
     }
 
     public void ApplyDraftModelProviderPreference(
-        ChatBackendState backendState,
+        ModelProviderState backendState,
         WorkThreadViewState viewState,
         string? draftProjectRoot,
         string? draftProjectId)
@@ -88,7 +88,7 @@ internal sealed class ModelProviderPreferenceCoordinator
         OpenThreadState tab,
         WorkThreadViewState viewState,
         string? threadProjectRoot,
-        IReadOnlyDictionary<string, ChatBackendState> chatBackendStates)
+        IReadOnlyDictionary<string, ModelProviderState> chatBackendStates)
     {
         ArgumentNullException.ThrowIfNull(tab);
         ArgumentNullException.ThrowIfNull(viewState);

@@ -19,7 +19,7 @@ internal sealed class ThreadCommandCoordinator
 {
     private readonly WorkThreadRuntimeService _runtimeService;
     private readonly IReadOnlyList<ModelProviderDescriptor> _backendDescriptors;
-    private readonly Dictionary<string, ChatBackendState> _chatBackendStates;
+    private readonly Dictionary<string, ModelProviderState> _chatBackendStates;
     private readonly ThreadSelectionContext _threadSelection;
     private readonly ModelProviderSelectorStateStore _selectorState;
     private readonly ThreadCommandContext _commandContext;
@@ -33,7 +33,7 @@ internal sealed class ThreadCommandCoordinator
     public ThreadCommandCoordinator(
         WorkThreadRuntimeService runtimeService,
         CatalogOptions catalogOptions,
-        Dictionary<string, ChatBackendState> chatBackendStates,
+        Dictionary<string, ModelProviderState> chatBackendStates,
         ThreadSelectionContext threadSelection,
         ModelProviderSelectorStateStore selectorState,
         ThreadCommandContext commandContext,
@@ -68,7 +68,7 @@ internal sealed class ThreadCommandCoordinator
         WorkThreadRuntimeService runtimeService,
         CatalogOptions catalogOptions,
         IReadOnlyList<ModelProviderDescriptor> backendDescriptors,
-        Dictionary<string, ChatBackendState> chatBackendStates,
+        Dictionary<string, ModelProviderState> chatBackendStates,
         ThreadSelectionContext threadSelection,
         ModelProviderSelectorStateStore selectorState,
         ThreadCommandContext commandContext,
@@ -156,7 +156,7 @@ internal sealed class ThreadCommandCoordinator
 
             _commandContext.ClearDraftInput();
         }
-        else if (!IsModelProviderReady(new AgentBackendId(thread.BackendId)))
+        else if (!IsModelProviderReady(new ModelProviderId(thread.BackendId)))
         {
             _commandContext.SetReadyStatusForCurrentSelection();
             return;
@@ -228,7 +228,7 @@ internal sealed class ThreadCommandCoordinator
             return;
         }
 
-        if (!IsModelProviderReady(new AgentBackendId(thread.BackendId)))
+        if (!IsModelProviderReady(new ModelProviderId(thread.BackendId)))
         {
             _commandContext.SetReadyStatusForCurrentSelection();
             return;
@@ -383,7 +383,7 @@ internal sealed class ThreadCommandCoordinator
             return;
         }
 
-        if (!IsModelProviderReady(backendId))
+        if (!IsModelProviderReady(new ModelProviderId(backendId.Value)))
         {
             _commandContext.SetReadyStatusForCurrentSelection();
             return;
@@ -416,16 +416,20 @@ internal sealed class ThreadCommandCoordinator
         }
     }
 
-    private bool IsModelProviderReady(AgentBackendId backendId)
+    private bool IsModelProviderReady(ModelProviderId providerId)
     {
-        return _chatBackendStates.TryGetValue(backendId.Value, out var state) &&
-               state.Availability == ChatBackendAvailability.Ready;
+        return _chatBackendStates.TryGetValue(providerId.Value, out var state) &&
+               state.Availability == ModelProviderAvailability.Ready;
     }
 
     private bool CurrentPromptModelSupportsImages(WorkThreadDescriptor? thread, OpenThreadState? tab)
     {
-        var backendId = tab?.BackendId ?? (thread is not null ? new AgentBackendId(thread.BackendId) : ResolveSelectedBackendId());
-        if (!_chatBackendStates.TryGetValue(backendId.Value, out var backendState))
+        var providerId = tab is not null
+            ? new ModelProviderId(tab.BackendId.Value)
+            : thread is not null
+                ? new ModelProviderId(thread.BackendId)
+                : ResolveSelectedProviderId();
+        if (!_chatBackendStates.TryGetValue(providerId.Value, out var backendState))
         {
             return false;
         }
@@ -436,21 +440,21 @@ internal sealed class ThreadCommandCoordinator
             : null;
         model ??= ChatBackendPresentation.GetSelectedModel(backendState) ??
             (backendState.Models.Count == 1 ? backendState.Models[0] : null);
-        return AgentModelCapabilityHelper.SupportsImageInput(backendId, model);
+        return AgentModelCapabilityHelper.SupportsImageInput(new AgentBackendId(providerId.Value), model);
     }
 
-    private AgentBackendId ResolveSelectedBackendId()
+    private ModelProviderId ResolveSelectedProviderId()
     {
         var backendIndex = UiDispatch.Invoke(_selectorState.GetUiDispatcher(), () => _selectorState.GetSelectedModelProviderIndex());
         var backendOptions = ChatBackendPresentation.BuildBackendOptions(_backendDescriptors);
         if (backendIndex is { } index && (uint)index < (uint)backendOptions.Count)
         {
-            return new AgentBackendId(backendOptions[index].ProviderId.Value);
+            return backendOptions[index].ProviderId;
         }
 
-        return _chatBackendStates.Values.FirstOrDefault(static state => state.Availability == ChatBackendAvailability.Ready) is { } readyState
-            ? new AgentBackendId(readyState.ProviderId.Value)
-            : AgentBackendIds.Codex;
+        return _chatBackendStates.Values.FirstOrDefault(static state => state.Availability == ModelProviderAvailability.Ready) is { } readyState
+            ? readyState.ProviderId
+            : ModelProviderIds.Codex;
     }
 
 }

@@ -11,7 +11,7 @@ namespace CodeAlta.Views;
 
 internal sealed class ModelCatalogCoordinator
 {
-    private readonly IReadOnlyDictionary<string, ChatBackendState> _chatBackendStates;
+    private readonly IReadOnlyDictionary<string, ModelProviderState> _chatBackendStates;
     private readonly ModelProviderSelectorCoordinator _modelProviderSelectorCoordinator;
     private readonly Func<WorkThreadDescriptor?> _getSelectedThread;
     private readonly Func<string, OpenThreadState?> _findOpenThread;
@@ -23,7 +23,7 @@ internal sealed class ModelCatalogCoordinator
     private readonly Action<string, StatusTone> _setStatus;
 
     public ModelCatalogCoordinator(
-        IReadOnlyDictionary<string, ChatBackendState> chatBackendStates,
+        IReadOnlyDictionary<string, ModelProviderState> chatBackendStates,
         ModelProviderSelectorCoordinator modelProviderSelectorCoordinator,
         Func<WorkThreadDescriptor?> getSelectedThread,
         Func<string, OpenThreadState?> findOpenThread,

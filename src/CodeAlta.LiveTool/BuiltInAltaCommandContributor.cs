@@ -2095,12 +2095,15 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
     private static async ValueTask<int> HandleModelListAsync(AltaCommandContext context, ModelListOptions options)
     {
-        if (!context.TryGetRequired<AgentHub>(nameof(AgentHub), out var agentHub))
+        if (!context.TryGetRequired<IModelProviderInitializationService>(nameof(IModelProviderInitializationService), out var providerInitializationService))
         {
             return AltaExitCodes.ServiceUnavailable;
         }
 
-        var providers = agentHub.ListRegisteredBackends()
+        var providerIds = context.Services.Get<IModelProviderRegistry>()?.ListProviders()
+            .Select(static descriptor => descriptor.ProviderId)
+            ?? providerInitializationService.CurrentStates.Select(static state => state.ProviderId);
+        var providers = providerIds
             .Where(id => string.IsNullOrWhiteSpace(options.Provider) || string.Equals(id.Value, options.Provider, StringComparison.OrdinalIgnoreCase))
             .OrderBy(static id => id.Value, StringComparer.OrdinalIgnoreCase)
             .ToArray();
@@ -2116,7 +2119,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             IReadOnlyList<AgentModelInfo> models;
             try
             {
-                models = await agentHub.ListModelsAsync(provider, context.CancellationToken).ConfigureAwait(false);
+                models = await providerInitializationService.GetModelsAsync(provider, context.CancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is KeyNotFoundException or InvalidOperationException or NotSupportedException)
             {
@@ -2165,16 +2168,16 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return UsageError(context, "usage.invalidModelRef", error!, "alta model show");
         }
 
-        if (!context.TryGetRequired<AgentHub>(nameof(AgentHub), out var agentHub))
+        if (!context.TryGetRequired<IModelProviderInitializationService>(nameof(IModelProviderInitializationService), out var providerInitializationService))
         {
             return AltaExitCodes.ServiceUnavailable;
         }
 
-        var provider = new AgentBackendId(selection.ProviderKey);
+        var provider = new ModelProviderId(selection.ProviderKey);
         IReadOnlyList<AgentModelInfo> models;
         try
         {
-            models = await agentHub.ListModelsAsync(provider, context.CancellationToken).ConfigureAwait(false);
+            models = await providerInitializationService.GetModelsAsync(provider, context.CancellationToken).ConfigureAwait(false);
         }
         catch (KeyNotFoundException)
         {
@@ -2462,7 +2465,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
     private static async Task<ModelResolutionResult> ValidateAndCompleteModelSelectionAsync(AltaCommandContext context, AltaModelSelection selection, AgentReasoningEffort? requestedReasoning, string commandPath)
     {
-        if (context.Services.Get<AgentHub>() is not { } agentHub || string.IsNullOrWhiteSpace(selection.ModelId))
+        if (context.Services.Get<IModelProviderInitializationService>() is not { } providerInitializationService || string.IsNullOrWhiteSpace(selection.ModelId))
         {
             return ModelResolutionResult.Success(selection);
         }
@@ -2470,7 +2473,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         IReadOnlyList<AgentModelInfo> models;
         try
         {
-            models = await agentHub.ListModelsAsync(new AgentBackendId(selection.ProviderKey), context.CancellationToken).ConfigureAwait(false);
+            models = await providerInitializationService.GetModelsAsync(new ModelProviderId(selection.ProviderKey), context.CancellationToken).ConfigureAwait(false);
         }
         catch (KeyNotFoundException)
         {

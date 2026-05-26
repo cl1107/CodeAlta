@@ -292,7 +292,7 @@ public sealed class ArchitectureGuardrailTests
         {
             "BackendId",
             "SelectedBackend",
-            "ChatBackendState",
+            "ModelProviderState",
         };
         var matches = Directory
             .EnumerateFiles(codeAltaRoot, "*.cs", SearchOption.AllDirectories)
@@ -497,7 +497,7 @@ public sealed class ArchitectureGuardrailTests
                 entry.RelativePath.EndsWith("State.cs", StringComparison.Ordinal) ||
                 entry.RelativePath.StartsWith("Models/", StringComparison.Ordinal) ||
                 string.Equals(entry.RelativePath, "App/ICodeAltaShell.cs", StringComparison.Ordinal))
-            .Where(static entry => Regex.IsMatch(entry.Content, @"\bBackend(?:Id)?\b|ChatBackendState|SelectedBackend"))
+            .Where(static entry => Regex.IsMatch(entry.Content, @"\bBackend(?:Id)?\b|ModelProviderState|SelectedBackend"))
             .Select(static entry => entry.RelativePath)
             .Where(file => !allowedLegacyFiles.Contains(file))
             .OrderBy(static file => file, StringComparer.Ordinal)
@@ -529,9 +529,7 @@ public sealed class ArchitectureGuardrailTests
             "App/ThreadPromptDraftPersistenceCoordinator.cs:83:_ = PersistPromptDraftAsync(threadId, normalizedPrompt, cancellationSource);",
             "App/ThreadHistoryCoordinator.cs:103:await Task.Run(",
             "App/ThreadHistoryCoordinator.cs:478:var loadTask = Task.Run(() => LoadCoreAsync(thread, tab, cancellationToken));",
-            "App/ThreadRuntimeEventCoordinator.cs:232:Task.Run(async () =>",
             "App/ThreadRuntimeEventCoordinator.cs:255:Task.Run(async () =>",
-            "App/ThreadRuntimeEventCoordinator.cs:461:_ = InvalidateProjectFileSearchAsync(thread.WorkingDirectory);",
             "App/ThreadRuntimeEventCoordinator.cs:484:_ = InvalidateProjectFileSearchAsync(thread.WorkingDirectory);",
             "Presentation/Editing/FileEditorTab.cs:223:_ = RefreshExternalStateAsync();",
             "Presentation/Editing/ProjectFileOpenDialogController.cs:217:_ = AcceptSelectedAsync(selected);",
@@ -1430,8 +1428,8 @@ public sealed class ArchitectureGuardrailTests
         var appSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "App", "CodeAltaApp.cs"));
 
         Assert.IsTrue(appSource.Contains("_chatBackendInitializationCoordinator.InitializeAsync", StringComparison.Ordinal));
-        Assert.IsFalse(appSource.Contains("private async Task RefreshChatBackendStateAsync(", StringComparison.Ordinal));
-        Assert.IsFalse(appSource.Contains("internal static (ChatBackendAvailability Availability, string StatusMessage) ClassifyBackendInitializationFailure(", StringComparison.Ordinal));
+        Assert.IsFalse(appSource.Contains("private async Task RefreshModelProviderStateAsync(", StringComparison.Ordinal));
+        Assert.IsFalse(appSource.Contains("internal static (ModelProviderAvailability Availability, string StatusMessage) ClassifyBackendInitializationFailure(", StringComparison.Ordinal));
     }
 
     [TestMethod]

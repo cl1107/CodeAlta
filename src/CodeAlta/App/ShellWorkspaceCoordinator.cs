@@ -24,7 +24,7 @@ internal sealed class ShellWorkspaceCoordinator : IWorkspaceProjectionController
         CodeAltaShellViewModel shellViewModel,
         ThreadWorkspaceViewModel threadWorkspaceViewModel,
         SessionUsageViewModel sessionUsageViewModel,
-        Dictionary<string, ChatBackendState> chatBackendStates,
+        Dictionary<string, ModelProviderState> chatBackendStates,
         ThreadSelectionContext threadSelection,
         ShellWorkspaceContext workspaceContext)
     {

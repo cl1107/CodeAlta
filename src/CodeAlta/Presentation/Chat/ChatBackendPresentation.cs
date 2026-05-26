@@ -8,7 +8,7 @@ namespace CodeAlta.Presentation.Chat;
 
 internal static class ChatBackendPresentation
 {
-    public static Dictionary<string, ChatBackendState> CreateBackendStates()
+    public static Dictionary<string, ModelProviderState> CreateBackendStates()
     {
         return CreateBackendStates(
         [
@@ -17,14 +17,14 @@ internal static class ChatBackendPresentation
         ]);
     }
 
-    public static Dictionary<string, ChatBackendState> CreateBackendStates(
+    public static Dictionary<string, ModelProviderState> CreateBackendStates(
         IReadOnlyList<ModelProviderDescriptor> backendDescriptors)
     {
         ArgumentNullException.ThrowIfNull(backendDescriptors);
 
         return backendDescriptors.ToDictionary(
             static descriptor => descriptor.ProviderId.Value,
-            static descriptor => new ChatBackendState(descriptor.ProviderId, descriptor.DisplayName),
+            static descriptor => new ModelProviderState(descriptor.ProviderId, descriptor.DisplayName),
             StringComparer.OrdinalIgnoreCase);
     }
 
@@ -47,7 +47,7 @@ internal static class ChatBackendPresentation
             .ToList();
     }
 
-    public static List<ChatModelOption> BuildModelOptions(ChatBackendState backendState, string? selectedModelId = null)
+    public static List<ChatModelOption> BuildModelOptions(ModelProviderState backendState, string? selectedModelId = null)
     {
         ArgumentNullException.ThrowIfNull(backendState);
         var effectiveSelectedModelId = string.IsNullOrWhiteSpace(selectedModelId)
@@ -106,7 +106,7 @@ internal static class ChatBackendPresentation
         => adoptRequestedBackend ? requestedBackend : currentSelection;
 
     public static string BuildBackendStatusMarkup(
-        IEnumerable<ChatBackendState> backendStates,
+        IEnumerable<ModelProviderState> backendStates,
         ModelProviderId selectedProviderId,
         bool isInitializing)
     {
@@ -118,17 +118,17 @@ internal static class ChatBackendPresentation
             {
                 var tone = state.Availability switch
                 {
-                    ChatBackendAvailability.Ready => "success",
-                    ChatBackendAvailability.Unsupported or ChatBackendAvailability.Failed => "warning",
-                    ChatBackendAvailability.Connecting => "primary",
+                    ModelProviderAvailability.Ready => "success",
+                    ModelProviderAvailability.Unsupported or ModelProviderAvailability.Failed => "warning",
+                    ModelProviderAvailability.Probing => "primary",
                     _ => "muted",
                 };
                 var icon = state.Availability switch
                 {
-                    ChatBackendAvailability.Ready => $"{NerdFont.MdCheck}",
-                    ChatBackendAvailability.Unsupported => $"{NerdFont.CodWarning}",
-                    ChatBackendAvailability.Failed => $"{NerdFont.MdClose}",
-                    ChatBackendAvailability.Connecting => $"{NerdFont.MdTimerOutline}",
+                    ModelProviderAvailability.Ready => $"{NerdFont.MdCheck}",
+                    ModelProviderAvailability.Unsupported => $"{NerdFont.CodWarning}",
+                    ModelProviderAvailability.Failed => $"{NerdFont.MdClose}",
+                    ModelProviderAvailability.Probing => $"{NerdFont.MdTimerOutline}",
                     _ => $"{NerdFont.MdHelpBox}",
                 };
                 var selected = string.Equals(state.ProviderId.Value, selectedProviderId.Value, StringComparison.OrdinalIgnoreCase)
@@ -145,7 +145,7 @@ internal static class ChatBackendPresentation
     }
 
     public static string BuildProviderSummaryMarkup(
-        IEnumerable<ChatBackendState> backendStates,
+        IEnumerable<ModelProviderState> backendStates,
         bool isInitializing,
         IReadOnlyCollection<string>? configuredProviderKeys = null,
         int? configuredProviderCount = null)
@@ -168,12 +168,12 @@ internal static class ChatBackendPresentation
 
         var providerCount = configuredProviderCount ?? configuredKeySet?.Count ?? states.Length;
         var stateErrorCount = states.Count(state =>
-            state.Availability is ChatBackendAvailability.Unsupported or ChatBackendAvailability.Failed &&
+            state.Availability is ModelProviderAvailability.Unsupported or ModelProviderAvailability.Failed &&
             (configuredKeySet is null || configuredKeySet.Contains(state.ProviderId.Value)));
         var missingConfiguredCount = configuredKeySet?.Count(key =>
             !states.Any(state => string.Equals(state.ProviderId.Value, key, StringComparison.OrdinalIgnoreCase))) ?? 0;
         var errorCount = stateErrorCount + missingConfiguredCount;
-        var readyCount = states.Count(static state => state.Availability == ChatBackendAvailability.Ready);
+        var readyCount = states.Count(static state => state.Availability == ModelProviderAvailability.Ready);
         var activeLabel = readyCount == 1 ? "active provider" : "active providers";
         var activeTone = readyCount > 0 ? "success" : "muted";
         var activeIcon = readyCount > 0
@@ -241,7 +241,7 @@ internal static class ChatBackendPresentation
         return model?.DefaultReasoningEffort;
     }
 
-    public static string BuildReadyStatusMessage(ChatBackendState backendState)
+    public static string BuildReadyStatusMessage(ModelProviderState backendState)
     {
         ArgumentNullException.ThrowIfNull(backendState);
 
@@ -259,7 +259,7 @@ internal static class ChatBackendPresentation
         };
     }
 
-    public static string BuildUnsupportedBackendMessage(ChatBackendState backendState, string message)
+    public static string BuildUnsupportedBackendMessage(ModelProviderState backendState, string message)
     {
         ArgumentNullException.ThrowIfNull(backendState);
 
@@ -267,7 +267,7 @@ internal static class ChatBackendPresentation
         return $"{backendState.DisplayName} is unavailable: {trimmed}";
     }
 
-    public static string BuildFailedBackendMessage(ChatBackendState backendState, string message)
+    public static string BuildFailedBackendMessage(ModelProviderState backendState, string message)
     {
         ArgumentNullException.ThrowIfNull(backendState);
 
@@ -292,7 +292,7 @@ internal static class ChatBackendPresentation
         }
     }
 
-    internal static AgentModelInfo? GetSelectedModel(ChatBackendState backendState)
+    internal static AgentModelInfo? GetSelectedModel(ModelProviderState backendState)
     {
         return string.IsNullOrWhiteSpace(backendState.SelectedModelId)
             ? null

@@ -1,3 +1,4 @@
+using CodeAlta.Agent;
 using CodeAlta.App;
 using CodeAlta.Models;
 using CodeAlta.ViewModels;
@@ -510,11 +511,11 @@ internal sealed class AcpManagementDialog
         var runtimeModels = selected.RuntimeModels.Count == 0 ? "No runtime-discovered models." : string.Join(", ", selected.RuntimeModels);
         var runtimeState = selected.RuntimeAvailability switch
         {
-            ChatBackendAvailability.Ready => "Ready",
-            ChatBackendAvailability.Connecting => "Loading",
-            ChatBackendAvailability.Unsupported => "Unsupported",
-            ChatBackendAvailability.Failed => "Failed",
-            ChatBackendAvailability.Unknown or null => "Unknown",
+            ModelProviderAvailability.Ready => "Ready",
+            ModelProviderAvailability.Probing => "Loading",
+            ModelProviderAvailability.Unsupported => "Unsupported",
+            ModelProviderAvailability.Failed => "Failed",
+            ModelProviderAvailability.Unknown or null => "Unknown",
             _ => "Unknown",
         };
 
@@ -675,10 +676,10 @@ internal sealed class AcpManagementDialog
         };
         var runtimeMarkup = item.RuntimeAvailability switch
         {
-            ChatBackendAvailability.Ready => "[success]Ready[/]",
-            ChatBackendAvailability.Connecting => "[primary]Loading[/]",
-            ChatBackendAvailability.Unsupported => "[warning]Unsupported[/]",
-            ChatBackendAvailability.Failed => "[warning]Failed[/]",
+            ModelProviderAvailability.Ready => "[success]Ready[/]",
+            ModelProviderAvailability.Probing => "[primary]Loading[/]",
+            ModelProviderAvailability.Unsupported => "[warning]Unsupported[/]",
+            ModelProviderAvailability.Failed => "[warning]Failed[/]",
             _ => "[dim]-[/]",
         };
 

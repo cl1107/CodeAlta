@@ -1024,10 +1024,10 @@ public sealed class CodeAltaAppTests
 
         Assert.AreEqual(
             "Waiting for Codex to reconnect...",
-            PromptComposerProjectionBuilder.BuildPromptUnavailablePlaceholder(thread, "Codex", ChatBackendAvailability.Connecting, anyBackendReady: false));
+            PromptComposerProjectionBuilder.BuildPromptUnavailablePlaceholder(thread, "Codex", ModelProviderAvailability.Probing, anyBackendReady: false));
         Assert.AreEqual(
             "Configure model providers (Ctrl+G Ctrl+R) to start a thread...",
-            PromptComposerProjectionBuilder.BuildPromptUnavailablePlaceholder(null, "Codex", ChatBackendAvailability.Unsupported, anyBackendReady: false));
+            PromptComposerProjectionBuilder.BuildPromptUnavailablePlaceholder(null, "Codex", ModelProviderAvailability.Unsupported, anyBackendReady: false));
     }
 
     [TestMethod]
@@ -1049,22 +1049,22 @@ public sealed class CodeAltaAppTests
 
         Assert.AreEqual(
             "Reconnecting 'Review startup' to Codex. Prompt sending is temporarily unavailable.",
-            PromptComposerProjectionBuilder.BuildPromptUnavailableStatusText(thread, "Codex", ChatBackendAvailability.Connecting, anyBackendReady: false));
+            PromptComposerProjectionBuilder.BuildPromptUnavailableStatusText(thread, "Codex", ModelProviderAvailability.Probing, anyBackendReady: false));
         Assert.AreEqual(
             "No model provider is ready. Open Model Providers (Ctrl+G Ctrl+R) to configure one.",
-            PromptComposerProjectionBuilder.BuildPromptUnavailableStatusText(null, "Codex", ChatBackendAvailability.Unsupported, anyBackendReady: false));
+            PromptComposerProjectionBuilder.BuildPromptUnavailableStatusText(null, "Codex", ModelProviderAvailability.Unsupported, anyBackendReady: false));
     }
 
     [TestMethod]
     public void ClassifyBackendInitializationFailure_TreatsMissingExecutableAsUnsupported()
     {
-        var backendState = new ChatBackendState(ModelProviderIds.Codex, "Codex");
+        var backendState = new ModelProviderState(ModelProviderIds.Codex, "Codex");
 
         var result = ChatBackendInitializationCoordinator.ClassifyFailure(
             backendState,
             new FileNotFoundException("codex executable was not found"));
 
-        Assert.AreEqual(ChatBackendAvailability.Unsupported, result.Availability);
+        Assert.AreEqual(ModelProviderAvailability.Unsupported, result.Availability);
         StringAssert.Contains(result.StatusMessage, "Codex is unavailable");
     }
 
@@ -2156,7 +2156,7 @@ public sealed class CodeAltaAppTests
     [TestMethod]
     public void BuildModelOptions_PreservesSelectedModelMissingFromCatalog()
     {
-        var backendState = new ChatBackendState(new ModelProviderId("codex"), "Codex subscription")
+        var backendState = new ModelProviderState(new ModelProviderId("codex"), "Codex subscription")
         {
             SelectedModelId = "gpt-5.5",
         };
@@ -2172,7 +2172,7 @@ public sealed class CodeAltaAppTests
     [TestMethod]
     public void BuildModelOptions_FallsBackToIdWhenDisplayNameIsBlank()
     {
-        var backendState = new ChatBackendState(new ModelProviderId("qwen"), "Qwen");
+        var backendState = new ModelProviderState(new ModelProviderId("qwen"), "Qwen");
         backendState.Models.Add(new AgentModelInfo("qwen3-flash", DisplayName: " "));
 
         var options = ChatBackendPresentation.BuildModelOptions(backendState);
@@ -2199,7 +2199,7 @@ public sealed class CodeAltaAppTests
     [TestMethod]
     public void BuildModelOptions_UsesSelectedModelWhenCatalogIsEmpty()
     {
-        var backendState = new ChatBackendState(new ModelProviderId("codex"), "Codex subscription")
+        var backendState = new ModelProviderState(new ModelProviderId("codex"), "Codex subscription")
         {
             SelectedModelId = "gpt-5.5",
         };
@@ -2263,14 +2263,14 @@ public sealed class CodeAltaAppTests
     {
         var states = new[]
         {
-            new ChatBackendState(ModelProviderIds.Codex, "Codex")
+            new ModelProviderState(ModelProviderIds.Codex, "Codex")
             {
-                Availability = ChatBackendAvailability.Ready,
+                Availability = ModelProviderAvailability.Ready,
                 StatusMessage = "Connected · 2 models",
             },
-            new ChatBackendState(ModelProviderIds.Copilot, "Copilot")
+            new ModelProviderState(ModelProviderIds.Copilot, "Copilot")
             {
-                Availability = ChatBackendAvailability.Unsupported,
+                Availability = ModelProviderAvailability.Unsupported,
                 StatusMessage = "Copilot is unavailable: CLI not found.",
             },
         };
@@ -2287,13 +2287,13 @@ public sealed class CodeAltaAppTests
     {
         var states = new[]
         {
-            new ChatBackendState(ModelProviderIds.Codex, "Codex")
+            new ModelProviderState(ModelProviderIds.Codex, "Codex")
             {
-                Availability = ChatBackendAvailability.Ready,
+                Availability = ModelProviderAvailability.Ready,
             },
-            new ChatBackendState(ModelProviderIds.Copilot, "Copilot")
+            new ModelProviderState(ModelProviderIds.Copilot, "Copilot")
             {
-                Availability = ChatBackendAvailability.Failed,
+                Availability = ModelProviderAvailability.Failed,
             },
         };
 
@@ -2309,13 +2309,13 @@ public sealed class CodeAltaAppTests
     {
         var states = new[]
         {
-            new ChatBackendState(ModelProviderIds.Codex, "Codex")
+            new ModelProviderState(ModelProviderIds.Codex, "Codex")
             {
-                Availability = ChatBackendAvailability.Ready,
+                Availability = ModelProviderAvailability.Ready,
             },
-            new ChatBackendState(ModelProviderIds.Copilot, "Copilot")
+            new ModelProviderState(ModelProviderIds.Copilot, "Copilot")
             {
-                Availability = ChatBackendAvailability.Failed,
+                Availability = ModelProviderAvailability.Failed,
             },
         };
 
@@ -2334,13 +2334,13 @@ public sealed class CodeAltaAppTests
     {
         var states = new[]
         {
-            new ChatBackendState(ModelProviderIds.Codex, "Codex")
+            new ModelProviderState(ModelProviderIds.Codex, "Codex")
             {
-                Availability = ChatBackendAvailability.Ready,
+                Availability = ModelProviderAvailability.Ready,
             },
-            new ChatBackendState(ModelProviderIds.Copilot, "Copilot")
+            new ModelProviderState(ModelProviderIds.Copilot, "Copilot")
             {
-                Availability = ChatBackendAvailability.Failed,
+                Availability = ModelProviderAvailability.Failed,
             },
         };
 

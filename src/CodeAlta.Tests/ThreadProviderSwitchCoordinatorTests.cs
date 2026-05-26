@@ -47,7 +47,7 @@ public sealed class ThreadProviderSwitchCoordinatorTests
         var switched = await coordinator.SwitchThreadProviderAsync(
             thread,
             tabState,
-            new AgentBackendId("anthropic")).ConfigureAwait(false);
+            new ModelProviderId("anthropic")).ConfigureAwait(false);
 
         Assert.IsTrue(switched);
         Assert.AreEqual("019e1584", thread.ThreadId, "Switching providers must not rekey the open thread/tab.");
@@ -86,7 +86,7 @@ public sealed class ThreadProviderSwitchCoordinatorTests
         var switched = await coordinator.SwitchThreadProviderAsync(
             thread,
             tabState,
-            new AgentBackendId("anthropic")).ConfigureAwait(false);
+            new ModelProviderId("anthropic")).ConfigureAwait(false);
 
         Assert.IsTrue(switched);
         Assert.AreEqual("native-session", thread.ThreadId);
@@ -121,7 +121,7 @@ public sealed class ThreadProviderSwitchCoordinatorTests
         var switched = await coordinator.SwitchThreadProviderAsync(
             thread,
             tabState,
-            new AgentBackendId("anthropic")).ConfigureAwait(false);
+            new ModelProviderId("anthropic")).ConfigureAwait(false);
 
         Assert.IsTrue(switched);
         Assert.IsTrue(observedTargetDuringDetach, "Refreshes raised while the previous session is detached must not restore the old provider selection.");
@@ -153,7 +153,7 @@ public sealed class ThreadProviderSwitchCoordinatorTests
         var switched = await coordinator.SwitchThreadProviderAsync(
             thread,
             tabState,
-            new AgentBackendId("anthropic")).ConfigureAwait(false);
+            new ModelProviderId("anthropic")).ConfigureAwait(false);
 
         Assert.IsTrue(switched);
         Assert.AreEqual("claude-sonnet-4", tabState.ModelId);
@@ -178,7 +178,7 @@ public sealed class ThreadProviderSwitchCoordinatorTests
         var tabState = CreateTabState(thread, "openai", "gpt-4.1");
 
         Assert.IsTrue(coordinator.CanSelectThreadProvider(thread, tabState));
-        Assert.IsTrue(coordinator.CanSwitchThreadProvider(thread, tabState, AgentBackendIds.Codex));
+        Assert.IsTrue(coordinator.CanSwitchThreadProvider(thread, tabState, ModelProviderIds.Codex));
     }
 
     private static void WriteProviderConfig(string root)
@@ -199,9 +199,9 @@ public sealed class ThreadProviderSwitchCoordinatorTests
             """);
     }
 
-    private static Dictionary<string, ChatBackendState> CreateBackendStates(bool includeNative = false)
+    private static Dictionary<string, ModelProviderState> CreateBackendStates(bool includeNative = false)
     {
-        var states = new Dictionary<string, ChatBackendState>(StringComparer.OrdinalIgnoreCase)
+        var states = new Dictionary<string, ModelProviderState>(StringComparer.OrdinalIgnoreCase)
         {
             ["openai"] = ReadyState("openai", "OpenAI"),
             ["codex"] = ReadyState("codex", "Codex ChatGPT subscription"),
@@ -215,11 +215,11 @@ public sealed class ThreadProviderSwitchCoordinatorTests
         return states;
     }
 
-    private static ChatBackendState ReadyState(string backendId, string displayName)
+    private static ModelProviderState ReadyState(string backendId, string displayName)
     {
-        var state = new ChatBackendState(new ModelProviderId(backendId), displayName)
+        var state = new ModelProviderState(new ModelProviderId(backendId), displayName)
         {
-            Availability = ChatBackendAvailability.Ready,
+            Availability = ModelProviderAvailability.Ready,
         };
         if (string.Equals(backendId, "anthropic", StringComparison.OrdinalIgnoreCase))
         {

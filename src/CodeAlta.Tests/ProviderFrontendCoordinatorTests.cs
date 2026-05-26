@@ -16,9 +16,9 @@ public sealed class ProviderFrontendCoordinatorTests
             ProviderKey = "copilot",
             ProviderType = "copilot",
         };
-        var backendState = new ChatBackendState(ModelProviderIds.Copilot, "Copilot")
+        var backendState = new ModelProviderState(ModelProviderIds.Copilot, "Copilot")
         {
-            Availability = ChatBackendAvailability.Ready,
+            Availability = ModelProviderAvailability.Ready,
             StatusMessage = "Ready",
         };
         backendState.Models.Add(new AgentModelInfo("gpt-4.1"));
@@ -26,7 +26,7 @@ public sealed class ProviderFrontendCoordinatorTests
 
         var reused = ProviderFrontendCoordinator.TryBuildActiveBackendTestResult(
             definition,
-            new Dictionary<string, ChatBackendState>(StringComparer.OrdinalIgnoreCase)
+            new Dictionary<string, ModelProviderState>(StringComparer.OrdinalIgnoreCase)
             {
                 [definition.ProviderKey] = backendState,
             },
@@ -46,15 +46,15 @@ public sealed class ProviderFrontendCoordinatorTests
             ProviderKey = "codex",
             ProviderType = "codex",
         };
-        var backendState = new ChatBackendState(ModelProviderIds.Codex, "Codex")
+        var backendState = new ModelProviderState(ModelProviderIds.Codex, "Codex")
         {
-            Availability = ChatBackendAvailability.Failed,
+            Availability = ModelProviderAvailability.Failed,
             StatusMessage = "Codex startup failed.",
         };
 
         var reused = ProviderFrontendCoordinator.TryBuildActiveBackendTestResult(
             definition,
-            new Dictionary<string, ChatBackendState>(StringComparer.OrdinalIgnoreCase)
+            new Dictionary<string, ModelProviderState>(StringComparer.OrdinalIgnoreCase)
             {
                 [definition.ProviderKey] = backendState,
             },
@@ -76,7 +76,7 @@ public sealed class ProviderFrontendCoordinatorTests
         };
         var reused = ProviderFrontendCoordinator.TryBuildActiveBackendTestResult(
             definition,
-            new Dictionary<string, ChatBackendState>(StringComparer.OrdinalIgnoreCase),
+            new Dictionary<string, ModelProviderState>(StringComparer.OrdinalIgnoreCase),
             out var result);
 
         Assert.IsFalse(reused);
