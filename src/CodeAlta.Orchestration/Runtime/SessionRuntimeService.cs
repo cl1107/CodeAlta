@@ -102,8 +102,8 @@ public sealed class SessionRuntimeService : IAsyncDisposable
     /// <summary>
     /// Lists recoverable user-facing sessions from the session catalog.
     /// </summary>
-    public async Task<IReadOnlyList<SessionViewDescriptor>> ListRecoverableSessionsAsync(CancellationToken cancellationToken = default)
-        => await CollectRecoverableSessionsAsync(shouldListProviderSessions: null, cancellationToken).ConfigureAwait(false);
+    public IAsyncEnumerable<SessionViewDescriptor> ListRecoverableSessionsAsync(CancellationToken cancellationToken = default)
+        => ListRecoverableSessionsAsync(shouldListProviderSessions: null, cancellationToken);
 
     /// <summary>
     /// Lists recoverable user-facing sessions from the session catalog.
@@ -111,19 +111,8 @@ public sealed class SessionRuntimeService : IAsyncDisposable
     /// <param name="shouldListProviderSessions">Optional predicate that returns whether a provider's sessions should be listed.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The recoverable user-facing sessions.</returns>
-    public async Task<IReadOnlyList<SessionViewDescriptor>> ListRecoverableSessionsAsync(
+    public async IAsyncEnumerable<SessionViewDescriptor> ListRecoverableSessionsAsync(
         Func<ModelProviderId, bool>? shouldListProviderSessions,
-        CancellationToken cancellationToken = default)
-        => await CollectRecoverableSessionsAsync(shouldListProviderSessions, cancellationToken).ConfigureAwait(false);
-
-    /// <summary>
-    /// Streams recoverable user-facing sessions from the session catalog.
-    /// </summary>
-    /// <param name="shouldListProviderSessions">Optional predicate that returns whether a provider's sessions should be listed.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The recoverable user-facing sessions as they are loaded.</returns>
-    public async IAsyncEnumerable<SessionViewDescriptor> StreamRecoverableSessionsAsync(
-        Func<ModelProviderId, bool>? shouldListProviderSessions = null,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var projects = await _projectCatalog.LoadAsync(cancellationToken).ConfigureAwait(false);
@@ -144,21 +133,6 @@ public sealed class SessionRuntimeService : IAsyncDisposable
             await ApplyPersistedThreadLocalStateAsync(thread, cancellationToken).ConfigureAwait(false);
             yield return thread;
         }
-    }
-
-    private async Task<IReadOnlyList<SessionViewDescriptor>> CollectRecoverableSessionsAsync(
-        Func<ModelProviderId, bool>? shouldListProviderSessions,
-        CancellationToken cancellationToken)
-    {
-        var threads = new List<SessionViewDescriptor>();
-        await foreach (var thread in StreamRecoverableSessionsAsync(shouldListProviderSessions, cancellationToken).ConfigureAwait(false))
-        {
-            threads.Add(thread);
-        }
-
-        return threads
-            .OrderByDescending(static thread => thread.LastActiveAt)
-            .ToArray();
     }
 
     private async Task ApplyPersistedThreadLocalStateAsync(
@@ -1632,8 +1606,14 @@ public sealed class SessionRuntimeService : IAsyncDisposable
         SessionViewDescriptor? thread = null;
         try
         {
-            var threads = await ListRecoverableSessionsAsync(cancellationToken).ConfigureAwait(false);
-            thread = threads.FirstOrDefault(candidate => string.Equals(candidate.ThreadId, threadId, StringComparison.OrdinalIgnoreCase));
+            await foreach (var candidate in ListRecoverableSessionsAsync(cancellationToken).ConfigureAwait(false))
+            {
+                if (string.Equals(candidate.ThreadId, threadId, StringComparison.OrdinalIgnoreCase))
+                {
+                    thread = candidate;
+                    break;
+                }
+            }
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {

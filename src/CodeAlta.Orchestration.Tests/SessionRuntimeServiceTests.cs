@@ -30,7 +30,7 @@ public sealed class SessionRuntimeServiceTests
                 UpdatedAt = createdAt.AddMinutes(1),
             }).ConfigureAwait(false);
 
-        var threads = await runtime.ListRecoverableSessionsAsync().ConfigureAwait(false);
+        var threads = await CollectAsync(runtime.ListRecoverableSessionsAsync()).ConfigureAwait(false);
 
         Assert.AreEqual(1, threads.Count);
         Assert.AreEqual("session-1", threads[0].ThreadId);
@@ -63,7 +63,7 @@ public sealed class SessionRuntimeServiceTests
                 UpdatedAt = createdAt.AddMinutes(1),
             }).ConfigureAwait(false);
 
-        var threads = await runtime.ListRecoverableSessionsAsync().ConfigureAwait(false);
+        var threads = await CollectAsync(runtime.ListRecoverableSessionsAsync()).ConfigureAwait(false);
 
         Assert.AreEqual(1, threads.Count);
         Assert.AreEqual(0, backend.StartAttempts);
@@ -91,6 +91,18 @@ public sealed class SessionRuntimeServiceTests
         Assert.AreEqual(1, backend.CreateAttempts);
         Assert.AreEqual("thread-1", backend.CreatedThreadIds.Single());
         Assert.AreEqual(0, history.Count);
+    }
+
+    private static async Task<IReadOnlyList<SessionViewDescriptor>> CollectAsync(
+        IAsyncEnumerable<SessionViewDescriptor> sessions)
+    {
+        var results = new List<SessionViewDescriptor>();
+        await foreach (var session in sessions.ConfigureAwait(false))
+        {
+            results.Add(session);
+        }
+
+        return results;
     }
 
     private static SessionRuntimeService CreateRuntime(string root, AgentHub hub)

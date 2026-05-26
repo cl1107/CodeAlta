@@ -29,7 +29,7 @@ public sealed class CodeAltaShellControllerTests
         CollectionAssert.Contains(log, "Shell.Status:Refreshing project and thread catalog...:True:Info");
         CollectionAssert.Contains(log, "Importer.Import");
         CollectionAssert.Contains(log, "ProjectCatalog.Load");
-        CollectionAssert.Contains(log, "ThreadSource.Stream");
+        CollectionAssert.Contains(log, "ThreadSource.List");
         CollectionAssert.Contains(log, "Shell.ApplyRecoveredCatalogState:1:1:KeepMissing");
         CollectionAssert.Contains(log, "Shell.ApplyRecoveredCatalogState:1:1");
         CollectionAssert.Contains(log, "Shell.SetReadyStatus");
@@ -84,7 +84,7 @@ public sealed class CodeAltaShellControllerTests
         CollectionAssert.Contains(log, "Shell.SetInitialized:True");
         CollectionAssert.Contains(log, "Importer.Import");
         CollectionAssert.Contains(log, "ProjectCatalog.Load");
-        CollectionAssert.Contains(log, "ThreadSource.Stream");
+        CollectionAssert.Contains(log, "ThreadSource.List");
         CollectionAssert.Contains(log, "Shell.ApplyRecoveredCatalogState:1:1");
         CollectionAssert.Contains(log, "Shell.TrySchedulePendingStartupThreadRestore");
     }
@@ -150,12 +150,12 @@ public sealed class CodeAltaShellControllerTests
         await WaitUntilAsync(() => importer.FirstProgressReported.Task.IsCompleted).ConfigureAwait(false);
 
         Assert.IsFalse(initializationTask.IsCompleted, "Initialization should wait for provider imports before applying recovered sessions.");
-        Assert.IsFalse(log.Contains("ThreadSource.Stream"), "Recoverable session listing should not run once per provider progress update.");
+        Assert.IsFalse(log.Contains("ThreadSource.List"), "Recoverable session listing should not run once per provider progress update.");
 
         importer.AllowCompletion();
         await initializationTask.ConfigureAwait(false);
 
-        CollectionAssert.Contains(log, "ThreadSource.Stream");
+        CollectionAssert.Contains(log, "ThreadSource.List");
         CollectionAssert.Contains(log, "Shell.ApplyRecoveredCatalogState:1:2:KeepMissing");
         CollectionAssert.Contains(log, "Shell.ApplyRecoveredCatalogState:1:2");
         Assert.IsTrue(shell.ProviderSessionLoadStatuses.Count > 0);
@@ -197,12 +197,12 @@ public sealed class CodeAltaShellControllerTests
         Assert.IsFalse(initializationTask.IsCompleted, "The slow provider should still be initializing.");
         CollectionAssert.Contains(log, "ProgressImporter.ImportBackend:codex");
         CollectionAssert.Contains(log, "ProgressImporter.ImportBackend:slow");
-        Assert.IsFalse(log.Contains("ThreadSource.Stream"), "Recoverable session listing should not be coupled to individual provider startup progress.");
+        Assert.IsFalse(log.Contains("ThreadSource.List"), "Recoverable session listing should not be coupled to individual provider startup progress.");
 
         shell.CompleteBackendInitialization(slowBackendId);
         await initializationTask.ConfigureAwait(false);
 
-        CollectionAssert.Contains(log, "ThreadSource.Stream");
+        CollectionAssert.Contains(log, "ThreadSource.List");
         Assert.IsTrue(shell.ProviderSessionLoadStatuses.Count > 0);
         Assert.AreEqual(null, shell.ProviderSessionLoadStatuses.LastOrDefault());
     }
@@ -243,8 +243,8 @@ public sealed class CodeAltaShellControllerTests
 
         await controller.InitializeAsync(CancellationToken.None);
 
-        CollectionAssert.Contains(log, "ThreadSource.Stream");
-        CollectionAssert.DoesNotContain(log, "ThreadSource.List");
+        CollectionAssert.Contains(log, "ThreadSource.List");
+        Assert.AreEqual(1, log.Count(static entry => entry == "ThreadSource.List"));
         var finalCatalogApplication = log.Last(entry => entry.StartsWith("Shell.ApplyRecoveredCatalogState:", StringComparison.Ordinal));
         Assert.AreEqual("Shell.ApplyRecoveredCatalogState:1:9", finalCatalogApplication);
     }
@@ -650,7 +650,7 @@ public sealed class CodeAltaShellControllerTests
         Assert.AreEqual(thread.ThreadId, deleter.DeletedThreadIds.Single());
         Assert.IsFalse(log.Contains("Importer.Import"));
         Assert.IsFalse(log.Contains("ProjectCatalog.Load"));
-        Assert.IsFalse(log.Contains("ThreadSource.Stream"));
+        Assert.IsFalse(log.Contains("ThreadSource.List"));
         Assert.IsFalse(log.Contains("ThreadSource.List"));
     }
 
@@ -708,7 +708,7 @@ public sealed class CodeAltaShellControllerTests
         CollectionAssert.Contains(log, "ProjectCatalog.Save:project-1");
         Assert.IsFalse(log.Contains("Importer.Import"));
         Assert.IsFalse(log.Contains("ProjectCatalog.Load"));
-        Assert.IsFalse(log.Contains("ThreadSource.Stream"));
+        Assert.IsFalse(log.Contains("ThreadSource.List"));
         Assert.IsFalse(log.Contains("ThreadSource.List"));
     }
 
@@ -957,10 +957,10 @@ public sealed class CodeAltaShellControllerTests
         IReadOnlyList<SessionViewDescriptor> threads,
         IReadOnlyList<SessionViewDescriptor>? providerScopedThreads = null) : IRecoverableSessionSource
     {
-        public async IAsyncEnumerable<SessionViewDescriptor> StreamRecoverableSessionsAsync(
+        public async IAsyncEnumerable<SessionViewDescriptor> ListRecoverableSessionsAsync(
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
         {
-            log.Add("ThreadSource.Stream");
+            log.Add("ThreadSource.List");
             foreach (var thread in threads)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -969,37 +969,20 @@ public sealed class CodeAltaShellControllerTests
             }
         }
 
-        public async IAsyncEnumerable<SessionViewDescriptor> StreamRecoverableSessionsAsync(
+        public async IAsyncEnumerable<SessionViewDescriptor> ListRecoverableSessionsAsync(
             Func<ModelProviderId, bool>? shouldListProviderSessions,
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
         {
             var filteredThreads = (providerScopedThreads ?? threads)
                 .Where(thread => shouldListProviderSessions?.Invoke(new ModelProviderId(thread.BackendId)) != false)
                 .ToArray();
-            LogBackendList(filteredThreads, "ThreadSource.Stream");
+            LogBackendList(filteredThreads, "ThreadSource.List");
             foreach (var thread in filteredThreads)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 await Task.Yield();
                 yield return thread;
             }
-        }
-
-        public Task<IReadOnlyList<SessionViewDescriptor>> ListRecoverableSessionsAsync(CancellationToken cancellationToken)
-        {
-            log.Add("ThreadSource.List");
-            return Task.FromResult(threads);
-        }
-
-        public Task<IReadOnlyList<SessionViewDescriptor>> ListRecoverableSessionsAsync(
-            Func<ModelProviderId, bool>? shouldListProviderSessions,
-            CancellationToken cancellationToken)
-        {
-            var filteredThreads = threads
-                .Where(thread => shouldListProviderSessions?.Invoke(new ModelProviderId(thread.BackendId)) != false)
-                .ToArray();
-            LogBackendList(filteredThreads, "ThreadSource.List");
-            return Task.FromResult<IReadOnlyList<SessionViewDescriptor>>(filteredThreads);
         }
 
         private void LogBackendList(IReadOnlyList<SessionViewDescriptor> filteredThreads, string prefix)

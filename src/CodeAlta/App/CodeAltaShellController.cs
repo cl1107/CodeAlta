@@ -210,7 +210,10 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
 
-        var threads = await _recoverableSessionSource.ListRecoverableSessionsAsync(cancellationToken).ConfigureAwait(false);
+        var threads = await CollectRecoverableSessionsAsync(
+                _recoverableSessionSource.ListRecoverableSessionsAsync(cancellationToken),
+                cancellationToken)
+            .ConfigureAwait(false);
         return threads
             .Where(thread =>
                 string.Equals(thread.ProjectRef, projectId, StringComparison.OrdinalIgnoreCase))
@@ -238,7 +241,10 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
 
-        var threads = await _recoverableSessionSource.ListRecoverableSessionsAsync(cancellationToken).ConfigureAwait(false);
+        var threads = await CollectRecoverableSessionsAsync(
+                _recoverableSessionSource.ListRecoverableSessionsAsync(cancellationToken),
+                cancellationToken)
+            .ConfigureAwait(false);
         return await DeleteSessionAsync(threadId, threads, cancellationToken).ConfigureAwait(false);
     }
 
@@ -560,19 +566,19 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
         Func<ModelProviderId, bool>? shouldListProviderSessions,
         CancellationToken cancellationToken)
     {
-        var recoveredThreads = new Dictionary<string, SessionViewDescriptor>(StringComparer.OrdinalIgnoreCase);
+        var recoveredSessions = new Dictionary<string, SessionViewDescriptor>(StringComparer.OrdinalIgnoreCase);
         using var applyGate = new SemaphoreSlim(initialCount: 1, maxCount: 1);
         var appliedAny = false;
-        var threads = shouldListProviderSessions is null
-            ? _recoverableSessionSource.StreamRecoverableSessionsAsync(cancellationToken)
-            : _recoverableSessionSource.StreamRecoverableSessionsAsync(shouldListProviderSessions, cancellationToken);
-        await foreach (var thread in threads.ConfigureAwait(false))
+        var sessions = shouldListProviderSessions is null
+            ? _recoverableSessionSource.ListRecoverableSessionsAsync(cancellationToken)
+            : _recoverableSessionSource.ListRecoverableSessionsAsync(shouldListProviderSessions, cancellationToken);
+        await foreach (var session in sessions.ConfigureAwait(false))
         {
             appliedAny = true;
-            await ApplyRecoveredThreadSnapshotAsync(
+            await ApplyRecoveredSessionSnapshotAsync(
                     projects,
-                    recoveredThreads,
-                    thread,
+                    recoveredSessions,
+                    session,
                     applyGate,
                     pruneMissingThreads: false,
                     cancellationToken)
@@ -591,20 +597,20 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
             return;
         }
 
-        await ApplyRecoveredThreadSnapshotAsync(
+        await ApplyRecoveredSessionSnapshotAsync(
                 projects,
-                recoveredThreads,
-                thread: null,
+                recoveredSessions,
+                session: null,
                 applyGate,
                 pruneMissingThreads: true,
                 cancellationToken)
             .ConfigureAwait(false);
     }
 
-    private async Task ApplyRecoveredThreadSnapshotAsync(
+    private async Task ApplyRecoveredSessionSnapshotAsync(
         IReadOnlyList<ProjectDescriptor> projects,
-        Dictionary<string, SessionViewDescriptor> recoveredThreads,
-        SessionViewDescriptor? thread,
+        Dictionary<string, SessionViewDescriptor> recoveredSessions,
+        SessionViewDescriptor? session,
         SemaphoreSlim applyGate,
         bool pruneMissingThreads,
         CancellationToken cancellationToken)
@@ -612,19 +618,19 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
         await applyGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (thread is not null)
+            if (session is not null)
             {
-                recoveredThreads[thread.ThreadId] = thread;
+                recoveredSessions[session.ThreadId] = session;
             }
 
-            var threads = recoveredThreads.Values
+            var sessions = recoveredSessions.Values
                 .OrderByDescending(static item => item.LastActiveAt)
                 .ToArray();
 
             await UiDispatcher.InvokeAsync(
                     () =>
                     {
-                        _shell.ApplyRecoveredCatalogState(projects, threads, pruneMissingThreads);
+                        _shell.ApplyRecoveredCatalogState(projects, sessions, pruneMissingThreads);
                         _shell.TrySchedulePendingStartupThreadRestore(CancellationToken.None);
                     })
                 .ConfigureAwait(false);
@@ -633,6 +639,20 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
         {
             applyGate.Release();
         }
+    }
+
+    private static async Task<IReadOnlyList<SessionViewDescriptor>> CollectRecoverableSessionsAsync(
+        IAsyncEnumerable<SessionViewDescriptor> sessions,
+        CancellationToken cancellationToken)
+    {
+        var results = new List<SessionViewDescriptor>();
+        await foreach (var session in sessions.ConfigureAwait(false))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            results.Add(session);
+        }
+
+        return results;
     }
 
     private void ReportProviderSessionLoadProgress(ProviderSessionLoadProgress progress)

@@ -45,7 +45,7 @@ internal sealed class AltaSessionQueryService : IAltaSessionQueryService
 
         if (runtime is not null)
         {
-            await foreach (var thread in runtime.StreamRecoverableSessionsAsync(cancellationToken: cancellationToken).ConfigureAwait(false))
+            await foreach (var thread in runtime.ListRecoverableSessionsAsync(cancellationToken: cancellationToken).ConfigureAwait(false))
             {
                 yield return await BuildSessionInfoAsync(runtime, threadCatalog, viewState, thread, cancellationToken).ConfigureAwait(false);
             }
