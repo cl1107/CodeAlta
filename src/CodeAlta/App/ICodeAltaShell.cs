@@ -7,9 +7,9 @@ namespace CodeAlta.App;
 
 internal interface ICodeAltaShell
 {
-    Task InitializeChatBackendsAsync(CancellationToken cancellationToken);
+    Task InitializeModelProvidersAsync(CancellationToken cancellationToken);
 
-    Task InitializeChatBackendAsync(AgentBackendId backendId, CancellationToken cancellationToken);
+    Task InitializeModelProviderAsync(ModelProviderId providerId, CancellationToken cancellationToken);
 
     void SetStatus(string message, bool showSpinner = false, StatusTone tone = StatusTone.Info);
 

@@ -116,7 +116,7 @@ public sealed class ThreadWorkspaceViewTests
         _ = view.CreateThreadTabContent("thread-2", new TextBlock("Second"));
 
         shellViewModel.StatusText = "first status";
-        workspaceViewModel.ModelProviderOptions = [new ChatBackendOption(new("codex"), "Codex")];
+        workspaceViewModel.ModelProviderOptions = [new ModelProviderOption(new("codex"), "Codex")];
         workspaceViewModel.SetPromptStripItems([CreatePromptStripItem("first-queued")], hasQueuedPrompts: true);
         promptComposerViewModel.PromptImageAttachmentVersion = 1;
         view.ActivateThreadTabContent("thread-1");
@@ -125,7 +125,7 @@ public sealed class ThreadWorkspaceViewTests
         firstPanel.PromptComposerViewModel.AlwaysEnqueue = true;
 
         shellViewModel.StatusText = "second status";
-        workspaceViewModel.ModelProviderOptions = [new ChatBackendOption(new("copilot"), "Copilot")];
+        workspaceViewModel.ModelProviderOptions = [new ModelProviderOption(new("copilot"), "Copilot")];
         workspaceViewModel.SetPromptStripItems([CreatePromptStripItem("second-queued")], hasQueuedPrompts: true);
         promptComposerViewModel.PromptImageAttachmentVersion = 5;
         view.ActivateThreadTabContent("thread-2");
@@ -150,7 +150,7 @@ public sealed class ThreadWorkspaceViewTests
     {
         var workspaceViewModel = new ThreadWorkspaceViewModel
         {
-            ModelProviderOptions = [new ChatBackendOption(new("codex"), "Codex")],
+            ModelProviderOptions = [new ModelProviderOption(new("codex"), "Codex")],
         };
         var view = CreateThreadWorkspaceView(workspaceViewModel: workspaceViewModel);
         _ = view.CreateThreadTabContent("thread-1", new TextBlock("Thread"));
@@ -159,11 +159,11 @@ public sealed class ThreadWorkspaceViewTests
         var removedPanel = GetPromptPanel(view, "thread-1");
 
         view.RemoveTabPage("thread-1");
-        workspaceViewModel.ModelProviderOptions = [new ChatBackendOption(new("copilot"), "Copilot")];
+        workspaceViewModel.ModelProviderOptions = [new ModelProviderOption(new("copilot"), "Copilot")];
         view.SyncModelProviderSelectorItems(workspaceViewModel);
 
-        Assert.AreEqual(1, removedPanel.ModelProviderSelectorView.ChatBackendSelect.Items.Count);
-        Assert.AreEqual("Codex", removedPanel.ModelProviderSelectorView.ChatBackendSelect.Items[0].Label);
+        Assert.AreEqual(1, removedPanel.ModelProviderSelectorView.ModelProviderSelect.Items.Count);
+        Assert.AreEqual("Codex", removedPanel.ModelProviderSelectorView.ModelProviderSelect.Items[0].Label);
     }
 
     [TestMethod]
@@ -172,7 +172,7 @@ public sealed class ThreadWorkspaceViewTests
         var shellViewModel = new CodeAltaShellViewModel();
         var workspaceViewModel = new ThreadWorkspaceViewModel
         {
-            ModelProviderOptions = [new ChatBackendOption(new("codex"), "Codex")],
+            ModelProviderOptions = [new ModelProviderOption(new("codex"), "Codex")],
             ModelOptions = [new ChatModelOption("gpt-5", "GPT-5")],
             ReasoningOptions = [new ChatReasoningOption(Agent.AgentReasoningEffort.High, "High")],
         };
@@ -181,7 +181,7 @@ public sealed class ThreadWorkspaceViewTests
 
         view.SyncModelProviderSelectorItems(workspaceViewModel);
 
-        var backendSelect = GetPrivateField<Select<ChatBackendOption>>(view, "ChatBackendSelect");
+        var backendSelect = GetPrivateField<Select<ModelProviderOption>>(view, "ModelProviderSelect");
         var modelSelect = GetPrivateField<Select<ChatModelOption>>(view, "ChatModelSelect");
         var reasoningSelect = GetPrivateField<Select<ChatReasoningOption>>(view, "ChatReasoningSelect");
 
@@ -194,8 +194,8 @@ public sealed class ThreadWorkspaceViewTests
 
         workspaceViewModel.ModelProviderOptions =
         [
-            new ChatBackendOption(new("codex"), "Codex"),
-            new ChatBackendOption(new("copilot"), "Copilot"),
+            new ModelProviderOption(new("codex"), "Codex"),
+            new ModelProviderOption(new("copilot"), "Copilot"),
         ];
         workspaceViewModel.ModelOptions = [new ChatModelOption("gpt-5.1", "GPT-5.1")];
         workspaceViewModel.ReasoningOptions = [new ChatReasoningOption(Agent.AgentReasoningEffort.Low, "Low")];
@@ -215,8 +215,8 @@ public sealed class ThreadWorkspaceViewTests
         {
             ModelProviderOptions =
             [
-                new ChatBackendOption(new("codex"), "Codex"),
-                new ChatBackendOption(new("copilot"), "Copilot"),
+                new ModelProviderOption(new("codex"), "Codex"),
+                new ModelProviderOption(new("copilot"), "Copilot"),
             ],
             SelectedModelProviderIndex = 1,
             ModelOptions =
@@ -245,7 +245,7 @@ public sealed class ThreadWorkspaceViewTests
 
         view.SyncModelProviderSelectorItems(workspaceViewModel);
 
-        var backendSelect = GetPrivateField<Select<ChatBackendOption>>(view, "ChatBackendSelect");
+        var backendSelect = GetPrivateField<Select<ModelProviderOption>>(view, "ModelProviderSelect");
         var modelSelect = GetPrivateField<Select<ChatModelOption>>(view, "ChatModelSelect");
         var reasoningSelect = GetPrivateField<Select<ChatReasoningOption>>(view, "ChatReasoningSelect");
         Assert.AreEqual(1, GetSelectSelectedIndexField(backendSelect));
@@ -309,7 +309,7 @@ public sealed class ThreadWorkspaceViewTests
     public void FocusModelProviderSelector_FocusesProviderSelect()
     {
         var view = CreateThreadWorkspaceView();
-        var backendSelect = GetPrivateField<Select<ChatBackendOption>>(view, "ChatBackendSelect");
+        var backendSelect = GetPrivateField<Select<ModelProviderOption>>(view, "ModelProviderSelect");
 
         using var terminalSession = Terminal.Open(new InMemoryTerminalBackend(new TerminalSize(120, 40)), new TerminalOptions { ImplicitStartInput = true }, force: true);
         var app = new TerminalApp(

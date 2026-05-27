@@ -328,8 +328,8 @@ public sealed class SessionRuntimeService : IAsyncDisposable
         {
             ThreadId = string.Empty,
             Kind = WorkThreadKind.GlobalThread,
-            BackendId = options.BackendId.Value,
-            ProviderKey = options.ProviderKey ?? options.BackendId.Value,
+            BackendId = options.ProviderId.Value,
+            ProviderKey = options.ProviderKey ?? options.ProviderId.Value,
             WorkingDirectory = options.WorkingDirectory,
             Title = string.IsNullOrWhiteSpace(title) ? "Global Thread" : title.Trim(),
             Status = WorkThreadStatus.Draft,
@@ -385,8 +385,8 @@ public sealed class SessionRuntimeService : IAsyncDisposable
         {
             ThreadId = string.Empty,
             Kind = WorkThreadKind.ProjectThread,
-            BackendId = options.BackendId.Value,
-            ProviderKey = options.ProviderKey ?? options.BackendId.Value,
+            BackendId = options.ProviderId.Value,
+            ProviderKey = options.ProviderKey ?? options.ProviderId.Value,
             ProjectRef = project.Id,
             WorkingDirectory = options.WorkingDirectory,
             Title = string.IsNullOrWhiteSpace(title) ? project.DisplayName : title.Trim(),
@@ -446,7 +446,8 @@ public sealed class SessionRuntimeService : IAsyncDisposable
 
         var project = await ResolveProjectAsync(thread, cancellationToken).ConfigureAwait(false);
         var instructions = _instructionTemplateProvider.BuildCoordinatorInstructions(thread, project);
-        var developerInstructions = UsesProviderManagedSkills(options.BackendId) ? null : instructions.DeveloperInstructions;
+        var providerBackendId = new AgentBackendId(options.ProviderId.Value);
+        var developerInstructions = UsesProviderManagedSkills(providerBackendId) ? null : instructions.DeveloperInstructions;
         var additionalDeveloperInstructions = AppendPromptPart(BuildParentNotificationGuidance(thread), options.AdditionalDeveloperInstructions);
         var tools = options.Tools;
 
@@ -471,8 +472,8 @@ public sealed class SessionRuntimeService : IAsyncDisposable
         }
 
         var previousThreadId = string.IsNullOrWhiteSpace(thread.ThreadId) ? null : thread.ThreadId;
-        var replacingDraftSession = previousThreadId is not null && ShouldReplaceDraftSession(thread, options.BackendId);
-        if (previousThreadId is null && CanCreateSessionWithRequestedThreadId(options.BackendId))
+        var replacingDraftSession = previousThreadId is not null && ShouldReplaceDraftSession(thread, providerBackendId);
+        if (previousThreadId is null && CanCreateSessionWithRequestedThreadId(providerBackendId))
         {
             thread.ThreadId = Guid.CreateVersion7().ToString();
         }
@@ -499,9 +500,9 @@ public sealed class SessionRuntimeService : IAsyncDisposable
             OnUserInputRequest = options.OnUserInputRequest,
         };
 
-        var startNewSession = previousThreadId is null || ShouldReplaceDraftSession(thread, options.BackendId);
+        var startNewSession = previousThreadId is null || ShouldReplaceDraftSession(thread, providerBackendId);
         var canStartReplacementSession = !startNewSession &&
-            await CanStartReplacementSessionForMissingResumeAsync(options.BackendId, cancellationToken).ConfigureAwait(false);
+            await CanStartReplacementSessionForMissingResumeAsync(providerBackendId, cancellationToken).ConfigureAwait(false);
 
         if (startNewSession)
         {
@@ -531,8 +532,8 @@ public sealed class SessionRuntimeService : IAsyncDisposable
             }
         }
 
-        thread.BackendId = options.BackendId.Value;
-        thread.ProviderKey = options.ProviderKey ?? options.BackendId.Value;
+        thread.BackendId = options.ProviderId.Value;
+        thread.ProviderKey = options.ProviderKey ?? options.ProviderId.Value;
         thread.WorkingDirectory = options.WorkingDirectory;
         await UpsertSessionMetadataAsync(thread, options, cancellationToken).ConfigureAwait(false);
         await UpdateThreadLocalStateAsync(thread, cancellationToken).ConfigureAwait(false);
@@ -565,7 +566,7 @@ public sealed class SessionRuntimeService : IAsyncDisposable
             sessionHandleId,
             thread.Kind,
             thread.Status,
-            options.BackendId,
+            providerBackendId,
             options.ProviderKey ?? thread.ResolvedProviderKey,
             thread.ProjectRef,
             thread.ParentThreadId,
@@ -736,10 +737,10 @@ public sealed class SessionRuntimeService : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(options);
         ArgumentException.ThrowIfNullOrWhiteSpace(skillName);
 
-        if (UsesProviderManagedSkills(options.BackendId))
+        if (UsesProviderManagedSkills(new AgentBackendId(options.ProviderId.Value)))
         {
             throw new InvalidOperationException(
-                $"Backend '{options.BackendId.Value}' manages its own native skills; CodeAlta-managed skill activation is not injected into that session.");
+                $"Backend '{options.ProviderId.Value}' manages its own native skills; CodeAlta-managed skill activation is not injected into that session.");
         }
 
         var project = await ResolveProjectAsync(thread, cancellationToken).ConfigureAwait(false);
@@ -1161,7 +1162,7 @@ public sealed class SessionRuntimeService : IAsyncDisposable
                 $"Thread '{thread.ThreadId}' does not have an active coordinator session to steer.");
         }
 
-        if (!string.Equals(entry.BackendId.Value, options.BackendId.Value, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(entry.BackendId.Value, options.ProviderId.Value, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(
                 $"Thread '{thread.ThreadId}' active coordinator session does not match the requested provider.");
@@ -1688,8 +1689,8 @@ public sealed class SessionRuntimeService : IAsyncDisposable
                 new LocalAgentSessionSummary
                 {
                     SessionId = thread.ThreadId,
-                    BackendId = options.BackendId,
-                    ProtocolFamily = options.BackendId.Value,
+                    BackendId = new AgentBackendId(options.ProviderId.Value),
+                    ProtocolFamily = options.ProviderId.Value,
                     ProviderKey = thread.ResolvedProviderKey,
                     ModelId = options.Model,
                     WorkingDirectory = thread.WorkingDirectory,
@@ -1705,7 +1706,7 @@ public sealed class SessionRuntimeService : IAsyncDisposable
     private static SessionExecutionOptions CreateParentDeliveryExecutionOptions(SessionViewDescriptor parent)
         => new()
         {
-            BackendId = new AgentBackendId(parent.BackendId),
+            ProviderId = new ModelProviderId(parent.ResolvedProviderKey),
             ProviderKey = parent.ResolvedProviderKey,
             WorkingDirectory = parent.WorkingDirectory,
             ProjectRoots = [],
@@ -2148,8 +2149,8 @@ public sealed class SessionRuntimeService : IAsyncDisposable
         public bool Matches(SessionExecutionOptions options)
         {
             return !IsTerminated
-                && string.Equals(BackendId.Value, options.BackendId.Value, StringComparison.OrdinalIgnoreCase)
-                && string.Equals(ProviderKey, options.ProviderKey ?? options.BackendId.Value, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(BackendId.Value, options.ProviderId.Value, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(ProviderKey, options.ProviderKey ?? options.ProviderId.Value, StringComparison.OrdinalIgnoreCase)
                 && string.Equals(WorkingDirectory, options.WorkingDirectory, StringComparison.Ordinal)
                 && string.Equals(Model, options.Model, StringComparison.Ordinal)
                 && ReasoningEffort == options.ReasoningEffort

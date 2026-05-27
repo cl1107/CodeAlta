@@ -21,7 +21,7 @@ internal sealed class CodeAltaFrontendComposition
     public required CodeAltaShellController ShellController { get; init; }
     public required RuntimeEventPump RuntimeEventPump { get; init; }
     public required TerminalLoopCoordinator TerminalLoopCoordinator { get; init; }
-    public required ChatBackendInitializationCoordinator ChatBackendInitializationCoordinator { get; init; }
+    public required ModelProviderInitializationCoordinator ModelProviderInitializationCoordinator { get; init; }
     public required ShellThreadStateCoordinator ThreadStateCoordinator { get; init; }
     public required DraftTabReplacementPort DraftTabReplacement { get; init; }
     public required ShellWorkspaceCoordinator WorkspaceCoordinator { get; init; }
@@ -79,7 +79,7 @@ internal sealed class CodeAltaFrontendComposition
         var threadWorkspaceViewModel = new ThreadWorkspaceViewModel();
         var promptComposerViewModel = new PromptComposerViewModel();
         var sessionUsageViewModel = new SessionUsageViewModel();
-        var chatBackendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
+        var chatBackendStates = ModelProviderPresentation.CreateProviderStates(backendDescriptors);
         modelProviderInitializationService ??= modelProviderRegistry is not null
             ? new ModelProviderInitializationService(modelProviderRegistry)
             : new EmptyModelProviderInitializationService();
@@ -100,7 +100,7 @@ internal sealed class CodeAltaFrontendComposition
             frontend.UpdatePromptImageAttachmentsUi);
         var configStore = new CodeAltaConfigStore(catalogOptions);
         var modelProviderPreferences = new ModelProviderPreferenceCoordinator(configStore, CodeAlta.Views.CodeAltaApp.UiLogger);
-        var altaToolBackendIds = ResolveAltaToolBackendIds(configStore);
+        var altaToolProviderIds = ResolveAltaToolProviderIds(configStore);
         var altaServices = new AltaServiceCollection()
             .Add(catalogOptions)
             .Add(projectCatalog)
@@ -111,7 +111,7 @@ internal sealed class CodeAltaFrontendComposition
             .Add(modelProviderInitializationService)
             .Add(projectFileSearchService)
             .Add<IReadOnlyList<ModelProviderDescriptor>>(backendDescriptors)
-            .Add<IAltaSessionToolBackendPolicy>(new AltaSessionToolBackendPolicy(altaToolBackendIds));
+            .Add<IAltaSessionToolBackendPolicy>(new AltaSessionToolBackendPolicy(altaToolProviderIds));
         if (modelProviderRegistry is not null)
         {
             altaServices.Add(modelProviderRegistry);
@@ -299,7 +299,7 @@ internal sealed class CodeAltaFrontendComposition
             frontend.VerifyBindableAccess,
             (tab, prompt, cancellationToken) => threadCommandCoordinator!.DispatchQueuedPromptAsync(tab, prompt, steer: false, cancellationToken),
             (tab, prompt, cancellationToken) => threadCommandCoordinator!.DispatchQueuedPromptAsync(tab, prompt, steer: true, cancellationToken));
-        var chatBackendInitializationCoordinator = new ChatBackendInitializationCoordinator(
+        var chatBackendInitializationCoordinator = new ModelProviderInitializationCoordinator(
             modelProviderInitializationService,
             backendDescriptors,
             chatBackendStates,
@@ -326,11 +326,11 @@ internal sealed class CodeAltaFrontendComposition
         var threadCreationCoordinator = new ThreadCreationCoordinator(
             runtimeService,
             catalogOptions,
-            () => new AgentBackendId(modelProviderSelectorCoordinator.GetPreferredModelProviderId().Value),
+            modelProviderSelectorCoordinator.GetPreferredModelProviderId,
             threadSelectionContext.GetSelectedProject,
             () => threadSelectionContext.Selection,
             static () => null,
-            (backendId, workingDirectory, projectRoots, sourceThreadIdProvider) => threadCommandCoordinator!.BuildPreferredExecutionOptions(backendId, workingDirectory, projectRoots, sourceThreadIdProvider),
+            (providerId, workingDirectory, projectRoots, sourceThreadIdProvider) => threadCommandCoordinator!.BuildPreferredExecutionOptions(providerId, workingDirectory, projectRoots, sourceThreadIdProvider),
             frontend.RememberThreadPreference,
             frontend.RegisterCreatedThreadAsync,
             static () => { },
@@ -365,7 +365,7 @@ internal sealed class CodeAltaFrontendComposition
             projectFileSearchService,
             pluginHostBridge,
             altaServices,
-            altaToolBackendIds,
+            altaToolProviderIds,
             frontend.GetAlwaysEnqueue);
 
         return new CodeAltaFrontendComposition
@@ -374,7 +374,7 @@ internal sealed class CodeAltaFrontendComposition
             ShellController = shellController,
             RuntimeEventPump = runtimeEventPump,
             TerminalLoopCoordinator = terminalLoopCoordinator,
-            ChatBackendInitializationCoordinator = chatBackendInitializationCoordinator,
+            ModelProviderInitializationCoordinator = chatBackendInitializationCoordinator,
             ThreadStateCoordinator = threadStateCoordinator,
             DraftTabReplacement = draftTabReplacement,
             WorkspaceCoordinator = workspaceCoordinator,
@@ -423,14 +423,14 @@ internal sealed class CodeAltaFrontendComposition
             => Task.FromResult<IReadOnlyList<AgentModelInfo>>([]);
     }
 
-    private static IReadOnlySet<string> ResolveAltaToolBackendIds(CodeAltaConfigStore configStore)
+    private static IReadOnlySet<string> ResolveAltaToolProviderIds(CodeAltaConfigStore configStore)
     {
         ArgumentNullException.ThrowIfNull(configStore);
 
         var backendIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            AgentBackendIds.OpenAIChat.Value,
-            AgentBackendIds.OpenAIResponses.Value,
+            ModelProviderIds.OpenAIChat.Value,
+            ModelProviderIds.OpenAIResponses.Value,
         };
         foreach (var provider in configStore.LoadGlobalProviderDefinitions())
         {
@@ -457,7 +457,7 @@ internal sealed class CodeAltaFrontendComposition
         ArgumentNullException.ThrowIfNull(backendDescriptors);
 
         var displayNames = backendDescriptors.ToDictionary(
-            static descriptor => descriptor.BackendId.Value,
+            static descriptor => descriptor.ProviderId.Value,
             static descriptor => descriptor.DisplayName,
             StringComparer.OrdinalIgnoreCase);
         return providerKey =>

@@ -7,7 +7,7 @@ using CodeAlta.Threading;
 namespace CodeAlta.Tests;
 
 [TestClass]
-public sealed class ChatBackendInitializationCoordinatorTests
+public sealed class ModelProviderInitializationCoordinatorTests
 {
     [TestMethod]
     public async Task InitializeAsync_RefreshesLoadedNonProcessBackedBackend()
@@ -40,7 +40,7 @@ public sealed class ChatBackendInitializationCoordinatorTests
     }
 
     [TestMethod]
-    public async Task RefreshBackendAsync_PreservesSelectedModelWhenMissingFromDiscoveredModels()
+    public async Task RefreshProviderAsync_PreservesSelectedModelWhenMissingFromDiscoveredModels()
     {
         var backendId = new AgentBackendId("codex");
         var backend = new CountingBackend(
@@ -65,7 +65,7 @@ public sealed class ChatBackendInitializationCoordinatorTests
                 [backendId.Value] = state,
             });
 
-        await coordinator.RefreshBackendAsync(backendId, CancellationToken.None).ConfigureAwait(false);
+        await coordinator.RefreshProviderAsync(new ModelProviderId(backendId.Value), CancellationToken.None).ConfigureAwait(false);
 
         CollectionAssert.AreEqual(new[] { "gpt-5.2" }, state.Models.Select(static model => model.Id).ToArray());
         Assert.AreEqual("gpt-5.5", state.SelectedModelId);
@@ -73,7 +73,7 @@ public sealed class ChatBackendInitializationCoordinatorTests
     }
 
     [TestMethod]
-    public async Task RefreshBackendAsync_UpdatesUiStateAfterProviderRefresh()
+    public async Task RefreshProviderAsync_UpdatesUiStateAfterProviderRefresh()
     {
         var backendId = new AgentBackendId("codex");
         var backend = new CountingBackend(backendId);
@@ -82,7 +82,7 @@ public sealed class ChatBackendInitializationCoordinatorTests
         var state = new ModelProviderState(new ModelProviderId(backendId.Value), "ChatGPT");
         var queuedUiActions = new Queue<Action>();
         var publishedEvents = new List<ShellFrontendEvent>();
-        var coordinator = new ChatBackendInitializationCoordinator(
+        var coordinator = new ModelProviderInitializationCoordinator(
             initializationService,
             [descriptor],
             new Dictionary<string, ModelProviderState>(StringComparer.OrdinalIgnoreCase)
@@ -92,7 +92,7 @@ public sealed class ChatBackendInitializationCoordinatorTests
             action => queuedUiActions.Enqueue(action),
             CreatePublisher(publishedEvents));
 
-        await coordinator.RefreshBackendAsync(backendId, CancellationToken.None).ConfigureAwait(false);
+        await coordinator.RefreshProviderAsync(new ModelProviderId(backendId.Value), CancellationToken.None).ConfigureAwait(false);
 
         Assert.AreEqual(ModelProviderAvailability.Unknown, state.Availability);
 
@@ -137,7 +137,7 @@ public sealed class ChatBackendInitializationCoordinatorTests
         var state = new ModelProviderState(new ModelProviderId(backendId.Value), "OpenAI");
         var queuedUiActions = new List<Action>();
         var providerStatuses = new List<string?>();
-        var coordinator = new ChatBackendInitializationCoordinator(
+        var coordinator = new ModelProviderInitializationCoordinator(
             initializationService,
             [descriptor],
             new Dictionary<string, ModelProviderState>(StringComparer.OrdinalIgnoreCase)
@@ -165,7 +165,7 @@ public sealed class ChatBackendInitializationCoordinatorTests
     [TestMethod]
     public void FormatProviderInitializationStatus_ShowsProgressAndProviderNames()
     {
-        var status = ChatBackendInitializationCoordinator.FormatProviderInitializationStatus(
+        var status = ModelProviderInitializationCoordinator.FormatProviderInitializationStatus(
             1,
             3,
             ["OpenAI", "Gemma", "Anthropic"]);
@@ -176,7 +176,7 @@ public sealed class ChatBackendInitializationCoordinatorTests
     [TestMethod]
     public void FormatProviderInitializationStatus_HidesWhenComplete()
     {
-        var status = ChatBackendInitializationCoordinator.FormatProviderInitializationStatus(
+        var status = ModelProviderInitializationCoordinator.FormatProviderInitializationStatus(
             3,
             3,
             []);
@@ -184,7 +184,7 @@ public sealed class ChatBackendInitializationCoordinatorTests
         Assert.IsNull(status);
     }
 
-    private static ChatBackendInitializationCoordinator CreateCoordinator(
+    private static ModelProviderInitializationCoordinator CreateCoordinator(
         IModelProviderInitializationService initializationService,
         IReadOnlyList<ModelProviderDescriptor> descriptors,
         Dictionary<string, ModelProviderState> states)

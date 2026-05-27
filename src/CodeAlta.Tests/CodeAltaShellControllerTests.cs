@@ -78,7 +78,7 @@ public sealed class CodeAltaShellControllerTests
 
         await controller.InitializeAsync(CancellationToken.None);
 
-        CollectionAssert.Contains(log, "Shell.InitializeChatBackends");
+        CollectionAssert.Contains(log, "Shell.InitializeModelProviders");
         CollectionAssert.Contains(log, "Shell.PublishStartupCatalogProjectionReady");
         CollectionAssert.Contains(log, "Shell.SetReadyStatus");
         CollectionAssert.Contains(log, "Shell.SetInitialized:True");
@@ -95,7 +95,7 @@ public sealed class CodeAltaShellControllerTests
         var log = new List<string>();
         var shell = new FakeShell(log)
         {
-            InitializeChatBackendsCompletion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously),
+            InitializeModelProvidersCompletion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously),
         };
         var controller = new CodeAltaShellController(
             shell,
@@ -110,12 +110,12 @@ public sealed class CodeAltaShellControllerTests
         await WaitUntilAsync(() => log.Contains("Shell.ApplyRecoveredCatalogState:1:1")).ConfigureAwait(false);
 
         Assert.IsFalse(initializationTask.IsCompleted, "Provider initialization should still be running.");
-        CollectionAssert.Contains(log, "Shell.InitializeChatBackends");
+        CollectionAssert.Contains(log, "Shell.InitializeModelProviders");
         CollectionAssert.Contains(log, "Importer.Import");
         CollectionAssert.Contains(log, "ThreadSource.List");
         CollectionAssert.Contains(log, "Shell.TrySchedulePendingStartupThreadRestore");
 
-        shell.InitializeChatBackendsCompletion.SetResult(true);
+        shell.InitializeModelProvidersCompletion.SetResult(true);
         await initializationTask.ConfigureAwait(false);
     }
 
@@ -125,7 +125,7 @@ public sealed class CodeAltaShellControllerTests
         var log = new List<string>();
         var shell = new FakeShell(log)
         {
-            InitializeChatBackendsCompletion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously),
+            InitializeModelProvidersCompletion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously),
         };
         var project = new ProjectDescriptor { Id = "project-1", DisplayName = "CodeAlta", ProjectPath = @"C:\repo", Slug = "codealta" };
         var threadSource = new BlockingRecoverableSessionSource(
@@ -145,11 +145,11 @@ public sealed class CodeAltaShellControllerTests
 
         await WaitUntilAsync(() => threadSource.ListStarted.Task.IsCompleted).ConfigureAwait(false);
 
-        CollectionAssert.Contains(log, "Shell.InitializeChatBackends");
+        CollectionAssert.Contains(log, "Shell.InitializeModelProviders");
         Assert.IsFalse(log.Any(static entry => entry.StartsWith("Shell.ApplyRecoveredCatalogState:", StringComparison.Ordinal)));
 
         threadSource.AllowCompletion();
-        shell.InitializeChatBackendsCompletion.SetResult(true);
+        shell.InitializeModelProvidersCompletion.SetResult(true);
         await initializationTask.ConfigureAwait(false);
 
         CollectionAssert.Contains(log, "Shell.ApplyRecoveredCatalogState:1:1");
@@ -231,7 +231,7 @@ public sealed class CodeAltaShellControllerTests
 
         CollectionAssert.Contains(log, "ThreadSource.List");
         Assert.AreEqual(1, log.Count(static entry => entry == "ThreadSource.List"));
-        Assert.AreEqual(1, log.Count(static entry => entry == "Shell.InitializeChatBackends"));
+        Assert.AreEqual(1, log.Count(static entry => entry == "Shell.InitializeModelProviders"));
         var finalCatalogApplication = log.Last(entry => entry.StartsWith("Shell.ApplyRecoveredCatalogState:", StringComparison.Ordinal));
         Assert.AreEqual("Shell.ApplyRecoveredCatalogState:1:65", finalCatalogApplication);
     }
@@ -718,18 +718,18 @@ public sealed class CodeAltaShellControllerTests
 
         public List<string?> ProviderSessionLoadStatuses { get; } = [];
 
-        public TaskCompletionSource<bool>? InitializeChatBackendsCompletion { get; init; }
+        public TaskCompletionSource<bool>? InitializeModelProvidersCompletion { get; init; }
 
-        public Task InitializeChatBackendsAsync(CancellationToken cancellationToken)
+        public Task InitializeModelProvidersAsync(CancellationToken cancellationToken)
         {
-            log.Add("Shell.InitializeChatBackends");
-            return InitializeChatBackendsCompletion?.Task ?? Task.CompletedTask;
+            log.Add("Shell.InitializeModelProviders");
+            return InitializeModelProvidersCompletion?.Task ?? Task.CompletedTask;
         }
 
-        public Task InitializeChatBackendAsync(AgentBackendId backendId, CancellationToken cancellationToken)
+        public Task InitializeModelProviderAsync(ModelProviderId providerId, CancellationToken cancellationToken)
         {
-            log.Add($"Shell.InitializeChatBackend:{backendId.Value}");
-            return _backendInitializationCompletions.TryGetValue(backendId.Value, out var completion)
+            log.Add($"Shell.InitializeModelProvider:{providerId.Value}");
+            return _backendInitializationCompletions.TryGetValue(providerId.Value, out var completion)
                 ? completion.Task.WaitAsync(cancellationToken)
                 : Task.CompletedTask;
         }

@@ -464,7 +464,7 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
     {
         try
         {
-            await _shell.InitializeChatBackendsAsync(cancellationToken).ConfigureAwait(false);
+            await _shell.InitializeModelProvidersAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

@@ -181,7 +181,7 @@ internal sealed class PluginHostBridge
             return new PluginAgentRunAugmentation();
         }
 
-        var isManaged = IsCodeAltaManagedBackend(executionOptions.BackendId);
+        var isManaged = IsCodeAltaManagedProvider(executionOptions.ProviderId);
         var options = CreateOptions(thread, tab, isManaged);
         var activeTools = MergeTools(executionOptions.Tools, options);
         var seed = activePlugins[0];
@@ -264,7 +264,7 @@ internal sealed class PluginHostBridge
             ThreadId = thread.ThreadId,
             RunId = @event.RunId?.Value,
             BackendId = @event.BackendId.Value,
-            IsCodeAltaManagedBackend = IsCodeAltaManagedBackend(@event.BackendId),
+            IsCodeAltaManagedBackend = IsCodeAltaManagedProvider(new ModelProviderId(@event.BackendId.Value)),
         };
         var activePlugins = _runtime.ActivePlugins;
         if (activePlugins.Count == 0)
@@ -301,7 +301,7 @@ internal sealed class PluginHostBridge
                 ProjectId = thread.ProjectRef ?? _getCurrentProject()?.Id ?? "current",
                 ProjectPath = projectPath,
                 PromptSessionId = tab.ActiveRunId?.Value ?? thread.ThreadId,
-                ModelProviderId = tab.BackendId.Value,
+                ModelProviderId = tab.ProviderId.Value,
                 ModelId = tab.ModelId,
                 ThreadId = thread.ThreadId,
             },
@@ -321,12 +321,12 @@ internal sealed class PluginHostBridge
             return new PluginCompactionAugmentation();
         }
 
-        var options = CreateOptions(thread, tab, IsCodeAltaManagedBackend(new AgentBackendId(thread.BackendId)));
+        var options = CreateOptions(thread, tab, IsCodeAltaManagedProvider(new ModelProviderId(thread.ResolvedProviderKey)));
         var seed = activePlugins[0];
         var metadata = new Dictionary<string, string>
         {
             ["ThreadTitle"] = thread.Title,
-            ["BackendId"] = thread.BackendId,
+            ["ProviderId"] = thread.ResolvedProviderKey,
         };
         var before = new PluginBeforeCompactionContext
         {
@@ -413,7 +413,7 @@ internal sealed class PluginHostBridge
             return;
         }
 
-        var options = CreateOptions(thread, tab, IsCodeAltaManagedBackend(new AgentBackendId(thread.BackendId)));
+        var options = CreateOptions(thread, tab, IsCodeAltaManagedProvider(new ModelProviderId(thread.ResolvedProviderKey)));
         var seed = activePlugins[0];
         var after = new PluginAfterCompactionContext
         {
@@ -433,7 +433,7 @@ internal sealed class PluginHostBridge
             Metadata = new Dictionary<string, string>
             {
                 ["ThreadTitle"] = thread.Title,
-                ["BackendId"] = thread.BackendId,
+                ["ProviderId"] = thread.ResolvedProviderKey,
             },
             Succeeded = succeeded,
             Summary = summary,
@@ -479,7 +479,7 @@ internal sealed class PluginHostBridge
             ProjectPath = ResolveProjectPath(thread) ?? _getCurrentProject()?.ProjectPath,
             ThreadId = thread?.ThreadId,
             RunId = tab?.ActiveRunId?.Value,
-            BackendId = tab?.BackendId.Value ?? thread?.BackendId,
+            BackendId = tab?.ProviderId.Value ?? thread?.ResolvedProviderKey,
             Model = tab?.ModelId,
             IsCodeAltaManagedBackend = isCodeAltaManagedBackend,
             HasInteractiveUi = true,
@@ -501,9 +501,9 @@ internal sealed class PluginHostBridge
         return thread.WorkingDirectory;
     }
 
-    private static bool IsCodeAltaManagedBackend(AgentBackendId backendId)
-        => !string.Equals(backendId.Value, AgentBackendIds.Codex.Value, StringComparison.OrdinalIgnoreCase) &&
-           !string.Equals(backendId.Value, AgentBackendIds.Copilot.Value, StringComparison.OrdinalIgnoreCase);
+    private static bool IsCodeAltaManagedProvider(ModelProviderId providerId)
+        => !string.Equals(providerId.Value, ModelProviderIds.Codex.Value, StringComparison.OrdinalIgnoreCase) &&
+           !string.Equals(providerId.Value, ModelProviderIds.Copilot.Value, StringComparison.OrdinalIgnoreCase);
 
     private static string? ExtractText(AgentInput input)
     {

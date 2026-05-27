@@ -55,11 +55,6 @@ public sealed class CodeAltaHostOptions
     public IPluginServices? PluginServices { get; init; }
 
     /// <summary>
-    /// Gets an optional legacy test hook that registers session backends before the agent hub is created.
-    /// </summary>
-    public Action<AgentBackendFactory>? ConfigureAgentBackends { get; init; }
-
-    /// <summary>
     /// Gets an optional callback that registers host-specific model providers before the agent hub is created.
     /// </summary>
     public Action<ModelProviderRegistry>? ConfigureModelProviders { get; init; }

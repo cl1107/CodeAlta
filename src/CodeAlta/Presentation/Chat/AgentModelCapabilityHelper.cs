@@ -6,7 +6,7 @@ namespace CodeAlta.Presentation.Chat;
 
 internal static class AgentModelCapabilityHelper
 {
-    public static bool SupportsImageInput(AgentBackendId backendId, AgentModelInfo? model)
+    public static bool SupportsImageInput(ModelProviderId providerId, AgentModelInfo? model)
     {
         if (model?.Capabilities is { } capabilities)
         {
@@ -30,7 +30,7 @@ internal static class AgentModelCapabilityHelper
 
         // Codex's native protocol accepts LocalImage user inputs. If metadata was not loaded yet, keep the UX usable for
         // the default Codex model while still honoring explicit negative metadata above.
-        return string.Equals(backendId.Value, AgentBackendIds.Codex.Value, StringComparison.OrdinalIgnoreCase) &&
+        return string.Equals(providerId.Value, ModelProviderIds.Codex.Value, StringComparison.OrdinalIgnoreCase) &&
             !string.Equals(model?.Id, "codex-auto-review", StringComparison.OrdinalIgnoreCase);
     }
 

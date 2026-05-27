@@ -341,7 +341,7 @@ public sealed class ArchitectureGuardrailTests
         var codeAltaRoot = GetCodeAltaSourceRoot();
         var allowedLegacyConstructors = new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            ["App/ChatBackendInitializationCoordinator.cs:ChatBackendInitializationCoordinator"] = "Legacy backend initialization seam pending model-provider port migration.",
+            ["App/ModelProviderInitializationCoordinator.cs:ModelProviderInitializationCoordinator"] = "Legacy backend initialization seam pending model-provider port migration.",
             ["App/IFrontendPersistencePort.cs:FrontendPersistencePort"] = "Transitional port adapter wrapping persistence callbacks.",
             ["App/IModelProviderPreferencePort.cs:DelegatingModelProviderPreferencePort"] = "Transitional adapter preserving frontend preference callbacks.",
             ["App/IModelProviderPreferencePort.cs:FrontendModelProviderPreferencePort"] = "Transitional adapter preserving frontend preference callbacks.",
@@ -601,7 +601,7 @@ public sealed class ArchitectureGuardrailTests
         {
             Path.Combine(codeAltaRoot, "App", "ShellThreadStateCoordinator.cs"),
             Path.Combine(codeAltaRoot, "App", "ThreadRuntimeEventCoordinator.cs"),
-            Path.Combine(codeAltaRoot, "App", "ChatBackendInitializationCoordinator.cs"),
+            Path.Combine(codeAltaRoot, "App", "ModelProviderInitializationCoordinator.cs"),
             Path.Combine(codeAltaRoot, "App", "ProviderFrontendCoordinator.cs"),
             Path.Combine(codeAltaRoot, "Views", "InitialCatalogStateCoordinator.cs"),
         };
@@ -1120,7 +1120,7 @@ public sealed class ArchitectureGuardrailTests
                 entry.RelativePath.StartsWith("Presentation/", StringComparison.Ordinal) ||
                 entry.RelativePath.StartsWith("App/", StringComparison.Ordinal) &&
                 entry.RelativePath is not
-                    "App/ChatBackendInitializationCoordinator.cs" and
+                    "App/ModelProviderInitializationCoordinator.cs" and
                     not "App/CodeAltaOwnedServices.cs" and
                     not "App/CodeAltaShellController.cs" and
                     not "App/ConfiguredModelProviderRegistryBuilder.cs" and

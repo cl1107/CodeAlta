@@ -7,9 +7,9 @@ using XenoAtom.Logging;
 
 namespace CodeAlta.App;
 
-internal sealed class ChatBackendInitializationCoordinator
+internal sealed class ModelProviderInitializationCoordinator
 {
-    private static readonly Logger Logger = LogManager.GetLogger("CodeAlta.App.ChatBackendInitialization");
+    private static readonly Logger Logger = LogManager.GetLogger("CodeAlta.App.ModelProviderInitialization");
     private readonly IModelProviderInitializationService _providerInitializationService;
     private readonly IReadOnlyList<ModelProviderDescriptor> _backendDescriptors;
     private readonly Dictionary<string, ModelProviderState> _modelProviderStates;
@@ -18,7 +18,7 @@ internal sealed class ChatBackendInitializationCoordinator
     private readonly Action<string?>? _setProviderInitializationStatus;
     private long _providerInitializationStatusVersion;
 
-    public ChatBackendInitializationCoordinator(
+    public ModelProviderInitializationCoordinator(
         IModelProviderInitializationService providerInitializationService,
         IReadOnlyList<ModelProviderDescriptor> backendDescriptors,
         Dictionary<string, ModelProviderState> modelProviderStates,
@@ -84,15 +84,15 @@ internal sealed class ChatBackendInitializationCoordinator
         }
     }
 
-    public Task RefreshBackendAsync(AgentBackendId backendId, CancellationToken cancellationToken = default)
+    public Task RefreshProviderAsync(ModelProviderId providerId, CancellationToken cancellationToken = default)
     {
-        return RefreshAsync(new ModelProviderId(backendId.Value), cancellationToken);
+        return RefreshAsync(providerId, cancellationToken);
     }
 
-    public Task RefreshBackendsAsync(IEnumerable<AgentBackendId> backendIds, CancellationToken cancellationToken = default)
+    public Task RefreshProvidersAsync(IEnumerable<ModelProviderId> providerIds, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(backendIds);
-        return Task.WhenAll(backendIds.Distinct().Select(backendId => RefreshAsync(new ModelProviderId(backendId.Value), cancellationToken)));
+        ArgumentNullException.ThrowIfNull(providerIds);
+        return Task.WhenAll(providerIds.Distinct().Select(providerId => RefreshAsync(providerId, cancellationToken)));
     }
 
     internal static (ModelProviderAvailability Availability, string StatusMessage) ClassifyFailure(
@@ -105,29 +105,29 @@ internal sealed class ChatBackendInitializationCoordinator
         var root = exception.GetBaseException();
         if (root is FileNotFoundException or DirectoryNotFoundException)
         {
-            return (ModelProviderAvailability.Unsupported, ChatBackendPresentation.BuildUnsupportedBackendMessage(state, root.Message));
+            return (ModelProviderAvailability.Unsupported, ModelProviderPresentation.BuildUnsupportedProviderMessage(state, root.Message));
         }
 
         if (root is Win32Exception win32Exception && win32Exception.NativeErrorCode == 2)
         {
-            return (ModelProviderAvailability.Unsupported, ChatBackendPresentation.BuildUnsupportedBackendMessage(state, root.Message));
+            return (ModelProviderAvailability.Unsupported, ModelProviderPresentation.BuildUnsupportedProviderMessage(state, root.Message));
         }
 
         var message = root.Message.Trim();
         if (message.Contains("not found", StringComparison.OrdinalIgnoreCase) ||
             message.Contains("No such file", StringComparison.OrdinalIgnoreCase))
         {
-            return (ModelProviderAvailability.Unsupported, ChatBackendPresentation.BuildUnsupportedBackendMessage(state, message));
+            return (ModelProviderAvailability.Unsupported, ModelProviderPresentation.BuildUnsupportedProviderMessage(state, message));
         }
 
-        return (ModelProviderAvailability.Failed, ChatBackendPresentation.BuildFailedBackendMessage(state, message));
+        return (ModelProviderAvailability.Failed, ModelProviderPresentation.BuildFailedProviderMessage(state, message));
     }
 
-    internal static bool CanReuseLoadedBackendState(ModelProviderId providerId, ModelProviderState state)
+    internal static bool CanReuseLoadedProviderState(ModelProviderId providerId, ModelProviderState state)
     {
         ArgumentNullException.ThrowIfNull(state);
 
-        return IsProcessBackedProviderBackend(providerId) &&
+        return IsProcessBackedProvider(providerId) &&
                state.Availability == ModelProviderAvailability.Ready;
     }
 
@@ -228,7 +228,7 @@ internal sealed class ChatBackendInitializationCoordinator
         CancellationToken cancellationToken)
     {
         var state = await EnsureBackendStateAsync(providerId, displayName, cancellationToken).ConfigureAwait(false);
-        if (CanReuseLoadedBackendState(providerId, state))
+        if (CanReuseLoadedProviderState(providerId, state))
         {
             LogInfo(
                 $"Skipping model provider refresh for loaded process-backed provider provider={providerId.Value} displayName={state.DisplayName} models={state.Models.Count}");
@@ -292,13 +292,13 @@ internal sealed class ChatBackendInitializationCoordinator
         state.Models.AddRange(providerState.Models);
         state.Availability = providerState.Availability;
         state.StatusMessage = providerState.Availability == ModelProviderAvailability.Ready
-            ? ChatBackendPresentation.BuildReadyStatusMessage(state)
+            ? ModelProviderPresentation.BuildReadyStatusMessage(state)
             : providerState.StatusMessage ?? $"{state.DisplayName} is {providerState.Availability.ToString().ToLowerInvariant()}.";
 
         if (providerState.Availability == ModelProviderAvailability.Ready)
         {
             state.SelectedModelId = ResolveSelectedModelIdAfterDiscovery(providerState.Models, state.SelectedModelId ?? providerState.SelectedModelId);
-            state.SelectedReasoningEffort = ChatBackendPresentation.ResolvePreferredReasoningEffort(
+            state.SelectedReasoningEffort = ModelProviderPresentation.ResolvePreferredReasoningEffort(
                 ModelProviderPreferenceCoordinator.FindModel(providerState.Models, state.SelectedModelId),
                 state.SelectedReasoningEffort ?? providerState.SelectedReasoningEffort);
             return;
@@ -316,7 +316,7 @@ internal sealed class ChatBackendInitializationCoordinator
         ArgumentNullException.ThrowIfNull(models);
 
         return string.IsNullOrWhiteSpace(selectedModelId)
-            ? ChatBackendPresentation.ResolvePreferredModelId(models, selectedModelId)
+            ? ModelProviderPresentation.ResolvePreferredModelId(models, selectedModelId)
             : selectedModelId.Trim();
     }
 
@@ -361,7 +361,7 @@ internal sealed class ChatBackendInitializationCoordinator
         _frontendEvents.Publish(new HeaderChangedEvent());
     }
 
-    private static bool IsProcessBackedProviderBackend(ModelProviderId providerId)
+    private static bool IsProcessBackedProvider(ModelProviderId providerId)
         => false;
 
     private static bool IsTerminalAvailability(ModelProviderAvailability availability)

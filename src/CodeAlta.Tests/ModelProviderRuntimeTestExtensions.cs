@@ -82,7 +82,7 @@ internal static class ModelProviderRuntimeTestExtensions
         return null;
     }
 
-    private sealed class LegacyBackendRuntime : IModelProviderRuntime
+    private sealed class LegacyBackendRuntime : IModelProviderSessionRuntime
     {
         private readonly IAgentBackend _backend;
 
@@ -111,6 +111,12 @@ internal static class ModelProviderRuntimeTestExtensions
 
         public IModelProviderTurnExecutor CreateTurnExecutor()
             => throw new NotSupportedException();
+
+        public Task<IAgentSession> CreateSessionAsync(AgentSessionCreateOptions options, CancellationToken cancellationToken = default)
+            => _backend.CreateSessionAsync(options, cancellationToken);
+
+        public Task<IAgentSession> ResumeSessionAsync(string sessionId, AgentSessionResumeOptions options, CancellationToken cancellationToken = default)
+            => _backend.ResumeSessionAsync(sessionId, options, cancellationToken);
 
         public ValueTask DisposeAsync() => _backend.DisposeAsync();
     }

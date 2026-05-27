@@ -98,7 +98,7 @@ internal sealed class SessionProviderSwitchCoordinator
         var oldThreadUpdatedAt = thread.UpdatedAt;
         var oldThreadModelId = thread.ModelId;
         var oldThreadReasoningEffort = thread.ReasoningEffort;
-        var oldTabBackendId = tab.BackendId;
+        var oldTabProviderId = tab.ProviderId;
         var oldTabModelId = tab.ModelId;
         var oldTabReasoningEffort = tab.ReasoningEffort;
         var oldTabUsage = tab.Usage;
@@ -107,7 +107,7 @@ internal sealed class SessionProviderSwitchCoordinator
         thread.ProviderKey = targetBackend.ProviderKey;
         thread.UpdatedAt = timestamp;
 
-        tab.BackendId = new AgentBackendId(targetBackend.ProviderId.Value);
+        tab.ProviderId = targetBackend.ProviderId;
         tab.ModelId = null;
         tab.ReasoningEffort = null;
         tab.Usage = null;
@@ -130,7 +130,7 @@ internal sealed class SessionProviderSwitchCoordinator
             thread.UpdatedAt = oldThreadUpdatedAt;
             thread.ModelId = oldThreadModelId;
             thread.ReasoningEffort = oldThreadReasoningEffort;
-            tab.BackendId = oldTabBackendId;
+            tab.ProviderId = oldTabProviderId;
             tab.ModelId = oldTabModelId;
             tab.ReasoningEffort = oldTabReasoningEffort;
             tab.Usage = oldTabUsage;
@@ -160,9 +160,9 @@ internal sealed class SessionProviderSwitchCoordinator
             return;
         }
 
-        tab.ModelId = ChatBackendPresentation.ResolvePreferredModelId(targetState.Models, targetState.SelectedModelId);
+        tab.ModelId = ModelProviderPresentation.ResolvePreferredModelId(targetState.Models, targetState.SelectedModelId);
         var selectedModel = ModelProviderPreferenceCoordinator.FindModel(targetState.Models, tab.ModelId);
-        tab.ReasoningEffort = ChatBackendPresentation.ResolvePreferredReasoningEffort(
+        tab.ReasoningEffort = ModelProviderPresentation.ResolvePreferredReasoningEffort(
             selectedModel,
             targetState.SelectedReasoningEffort);
     }

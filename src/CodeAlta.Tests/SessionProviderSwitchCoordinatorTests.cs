@@ -16,7 +16,7 @@ public sealed class SessionProviderSwitchCoordinatorTests
         using var temp = TempDirectory.Create();
         WriteProviderConfig(temp.Path);
         var options = new CatalogOptions { GlobalRoot = temp.Path };
-        var backendStates = CreateBackendStates();
+        var backendStates = CreateProviderStates();
         var updatedThreads = new List<SessionViewDescriptor>();
         var detachedThreadIds = new List<string>();
         var persisted = false;
@@ -70,7 +70,7 @@ public sealed class SessionProviderSwitchCoordinatorTests
         var options = new CatalogOptions { GlobalRoot = temp.Path };
         var coordinator = new SessionProviderSwitchCoordinator(
             new CodeAltaConfigStore(options),
-            CreateBackendStates(includeNative: true),
+            CreateProviderStates(includeNative: true),
             static tab =>
             {
                 tab.ModelId = "claude-sonnet-4";
@@ -106,7 +106,7 @@ public sealed class SessionProviderSwitchCoordinatorTests
         var observedTargetDuringDetach = false;
         var coordinator = new SessionProviderSwitchCoordinator(
             new CodeAltaConfigStore(options),
-            CreateBackendStates(),
+            CreateProviderStates(),
             static _ => Task.CompletedTask,
             _ =>
             {
@@ -139,7 +139,7 @@ public sealed class SessionProviderSwitchCoordinatorTests
         var tabState = CreateTabState(thread, "openai", "gpt-4.1");
         var coordinator = new SessionProviderSwitchCoordinator(
             new CodeAltaConfigStore(options),
-            CreateBackendStates(),
+            CreateProviderStates(),
             tab =>
             {
                 tab.ModelId = "gpt-4.1";
@@ -169,7 +169,7 @@ public sealed class SessionProviderSwitchCoordinatorTests
         WriteProviderConfig(temp.Path);
         var coordinator = new SessionProviderSwitchCoordinator(
             new CodeAltaConfigStore(new CatalogOptions { GlobalRoot = temp.Path }),
-            CreateBackendStates(includeNative: true),
+            CreateProviderStates(includeNative: true),
             static _ => Task.CompletedTask,
             static _ => Task.FromResult(true),
             static _ => { },
@@ -199,7 +199,7 @@ public sealed class SessionProviderSwitchCoordinatorTests
             """);
     }
 
-    private static Dictionary<string, ModelProviderState> CreateBackendStates(bool includeNative = false)
+    private static Dictionary<string, ModelProviderState> CreateProviderStates(bool includeNative = false)
     {
         var states = new Dictionary<string, ModelProviderState>(StringComparer.OrdinalIgnoreCase)
         {

@@ -90,7 +90,7 @@ internal sealed class ModelCatalogCoordinator
     {
         if (_getSelectedThread() is { } selectedThread && _findOpenThread(selectedThread.ThreadId) is { } tab)
         {
-            var tabProviderKey = tab.BackendId.Value;
+            var tabProviderKey = tab.ProviderId.Value;
             var tabModelId = tab.ModelId;
             if (string.IsNullOrWhiteSpace(tabModelId) && _chatBackendStates.TryGetValue(tabProviderKey, out var tabBackendState))
             {

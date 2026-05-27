@@ -8,12 +8,21 @@ namespace CodeAlta.Orchestration.Runtime;
 public sealed class SessionExecutionOptions
 {
     /// <summary>
-    /// Gets or initializes the backend identifier.
+    /// Gets or initializes the model provider identifier.
     /// </summary>
-    public required AgentBackendId BackendId { get; init; }
+    public ModelProviderId ProviderId { get; init; }
 
     /// <summary>
-    /// Gets or initializes the provider key that should be selected within the backend.
+    /// Gets or initializes the legacy backend identifier field used by tests and legacy callers.
+    /// </summary>
+    public AgentBackendId BackendId
+    {
+        get => new(ProviderId.Value);
+        init => ProviderId = new ModelProviderId(value.Value);
+    }
+
+    /// <summary>
+    /// Gets or initializes the provider key that should be selected within the provider runtime.
     /// </summary>
     public string? ProviderKey { get; init; }
 
@@ -53,7 +62,7 @@ public sealed class SessionExecutionOptions
     public string? AdditionalDeveloperInstructions { get; init; }
 
     /// <summary>
-    /// Gets or initializes preferred tool names for this run. Backends may use this as a hint when supported.
+    /// Gets or initializes preferred tool names for this run. Providers may use this as a hint when supported.
     /// </summary>
     public IReadOnlyList<string> PreferredToolNames { get; init; } = [];
 

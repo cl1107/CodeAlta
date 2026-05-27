@@ -89,6 +89,22 @@ public interface ICodeAltaModelProviderRuntime : IModelProviderRuntime
 }
 
 /// <summary>
+/// Represents a model-provider runtime that owns agent session creation directly.
+/// </summary>
+public interface IModelProviderSessionRuntime : IModelProviderRuntime
+{
+    /// <summary>
+    /// Creates an agent session for this provider.
+    /// </summary>
+    Task<IAgentSession> CreateSessionAsync(AgentSessionCreateOptions options, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Resumes an agent session for this provider.
+    /// </summary>
+    Task<IAgentSession> ResumeSessionAsync(string sessionId, AgentSessionResumeOptions options, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
 /// Executes turns against a model provider.
 /// </summary>
 public interface IModelProviderTurnExecutor

@@ -10,57 +10,57 @@ internal sealed class PromptImageCapabilityContext
 {
     private readonly Func<SessionViewDescriptor?> _getSelectedThread;
     private readonly Func<string, OpenThreadState?> _findOpenThread;
-    private readonly Func<AgentBackendId> _getPreferredBackendId;
+    private readonly Func<ModelProviderId> _getPreferredProviderId;
     private readonly IReadOnlyDictionary<string, ModelProviderState> _chatBackendStates;
 
     public PromptImageCapabilityContext(
         Func<SessionViewDescriptor?> getSelectedThread,
         Func<string, OpenThreadState?> findOpenThread,
-        Func<AgentBackendId> getPreferredBackendId,
+        Func<ModelProviderId> getPreferredProviderId,
         IReadOnlyDictionary<string, ModelProviderState> chatBackendStates)
     {
         ArgumentNullException.ThrowIfNull(getSelectedThread);
         ArgumentNullException.ThrowIfNull(findOpenThread);
-        ArgumentNullException.ThrowIfNull(getPreferredBackendId);
+        ArgumentNullException.ThrowIfNull(getPreferredProviderId);
         ArgumentNullException.ThrowIfNull(chatBackendStates);
 
         _getSelectedThread = getSelectedThread;
         _findOpenThread = findOpenThread;
-        _getPreferredBackendId = getPreferredBackendId;
+        _getPreferredProviderId = getPreferredProviderId;
         _chatBackendStates = chatBackendStates;
     }
 
     public bool CurrentPromptModelSupportsImageInput()
     {
-        var (backendId, model) = ResolveCurrentPromptModel();
-        return AgentModelCapabilityHelper.SupportsImageInput(backendId, model);
+        var (providerId, model) = ResolveCurrentPromptModel();
+        return AgentModelCapabilityHelper.SupportsImageInput(providerId, model);
     }
 
     public string BuildCurrentPromptImageUnsupportedMessage()
     {
-        var (backendId, model) = ResolveCurrentPromptModel();
+        var (providerId, model) = ResolveCurrentPromptModel();
         var modelName = model?.DisplayName ?? model?.Id ?? "the selected model";
-        return $"Image paste is not available because {modelName} on {backendId.Value} does not advertise image input support.";
+        return $"Image paste is not available because {modelName} on {providerId.Value} does not advertise image input support.";
     }
 
-    private (AgentBackendId BackendId, AgentModelInfo? Model) ResolveCurrentPromptModel()
+    private (ModelProviderId ProviderId, AgentModelInfo? Model) ResolveCurrentPromptModel()
     {
         var selectedThread = _getSelectedThread();
         var selectedTab = selectedThread is null ? null : _findOpenThread(selectedThread.ThreadId);
-        var backendId = selectedTab?.BackendId ?? (selectedThread is { } thread
-            ? new AgentBackendId(thread.BackendId)
-            : _getPreferredBackendId());
-        if (!_chatBackendStates.TryGetValue(backendId.Value, out var backendState))
+        var providerId = selectedTab?.ProviderId ?? (selectedThread is { } thread
+            ? new ModelProviderId(thread.ResolvedProviderKey)
+            : _getPreferredProviderId());
+        if (!_chatBackendStates.TryGetValue(providerId.Value, out var backendState))
         {
-            return (backendId, null);
+            return (providerId, null);
         }
 
         var modelId = selectedTab?.ModelId ?? backendState.SelectedModelId;
         var selectedModel = !string.IsNullOrWhiteSpace(modelId)
             ? backendState.Models.FirstOrDefault(candidate => string.Equals(candidate.Id, modelId, StringComparison.Ordinal))
             : null;
-        selectedModel ??= ChatBackendPresentation.GetSelectedModel(backendState) ??
+        selectedModel ??= ModelProviderPresentation.GetSelectedModel(backendState) ??
             (backendState.Models.Count == 1 ? backendState.Models[0] : null);
-        return (backendId, selectedModel);
+        return (providerId, selectedModel);
     }
 }

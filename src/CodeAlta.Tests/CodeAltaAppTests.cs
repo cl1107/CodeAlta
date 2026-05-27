@@ -1060,7 +1060,7 @@ public sealed class CodeAltaAppTests
     {
         var backendState = new ModelProviderState(ModelProviderIds.Codex, "Codex");
 
-        var result = ChatBackendInitializationCoordinator.ClassifyFailure(
+        var result = ModelProviderInitializationCoordinator.ClassifyFailure(
             backendState,
             new FileNotFoundException("codex executable was not found"));
 
@@ -2078,7 +2078,7 @@ public sealed class CodeAltaAppTests
     [TestMethod]
     public void BuildChatReasoningOptions_UsesSupportedEffortsOnly()
     {
-        var options = ChatBackendPresentation.BuildReasoningOptions(
+        var options = ModelProviderPresentation.BuildReasoningOptions(
             new AgentModelInfo(
                 "model-a",
                 SupportedReasoningEfforts: [AgentReasoningEffort.Minimal, AgentReasoningEffort.High]));
@@ -2091,7 +2091,7 @@ public sealed class CodeAltaAppTests
     [TestMethod]
     public void BuildChatReasoningOptions_UsesNoneWhenModelDoesNotSupportReasoning()
     {
-        var options = ChatBackendPresentation.BuildReasoningOptions(
+        var options = ModelProviderPresentation.BuildReasoningOptions(
             new AgentModelInfo(
                 "model-a",
                 SupportedReasoningEfforts: []));
@@ -2104,7 +2104,7 @@ public sealed class CodeAltaAppTests
     [TestMethod]
     public void ResolvePreferredReasoningEffort_PrefersHighWhenSupportedAndNoPreferenceIsSet()
     {
-        var effort = ChatBackendPresentation.ResolvePreferredReasoningEffort(
+        var effort = ModelProviderPresentation.ResolvePreferredReasoningEffort(
             new AgentModelInfo(
                 "gpt-5.4",
                 DefaultReasoningEffort: AgentReasoningEffort.Medium,
@@ -2117,7 +2117,7 @@ public sealed class CodeAltaAppTests
     [TestMethod]
     public void ResolvePreferredReasoningEffort_PreservesRequestedEffortWhenSupported()
     {
-        var effort = ChatBackendPresentation.ResolvePreferredReasoningEffort(
+        var effort = ModelProviderPresentation.ResolvePreferredReasoningEffort(
             new AgentModelInfo(
                 "gpt-5.4",
                 DefaultReasoningEffort: AgentReasoningEffort.High,
@@ -2130,7 +2130,7 @@ public sealed class CodeAltaAppTests
     [TestMethod]
     public void ResolvePreferredReasoningEffort_DropsRequestedEffortWhenModelDoesNotSupportReasoning()
     {
-        var effort = ChatBackendPresentation.ResolvePreferredReasoningEffort(
+        var effort = ModelProviderPresentation.ResolvePreferredReasoningEffort(
             new AgentModelInfo(
                 "gemini-test",
                 SupportedReasoningEfforts: []),
@@ -2148,7 +2148,7 @@ public sealed class CodeAltaAppTests
             new("gpt-5-mini"),
         ];
 
-        var selectedModelId = ChatBackendPresentation.ResolvePreferredModelId(models, "missing-model");
+        var selectedModelId = ModelProviderPresentation.ResolvePreferredModelId(models, "missing-model");
 
         Assert.AreEqual("gpt-5.4", selectedModelId);
     }
@@ -2162,7 +2162,7 @@ public sealed class CodeAltaAppTests
         };
         backendState.Models.Add(new AgentModelInfo("gpt-5.2", DisplayName: "GPT-5.2"));
 
-        var options = ChatBackendPresentation.BuildModelOptions(backendState);
+        var options = ModelProviderPresentation.BuildModelOptions(backendState);
 
         Assert.AreEqual("gpt-5.5", options[0].ModelId);
         Assert.AreEqual("gpt-5.5", options[0].Label);
@@ -2175,7 +2175,7 @@ public sealed class CodeAltaAppTests
         var backendState = new ModelProviderState(new ModelProviderId("qwen"), "Qwen");
         backendState.Models.Add(new AgentModelInfo("qwen3-flash", DisplayName: " "));
 
-        var options = ChatBackendPresentation.BuildModelOptions(backendState);
+        var options = ModelProviderPresentation.BuildModelOptions(backendState);
 
         Assert.AreEqual("qwen3-flash", options[0].Label);
     }
@@ -2183,7 +2183,7 @@ public sealed class CodeAltaAppTests
     [TestMethod]
     public void BuildModelOptionMarkup_IncludesDimModelIdWhenDisplayNameDiffers()
     {
-        var markup = ChatBackendPresentation.BuildModelOptionMarkup(new ChatModelOption("qwen3-flash", "Qwen3.6 Flash"));
+        var markup = ModelProviderPresentation.BuildModelOptionMarkup(new ChatModelOption("qwen3-flash", "Qwen3.6 Flash"));
 
         Assert.AreEqual("Qwen3.6 Flash [dim](qwen3-flash)[/]", markup);
     }
@@ -2191,7 +2191,7 @@ public sealed class CodeAltaAppTests
     [TestMethod]
     public void BuildModelOptionMarkup_OmitsModelIdWhenLabelAlreadyIsId()
     {
-        var markup = ChatBackendPresentation.BuildModelOptionMarkup(new ChatModelOption("qwen3-flash", "qwen3-flash"));
+        var markup = ModelProviderPresentation.BuildModelOptionMarkup(new ChatModelOption("qwen3-flash", "qwen3-flash"));
 
         Assert.AreEqual("qwen3-flash", markup);
     }
@@ -2204,7 +2204,7 @@ public sealed class CodeAltaAppTests
             SelectedModelId = "gpt-5.5",
         };
 
-        var options = ChatBackendPresentation.BuildModelOptions(backendState);
+        var options = ModelProviderPresentation.BuildModelOptions(backendState);
 
         Assert.AreEqual(1, options.Count);
         Assert.AreEqual("gpt-5.5", options[0].ModelId);
@@ -2275,7 +2275,7 @@ public sealed class CodeAltaAppTests
             },
         };
 
-        var markup = ChatBackendPresentation.BuildBackendStatusMarkup(states, ModelProviderIds.Codex, isInitializing: false);
+        var markup = ModelProviderPresentation.BuildProviderStatusMarkup(states, ModelProviderIds.Codex, isInitializing: false);
 
         StringAssert.Contains(markup, "Codex");
         StringAssert.Contains(markup, "Copilot");
@@ -2297,7 +2297,7 @@ public sealed class CodeAltaAppTests
             },
         };
 
-        var markup = ChatBackendPresentation.BuildProviderSummaryMarkup(states, isInitializing: false);
+        var markup = ModelProviderPresentation.BuildProviderSummaryMarkup(states, isInitializing: false);
 
         StringAssert.Contains(markup, "1 active provider");
         StringAssert.Contains(markup, "2 configured");
@@ -2319,7 +2319,7 @@ public sealed class CodeAltaAppTests
             },
         };
 
-        var markup = ChatBackendPresentation.BuildProviderSummaryMarkup(
+        var markup = ModelProviderPresentation.BuildProviderSummaryMarkup(
             states,
             isInitializing: false,
             configuredProviderCount: 6);
@@ -2344,7 +2344,7 @@ public sealed class CodeAltaAppTests
             },
         };
 
-        var markup = ChatBackendPresentation.BuildProviderSummaryMarkup(
+        var markup = ModelProviderPresentation.BuildProviderSummaryMarkup(
             states,
             isInitializing: false,
             configuredProviderKeys: ["codex", "copilot", "openai", "anthropic", "google", "vertex"]);
@@ -2358,13 +2358,13 @@ public sealed class CodeAltaAppTests
     public void ReplaceSelectItems_DoesNotMutateSelectWhenItemsAreUnchanged()
     {
         var select = new Select<ChatModelOption>();
-        ChatBackendPresentation.ReplaceSelectItems(
+        ModelProviderPresentation.ReplaceSelectItems(
             select,
             [new ChatModelOption("gpt-5.4", "GPT-5.4"), new ChatModelOption(null, "(default)")]);
 
         var versionBefore = select.Items.Version;
 
-        ChatBackendPresentation.ReplaceSelectItems(
+        ModelProviderPresentation.ReplaceSelectItems(
             select,
             [new ChatModelOption("gpt-5.4", "GPT-5.4"), new ChatModelOption(null, "(default)")]);
 
@@ -2379,13 +2379,13 @@ public sealed class CodeAltaAppTests
     public void ReplaceSelectItems_ReplacesSelectItemsWhenContentChanges()
     {
         var select = new Select<ChatReasoningOption>();
-        ChatBackendPresentation.ReplaceSelectItems(
+        ModelProviderPresentation.ReplaceSelectItems(
             select,
             [new ChatReasoningOption(AgentReasoningEffort.Low, "Low")]);
 
         var versionBefore = select.Items.Version;
 
-        ChatBackendPresentation.ReplaceSelectItems(
+        ModelProviderPresentation.ReplaceSelectItems(
             select,
             [new ChatReasoningOption(AgentReasoningEffort.High, "High")]);
 
@@ -2757,9 +2757,9 @@ public sealed class CodeAltaAppTests
     }
 
     [TestMethod]
-    public void ResolveChatBackendSelection_CanPreserveCurrentSelection()
+    public void ResolveModelProviderSelection_CanPreserveCurrentSelection()
     {
-        var selected = ChatBackendPresentation.ResolveBackendSelection(
+        var selected = ModelProviderPresentation.ResolveProviderSelection(
             ModelProviderIds.Copilot,
             ModelProviderIds.Codex,
             adoptRequestedBackend: false);

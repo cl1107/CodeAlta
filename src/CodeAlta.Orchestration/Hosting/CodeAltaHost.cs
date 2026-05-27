@@ -183,16 +183,7 @@ public sealed class CodeAltaHost : IAsyncDisposable
         var modelProviderRegistry = new ModelProviderRegistry();
         options.ConfigureModelProviders?.Invoke(modelProviderRegistry);
         var modelProviderInitializationService = new ModelProviderInitializationService(modelProviderRegistry);
-        AgentBackendFactory? legacyBackendFactory = null;
-        if (options.ConfigureAgentBackends is not null)
-        {
-            legacyBackendFactory = new AgentBackendFactory();
-            options.ConfigureAgentBackends.Invoke(legacyBackendFactory);
-        }
-
-        var agentHub = legacyBackendFactory is null
-            ? new AgentHub(modelProviderRegistry, globalRoot)
-            : new AgentHub(legacyBackendFactory);
+        var agentHub = new AgentHub(modelProviderRegistry, globalRoot);
         var sessionCatalog = new AgentSessionCatalog(threadCatalog.JournalStore.CreateSessionStore());
         var runtimeService = new SessionRuntimeService(
             agentHub,

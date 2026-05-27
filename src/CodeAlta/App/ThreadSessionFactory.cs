@@ -172,7 +172,7 @@ internal sealed class ThreadSessionFactory
             _projectRootResolver.ResolveProjectRoot(thread));
         var state = new OpenThreadState(thread, timeline)
         {
-            BackendId = new AgentBackendId(thread.BackendId),
+            ProviderId = new ModelProviderId(thread.ResolvedProviderKey),
             StatusMessage = ShellTextFormatter.BuildReadyStatusText(thread, _projectRootResolver.GetSelectedProject(), globalScopeSelected: false),
         };
         state.Session.PromptDraftText = _promptDrafts.LoadPromptDraft(thread.ThreadId) ?? string.Empty;

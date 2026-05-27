@@ -19,37 +19,6 @@ internal static class ConfiguredModelProviderRegistryBuilder
     private static readonly Logger Logger = LogManager.GetLogger("CodeAlta.RawApi");
 
     public static IReadOnlyList<ModelProviderDescriptor> RegisterConfiguredProviders(
-        AgentBackendFactory legacyBackendFactory,
-        CodeAltaConfigStore configStore,
-        string stateRootPath,
-        ModelsDevCatalogService? modelCatalog = null)
-    {
-        var registry = new ModelProviderRegistry();
-        return RegisterConfiguredProviders(legacyBackendFactory, registry, configStore, stateRootPath, modelCatalog);
-    }
-
-    public static IReadOnlyList<ModelProviderDescriptor> RegisterConfiguredProviders(
-        AgentBackendFactory legacyBackendFactory,
-        ModelProviderRegistry modelProviderRegistry,
-        CodeAltaConfigStore configStore,
-        string stateRootPath,
-        ModelsDevCatalogService? modelCatalog = null)
-    {
-        ArgumentNullException.ThrowIfNull(legacyBackendFactory);
-        var descriptors = RegisterConfiguredProviders(modelProviderRegistry, configStore, stateRootPath, modelCatalog);
-        foreach (var descriptor in descriptors)
-        {
-            legacyBackendFactory.RegisterOrReplace(
-                descriptor.BackendId,
-                () => new LegacyProviderBackend(
-                    modelProviderRegistry.CreateRuntimeAsync(descriptor.ProviderId).AsTask().GetAwaiter().GetResult(),
-                    stateRootPath));
-        }
-
-        return descriptors;
-    }
-
-    public static IReadOnlyList<ModelProviderDescriptor> RegisterConfiguredProviders(
         ModelProviderRegistry modelProviderRegistry,
         CodeAltaConfigStore configStore,
         string stateRootPath,
@@ -71,37 +40,6 @@ internal static class ConfiguredModelProviderRegistryBuilder
         }
 
         return descriptors;
-    }
-
-    public static IReadOnlyList<ModelProviderDescriptor> RegisterOrReplaceConfiguredProviders(
-        AgentBackendFactory legacyBackendFactory,
-        ModelProviderRegistry modelProviderRegistry,
-        IEnumerable<CodeAltaProviderDocument> definitions,
-        string stateRootPath,
-        ModelsDevCatalogService? modelCatalog = null)
-    {
-        ArgumentNullException.ThrowIfNull(legacyBackendFactory);
-        var descriptors = RegisterOrReplaceConfiguredProviders(modelProviderRegistry, definitions, stateRootPath, modelCatalog);
-        foreach (var descriptor in descriptors)
-        {
-            legacyBackendFactory.RegisterOrReplace(
-                descriptor.BackendId,
-                () => new LegacyProviderBackend(
-                    modelProviderRegistry.CreateRuntimeAsync(descriptor.ProviderId).AsTask().GetAwaiter().GetResult(),
-                    stateRootPath));
-        }
-
-        return descriptors;
-    }
-
-    public static IReadOnlyList<ModelProviderDescriptor> RegisterOrReplaceConfiguredProviders(
-        AgentBackendFactory legacyBackendFactory,
-        IEnumerable<CodeAltaProviderDocument> definitions,
-        string stateRootPath,
-        ModelsDevCatalogService? modelCatalog = null)
-    {
-        var registry = new ModelProviderRegistry();
-        return RegisterOrReplaceConfiguredProviders(legacyBackendFactory, registry, definitions, stateRootPath, modelCatalog);
     }
 
     public static IReadOnlyList<ModelProviderDescriptor> RegisterOrReplaceConfiguredProviders(
@@ -1247,63 +1185,4 @@ internal static class ConfiguredModelProviderRegistryBuilder
         Logger.Info(message);
     }
 
-    private sealed class LegacyProviderBackend : IAgentBackend
-    {
-        private readonly IModelProviderRuntime _providerRuntime;
-        private readonly CodeAltaAgentRuntime _sessionRuntime;
-
-        public LegacyProviderBackend(IModelProviderRuntime providerRuntime, string stateRootPath)
-        {
-            _providerRuntime = providerRuntime ?? throw new ArgumentNullException(nameof(providerRuntime));
-            if (providerRuntime is not ICodeAltaModelProviderRuntime codeAltaRuntime)
-            {
-                throw new InvalidOperationException($"Model provider '{providerRuntime.Descriptor.ProviderId.Value}' does not expose a CodeAlta session runtime.");
-            }
-
-            BackendId = new AgentBackendId(providerRuntime.Descriptor.ProviderId.Value);
-            DisplayName = providerRuntime.Descriptor.DisplayName;
-            _sessionRuntime = new CodeAltaAgentRuntime(
-                providerRuntime.Descriptor.ProviderId,
-                providerRuntime.Descriptor.DisplayName,
-                new CodeAltaAgentRuntimeOptions
-                {
-                    StateRootPath = stateRootPath,
-                    Providers = [codeAltaRuntime.CreateProviderRegistration()],
-                });
-        }
-
-        public AgentBackendId BackendId { get; }
-
-        public string DisplayName { get; }
-
-        public async Task StartAsync(CancellationToken cancellationToken = default)
-        {
-            await _providerRuntime.StartAsync(cancellationToken).ConfigureAwait(false);
-            await _sessionRuntime.StartAsync(cancellationToken).ConfigureAwait(false);
-        }
-
-        public async Task StopAsync(CancellationToken cancellationToken = default)
-        {
-            await _providerRuntime.StopAsync(cancellationToken).ConfigureAwait(false);
-            await _sessionRuntime.StopAsync(cancellationToken).ConfigureAwait(false);
-        }
-
-        public async Task<IReadOnlyList<AgentModelInfo>> ListModelsAsync(CancellationToken cancellationToken = default)
-            => (await _providerRuntime.ProbeAsync(cancellationToken).ConfigureAwait(false)).Models;
-
-        public Task<bool> DeleteSessionAsync(string sessionId, CancellationToken cancellationToken = default)
-            => _sessionRuntime.DeleteSessionAsync(sessionId, cancellationToken);
-
-        public Task<IAgentSession> CreateSessionAsync(AgentSessionCreateOptions options, CancellationToken cancellationToken = default)
-            => _sessionRuntime.CreateSessionAsync(options, cancellationToken);
-
-        public Task<IAgentSession> ResumeSessionAsync(string sessionId, AgentSessionResumeOptions options, CancellationToken cancellationToken = default)
-            => _sessionRuntime.ResumeSessionAsync(sessionId, options, cancellationToken);
-
-        public async ValueTask DisposeAsync()
-        {
-            await _sessionRuntime.DisposeAsync().ConfigureAwait(false);
-            await _providerRuntime.DisposeAsync().ConfigureAwait(false);
-        }
-    }
 }

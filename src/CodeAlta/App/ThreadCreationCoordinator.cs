@@ -10,11 +10,11 @@ internal sealed class ThreadCreationCoordinator
 {
     private readonly SessionRuntimeService _runtimeService;
     private readonly CatalogOptions _catalogOptions;
-    private readonly Func<AgentBackendId> _getPreferredBackendId;
+    private readonly Func<ModelProviderId> _getPreferredProviderId;
     private readonly Func<ProjectDescriptor?> _getSelectedProject;
     private readonly Func<ShellSelection> _getSelection;
     private readonly Func<string?> _readDraftTitle;
-    private readonly Func<AgentBackendId, string, IReadOnlyList<string>, Func<string?>?, SessionExecutionOptions> _buildPreferredExecutionOptions;
+    private readonly Func<ModelProviderId, string, IReadOnlyList<string>, Func<string?>?, SessionExecutionOptions> _buildPreferredExecutionOptions;
     private readonly Action<string, string?, AgentReasoningEffort?, bool> _rememberThreadPreference;
     private readonly Func<SessionViewDescriptor, Task> _registerCreatedThreadAsync;
     private readonly Action _clearThreadTitleDraft;
@@ -23,11 +23,11 @@ internal sealed class ThreadCreationCoordinator
     public ThreadCreationCoordinator(
         SessionRuntimeService runtimeService,
         CatalogOptions catalogOptions,
-        Func<AgentBackendId> getPreferredBackendId,
+        Func<ModelProviderId> getPreferredProviderId,
         Func<ProjectDescriptor?> getSelectedProject,
         Func<ShellSelection> getSelection,
         Func<string?> readDraftTitle,
-        Func<AgentBackendId, string, IReadOnlyList<string>, Func<string?>?, SessionExecutionOptions> buildPreferredExecutionOptions,
+        Func<ModelProviderId, string, IReadOnlyList<string>, Func<string?>?, SessionExecutionOptions> buildPreferredExecutionOptions,
         Action<string, string?, AgentReasoningEffort?, bool> rememberThreadPreference,
         Func<SessionViewDescriptor, Task> registerCreatedThreadAsync,
         Action clearThreadTitleDraft,
@@ -35,7 +35,7 @@ internal sealed class ThreadCreationCoordinator
     {
         ArgumentNullException.ThrowIfNull(runtimeService);
         ArgumentNullException.ThrowIfNull(catalogOptions);
-        ArgumentNullException.ThrowIfNull(getPreferredBackendId);
+        ArgumentNullException.ThrowIfNull(getPreferredProviderId);
         ArgumentNullException.ThrowIfNull(getSelectedProject);
         ArgumentNullException.ThrowIfNull(getSelection);
         ArgumentNullException.ThrowIfNull(readDraftTitle);
@@ -47,7 +47,7 @@ internal sealed class ThreadCreationCoordinator
 
         _runtimeService = runtimeService;
         _catalogOptions = catalogOptions;
-        _getPreferredBackendId = getPreferredBackendId;
+        _getPreferredProviderId = getPreferredProviderId;
         _getSelectedProject = getSelectedProject;
         _getSelection = getSelection;
         _readDraftTitle = readDraftTitle;
@@ -66,7 +66,7 @@ internal sealed class ThreadCreationCoordinator
             var title = ResolveTitle(titleOverride);
             string? createdThreadId = null;
             var executionOptions = _buildPreferredExecutionOptions(
-                _getPreferredBackendId(),
+                _getPreferredProviderId(),
                 _catalogOptions.GlobalRoot,
                 [],
                 () => createdThreadId);
@@ -103,7 +103,7 @@ internal sealed class ThreadCreationCoordinator
             var title = ResolveTitle(titleOverride);
             string? createdThreadId = null;
             var executionOptions = _buildPreferredExecutionOptions(
-                _getPreferredBackendId(),
+                _getPreferredProviderId(),
                 project.ProjectPath,
                 [project.ProjectPath],
                 () => createdThreadId);

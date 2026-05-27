@@ -44,7 +44,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
     private readonly ShellFrontendHost _frontendHost;
     private readonly FrontendEventPublisher _frontendEvents;
     private readonly ShellProjectionCoordinator _projectionCoordinator;
-    private readonly ChatBackendInitializationCoordinator _chatBackendInitializationCoordinator;
+    private readonly ModelProviderInitializationCoordinator _chatBackendInitializationCoordinator;
     private readonly ShellThreadStateCoordinator _threadStateCoordinator;
     private readonly ShellWorkspaceCoordinator _workspaceCoordinator;
     private readonly SessionHistoryCoordinator _threadHistoryCoordinator;
@@ -172,7 +172,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
         _terminalLoopCoordinator = composition.TerminalLoopCoordinator;
         _frontendEvents = composition.FrontendEvents;
         _shellTabService.SetFrontendEvents(_frontendEvents);
-        _chatBackendInitializationCoordinator = composition.ChatBackendInitializationCoordinator;
+        _chatBackendInitializationCoordinator = composition.ModelProviderInitializationCoordinator;
         _threadStateCoordinator = composition.ThreadStateCoordinator;
         _workspaceCoordinator = composition.WorkspaceCoordinator;
         _threadRuntimeEventCoordinator = composition.ThreadRuntimeEventCoordinator;
@@ -342,7 +342,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
         var thread = tab?.Thread ?? _threadStateCoordinator.FindThread(threadId);
         if (thread is not null)
         {
-            var providerKey = tab?.BackendId.Value ?? thread.ResolvedProviderKey;
+            var providerKey = tab?.ProviderId.Value ?? thread.ResolvedProviderKey;
             if (!string.IsNullOrWhiteSpace(providerKey))
             {
                 thread.ProviderKey = providerKey;
@@ -447,7 +447,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
     private void OnModelProviderSelectionChanged(int newIndex) => ObserveUiTask(() => _modelProviderSelectorCoordinator.OnModelProviderSelectionChangedAsync(newIndex), "change the selected provider");
     private void OnModelSelectionChanged(int newIndex) => _modelProviderSelectorCoordinator.OnModelSelectionChanged(newIndex);
     private void OnReasoningSelectionChanged(int newIndex) => _modelProviderSelectorCoordinator.OnReasoningSelectionChanged(newIndex);
-    private AgentBackendId GetPreferredBackendId() => new(_modelProviderSelectorCoordinator.GetPreferredModelProviderId().Value);
+    private ModelProviderId GetPreferredProviderId() => _modelProviderSelectorCoordinator.GetPreferredModelProviderId();
     internal bool IsModelProviderReady(ModelProviderId providerId) => _modelProviderSelectorCoordinator.IsModelProviderReady(providerId);
 
     private bool TryGetPromptUnavailableStatus(out string message, out StatusTone tone)
@@ -472,7 +472,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
         Func<string?> promptRoot = ResolvePromptRoot;
         var pb = _ownedServices?.PluginHostBridge;
         var pec = pb?.GetPromptEditorContributions() ?? [];
-        var getPromptComposerSession = PromptComposerSessionBindingFactory.Create(_promptDraftUiCoordinator, new PromptImageCapabilityContext(GetSelectedThread, _threadStateCoordinator.FindOpenThread, GetPreferredBackendId, _chatBackendStates), (message, tone) => SetStatus(message, tone: tone));
+        var getPromptComposerSession = PromptComposerSessionBindingFactory.Create(_promptDraftUiCoordinator, new PromptImageCapabilityContext(GetSelectedThread, _threadStateCoordinator.FindOpenThread, GetPreferredProviderId, _chatBackendStates), (message, tone) => SetStatus(message, tone: tone));
         var openHelp = () => ObserveUiTask(() => _shellCommandSurfaceCoordinator.ShowHelpAsync(), "show help");
         var showPalette = () => _shellCommandSurfaceCoordinator.ShowCommandPalette();
         var shellSurface = CodeAltaShellViewFactory.CreateSurface(new CodeAltaShellSurfaceOptions
@@ -679,10 +679,10 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
 
     internal async Task PersistViewStateAsync()
         => await _threadStateCoordinator.PersistViewStateAsync();
-    internal Task InitializeChatBackendsAsync(CancellationToken cancellationToken)
+    internal Task InitializeModelProvidersAsync(CancellationToken cancellationToken)
         => _chatBackendInitializationCoordinator.InitializeAsync(cancellationToken);
-    internal Task InitializeChatBackendAsync(AgentBackendId backendId, CancellationToken cancellationToken)
-        => _chatBackendInitializationCoordinator.RefreshBackendAsync(backendId, cancellationToken);
+    internal Task InitializeModelProviderAsync(ModelProviderId providerId, CancellationToken cancellationToken)
+        => _chatBackendInitializationCoordinator.RefreshProviderAsync(providerId, cancellationToken);
 
     internal void ApplyRecoveredCatalogState(
         IReadOnlyList<ProjectDescriptor> projects,

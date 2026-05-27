@@ -1345,13 +1345,11 @@ public sealed class AltaLiveToolTests
                     Capabilities: new Dictionary<string, object?> { ["supportsToolCall"] = false }),
             ],
         };
-        var factory = new AgentBackendFactory();
-        factory.Register(backendId, () => backend);
         var providerRegistry = new ModelProviderRegistry();
         providerRegistry.RegisterOrReplaceBackendRuntime(new ModelProviderDescriptor(backendId, "Models"), () => backend);
         var providerInitializationService = new ModelProviderInitializationService(providerRegistry);
         var dispatcher = CreateDispatcher(new AltaServiceCollection()
-            .Add(new AgentHub(factory))
+            .Add(new AgentHub(providerRegistry))
             .Add<IModelProviderRegistry>(providerRegistry)
             .Add<IModelProviderInitializationService>(providerInitializationService));
 
@@ -2519,9 +2517,9 @@ public sealed class AltaLiveToolTests
 
     private static SessionRuntimeService CreateRuntime(CatalogOptions options, IAgentBackend backend)
     {
-        var factory = new AgentBackendFactory();
-        factory.Register(backend.BackendId, () => backend);
-        var hub = new AgentHub(factory);
+        var registry = new ModelProviderRegistry();
+        registry.RegisterOrReplaceBackendRuntime(new ModelProviderDescriptor(new ModelProviderId(backend.BackendId.Value), backend.DisplayName), () => backend);
+        var hub = new AgentHub(registry);
         var projectCatalog = new ProjectCatalog(options);
         var threadCatalog = new WorkThreadCatalog(options);
         var sessionCatalog = new AgentSessionCatalog(threadCatalog.JournalStore.CreateSessionStore());

@@ -22,7 +22,7 @@ public sealed class ThreadExecutionOptionsFactoryTests
         Directory.CreateDirectory(project.ProjectPath);
         var factory = CreateFactory(temp.Path, project);
 
-        var options = factory.BuildPreferredExecutionOptions(AgentBackendIds.Codex, temp.Path, []);
+        var options = factory.BuildPreferredExecutionOptions(ModelProviderIds.Codex, temp.Path, []);
 
         var caller = await InvokeToolStatusAsync(options).ConfigureAwait(false);
         Assert.AreEqual("agent", caller.GetProperty("kind").GetString());
@@ -37,7 +37,7 @@ public sealed class ThreadExecutionOptionsFactoryTests
         Directory.CreateDirectory(project.ProjectPath);
         var factory = CreateFactory(temp.Path, project);
 
-        var options = factory.BuildPreferredExecutionOptions(AgentBackendIds.Codex, project.ProjectPath, [project.ProjectPath]);
+        var options = factory.BuildPreferredExecutionOptions(ModelProviderIds.Codex, project.ProjectPath, [project.ProjectPath]);
 
         var caller = await InvokeToolStatusAsync(options).ConfigureAwait(false);
         Assert.AreEqual(project.Id, caller.GetProperty("sourceProjectId").GetString());
@@ -53,7 +53,7 @@ public sealed class ThreadExecutionOptionsFactoryTests
         string? createdThreadId = null;
 
         var options = factory.BuildPreferredExecutionOptions(
-            AgentBackendIds.Codex,
+            ModelProviderIds.Codex,
             project.ProjectPath,
             [project.ProjectPath],
             () => createdThreadId);
@@ -102,7 +102,7 @@ public sealed class ThreadExecutionOptionsFactoryTests
             new ThreadPermissionRequestCoordinator(selection, CreateCommandContext(uiDispatcher)),
             new ThreadUserInputRequestCoordinator(selection, CreateCommandContext(uiDispatcher)));
 
-        var options = factory.BuildPreferredExecutionOptions(AgentBackendIds.Codex, temp.Path, []);
+        var options = factory.BuildPreferredExecutionOptions(ModelProviderIds.Codex, temp.Path, []);
 
         Assert.AreEqual("gpt-selected", options.Model);
         Assert.AreEqual(AgentReasoningEffort.High, options.ReasoningEffort);
@@ -117,9 +117,9 @@ public sealed class ThreadExecutionOptionsFactoryTests
         var factory = CreateFactory(temp.Path, project);
         var backendId = new AgentBackendId("gemini");
 
-        var options = factory.BuildPreferredExecutionOptions(backendId, temp.Path, []);
+        var options = factory.BuildPreferredExecutionOptions(new ModelProviderId(backendId.Value), temp.Path, []);
 
-        Assert.AreEqual(backendId, options.BackendId);
+        Assert.AreEqual(backendId.Value, options.ProviderId.Value);
         Assert.AreEqual("gemini", options.ProviderKey);
         Assert.IsNull(options.Model);
         Assert.IsNull(options.ReasoningEffort);

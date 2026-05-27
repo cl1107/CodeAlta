@@ -17,7 +17,7 @@ internal sealed class ThreadExecutionOptionsFactory
     private readonly ThreadPermissionRequestCoordinator _permissionRequests;
     private readonly ThreadUserInputRequestCoordinator _userInputRequests;
     private readonly IServiceProvider? _altaServices;
-    private readonly IReadOnlySet<string> _altaToolBackendIds;
+    private readonly IReadOnlySet<string> _altaToolProviderIds;
 
     public ThreadExecutionOptionsFactory(
         CatalogOptions catalogOptions,
@@ -26,7 +26,7 @@ internal sealed class ThreadExecutionOptionsFactory
         ThreadPermissionRequestCoordinator permissionRequests,
         ThreadUserInputRequestCoordinator userInputRequests,
         IServiceProvider? altaServices = null,
-        IReadOnlySet<string>? altaToolBackendIds = null)
+        IReadOnlySet<string>? altaToolProviderIds = null)
     {
         ArgumentNullException.ThrowIfNull(catalogOptions);
         ArgumentNullException.ThrowIfNull(chatBackendStates);
@@ -40,18 +40,18 @@ internal sealed class ThreadExecutionOptionsFactory
         _permissionRequests = permissionRequests;
         _userInputRequests = userInputRequests;
         _altaServices = altaServices;
-        _altaToolBackendIds = altaToolBackendIds ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        _altaToolProviderIds = altaToolProviderIds ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     }
 
     public SessionExecutionOptions BuildPreferredExecutionOptions(
-        AgentBackendId backendId,
+        ModelProviderId providerId,
         string workingDirectory,
         IReadOnlyList<string> projectRoots,
         Func<string?>? sourceThreadIdProvider = null)
     {
         ArgumentNullException.ThrowIfNull(projectRoots);
 
-        _chatBackendStates.TryGetValue(backendId.Value, out var backendState);
+        _chatBackendStates.TryGetValue(providerId.Value, out var backendState);
         var model = backendState?.SelectedModelId;
         var reasoning = backendState?.SelectedReasoningEffort;
 
@@ -60,19 +60,19 @@ internal sealed class ThreadExecutionOptionsFactory
             : _threadSelection.GetSelectedProjectId();
         return new SessionExecutionOptions
         {
-            BackendId = backendId,
-            ProviderKey = backendId.Value,
+            ProviderId = providerId,
+            ProviderKey = providerId.Value,
             WorkingDirectory = workingDirectory,
             ProjectRoots = projectRoots,
             Model = model,
             ReasoningEffort = reasoning,
             Tools = CreateAltaTools(
-                backendId,
+                providerId,
                 sourceThreadIdProvider: sourceThreadIdProvider,
                 sourceProjectIdProvider: () => sourceProjectId,
                 workingDirectoryProvider: () => workingDirectory),
             OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
-            OnUserInputRequest = (request, cancellationToken) => _userInputRequests.HandleAsync(CreateTransientThreadKey(backendId, workingDirectory), request, cancellationToken),
+            OnUserInputRequest = (request, cancellationToken) => _userInputRequests.HandleAsync(CreateTransientThreadKey(providerId, workingDirectory), request, cancellationToken),
         };
     }
 
@@ -83,44 +83,44 @@ internal sealed class ThreadExecutionOptionsFactory
 
         var workingDirectory = ResolveWorkingDirectory(thread);
         var projectRoots = ResolveProjectRoots(thread);
-        var backendId = new AgentBackendId(thread.BackendId);
+        var providerId = new ModelProviderId(thread.ResolvedProviderKey);
         return new SessionExecutionOptions
         {
-            BackendId = backendId,
+            ProviderId = providerId,
             ProviderKey = thread.ResolvedProviderKey,
             WorkingDirectory = workingDirectory,
             ProjectRoots = projectRoots,
             Model = tab.ModelId,
             ReasoningEffort = tab.ReasoningEffort,
             Tools = CreateAltaTools(
-                backendId,
+                providerId,
                 sourceThreadIdProvider: () => thread.ThreadId,
                 sourceProjectIdProvider: () => thread.ProjectRef,
                 workingDirectoryProvider: () => ResolveWorkingDirectory(thread)),
-            OnPermissionRequest = CreatePermissionHandler(backendId, thread.ThreadId),
+            OnPermissionRequest = CreatePermissionHandler(providerId, thread.ThreadId),
             OnUserInputRequest = (request, cancellationToken) => _userInputRequests.HandleAsync(thread.ThreadId, request, cancellationToken),
         };
     }
 
-    public static string CreateTransientThreadKey(AgentBackendId backendId, string workingDirectory)
-        => $"{backendId.Value}:{workingDirectory}";
+    public static string CreateTransientThreadKey(ModelProviderId providerId, string workingDirectory)
+        => $"{providerId.Value}:{workingDirectory}";
 
-    private AgentPermissionRequestHandler CreatePermissionHandler(AgentBackendId backendId, string threadId)
+    private AgentPermissionRequestHandler CreatePermissionHandler(ModelProviderId providerId, string threadId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
 
-        return string.Equals(backendId.Value, AgentBackendIds.Codex.Value, StringComparison.OrdinalIgnoreCase)
+        return string.Equals(providerId.Value, ModelProviderIds.Codex.Value, StringComparison.OrdinalIgnoreCase)
             ? static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce))
             : (request, cancellationToken) => _permissionRequests.HandleAsync(threadId, request, cancellationToken);
     }
 
     private IReadOnlyList<AgentToolDefinition>? CreateAltaTools(
-        AgentBackendId backendId,
+        ModelProviderId providerId,
         Func<string?>? sourceThreadIdProvider,
         Func<string?>? sourceProjectIdProvider,
         Func<string?>? workingDirectoryProvider)
     {
-        if (_altaServices is null || !_altaToolBackendIds.Contains(backendId.Value))
+        if (_altaServices is null || !_altaToolProviderIds.Contains(providerId.Value))
         {
             return null;
         }

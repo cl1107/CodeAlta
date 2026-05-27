@@ -19,7 +19,7 @@ internal sealed class ModelProviderSelectorView
         ArgumentNullException.ThrowIfNull(promptComposerViewModel);
         ArgumentNullException.ThrowIfNull(controller);
 
-        ChatBackendSelect = new Select<ChatBackendOption>()
+        ModelProviderSelect = new Select<ModelProviderOption>()
             .SelectedIndex(workspaceViewModel.Bind.SelectedModelProviderIndex)
             .MinWidth(14)
             .MaxWidth(22)
@@ -28,7 +28,7 @@ internal sealed class ModelProviderSelectorView
             .SelectedIndex(workspaceViewModel.Bind.SelectedModelIndex)
             .ItemTemplate(new DataTemplate<ChatModelOption>(
                 static (DataTemplateValue<ChatModelOption> value, in DataTemplateContext _) =>
-                    new Markup(ChatBackendPresentation.BuildModelOptionMarkup(value.GetValue()))
+                    new Markup(ModelProviderPresentation.BuildModelOptionMarkup(value.GetValue()))
                     {
                         Wrap = false,
                     },
@@ -51,7 +51,7 @@ internal sealed class ModelProviderSelectorView
 
         Root = new HStack(
         [
-            ChatBackendSelect,
+            ModelProviderSelect,
             ChatModelSelect,
             ChatReasoningSelect,
             compactThreadButton,
@@ -64,7 +64,7 @@ internal sealed class ModelProviderSelectorView
 
     public Visual Root { get; }
 
-    public Select<ChatBackendOption> ChatBackendSelect { get; }
+    public Select<ModelProviderOption> ModelProviderSelect { get; }
 
     public Select<ChatModelOption> ChatModelSelect { get; }
 
@@ -77,14 +77,14 @@ internal sealed class ModelProviderSelectorView
         ArgumentNullException.ThrowIfNull(workspaceViewModel);
 
         using var _ = workspaceViewModel.SuppressSelectionChangedNotifications();
-        SyncSelect(ChatBackendSelect, workspaceViewModel.ModelProviderOptions, workspaceViewModel.SelectedModelProviderIndex);
+        SyncSelect(ModelProviderSelect, workspaceViewModel.ModelProviderOptions, workspaceViewModel.SelectedModelProviderIndex);
         SyncSelect(ChatModelSelect, workspaceViewModel.ModelOptions, workspaceViewModel.SelectedModelIndex);
         SyncSelect(ChatReasoningSelect, workspaceViewModel.ReasoningOptions, workspaceViewModel.SelectedReasoningIndex);
     }
 
     private static void SyncSelect<T>(Select<T> select, IReadOnlyList<T> items, int selectedIndex)
     {
-        ChatBackendPresentation.ReplaceSelectItems(select, items);
+        ModelProviderPresentation.ReplaceSelectItems(select, items);
         select.SelectedIndex = selectedIndex;
     }
 }

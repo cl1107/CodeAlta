@@ -14,7 +14,6 @@ namespace CodeAlta.Orchestration.Runtime;
 public sealed class AgentHub : IAsyncDisposable
 {
     private readonly ModelProviderRegistry _modelProviderRegistry;
-    private readonly AgentBackendFactory? _legacyBackendFactory;
     private readonly string? _stateRootPath;
     private readonly Dictionary<AgentSessionHandleId, SessionEntry> _sessions = new();
     private readonly BoundedRuntimeEventStream<OrchestrationEvent> _events = new();
@@ -33,14 +32,6 @@ public sealed class AgentHub : IAsyncDisposable
 
         _modelProviderRegistry = modelProviderRegistry;
         _stateRootPath = stateRootPath;
-    }
-
-    internal AgentHub(AgentBackendFactory legacyBackendFactory)
-    {
-        ArgumentNullException.ThrowIfNull(legacyBackendFactory);
-
-        _modelProviderRegistry = new ModelProviderRegistry();
-        _legacyBackendFactory = legacyBackendFactory;
     }
 
     /// <summary>
@@ -359,23 +350,22 @@ public sealed class AgentHub : IAsyncDisposable
         ModelProviderId providerId,
         CancellationToken cancellationToken)
     {
-        if (_legacyBackendFactory is not null)
+        var providerRuntime = await _modelProviderRegistry.CreateRuntimeAsync(providerId, cancellationToken).ConfigureAwait(false);
+        if (providerRuntime is IModelProviderSessionRuntime sessionRuntime)
         {
-            var legacyRuntime = _legacyBackendFactory.Create(new AgentBackendId(providerId.Value));
-            var legacyLease = new ProviderSessionRuntimeLease(legacyRuntime);
+            var sessionLease = new ProviderSessionRuntimeLease(sessionRuntime);
             try
             {
-                await legacyLease.StartAsync(cancellationToken).ConfigureAwait(false);
-                return legacyLease;
+                await sessionLease.StartAsync(cancellationToken).ConfigureAwait(false);
+                return sessionLease;
             }
             catch
             {
-                await legacyLease.DisposeAsync().ConfigureAwait(false);
+                await sessionLease.DisposeAsync().ConfigureAwait(false);
                 throw;
             }
         }
 
-        var providerRuntime = await _modelProviderRegistry.CreateRuntimeAsync(providerId, cancellationToken).ConfigureAwait(false);
         if (providerRuntime is not ICodeAltaModelProviderRuntime codeAltaProviderRuntime)
         {
             await providerRuntime.DisposeAsync().ConfigureAwait(false);
@@ -457,32 +447,32 @@ public sealed class AgentHub : IAsyncDisposable
     private sealed class ProviderSessionRuntimeLease : IAsyncDisposable
     {
         private readonly CodeAltaAgentRuntime? _runtime;
-        private readonly IAgentBackend? _legacyRuntime;
+        private readonly IModelProviderSessionRuntime? _sessionRuntime;
 
         public ProviderSessionRuntimeLease(CodeAltaAgentRuntime runtime)
         {
             _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
         }
 
-        public ProviderSessionRuntimeLease(IAgentBackend legacyRuntime)
+        public ProviderSessionRuntimeLease(IModelProviderSessionRuntime sessionRuntime)
         {
-            _legacyRuntime = legacyRuntime ?? throw new ArgumentNullException(nameof(legacyRuntime));
+            _sessionRuntime = sessionRuntime ?? throw new ArgumentNullException(nameof(sessionRuntime));
         }
 
         public Task StartAsync(CancellationToken cancellationToken)
-            => _runtime?.StartAsync(cancellationToken) ?? _legacyRuntime!.StartAsync(cancellationToken);
+            => _runtime?.StartAsync(cancellationToken) ?? _sessionRuntime!.StartAsync(cancellationToken);
 
         public Task StopAsync(CancellationToken cancellationToken = default)
-            => _runtime?.StopAsync(cancellationToken) ?? _legacyRuntime!.StopAsync(cancellationToken);
+            => _runtime?.StopAsync(cancellationToken) ?? _sessionRuntime!.StopAsync(cancellationToken);
 
         public Task<IAgentSession> CreateSessionAsync(AgentSessionCreateOptions options, CancellationToken cancellationToken)
-            => _runtime?.CreateSessionAsync(options, cancellationToken) ?? _legacyRuntime!.CreateSessionAsync(options, cancellationToken);
+            => _runtime?.CreateSessionAsync(options, cancellationToken) ?? _sessionRuntime!.CreateSessionAsync(options, cancellationToken);
 
         public Task<IAgentSession> ResumeSessionAsync(string sessionId, AgentSessionResumeOptions options, CancellationToken cancellationToken)
-            => _runtime?.ResumeSessionAsync(sessionId, options, cancellationToken) ?? _legacyRuntime!.ResumeSessionAsync(sessionId, options, cancellationToken);
+            => _runtime?.ResumeSessionAsync(sessionId, options, cancellationToken) ?? _sessionRuntime!.ResumeSessionAsync(sessionId, options, cancellationToken);
 
         public ValueTask DisposeAsync()
-            => _runtime?.DisposeAsync() ?? _legacyRuntime!.DisposeAsync();
+            => _runtime?.DisposeAsync() ?? _sessionRuntime!.DisposeAsync();
     }
 
     private sealed class AgentSessionCoordinator : IAsyncDisposable

@@ -91,7 +91,7 @@ internal sealed class ThreadPromptDispatchCoordinator
             : $"{options.AdditionalDeveloperInstructions}\n\n{additionalDeveloperInstructions}";
         return new SessionExecutionOptions
         {
-            BackendId = options.BackendId,
+            ProviderId = options.ProviderId,
             ProviderKey = options.ProviderKey,
             WorkingDirectory = options.WorkingDirectory,
             ProjectRoots = options.ProjectRoots,
@@ -107,11 +107,11 @@ internal sealed class ThreadPromptDispatchCoordinator
     }
 
     public SessionExecutionOptions BuildPreferredExecutionOptions(
-        AgentBackendId backendId,
+        ModelProviderId providerId,
         string workingDirectory,
         IReadOnlyList<string> projectRoots,
         Func<string?>? sourceThreadIdProvider = null)
-        => _executionOptionsFactory.BuildPreferredExecutionOptions(backendId, workingDirectory, projectRoots, sourceThreadIdProvider);
+        => _executionOptionsFactory.BuildPreferredExecutionOptions(providerId, workingDirectory, projectRoots, sourceThreadIdProvider);
 
     public static string CreateInitialThreadTitle(string prompt)
     {
@@ -142,7 +142,7 @@ internal sealed class ThreadPromptDispatchCoordinator
             var executionOptions = _executionOptionsFactory.BuildExecutionOptions(thread, tab);
             if (_pluginHostBridge is not null)
             {
-                var processedPrompt = await _pluginHostBridge.ProcessPromptSubmittingAsync(thread, tab, prompt, IsCodeAltaManagedBackend(executionOptions.BackendId), cancellationToken);
+                var processedPrompt = await _pluginHostBridge.ProcessPromptSubmittingAsync(thread, tab, prompt, IsCodeAltaManagedProvider(executionOptions.ProviderId), cancellationToken);
                 if (processedPrompt is null)
                 {
                     tab.ActiveRunStartedAt = null;
@@ -288,7 +288,7 @@ internal sealed class ThreadPromptDispatchCoordinator
     private static SessionExecutionOptions CopyExecutionOptions(SessionExecutionOptions source, PluginAgentRunAugmentation augmentation)
         => new()
         {
-            BackendId = source.BackendId,
+            ProviderId = source.ProviderId,
             ProviderKey = source.ProviderKey,
             WorkingDirectory = source.WorkingDirectory,
             ProjectRoots = source.ProjectRoots,
@@ -302,9 +302,9 @@ internal sealed class ThreadPromptDispatchCoordinator
             OnUserInputRequest = source.OnUserInputRequest,
         };
 
-    private static bool IsCodeAltaManagedBackend(AgentBackendId backendId)
-        => !string.Equals(backendId.Value, AgentBackendIds.Codex.Value, StringComparison.OrdinalIgnoreCase) &&
-           !string.Equals(backendId.Value, AgentBackendIds.Copilot.Value, StringComparison.OrdinalIgnoreCase);
+    private static bool IsCodeAltaManagedProvider(ModelProviderId providerId)
+        => !string.Equals(providerId.Value, ModelProviderIds.Codex.Value, StringComparison.OrdinalIgnoreCase) &&
+           !string.Equals(providerId.Value, ModelProviderIds.Copilot.Value, StringComparison.OrdinalIgnoreCase);
 
     private static SubmitWorkThreadPromptRequest CreateSubmitRequest(
         SessionViewDescriptor thread,
@@ -338,7 +338,7 @@ internal sealed class ThreadPromptDispatchCoordinator
             ProjectId = thread.ProjectRef ?? "legacy-global",
             ProjectPath = executionOptions.ProjectRoots.FirstOrDefault() ?? executionOptions.WorkingDirectory ?? string.Empty,
             PromptSessionId = thread.ThreadId,
-            ModelProviderId = executionOptions.ProviderKey ?? executionOptions.BackendId.Value,
+            ModelProviderId = executionOptions.ProviderKey ?? executionOptions.ProviderId.Value,
             ModelId = executionOptions.Model,
             ThreadId = thread.ThreadId,
             ExecutionOptions = executionOptions,

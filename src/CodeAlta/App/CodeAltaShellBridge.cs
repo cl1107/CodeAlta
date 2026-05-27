@@ -16,11 +16,11 @@ internal sealed class CodeAltaShellBridge : ICodeAltaShell
         _app = app;
     }
 
-    public Task InitializeChatBackendsAsync(CancellationToken cancellationToken)
-        => _app.InitializeChatBackendsAsync(cancellationToken);
+    public Task InitializeModelProvidersAsync(CancellationToken cancellationToken)
+        => _app.InitializeModelProvidersAsync(cancellationToken);
 
-    public Task InitializeChatBackendAsync(AgentBackendId backendId, CancellationToken cancellationToken)
-        => _app.InitializeChatBackendAsync(backendId, cancellationToken);
+    public Task InitializeModelProviderAsync(ModelProviderId providerId, CancellationToken cancellationToken)
+        => _app.InitializeModelProviderAsync(providerId, cancellationToken);
 
     public void SetStatus(string message, bool showSpinner = false, StatusTone tone = StatusTone.Info)
         => _app.SetStatus(message, showSpinner, tone);

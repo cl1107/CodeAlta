@@ -167,7 +167,7 @@ public sealed class ModelProviderPreferenceCoordinatorTests
         [
             new ModelProviderDescriptor(new ModelProviderId("zai"), "ZAI"),
         ];
-        var backendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
+        var backendStates = ModelProviderPresentation.CreateProviderStates(backendDescriptors);
         backendStates["zai"].Models.Add(
             new AgentModelInfo(
                 "gpt-5",
@@ -210,7 +210,7 @@ public sealed class ModelProviderPreferenceCoordinatorTests
         [
             new ModelProviderDescriptor(new ModelProviderId("zai"), "ZAI"),
         ];
-        var backendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
+        var backendStates = ModelProviderPresentation.CreateProviderStates(backendDescriptors);
         backendStates["zai"].Models.Add(new AgentModelInfo("gpt-5", DisplayName: "GPT-5"));
         var tab = CreateOpenThreadState("thread-1", "zai");
         var viewState = new WorkThreadViewState
@@ -252,7 +252,7 @@ public sealed class ModelProviderPreferenceCoordinatorTests
         [
             new ModelProviderDescriptor(new ModelProviderId("zai"), "ZAI"),
         ];
-        var backendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
+        var backendStates = ModelProviderPresentation.CreateProviderStates(backendDescriptors);
         backendStates["zai"].Models.Add(new AgentModelInfo(
             "gpt-5",
             SupportedReasoningEfforts: [AgentReasoningEffort.High]));

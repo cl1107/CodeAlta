@@ -47,7 +47,7 @@ internal sealed class ThreadCommandCoordinator
         : this(
             runtimeService,
             catalogOptions,
-            ChatBackendPresentation.CreateBackendStates().Values
+            ModelProviderPresentation.CreateProviderStates().Values
                 .Select(static state => new ModelProviderDescriptor(state.ProviderId, state.DisplayName))
                 .ToArray(),
             chatBackendStates,
@@ -353,11 +353,11 @@ internal sealed class ThreadCommandCoordinator
     }
 
     public SessionExecutionOptions BuildPreferredExecutionOptions(
-        AgentBackendId backendId,
+        ModelProviderId providerId,
         string workingDirectory,
         IReadOnlyList<string> projectRoots,
         Func<string?>? sourceThreadIdProvider = null)
-        => _promptDispatchCoordinator.BuildPreferredExecutionOptions(backendId, workingDirectory, projectRoots, sourceThreadIdProvider);
+        => _promptDispatchCoordinator.BuildPreferredExecutionOptions(providerId, workingDirectory, projectRoots, sourceThreadIdProvider);
 
     public SessionExecutionOptions BuildExecutionOptions(SessionViewDescriptor thread, OpenThreadState tab)
         => _promptDispatchCoordinator.BuildExecutionOptions(thread, tab);
@@ -373,8 +373,8 @@ internal sealed class ThreadCommandCoordinator
             return;
         }
 
-        var backendId = new AgentBackendId(thread.BackendId);
-        if (backendId == AgentBackendIds.Codex || backendId == AgentBackendIds.Copilot)
+        var providerId = new ModelProviderId(thread.ResolvedProviderKey);
+        if (providerId == ModelProviderIds.Codex || providerId == ModelProviderIds.Copilot)
         {
             _commandContext.SetShellStatus(
                 "Codex and Copilot manage their own native skills; CodeAlta-managed skill activation is unavailable for this session.",
@@ -383,7 +383,7 @@ internal sealed class ThreadCommandCoordinator
             return;
         }
 
-        if (!IsModelProviderReady(new ModelProviderId(backendId.Value)))
+        if (!IsModelProviderReady(providerId))
         {
             _commandContext.SetReadyStatusForCurrentSelection();
             return;
@@ -425,9 +425,9 @@ internal sealed class ThreadCommandCoordinator
     private bool CurrentPromptModelSupportsImages(SessionViewDescriptor? thread, OpenThreadState? tab)
     {
         var providerId = tab is not null
-            ? new ModelProviderId(tab.BackendId.Value)
+            ? new ModelProviderId(tab.ProviderId.Value)
             : thread is not null
-                ? new ModelProviderId(thread.BackendId)
+                ? new ModelProviderId(thread.ResolvedProviderKey)
                 : ResolveSelectedProviderId();
         if (!_chatBackendStates.TryGetValue(providerId.Value, out var backendState))
         {
@@ -438,15 +438,15 @@ internal sealed class ThreadCommandCoordinator
         var model = !string.IsNullOrWhiteSpace(modelId)
             ? backendState.Models.FirstOrDefault(candidate => string.Equals(candidate.Id, modelId, StringComparison.Ordinal))
             : null;
-        model ??= ChatBackendPresentation.GetSelectedModel(backendState) ??
+        model ??= ModelProviderPresentation.GetSelectedModel(backendState) ??
             (backendState.Models.Count == 1 ? backendState.Models[0] : null);
-        return AgentModelCapabilityHelper.SupportsImageInput(new AgentBackendId(providerId.Value), model);
+        return AgentModelCapabilityHelper.SupportsImageInput(providerId, model);
     }
 
     private ModelProviderId ResolveSelectedProviderId()
     {
         var backendIndex = UiDispatch.Invoke(_selectorState.GetUiDispatcher(), () => _selectorState.GetSelectedModelProviderIndex());
-        var backendOptions = ChatBackendPresentation.BuildBackendOptions(_backendDescriptors);
+        var backendOptions = ModelProviderPresentation.BuildProviderOptions(_backendDescriptors);
         if (backendIndex is { } index && (uint)index < (uint)backendOptions.Count)
         {
             return backendOptions[index].ProviderId;

@@ -76,9 +76,9 @@ internal sealed class SessionUsageProjectionController
             }
 
             var tab = _threadSelection.EnsureThreadTab(selectedThread);
-            _chatBackendStates.TryGetValue(tab.BackendId.Value, out var backendState);
+            _chatBackendStates.TryGetValue(tab.ProviderId.Value, out var backendState);
             _sessionUsageViewModel.Usage = tab.Usage;
-            _sessionUsageViewModel.BackendName = ResolveBackendDisplayName(tab.BackendId.Value, backendState);
+            _sessionUsageViewModel.BackendName = ResolveBackendDisplayName(tab.ProviderId.Value, backendState);
             _sessionUsageViewModel.ModelName = tab.ModelId ?? backendState?.SelectedModelId;
             _sessionUsageViewModel.PluginTransientEvents = tab.PluginTransientEvents.Snapshot;
             return;

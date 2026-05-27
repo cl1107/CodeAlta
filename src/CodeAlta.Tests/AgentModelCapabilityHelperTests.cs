@@ -16,7 +16,7 @@ public sealed class AgentModelCapabilityHelperTests
                 ["inputModalities"] = new[] { "text", "image" },
             });
 
-        Assert.IsTrue(AgentModelCapabilityHelper.SupportsImageInput(new AgentBackendId("local"), model));
+        Assert.IsTrue(AgentModelCapabilityHelper.SupportsImageInput(new ModelProviderId("local"), model));
     }
 
     [TestMethod]
@@ -30,7 +30,7 @@ public sealed class AgentModelCapabilityHelperTests
                 ["inputModalities"] = new[] { "text", "image" },
             });
 
-        Assert.IsFalse(AgentModelCapabilityHelper.SupportsImageInput(new AgentBackendId("local"), model));
+        Assert.IsFalse(AgentModelCapabilityHelper.SupportsImageInput(new ModelProviderId("local"), model));
     }
 
     [TestMethod]
@@ -43,6 +43,6 @@ public sealed class AgentModelCapabilityHelperTests
                 ["inputModalities"] = new[] { "text" },
             });
 
-        Assert.IsFalse(AgentModelCapabilityHelper.SupportsImageInput(new AgentBackendId("local"), model));
+        Assert.IsFalse(AgentModelCapabilityHelper.SupportsImageInput(new ModelProviderId("local"), model));
     }
 }

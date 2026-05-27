@@ -52,7 +52,7 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
         Func<ModelProviderPreference?>? getDraftModelProviderPreference = null,
         Func<IReadOnlyList<string>>? getPromptPlaceholderContributions = null)
         : this(
-            ChatBackendPresentation.CreateBackendStates().Values
+            ModelProviderPresentation.CreateProviderStates().Values
                 .Select(static state => new ModelProviderDescriptor(state.ProviderId, state.DisplayName))
                 .ToArray(),
             workspaceViewModel,
@@ -126,8 +126,8 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
         _selectorsRefreshing = true;
         try
         {
-            var backendOptions = ChatBackendPresentation.BuildBackendOptions(_backendDescriptors);
-            _workspaceViewModel.ProviderSummaryMarkup = ChatBackendPresentation.BuildProviderSummaryMarkup(
+            var backendOptions = ModelProviderPresentation.BuildProviderOptions(_backendDescriptors);
+            _workspaceViewModel.ProviderSummaryMarkup = ModelProviderPresentation.BuildProviderSummaryMarkup(
                 _chatBackendStates.Values,
                 isInitializing: false,
                 configuredProviderKeys: GetConfiguredProviderKeys());
@@ -155,7 +155,7 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
 
             var backendState = _chatBackendStates[backendOptions[backendIndex].ProviderId.Value];
             _preferences.ApplyDraftModelProviderState(backendState);
-            var modelOptions = ChatBackendPresentation.BuildModelOptions(backendState);
+            var modelOptions = ModelProviderPresentation.BuildModelOptions(backendState);
             _selectorState.SetModelSelection(
                 modelOptions,
                 Math.Clamp(
@@ -164,8 +164,8 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
                 Math.Max(0, modelOptions.Count - 1)));
 
             var selectedModel = backendState.Models.FirstOrDefault(model => string.Equals(model.Id, backendState.SelectedModelId, StringComparison.Ordinal))
-                                ?? ChatBackendPresentation.GetSelectedModel(backendState);
-            var reasoningOptions = ChatBackendPresentation.BuildReasoningOptions(selectedModel);
+                                ?? ModelProviderPresentation.GetSelectedModel(backendState);
+            var reasoningOptions = ModelProviderPresentation.BuildReasoningOptions(selectedModel);
             _selectorState.SetReasoningSelection(
                 reasoningOptions,
                 Math.Clamp(
@@ -191,9 +191,9 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
         _selectorsRefreshing = true;
         try
         {
-            var configuredBackendOptions = ChatBackendPresentation.BuildBackendOptions(_backendDescriptors);
+            var configuredBackendOptions = ModelProviderPresentation.BuildProviderOptions(_backendDescriptors);
             var backendOptions = BuildThreadBackendOptions(tab, configuredBackendOptions);
-            _workspaceViewModel.ProviderSummaryMarkup = ChatBackendPresentation.BuildProviderSummaryMarkup(
+            _workspaceViewModel.ProviderSummaryMarkup = ModelProviderPresentation.BuildProviderSummaryMarkup(
                 _chatBackendStates.Values,
                 isInitializing: false,
                 configuredProviderKeys: GetConfiguredProviderKeys());
@@ -212,14 +212,14 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
             _selectorState.SetModelProviderSelection(
                 backendOptions,
                 Math.Clamp(
-                backendOptions.FindIndex(option => string.Equals(option.ProviderId.Value, tab.BackendId.Value, StringComparison.OrdinalIgnoreCase)),
+                backendOptions.FindIndex(option => string.Equals(option.ProviderId.Value, tab.ProviderId.Value, StringComparison.OrdinalIgnoreCase)),
                 0,
                 Math.Max(0, backendOptions.Count - 1)));
 
             var backendState = GetThreadBackendState(tab, out var backendStateIsRegistered);
             _preferences.ApplyThreadModelProviderState(tab);
 
-            var modelOptions = ChatBackendPresentation.BuildModelOptions(backendState, tab.ModelId);
+            var modelOptions = ModelProviderPresentation.BuildModelOptions(backendState, tab.ModelId);
             _selectorState.SetModelSelection(
                 modelOptions,
                 Math.Clamp(
@@ -229,8 +229,8 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
 
             var selectedModel = backendState.Models.FirstOrDefault(model =>
                                     string.Equals(model.Id, tab.ModelId, StringComparison.Ordinal))
-                                ?? ChatBackendPresentation.GetSelectedModel(backendState);
-            var reasoningOptions = ChatBackendPresentation.BuildReasoningOptions(selectedModel);
+                                ?? ModelProviderPresentation.GetSelectedModel(backendState);
+            var reasoningOptions = ModelProviderPresentation.BuildReasoningOptions(selectedModel);
             _selectorState.SetReasoningSelection(
                 reasoningOptions,
                 Math.Clamp(
@@ -291,7 +291,7 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
 
         var tab = _threadSelection.EnsureThreadTab(thread);
         var targetProviderId = options[newIndex].ProviderId;
-        if (string.Equals(tab.BackendId.Value, targetProviderId.Value, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(tab.ProviderId.Value, targetProviderId.Value, StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
@@ -329,7 +329,7 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
         {
             var backendId = GetPreferredModelProviderId();
             var draftBackendState = _chatBackendStates[backendId.Value];
-            var draftOptions = ChatBackendPresentation.BuildModelOptions(draftBackendState);
+            var draftOptions = ModelProviderPresentation.BuildModelOptions(draftBackendState);
             if ((uint)newIndex >= (uint)draftOptions.Count)
             {
                 return;
@@ -337,7 +337,7 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
 
             draftBackendState.SelectedModelId = draftOptions[newIndex].ModelId;
             var preferredModel = ModelProviderPreferenceCoordinator.FindModel(draftBackendState.Models, draftBackendState.SelectedModelId);
-            draftBackendState.SelectedReasoningEffort = ChatBackendPresentation.ResolvePreferredReasoningEffort(preferredModel, preferredReasoningEffort: null);
+            draftBackendState.SelectedReasoningEffort = ModelProviderPresentation.ResolvePreferredReasoningEffort(preferredModel, preferredReasoningEffort: null);
             UpdateModelSelectorState(draftOptions, newIndex, preferredModel, draftBackendState.SelectedReasoningEffort);
             _preferences.RememberGlobalPreference(CreatePreference(backendId, draftBackendState.SelectedModelId, draftBackendState.SelectedReasoningEffort));
             _workspaceRefresh.ApplySessionUsageProjection();
@@ -345,13 +345,13 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
         }
 
         var tab = _threadSelection.EnsureThreadTab(thread);
-        if (!_chatBackendStates.TryGetValue(tab.BackendId.Value, out var backendState))
+        if (!_chatBackendStates.TryGetValue(tab.ProviderId.Value, out var backendState))
         {
             RefreshForThread(tab);
             return;
         }
 
-        var options = ChatBackendPresentation.BuildModelOptions(backendState, tab.ModelId);
+        var options = ModelProviderPresentation.BuildModelOptions(backendState, tab.ModelId);
         if ((uint)newIndex >= (uint)options.Count)
         {
             return;
@@ -359,10 +359,10 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
 
         tab.ModelId = options[newIndex].ModelId;
         var selectedModel = ModelProviderPreferenceCoordinator.FindModel(backendState.Models, tab.ModelId);
-        tab.ReasoningEffort = ChatBackendPresentation.ResolvePreferredReasoningEffort(selectedModel, preferredReasoningEffort: null);
+        tab.ReasoningEffort = ModelProviderPresentation.ResolvePreferredReasoningEffort(selectedModel, preferredReasoningEffort: null);
         UpdateModelSelectorState(options, newIndex, selectedModel, tab.ReasoningEffort);
-        _preferences.RememberThreadPreference(tab.Thread.ThreadId, CreatePreference(new ModelProviderId(tab.BackendId.Value), tab.ModelId, tab.ReasoningEffort), true);
-        _preferences.RememberGlobalPreference(CreatePreference(new ModelProviderId(tab.BackendId.Value), tab.ModelId, tab.ReasoningEffort));
+        _preferences.RememberThreadPreference(tab.Thread.ThreadId, CreatePreference(new ModelProviderId(tab.ProviderId.Value), tab.ModelId, tab.ReasoningEffort), true);
+        _preferences.RememberGlobalPreference(CreatePreference(new ModelProviderId(tab.ProviderId.Value), tab.ModelId, tab.ReasoningEffort));
         _workspaceRefresh.ApplyHeaderProjection();
     }
 
@@ -379,7 +379,7 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
             var backendId = GetPreferredModelProviderId();
             var draftBackendState = _chatBackendStates[backendId.Value];
             var draftSelectedModel = draftBackendState.Models.FirstOrDefault(model => string.Equals(model.Id, draftBackendState.SelectedModelId, StringComparison.Ordinal));
-            var draftOptions = ChatBackendPresentation.BuildReasoningOptions(draftSelectedModel);
+            var draftOptions = ModelProviderPresentation.BuildReasoningOptions(draftSelectedModel);
             if ((uint)newIndex >= (uint)draftOptions.Count)
             {
                 return;
@@ -393,14 +393,14 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
         }
 
         var tab = _threadSelection.EnsureThreadTab(thread);
-        if (!_chatBackendStates.TryGetValue(tab.BackendId.Value, out var backendState))
+        if (!_chatBackendStates.TryGetValue(tab.ProviderId.Value, out var backendState))
         {
             RefreshForThread(tab);
             return;
         }
 
         var selectedModel = backendState.Models.FirstOrDefault(model => string.Equals(model.Id, tab.ModelId, StringComparison.Ordinal));
-        var options = ChatBackendPresentation.BuildReasoningOptions(selectedModel);
+        var options = ModelProviderPresentation.BuildReasoningOptions(selectedModel);
         if ((uint)newIndex >= (uint)options.Count)
         {
             return;
@@ -408,8 +408,8 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
 
         tab.ReasoningEffort = options[newIndex].Effort;
         UpdateReasoningSelectorState(options, newIndex);
-        _preferences.RememberThreadPreference(tab.Thread.ThreadId, CreatePreference(new ModelProviderId(tab.BackendId.Value), tab.ModelId, tab.ReasoningEffort), true);
-        _preferences.RememberGlobalPreference(CreatePreference(new ModelProviderId(tab.BackendId.Value), tab.ModelId, tab.ReasoningEffort));
+        _preferences.RememberThreadPreference(tab.Thread.ThreadId, CreatePreference(new ModelProviderId(tab.ProviderId.Value), tab.ModelId, tab.ReasoningEffort), true);
+        _preferences.RememberGlobalPreference(CreatePreference(new ModelProviderId(tab.ProviderId.Value), tab.ModelId, tab.ReasoningEffort));
     }
 
     public async Task<bool> SelectProviderModelAsync(ModelProviderId providerId, string modelId)
@@ -430,7 +430,7 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
         }
 
         var tab = _threadSelection.EnsureThreadTab(thread);
-        if (!string.Equals(tab.BackendId.Value, providerId.Value, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(tab.ProviderId.Value, providerId.Value, StringComparison.OrdinalIgnoreCase))
         {
             if (!_canSelectThreadBackend(thread, tab) ||
                 !await _trySwitchThreadBackendAsync(thread, tab, providerId))
@@ -442,7 +442,7 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
             _refreshSelectionAndThreadWorkspace();
         }
 
-        if (!_chatBackendStates.TryGetValue(tab.BackendId.Value, out backendState))
+        if (!_chatBackendStates.TryGetValue(tab.ProviderId.Value, out backendState))
         {
             return false;
         }
@@ -457,7 +457,7 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
         RememberDraftProviderForCurrentScope(providerId);
         backendState.SelectedModelId = modelId.Trim();
         var selectedModel = ModelProviderPreferenceCoordinator.FindModel(backendState.Models, backendState.SelectedModelId);
-        backendState.SelectedReasoningEffort = ChatBackendPresentation.ResolvePreferredReasoningEffort(selectedModel, preferredReasoningEffort: null);
+        backendState.SelectedReasoningEffort = ModelProviderPresentation.ResolvePreferredReasoningEffort(selectedModel, preferredReasoningEffort: null);
         _preferences.RememberGlobalPreference(CreatePreference(providerId, backendState.SelectedModelId, backendState.SelectedReasoningEffort));
         RefreshForDraftScope(providerId);
         _workspaceRefresh.ApplySessionUsageProjection();
@@ -467,9 +467,9 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
     {
         tab.ModelId = modelId.Trim();
         var selectedModel = ModelProviderPreferenceCoordinator.FindModel(backendState.Models, tab.ModelId);
-        tab.ReasoningEffort = ChatBackendPresentation.ResolvePreferredReasoningEffort(selectedModel, preferredReasoningEffort: null);
-        _preferences.RememberThreadPreference(tab.Thread.ThreadId, CreatePreference(new ModelProviderId(tab.BackendId.Value), tab.ModelId, tab.ReasoningEffort), true);
-        _preferences.RememberGlobalPreference(CreatePreference(new ModelProviderId(tab.BackendId.Value), tab.ModelId, tab.ReasoningEffort));
+        tab.ReasoningEffort = ModelProviderPresentation.ResolvePreferredReasoningEffort(selectedModel, preferredReasoningEffort: null);
+        _preferences.RememberThreadPreference(tab.Thread.ThreadId, CreatePreference(new ModelProviderId(tab.ProviderId.Value), tab.ModelId, tab.ReasoningEffort), true);
+        _preferences.RememberGlobalPreference(CreatePreference(new ModelProviderId(tab.ProviderId.Value), tab.ModelId, tab.ReasoningEffort));
         RefreshForThread(tab);
         _workspaceRefresh.ApplyHeaderProjection();
     }
@@ -480,7 +480,7 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
             _selectorState.GetUiDispatcher(),
             () =>
             {
-                var options = ChatBackendPresentation.BuildBackendOptions(_backendDescriptors);
+                var options = ModelProviderPresentation.BuildProviderOptions(_backendDescriptors);
                 if (options.Count == 0)
                 {
                     return GetDefaultBackendId();
@@ -562,39 +562,39 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
             _canSelectThreadBackend(selectedThread, selectedTab);
     }
 
-    private IReadOnlyList<ChatBackendOption> GetCurrentModelProviderOptions()
+    private IReadOnlyList<ModelProviderOption> GetCurrentModelProviderOptions()
         => _workspaceViewModel.ModelProviderOptions.Count > 0
             ? _workspaceViewModel.ModelProviderOptions
-            : ChatBackendPresentation.BuildBackendOptions(_backendDescriptors);
+            : ModelProviderPresentation.BuildProviderOptions(_backendDescriptors);
 
-    private List<ChatBackendOption> BuildThreadBackendOptions(
+    private List<ModelProviderOption> BuildThreadBackendOptions(
         OpenThreadState tab,
-        IReadOnlyList<ChatBackendOption> configuredBackendOptions)
+        IReadOnlyList<ModelProviderOption> configuredBackendOptions)
     {
         ArgumentNullException.ThrowIfNull(tab);
         ArgumentNullException.ThrowIfNull(configuredBackendOptions);
 
         var options = configuredBackendOptions.ToList();
-        if (options.Any(option => string.Equals(option.ProviderId.Value, tab.BackendId.Value, StringComparison.OrdinalIgnoreCase)))
+        if (options.Any(option => string.Equals(option.ProviderId.Value, tab.ProviderId.Value, StringComparison.OrdinalIgnoreCase)))
         {
             return options;
         }
 
-        options.Insert(0, new ChatBackendOption(new ModelProviderId(tab.BackendId.Value), BuildUnavailableThreadProviderLabel(tab.Thread, new ModelProviderId(tab.BackendId.Value))));
+        options.Insert(0, new ModelProviderOption(new ModelProviderId(tab.ProviderId.Value), BuildUnavailableThreadProviderLabel(tab.Thread, new ModelProviderId(tab.ProviderId.Value))));
         return options;
     }
 
     private ModelProviderState GetThreadBackendState(OpenThreadState tab, out bool isRegistered)
     {
         ArgumentNullException.ThrowIfNull(tab);
-        if (_chatBackendStates.TryGetValue(tab.BackendId.Value, out var backendState))
+        if (_chatBackendStates.TryGetValue(tab.ProviderId.Value, out var backendState))
         {
             isRegistered = true;
             return backendState;
         }
 
         isRegistered = false;
-        return new ModelProviderState(new ModelProviderId(tab.BackendId.Value), BuildUnavailableThreadProviderLabel(tab.Thread, new ModelProviderId(tab.BackendId.Value)))
+        return new ModelProviderState(new ModelProviderId(tab.ProviderId.Value), BuildUnavailableThreadProviderLabel(tab.Thread, new ModelProviderId(tab.ProviderId.Value)))
         {
             Availability = ModelProviderAvailability.Unsupported,
             SelectedModelId = tab.ModelId,
@@ -602,13 +602,13 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
         };
     }
 
-    private bool HasRegisteredBackendOption(IReadOnlyList<ChatBackendOption> options)
+    private bool HasRegisteredBackendOption(IReadOnlyList<ModelProviderOption> options)
     {
         ArgumentNullException.ThrowIfNull(options);
         return options.Any(option => _chatBackendStates.ContainsKey(option.ProviderId.Value));
     }
 
-    private ModelProviderId GetPreferredDraftProviderId(IReadOnlyList<ChatBackendOption> backendOptions)
+    private ModelProviderId GetPreferredDraftProviderId(IReadOnlyList<ModelProviderOption> backendOptions)
     {
         if (_draftProviderIdsByScope.TryGetValue(GetCurrentDraftScopeKey(), out var scopedDraftProviderId) &&
             backendOptions.FirstOrDefault(option => string.Equals(option.ProviderId.Value, scopedDraftProviderId.Value, StringComparison.OrdinalIgnoreCase)) is { } scopedDraftBackend &&
@@ -647,7 +647,7 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
         return backendOptions.FirstOrDefault()?.ProviderId ?? GetDefaultBackendId();
     }
 
-    private bool HasAnyReadyChatBackend()
+    private bool HasAnyReadyModelProvider()
     {
         return _chatBackendStates.Values.Any(static state => state.Availability == ModelProviderAvailability.Ready);
     }
@@ -660,7 +660,7 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
     {
         ArgumentNullException.ThrowIfNull(modelOptions);
 
-        var reasoningOptions = ChatBackendPresentation.BuildReasoningOptions(selectedModel);
+        var reasoningOptions = ModelProviderPresentation.BuildReasoningOptions(selectedModel);
         var selectedReasoningIndex = Math.Clamp(
             reasoningOptions.FindIndex(option => option.Effort == selectedReasoningEffort),
             0,
@@ -724,7 +724,7 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
             selection.Target is WorkspaceTarget.Draft { IsGlobal: true },
             backendState.DisplayName,
             backendState.Availability,
-            HasAnyReadyChatBackend(),
+            HasAnyReadyModelProvider(),
             _threadSelection.HasOpenDraftTab(),
             _threadSelection.OpenThreadIds.Count + (_threadSelection.HasOpenDraftTab() ? 1 : 0),
             selectedThread?.ThreadId,
@@ -765,7 +765,7 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
     private IReadOnlyList<string>? GetConfiguredProviderKeys()
         => _getConfiguredProviderKeys?.Invoke();
 
-    private ModelProviderId? ResolveConfiguredDefaultBackendId(IReadOnlyList<ChatBackendOption> options)
+    private ModelProviderId? ResolveConfiguredDefaultBackendId(IReadOnlyList<ModelProviderOption> options)
     {
         ArgumentNullException.ThrowIfNull(options);
 

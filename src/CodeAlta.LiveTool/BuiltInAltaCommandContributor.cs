@@ -2323,7 +2323,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         string? sourceProjectId)
         => new()
         {
-            BackendId = new AgentBackendId(selection.ProviderKey),
+            ProviderId = new ModelProviderId(selection.ProviderKey),
             ProviderKey = selection.ProviderKey,
             WorkingDirectory = workingDirectory,
             ProjectRoots = projectRoots,
@@ -2350,7 +2350,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
         return new SessionExecutionOptions
         {
-            BackendId = new AgentBackendId(info.Thread.BackendId),
+            ProviderId = new ModelProviderId(info.Thread.ResolvedProviderKey),
             ProviderKey = info.Thread.ResolvedProviderKey,
             WorkingDirectory = workingDirectory,
             ProjectRoots = projectRoots,

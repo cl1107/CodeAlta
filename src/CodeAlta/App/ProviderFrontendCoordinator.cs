@@ -17,7 +17,7 @@ internal sealed class ProviderFrontendCoordinator
 {
     private readonly CodeAltaOwnedServices? _ownedServices;
     private readonly CodeAltaConfigStore _configStore;
-    private readonly ChatBackendInitializationCoordinator _chatBackendInitializationCoordinator;
+    private readonly ModelProviderInitializationCoordinator _chatBackendInitializationCoordinator;
     private readonly Dictionary<string, ModelProviderState> _chatBackendStates;
     private readonly Action<Action> _dispatchToUi;
     private readonly FrontendEventPublisher _frontendEvents;
@@ -27,7 +27,7 @@ internal sealed class ProviderFrontendCoordinator
     public ProviderFrontendCoordinator(
         CodeAltaOwnedServices? ownedServices,
         CatalogOptions catalogOptions,
-        ChatBackendInitializationCoordinator chatBackendInitializationCoordinator,
+        ModelProviderInitializationCoordinator chatBackendInitializationCoordinator,
         Dictionary<string, ModelProviderState> chatBackendStates,
         Action<Action> dispatchToUi,
         FrontendEventPublisher frontendEvents,

@@ -36,10 +36,16 @@ internal sealed class OpenThreadState
 
     public ThreadTabViewModel ViewModel => Workspace.ViewModel;
 
+    public ModelProviderId ProviderId
+    {
+        get => Session.ProviderId;
+        set => Session.ProviderId = value;
+    }
+
     public AgentBackendId BackendId
     {
-        get => Session.BackendId;
-        set => Session.BackendId = value;
+        get => new(ProviderId.Value);
+        set => ProviderId = new ModelProviderId(value.Value);
     }
 
     public string? ModelId

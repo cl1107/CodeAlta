@@ -40,7 +40,7 @@ public sealed partial class ThreadWorkspaceViewModel
     public partial bool CanSelectReasoning { get; set; }
 
     [Bindable]
-    public partial IReadOnlyList<ChatBackendOption> ModelProviderOptions { get; set; }
+    public partial IReadOnlyList<ModelProviderOption> ModelProviderOptions { get; set; }
 
     [Bindable]
     public partial int SelectedModelProviderIndex { get; set; }

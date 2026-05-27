@@ -61,7 +61,7 @@ public sealed class WorkThreadPluginToolService
 
         return new SessionExecutionOptions
         {
-            BackendId = options.BackendId,
+            ProviderId = options.ProviderId,
             ProviderKey = options.ProviderKey,
             WorkingDirectory = options.WorkingDirectory,
             ProjectRoots = options.ProjectRoots,

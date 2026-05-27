@@ -193,9 +193,9 @@ internal sealed class SessionHistoryCoordinator
 
         var normalized = preference.Normalize();
         var changed = false;
-        if (!string.Equals(tab.BackendId.Value, normalized.ModelProviderId.Value, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(tab.ProviderId.Value, normalized.ModelProviderId.Value, StringComparison.OrdinalIgnoreCase))
         {
-            tab.BackendId = new AgentBackendId(normalized.ModelProviderId.Value);
+            tab.ProviderId = normalized.ModelProviderId;
             changed = true;
         }
 

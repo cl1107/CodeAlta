@@ -65,7 +65,7 @@ internal sealed class ModelProviderPreferenceCoordinator
                     ? backendState.SelectedReasoningEffort ?? defaults.ReasoningEffort
                     : defaults.ReasoningEffort;
 
-        backendState.SelectedReasoningEffort = ChatBackendPresentation.ResolvePreferredReasoningEffort(selectedModel, preferredReasoningEffort);
+        backendState.SelectedReasoningEffort = ModelProviderPresentation.ResolvePreferredReasoningEffort(selectedModel, preferredReasoningEffort);
         backendState.DraftScopeKey = scopeKey;
     }
 
@@ -95,8 +95,8 @@ internal sealed class ModelProviderPreferenceCoordinator
         ArgumentNullException.ThrowIfNull(chatBackendStates);
 
         viewState.ThreadPreferences.TryGetValue(tab.Thread.ThreadId, out var persistedPreference);
-        var defaults = _configStore.GetEffectiveProviderPreference(tab.BackendId.Value, threadProjectRoot);
-        chatBackendStates.TryGetValue(tab.BackendId.Value, out var backendState);
+        var defaults = _configStore.GetEffectiveProviderPreference(tab.ProviderId.Value, threadProjectRoot);
+        chatBackendStates.TryGetValue(tab.ProviderId.Value, out var backendState);
         var preferredModelId = tab.ModelId ?? tab.Thread.ModelId ?? persistedPreference?.ModelId ?? defaults.Model;
         tab.ModelId = ResolveModelSelection(backendState?.Models ?? [], preferredModelId);
         tab.ReasoningEffort ??= tab.Thread.ReasoningEffort ?? persistedPreference?.ReasoningEffort ?? defaults.ReasoningEffort;
@@ -107,7 +107,7 @@ internal sealed class ModelProviderPreferenceCoordinator
         }
 
         var selectedModel = FindModel(backendState.Models, tab.ModelId);
-        tab.ReasoningEffort = ChatBackendPresentation.ResolvePreferredReasoningEffort(
+        tab.ReasoningEffort = ModelProviderPresentation.ResolvePreferredReasoningEffort(
             selectedModel,
             tab.ReasoningEffort);
     }
@@ -186,7 +186,7 @@ internal sealed class ModelProviderPreferenceCoordinator
             return preferredModelId.Trim();
         }
 
-        return ChatBackendPresentation.ResolvePreferredModelId(models, preferredModelId);
+        return ModelProviderPresentation.ResolvePreferredModelId(models, preferredModelId);
     }
 
     private static string BuildDraftScopeKey(string? draftProjectRoot)

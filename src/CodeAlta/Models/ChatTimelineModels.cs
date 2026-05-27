@@ -22,7 +22,7 @@ namespace CodeAlta.Models
         Interaction,
     }
 
-    public sealed record ChatBackendOption(ModelProviderId ProviderId, string Label)
+    public sealed record ModelProviderOption(ModelProviderId ProviderId, string Label)
     {
         public override string ToString() => Label;
     }

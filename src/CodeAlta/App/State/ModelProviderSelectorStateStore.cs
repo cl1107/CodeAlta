@@ -29,7 +29,7 @@ internal sealed class ModelProviderSelectorStateStore
     public int? GetSelectedReasoningIndex()
         => _workspaceViewModel.SelectedReasoningIndex >= 0 ? _workspaceViewModel.SelectedReasoningIndex : null;
 
-    public void SetModelProviderSelection(IReadOnlyList<ChatBackendOption> items, int selectedIndex)
+    public void SetModelProviderSelection(IReadOnlyList<ModelProviderOption> items, int selectedIndex)
     {
         ArgumentNullException.ThrowIfNull(items);
         _workspaceViewModel.ModelProviderOptions = items;

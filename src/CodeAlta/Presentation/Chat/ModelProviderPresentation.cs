@@ -6,18 +6,18 @@ using XenoAtom.Terminal.UI.Controls;
 
 namespace CodeAlta.Presentation.Chat;
 
-internal static class ChatBackendPresentation
+internal static class ModelProviderPresentation
 {
-    public static Dictionary<string, ModelProviderState> CreateBackendStates()
+    public static Dictionary<string, ModelProviderState> CreateProviderStates()
     {
-        return CreateBackendStates(
+        return CreateProviderStates(
         [
             new ModelProviderDescriptor(ModelProviderIds.Codex, "Codex"),
             new ModelProviderDescriptor(ModelProviderIds.Copilot, "Copilot"),
         ]);
     }
 
-    public static Dictionary<string, ModelProviderState> CreateBackendStates(
+    public static Dictionary<string, ModelProviderState> CreateProviderStates(
         IReadOnlyList<ModelProviderDescriptor> backendDescriptors)
     {
         ArgumentNullException.ThrowIfNull(backendDescriptors);
@@ -28,22 +28,22 @@ internal static class ChatBackendPresentation
             StringComparer.OrdinalIgnoreCase);
     }
 
-    public static List<ChatBackendOption> BuildBackendOptions()
+    public static List<ModelProviderOption> BuildProviderOptions()
     {
-        return BuildBackendOptions(
+        return BuildProviderOptions(
         [
             new ModelProviderDescriptor(ModelProviderIds.Codex, "Codex"),
             new ModelProviderDescriptor(ModelProviderIds.Copilot, "Copilot"),
         ]);
     }
 
-    public static List<ChatBackendOption> BuildBackendOptions(
+    public static List<ModelProviderOption> BuildProviderOptions(
         IReadOnlyList<ModelProviderDescriptor> backendDescriptors)
     {
         ArgumentNullException.ThrowIfNull(backendDescriptors);
 
         return backendDescriptors
-            .Select(static descriptor => new ChatBackendOption(descriptor.ProviderId, descriptor.DisplayName))
+            .Select(static descriptor => new ModelProviderOption(descriptor.ProviderId, descriptor.DisplayName))
             .ToList();
     }
 
@@ -99,13 +99,13 @@ internal static class ChatBackendPresentation
             .ToList();
     }
 
-    public static ModelProviderId ResolveBackendSelection(
+    public static ModelProviderId ResolveProviderSelection(
         ModelProviderId currentSelection,
         ModelProviderId requestedBackend,
         bool adoptRequestedBackend)
         => adoptRequestedBackend ? requestedBackend : currentSelection;
 
-    public static string BuildBackendStatusMarkup(
+    public static string BuildProviderStatusMarkup(
         IEnumerable<ModelProviderState> backendStates,
         ModelProviderId selectedProviderId,
         bool isInitializing)
@@ -259,7 +259,7 @@ internal static class ChatBackendPresentation
         };
     }
 
-    public static string BuildUnsupportedBackendMessage(ModelProviderState backendState, string message)
+    public static string BuildUnsupportedProviderMessage(ModelProviderState backendState, string message)
     {
         ArgumentNullException.ThrowIfNull(backendState);
 
@@ -267,7 +267,7 @@ internal static class ChatBackendPresentation
         return $"{backendState.DisplayName} is unavailable: {trimmed}";
     }
 
-    public static string BuildFailedBackendMessage(ModelProviderState backendState, string message)
+    public static string BuildFailedProviderMessage(ModelProviderState backendState, string message)
     {
         ArgumentNullException.ThrowIfNull(backendState);
 

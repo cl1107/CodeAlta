@@ -163,8 +163,8 @@ internal sealed class ThreadWorkspaceView
 
     private PromptComposerView _promptComposerView => ActivePromptPanel.Composer;
 
-    private Select<ChatBackendOption> ChatBackendSelect
-        => ActivePromptPanel.ModelProviderSelectorView.ChatBackendSelect;
+    private Select<ModelProviderOption> ModelProviderSelect
+        => ActivePromptPanel.ModelProviderSelectorView.ModelProviderSelect;
 
     private Select<ChatModelOption> ChatModelSelect
         => ActivePromptPanel.ModelProviderSelectorView.ChatModelSelect;
@@ -202,7 +202,7 @@ internal sealed class ThreadWorkspaceView
         => ActivePromptPanel.Composer.OpenExpandedPromptDialog();
 
     public void FocusModelProviderSelector()
-        => ThreadPaneLayout.App?.Focus(ChatBackendSelect);
+        => ThreadPaneLayout.App?.Focus(ModelProviderSelect);
 
     public void FocusReasoningSelector()
         => ThreadPaneLayout.App?.Focus(ChatReasoningSelect);

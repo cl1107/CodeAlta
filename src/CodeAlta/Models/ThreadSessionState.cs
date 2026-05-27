@@ -6,7 +6,7 @@ namespace CodeAlta.Models;
 
 internal sealed class ThreadSessionState
 {
-    public AgentBackendId BackendId { get; set; } = AgentBackendIds.Codex;
+    public ModelProviderId ProviderId { get; set; } = ModelProviderIds.Codex;
 
     public string? ModelId { get; set; }
 
