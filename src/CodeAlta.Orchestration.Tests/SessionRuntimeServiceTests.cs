@@ -119,6 +119,20 @@ public sealed class SessionRuntimeServiceTests
                 createdBy: null,
                 cancellationToken: default)
             .ConfigureAwait(false);
+        await sessionViewCatalog.JournalStore.CreateSessionStore()
+            .UpsertSessionAsync(
+                new AgentSessionSummary
+                {
+                    SessionId = child.SessionId,
+                    ProviderId = providerId,
+                    ProtocolFamily = providerId.Value,
+                    ProviderKey = providerId.Value,
+                    WorkingDirectory = temp.Path,
+                    Title = child.Title,
+                    CreatedAt = child.CreatedAt,
+                    UpdatedAt = DateTimeOffset.UtcNow,
+                })
+            .ConfigureAwait(false);
 
         var metadata = await CollectAgentMetadataAsync(agentSessionCatalog.ListSessionsAsync()).ConfigureAwait(false);
         var recoverable = await CollectAsync(runtime.ListRecoverableSessionsAsync()).ConfigureAwait(false);

@@ -578,7 +578,7 @@ public sealed class FileSystemAgentSessionStore : IAgentSessionJournalStore
                     var snapshot = rawEvent.Raw.Deserialize(AgentJsonSerializerContext.Default.AgentSessionSummary);
                     if (snapshot is not null)
                     {
-                        summary = snapshot;
+                        summary = MergeSummarySnapshot(summary, snapshot);
                     }
 
                     continue;
@@ -630,7 +630,7 @@ public sealed class FileSystemAgentSessionStore : IAgentSessionJournalStore
             var snapshot = rawElement.Deserialize(AgentJsonSerializerContext.Default.AgentSessionSummary);
             if (snapshot is not null)
             {
-                summary = snapshot;
+                summary = MergeSummarySnapshot(summary, snapshot);
             }
 
             return;
@@ -690,6 +690,23 @@ public sealed class FileSystemAgentSessionStore : IAgentSessionJournalStore
 
     private static string? NormalizeOptionalText(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static AgentSessionSummary MergeSummarySnapshot(
+        AgentSessionSummary? current,
+        AgentSessionSummary snapshot)
+    {
+        if (current is null)
+        {
+            return snapshot;
+        }
+
+        return snapshot with
+        {
+            ParentSessionId = NormalizeOptionalText(snapshot.ParentSessionId) ?? NormalizeOptionalText(current.ParentSessionId),
+            CreatedBySessionId = NormalizeOptionalText(snapshot.CreatedBySessionId) ?? NormalizeOptionalText(current.CreatedBySessionId),
+            CreatedByRunId = snapshot.CreatedByRunId ?? current.CreatedByRunId,
+        };
+    }
 
     private async IAsyncEnumerable<AgentEvent> ReadJournalEventsAsync(
         string path,

@@ -568,6 +568,40 @@ public sealed class CatalogInfrastructureTests
     }
 
     [TestMethod]
+    public async Task SessionViewJournalStore_ReadLatestStateRecoversLineageFromHeaderWhenStateIsOutsideTailProbe()
+    {
+        using var root = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = root.Path };
+        var catalog = new SessionViewCatalog(options);
+        var createdAt = new DateTimeOffset(2026, 05, 12, 10, 00, 00, TimeSpan.Zero);
+        var session = new SessionViewDescriptor
+        {
+            SessionId = "session-lineage-tail-test",
+            Kind = SessionViewKind.ProjectSession,
+            ProviderId = "codex",
+            ProviderKey = "codex",
+            ProjectRef = Guid.CreateVersion7().ToString(),
+            ParentSessionId = "session-parent",
+            WorkingDirectory = @"C:\code\repo-main",
+            Title = "Header lineage test",
+            Status = SessionViewStatus.Active,
+            CreatedAt = createdAt,
+            UpdatedAt = createdAt,
+            LastActiveAt = createdAt,
+        };
+        await catalog.JournalStore.AppendStateAsync(session, new SessionViewLocalState { MessageCount = 7 }).ConfigureAwait(false);
+        var path = new AgentRuntimePathLayout(options.GlobalRoot).GetSessionFilePath(session.SessionId, session.CreatedAt);
+        var padding = new string('x', 70 * 1024);
+        await File.AppendAllTextAsync(path, $"{{\"$type\":\"raw\",\"backendEventType\":\"padding\",\"raw\":{{\"value\":\"{padding}\"}}}}{Environment.NewLine}").ConfigureAwait(false);
+
+        var state = await catalog.JournalStore.ReadLatestStateAsync(session.SessionId, session.CreatedAt).ConfigureAwait(false);
+
+        Assert.IsNotNull(state);
+        Assert.AreEqual(7, state.MessageCount);
+        Assert.AreEqual("session-parent", state.ParentSessionId);
+    }
+
+    [TestMethod]
     public async Task SessionViewJournalStore_ConcurrentProviderAndCatalogWrites_DoNotThrow()
     {
         using var root = TempDirectory.Create();

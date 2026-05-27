@@ -23,6 +23,7 @@ public sealed class SessionViewJournalStore
     /// </summary>
     public const string SessionStateEventType = "codealta.sessionState";
 
+    private const int LineageProbeHeadByteCount = 128 * 1024;
     private static readonly UTF8Encoding Utf8WithoutBom = new(encoderShouldEmitUTF8Identifier: false);
 
     private readonly AgentRuntimePathLayout _layout;
@@ -236,10 +237,110 @@ public sealed class SessionViewJournalStore
                 continue;
             }
 
-            return rawEvent.Raw.Deserialize(SessionViewJournalJsonSerializerContext.Default.SessionViewLocalState);
+            var state = rawEvent.Raw.Deserialize(SessionViewJournalJsonSerializerContext.Default.SessionViewLocalState);
+            return HasLineage(state)
+                ? state
+                : await MergeMissingLineageFromJournalAsync(path, state, cancellationToken).ConfigureAwait(false);
         }
 
-        return null;
+        return await MergeMissingLineageFromJournalAsync(path, latestState: null, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task<SessionViewLocalState?> MergeMissingLineageFromJournalAsync(
+        string path,
+        SessionViewLocalState? latestState,
+        CancellationToken cancellationToken)
+    {
+        SessionViewLocalState? headLatestState = null;
+        SessionViewLocalState? lineageState = null;
+        await foreach (var line in ReadLinesFromStartAsync(path, cancellationToken).ConfigureAwait(false))
+        {
+            if (!TryDeserializeRawEvent(line, out var rawEvent))
+            {
+                continue;
+            }
+
+            if (rawEvent.BackendEventType == SessionHeaderEventType)
+            {
+                var header = rawEvent.Raw.Deserialize(SessionViewJournalJsonSerializerContext.Default.SessionViewJournalHeader);
+                if (header is not null)
+                {
+                    lineageState = MergeLineage(lineageState, header.ParentSessionId, header.CreatedBy);
+                }
+
+                continue;
+            }
+
+            if (rawEvent.BackendEventType == SessionStateEventType)
+            {
+                var state = rawEvent.Raw.Deserialize(SessionViewJournalJsonSerializerContext.Default.SessionViewLocalState);
+                if (state is not null)
+                {
+                    headLatestState = state;
+                    lineageState = MergeLineage(lineageState, state.ParentSessionId, state.CreatedBy);
+                }
+            }
+        }
+
+        latestState ??= headLatestState;
+
+        if (latestState is null)
+        {
+            return lineageState;
+        }
+
+        if (lineageState is null)
+        {
+            return latestState;
+        }
+
+        latestState.ParentSessionId = string.IsNullOrWhiteSpace(latestState.ParentSessionId)
+            ? lineageState.ParentSessionId
+            : latestState.ParentSessionId;
+        latestState.CreatedBy ??= lineageState.CreatedBy;
+        return latestState;
+    }
+
+    private static bool HasLineage(SessionViewLocalState? state)
+        => !string.IsNullOrWhiteSpace(state?.ParentSessionId) || state?.CreatedBy is not null;
+
+    private static SessionViewLocalState? MergeLineage(
+        SessionViewLocalState? current,
+        string? parentSessionId,
+        AltaActorProvenance? createdBy)
+    {
+        if (string.IsNullOrWhiteSpace(parentSessionId) && createdBy is null)
+        {
+            return current;
+        }
+
+        current ??= new SessionViewLocalState();
+        if (!string.IsNullOrWhiteSpace(parentSessionId))
+        {
+            current.ParentSessionId = parentSessionId;
+        }
+
+        if (createdBy is not null)
+        {
+            current.CreatedBy = createdBy;
+        }
+
+        return current;
+    }
+
+    private static async IAsyncEnumerable<string> ReadLinesFromStartAsync(
+        string path,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 4096, useAsync: true);
+        using var reader = new StreamReader(stream, Utf8WithoutBom, detectEncodingFromByteOrderMarks: true);
+        var bytesRead = 0;
+        while (bytesRead < LineageProbeHeadByteCount &&
+               await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
+        {
+            bytesRead += Utf8WithoutBom.GetByteCount(line) + Environment.NewLine.Length;
+            yield return line;
+        }
     }
 
     private string GetPath(string sessionId, DateTimeOffset createdAt)

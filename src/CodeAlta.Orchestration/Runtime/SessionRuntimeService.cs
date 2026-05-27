@@ -203,9 +203,10 @@ public sealed class SessionRuntimeService : IAsyncDisposable
             session.MessageCount = messageCount;
         }
 
-        if (!string.IsNullOrWhiteSpace(localState.ParentSessionId))
+        var parentSessionId = ResolveParentSessionId(localState.ParentSessionId, localState.CreatedBy?.SourceSessionId);
+        if (!string.IsNullOrWhiteSpace(parentSessionId))
         {
-            session.ParentSessionId = localState.ParentSessionId;
+            session.ParentSessionId = parentSessionId;
         }
 
         if (localState.CreatedBy is not null)
@@ -1921,6 +1922,7 @@ public sealed class SessionRuntimeService : IAsyncDisposable
         }
 
         var normalizedCwd = NormalizePath(cwd);
+        var parentSessionId = ResolveParentSessionId(session.ParentSessionId, session.CreatedBySessionId);
         if (string.Equals(normalizedCwd, NormalizePath(_catalogOptions.GlobalRoot), StringComparison.OrdinalIgnoreCase))
         {
             return new SessionViewDescriptor
@@ -1932,7 +1934,7 @@ public sealed class SessionRuntimeService : IAsyncDisposable
                 WorkingDirectory = normalizedCwd,
                 Title = BuildSessionTitle(session, "Global Session"),
                 Status = SessionViewStatus.Active,
-                ParentSessionId = session.ParentSessionId,
+                ParentSessionId = parentSessionId,
                 CreatedAt = session.CreatedAt,
                 UpdatedAt = session.UpdatedAt,
                 LastActiveAt = session.UpdatedAt,
@@ -1958,7 +1960,7 @@ public sealed class SessionRuntimeService : IAsyncDisposable
             WorkingDirectory = normalizedCwd,
             Title = BuildSessionTitle(session, project.DisplayName),
             Status = SessionViewStatus.Active,
-            ParentSessionId = session.ParentSessionId,
+            ParentSessionId = parentSessionId,
             CreatedAt = session.CreatedAt,
             UpdatedAt = session.UpdatedAt,
             LastActiveAt = session.UpdatedAt,
@@ -1985,6 +1987,9 @@ public sealed class SessionRuntimeService : IAsyncDisposable
     private static bool IsProviderManagedSessionRuntime(ModelProviderId ProviderId)
         => string.Equals(ProviderId.Value, ModelProviderIds.Codex.Value, StringComparison.OrdinalIgnoreCase) ||
            string.Equals(ProviderId.Value, ModelProviderIds.Copilot.Value, StringComparison.OrdinalIgnoreCase);
+
+    private static string? ResolveParentSessionId(string? parentSessionId, string? createdBySessionId)
+        => NormalizeOptionalText(parentSessionId) ?? NormalizeOptionalText(createdBySessionId);
 
     private static bool ShouldReplaceDraftSession(SessionViewDescriptor session, ModelProviderId ProviderId)
     {
