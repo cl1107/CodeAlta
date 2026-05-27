@@ -198,6 +198,64 @@ public sealed class ShellWorkspaceCoordinatorTests
     }
 
     [TestMethod]
+    public void ApplySelectionProjection_EnrichesRecoveredUsageWithProviderModelLimit()
+    {
+        using var temp = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = temp.Path };
+        var session = CreateSession("session-1", "project-1");
+        var sessionStateCoordinator = CreateSessionStateCoordinator(options);
+        sessionStateCoordinator.ApplyRecoveredCatalogState([CreateProject("project-1", "CodeAlta")], [session]);
+        sessionStateCoordinator.OpenSession(session.SessionId);
+        var tab = sessionStateCoordinator.FindOpenSession(session.SessionId);
+        Assert.IsNotNull(tab);
+        tab.ModelId = "gpt-5.4";
+        tab.Usage = new AgentSessionUsage(
+            Window: new AgentWindowUsageSnapshot(
+                CurrentTokens: 168_400,
+                TokenLimit: null,
+                MessageCount: 42,
+                Label: "Estimated active context"),
+            Scope: AgentUsageScope.CurrentWindow,
+            Source: AgentUsageSource.RecoveredHistory,
+            UpdatedAt: DateTimeOffset.Parse("2026-05-11T15:10:00+00:00"));
+
+        var providerState = new ModelProviderState(ModelProviderIds.Codex, "Codex")
+        {
+            Availability = ModelProviderAvailability.Ready,
+            SelectedModelId = "gpt-5.4",
+        };
+        providerState.Models.Add(new AgentModelInfo(
+            "gpt-5.4-2026-03-05",
+            "GPT-5.4",
+            Capabilities: new Dictionary<string, object?>(StringComparer.Ordinal)
+            {
+                ["contextWindow"] = 400_000L,
+                ["inputTokenLimit"] = 272_000L,
+                ["outputTokenLimit"] = 128_000L,
+            }));
+
+        var sessionSelection = new SessionSelectionContext(
+            sessionStateCoordinator,
+            static (_, _) => Task.CompletedTask,
+            sessionId => string.Equals(sessionId, sessionStateCoordinator.SelectedSessionId, StringComparison.OrdinalIgnoreCase));
+        var (workspace, sessionUsage) = CreateWorkspaceCoordinator(
+            sessionStateCoordinator,
+            sessionSelection,
+            new Dictionary<string, ModelProviderState>(StringComparer.OrdinalIgnoreCase)
+            {
+                [ModelProviderIds.Codex.Value] = providerState,
+            },
+            static () => ModelProviderIds.Codex);
+
+        workspace.ApplySelectionProjection();
+
+        Assert.AreEqual(272_000L, sessionUsage.Usage?.TokenLimit);
+        Assert.AreEqual(400_000L, sessionUsage.Usage?.Window?.TotalContextEnvelope);
+        Assert.AreEqual(128_000L, sessionUsage.Usage?.Window?.MaxOutputTokens);
+        Assert.AreEqual(61.9d, sessionUsage.Usage?.WindowUsagePercentage ?? 0d, 0.1d);
+    }
+
+    [TestMethod]
     public void ShellWorkspaceContext_DispatchToUi_RunsInlineWhenDispatcherHasAccess()
     {
         var deferredActions = new Queue<Action>();

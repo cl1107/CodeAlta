@@ -1093,6 +1093,76 @@ public sealed class AgentSessionTests
     }
 
     [TestMethod]
+    public async Task AgentSession_SendAsync_UsesProviderCatalogWhenRuntimeModelCacheIsEmpty()
+    {
+        using var temp = TestTempDirectory.Create();
+        var store = new FileSystemAgentSessionStore(new AgentRuntimePathLayout(Path.Combine(temp.Path, "machine", "agents")));
+        var provider = CreateProvider(AgentCompactionSettings.Default with
+        {
+            Ratio = 0.30,
+        });
+        var summary = CreateSummary("session-empty-model-cache");
+        var state = CreateState("session-empty-model-cache");
+        await store.UpsertSessionAsync(summary).ConfigureAwait(false);
+        await store.UpsertStateAsync(state).ConfigureAwait(false);
+
+        var models = new[]
+        {
+            new AgentModelInfo(
+                "gpt-5.4",
+                "GPT-5.4",
+                Capabilities: new Dictionary<string, object?>(StringComparer.Ordinal)
+                {
+                    ["contextWindow"] = 600L,
+                    ["inputTokenLimit"] = 500L,
+                    ["outputTokenLimit"] = 100L,
+                }),
+        };
+        await using var session = new AgentSession(
+            ModelProviderIds.OpenAIResponses,
+            provider,
+            summary,
+            state,
+            [],
+            store,
+            new ScriptedTurnExecutor(
+                models,
+                (request, _, _) =>
+                {
+                    Assert.IsNotNull(request.ModelInfo);
+                    Assert.AreEqual("gpt-5.4", request.ModelInfo!.Id);
+                    return Task.FromResult(new AgentTurnResponse
+                    {
+                        AssistantMessage = new AgentConversationMessage(
+                            AgentConversationRole.Assistant,
+                            [new AgentMessagePart.Text("## Objective\n- Preserve the compacted work history.")]),
+                        Usage = CreateUsageSnapshot(8, 2),
+                    });
+                },
+                (request, _, _) =>
+                {
+                    Assert.IsNotNull(request.ModelInfo);
+                    Assert.AreEqual("gpt-5.4", request.ModelInfo!.Id);
+                    return Task.FromResult(new AgentTurnResponse
+                    {
+                        AssistantMessage = new AgentConversationMessage(
+                            AgentConversationRole.Assistant,
+                            [new AgentMessagePart.Text("First answer.")]),
+                        Usage = CreateUsageSnapshot(180, 20),
+                    });
+                }),
+            CreateOptions(provider, temp.Path),
+            cachedModels: []);
+
+        _ = await session.SendAsync(new AgentSendOptions { Input = AgentInput.Text("First prompt") }).ConfigureAwait(false);
+
+        var persistedState = await store.GetStateAsync(provider.ProtocolFamily, provider.ProviderKey, summary.SessionId).ConfigureAwait(false);
+        Assert.IsNotNull(persistedState);
+        Assert.AreEqual(500L, persistedState.Usage?.TokenLimit);
+        Assert.AreEqual("threshold", persistedState.LastCompactionTrigger);
+    }
+
+    [TestMethod]
     public async Task AgentSession_SteerAsync_QueuesPendingInputIntoSameRun()
     {
         using var temp = TestTempDirectory.Create();

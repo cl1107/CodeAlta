@@ -35,7 +35,7 @@ public sealed class AgentSession : IAgentSession, IAgentCompactionOutcomeProvide
     private readonly string _providerKey;
     private readonly IAgentSessionJournalStore _store;
     private readonly IModelProviderTurnExecutor _turnExecutor;
-    private readonly IReadOnlyList<AgentModelInfo> _cachedModels;
+    private IReadOnlyList<AgentModelInfo> _cachedModels;
     private readonly AgentCompactionSummarizer _compactionSummarizer;
     private readonly AgentSessionCreateOptions _options;
     private readonly bool _allowProviderContinuation;
@@ -3165,6 +3165,11 @@ public sealed class AgentSession : IAgentSession, IAgentCompactionOutcomeProvide
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (_cachedModels.Count == 0 && _turnExecutor is IModelProviderModelCatalog modelCatalog)
+            {
+                _cachedModels = await modelCatalog.ListModelsAsync(Provider, cancellationToken).ConfigureAwait(false);
+            }
+
             _resolvedModelInfo = AgentModelIdentity.FindBestMatch(_cachedModels, modelId);
         }
         catch (OperationCanceledException)
