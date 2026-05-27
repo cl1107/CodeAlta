@@ -725,7 +725,7 @@ public sealed class SessionRuntimeService : IAsyncDisposable
     /// <returns>The run identifier that received the activated skill content.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="session"/> or <paramref name="options"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException">Thrown when <paramref name="skillName"/> is empty.</exception>
-    /// <exception cref="InvalidOperationException">Thrown when the session backend owns its native skills.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when the model provider owns its native skills.</exception>
     /// <exception cref="KeyNotFoundException">Thrown when the requested skill cannot be resolved.</exception>
     public async Task<AgentRunId> ActivateSkillAsync(
         SessionViewDescriptor session,
@@ -740,7 +740,7 @@ public sealed class SessionRuntimeService : IAsyncDisposable
         if (UsesProviderManagedSkills(new ModelProviderId(options.ProviderId.Value)))
         {
             throw new InvalidOperationException(
-                $"Backend '{options.ProviderId.Value}' manages its own native skills; CodeAlta-managed skill activation is not injected into that session.");
+                $"Provider '{options.ProviderId.Value}' manages its own native skills; CodeAlta-managed skill activation is not injected into that session.");
         }
 
         var project = await ResolveProjectAsync(session, cancellationToken).ConfigureAwait(false);
@@ -1111,7 +1111,7 @@ public sealed class SessionRuntimeService : IAsyncDisposable
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (IsProviderManagedBackend(ProviderId) || !CanCreateSessionWithRequestedSessionId(ProviderId))
+        if (IsProviderManagedSessionRuntime(ProviderId) || !CanCreateSessionWithRequestedSessionId(ProviderId))
         {
             return Task.FromResult(false);
         }
@@ -1977,7 +1977,7 @@ public sealed class SessionRuntimeService : IAsyncDisposable
         return fallback;
     }
 
-    private static bool IsProviderManagedBackend(ModelProviderId ProviderId)
+    private static bool IsProviderManagedSessionRuntime(ModelProviderId ProviderId)
         => string.Equals(ProviderId.Value, ModelProviderIds.Codex.Value, StringComparison.OrdinalIgnoreCase) ||
            string.Equals(ProviderId.Value, ModelProviderIds.Copilot.Value, StringComparison.OrdinalIgnoreCase);
 

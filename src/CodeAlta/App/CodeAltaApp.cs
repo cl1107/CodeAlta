@@ -309,8 +309,8 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
         => GetProjectById(session.ProjectRef)?.ProjectPath;
 
 
-    internal void ApplyDraftModelProviderPreference(ModelProviderState backendState)
-        => _modelProviderPreferences.ApplyDraftModelProviderPreference(backendState, _viewState, GetDraftProjectRoot(), GetDraftProjectId());
+    internal void ApplyDraftModelProviderPreference(ModelProviderState providerState)
+        => _modelProviderPreferences.ApplyDraftModelProviderPreference(providerState, _viewState, GetDraftProjectRoot(), GetDraftProjectId());
 
     internal void ApplySessionPreference(OpenSessionState tab)
         => _modelProviderPreferences.ApplySessionPreference(tab, _viewState, GetSessionProjectRoot(tab.SessionView), _modelProviderStates);

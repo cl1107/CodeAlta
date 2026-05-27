@@ -90,7 +90,7 @@ public sealed class SessionOrchestratorContractsTests
         {
             SessionId = "session-1",
             Title = "Session",
-            ProviderId = "backend",
+            ProviderId = "provider",
             WorkingDirectory = "C:/project",
         };
         var result = new SessionCommandResult
@@ -137,7 +137,7 @@ public sealed class SessionOrchestratorContractsTests
         {
             SessionId = "session-1",
             Kind = SessionViewKind.ProjectSession,
-            ProviderId = "backend",
+            ProviderId = "provider",
             ProviderKey = "provider",
             ProjectRef = "project-1",
             WorkingDirectory = "C:/project",
@@ -159,7 +159,7 @@ public sealed class SessionOrchestratorContractsTests
 
         Assert.AreEqual("session-1", snapshot.SessionId);
         Assert.AreEqual(SessionViewKind.ProjectSession, snapshot.Kind);
-        Assert.AreEqual("backend", snapshot.ProviderId);
+        Assert.AreEqual("provider", snapshot.ProviderId);
         Assert.AreEqual("provider", snapshot.ProviderKey);
         Assert.AreEqual("project-1", snapshot.ProjectRef);
         Assert.AreEqual("C:/project", snapshot.WorkingDirectory);

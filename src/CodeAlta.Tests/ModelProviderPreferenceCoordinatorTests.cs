@@ -18,11 +18,11 @@ public sealed class ModelProviderPreferenceCoordinatorTests
         using var temp = TempDirectory.Create();
         var store = new CodeAltaConfigStore(new CatalogOptions { GlobalRoot = temp.Path });
         var coordinator = new ModelProviderPreferenceCoordinator(store, Views.CodeAltaApp.UiLogger);
-        var backendState = new ModelProviderState(new ModelProviderId("zai"), "ZAI");
-        backendState.Models.Add(new AgentModelInfo(
+        var providerState = new ModelProviderState(new ModelProviderId("zai"), "ZAI");
+        providerState.Models.Add(new AgentModelInfo(
             "gpt-5",
             SupportedReasoningEfforts: [AgentReasoningEffort.Low, AgentReasoningEffort.High]));
-        backendState.Models.Add(new AgentModelInfo(
+        providerState.Models.Add(new AgentModelInfo(
             "glm-5.1",
             SupportedReasoningEfforts: [AgentReasoningEffort.Medium, AgentReasoningEffort.High]));
 
@@ -46,14 +46,14 @@ public sealed class ModelProviderPreferenceCoordinatorTests
             draftProjectId: "project-b",
             rememberDraftScope: true);
 
-        coordinator.ApplyDraftModelProviderPreference(backendState, viewState, projectB, "project-b");
-        Assert.AreEqual("gpt-5", backendState.SelectedModelId);
-        Assert.AreEqual(AgentReasoningEffort.High, backendState.SelectedReasoningEffort);
+        coordinator.ApplyDraftModelProviderPreference(providerState, viewState, projectB, "project-b");
+        Assert.AreEqual("gpt-5", providerState.SelectedModelId);
+        Assert.AreEqual(AgentReasoningEffort.High, providerState.SelectedReasoningEffort);
 
-        coordinator.ApplyDraftModelProviderPreference(backendState, viewState, projectA, "project-a");
+        coordinator.ApplyDraftModelProviderPreference(providerState, viewState, projectA, "project-a");
 
-        Assert.AreEqual("glm-5.1", backendState.SelectedModelId);
-        Assert.AreEqual(AgentReasoningEffort.Medium, backendState.SelectedReasoningEffort);
+        Assert.AreEqual("glm-5.1", providerState.SelectedModelId);
+        Assert.AreEqual(AgentReasoningEffort.Medium, providerState.SelectedReasoningEffort);
     }
 
     [TestMethod]
@@ -74,22 +74,22 @@ public sealed class ModelProviderPreferenceCoordinatorTests
                 },
             },
         };
-        var backendState = new ModelProviderState(new ModelProviderId("zai"), "ZAI");
+        var providerState = new ModelProviderState(new ModelProviderId("zai"), "ZAI");
 
-        coordinator.ApplyDraftModelProviderPreference(backendState, viewState, draftProjectRoot: null, draftProjectId: "project-a");
+        coordinator.ApplyDraftModelProviderPreference(providerState, viewState, draftProjectRoot: null, draftProjectId: "project-a");
 
-        Assert.AreEqual("glm-5.1", backendState.SelectedModelId);
-        Assert.AreEqual(AgentReasoningEffort.Medium, backendState.SelectedReasoningEffort);
+        Assert.AreEqual("glm-5.1", providerState.SelectedModelId);
+        Assert.AreEqual(AgentReasoningEffort.Medium, providerState.SelectedReasoningEffort);
 
-        backendState.Models.Add(new AgentModelInfo("gpt-5"));
-        backendState.Models.Add(new AgentModelInfo(
+        providerState.Models.Add(new AgentModelInfo("gpt-5"));
+        providerState.Models.Add(new AgentModelInfo(
             "glm-5.1",
             SupportedReasoningEfforts: [AgentReasoningEffort.Low, AgentReasoningEffort.Medium]));
 
-        coordinator.ApplyDraftModelProviderPreference(backendState, viewState, draftProjectRoot: null, draftProjectId: "project-a");
+        coordinator.ApplyDraftModelProviderPreference(providerState, viewState, draftProjectRoot: null, draftProjectId: "project-a");
 
-        Assert.AreEqual("glm-5.1", backendState.SelectedModelId);
-        Assert.AreEqual(AgentReasoningEffort.Medium, backendState.SelectedReasoningEffort);
+        Assert.AreEqual("glm-5.1", providerState.SelectedModelId);
+        Assert.AreEqual(AgentReasoningEffort.Medium, providerState.SelectedReasoningEffort);
     }
 
     [TestMethod]
@@ -167,14 +167,14 @@ public sealed class ModelProviderPreferenceCoordinatorTests
         [
             new ModelProviderDescriptor(new ModelProviderId("zai"), "ZAI"),
         ];
-        var backendStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
-        backendStates["zai"].Models.Add(
+        var providerStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
+        providerStates["zai"].Models.Add(
             new AgentModelInfo(
                 "gpt-5",
                 DisplayName: "GPT-5",
                 DefaultReasoningEffort: AgentReasoningEffort.High,
                 SupportedReasoningEfforts: [AgentReasoningEffort.Medium, AgentReasoningEffort.High]));
-        backendStates["zai"].Models.Add(
+        providerStates["zai"].Models.Add(
             new AgentModelInfo(
                 "glm-5.1",
                 DisplayName: "GLM-5.1",
@@ -194,7 +194,7 @@ public sealed class ModelProviderPreferenceCoordinatorTests
             },
         };
 
-        coordinator.ApplySessionPreference(tab, viewState, sessionProjectRoot: null, backendStates);
+        coordinator.ApplySessionPreference(tab, viewState, sessionProjectRoot: null, providerStates);
 
         Assert.AreEqual("glm-5.1", tab.ModelId);
         Assert.AreEqual(AgentReasoningEffort.Medium, tab.ReasoningEffort);
@@ -210,8 +210,8 @@ public sealed class ModelProviderPreferenceCoordinatorTests
         [
             new ModelProviderDescriptor(new ModelProviderId("zai"), "ZAI"),
         ];
-        var backendStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
-        backendStates["zai"].Models.Add(new AgentModelInfo("gpt-5", DisplayName: "GPT-5"));
+        var providerStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
+        providerStates["zai"].Models.Add(new AgentModelInfo("gpt-5", DisplayName: "GPT-5"));
         var tab = CreateOpenSessionState("session-1", "zai");
         var viewState = new SessionViewViewState
         {
@@ -225,7 +225,7 @@ public sealed class ModelProviderPreferenceCoordinatorTests
             },
         };
 
-        coordinator.ApplySessionPreference(tab, viewState, sessionProjectRoot: null, backendStates);
+        coordinator.ApplySessionPreference(tab, viewState, sessionProjectRoot: null, providerStates);
 
         Assert.AreEqual("glm-5.1", tab.ModelId);
         Assert.AreEqual(AgentReasoningEffort.Medium, tab.ReasoningEffort);
@@ -252,18 +252,18 @@ public sealed class ModelProviderPreferenceCoordinatorTests
         [
             new ModelProviderDescriptor(new ModelProviderId("zai"), "ZAI"),
         ];
-        var backendStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
-        backendStates["zai"].Models.Add(new AgentModelInfo(
+        var providerStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
+        providerStates["zai"].Models.Add(new AgentModelInfo(
             "gpt-5",
             SupportedReasoningEfforts: [AgentReasoningEffort.High]));
-        backendStates["zai"].Models.Add(new AgentModelInfo(
+        providerStates["zai"].Models.Add(new AgentModelInfo(
             "glm-5.1",
             SupportedReasoningEfforts: [AgentReasoningEffort.Medium]));
         var tab = CreateOpenSessionState("session-1", "zai");
         tab.Session.ModelId = "glm-5.1";
         tab.Session.ReasoningEffort = AgentReasoningEffort.Medium;
 
-        coordinator.ApplySessionPreference(tab, new SessionViewViewState(), sessionProjectRoot: null, backendStates);
+        coordinator.ApplySessionPreference(tab, new SessionViewViewState(), sessionProjectRoot: null, providerStates);
 
         Assert.AreEqual("glm-5.1", tab.ModelId);
         Assert.AreEqual(AgentReasoningEffort.Medium, tab.ReasoningEffort);
@@ -323,7 +323,7 @@ public sealed class ModelProviderPreferenceCoordinatorTests
         {
             var path = System.IO.Path.Combine(
                 AppContext.BaseDirectory,
-                "chat-backend-preference-tests",
+                "model-provider-preference-tests",
                 Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(path);
             return new TempDirectory(path);

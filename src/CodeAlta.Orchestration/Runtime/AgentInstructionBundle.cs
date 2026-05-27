@@ -8,7 +8,7 @@ namespace CodeAlta.Orchestration.Runtime;
 public sealed record AgentInstructionBundle
 {
     /// <summary>
-    /// An empty bundle that leaves backend defaults untouched.
+    /// An empty bundle that leaves provider defaults untouched.
     /// </summary>
     public static AgentInstructionBundle Empty { get; } = new();
 

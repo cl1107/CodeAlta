@@ -7,7 +7,7 @@ namespace CodeAlta.LiveTool;
 /// </summary>
 public sealed record AltaModelSelection
 {
-    /// <summary>Gets the provider/backend key.</summary>
+    /// <summary>Gets the provider key.</summary>
     public required string ProviderKey { get; init; }
 
     /// <summary>Gets the model identifier, when selected.</summary>

@@ -25,26 +25,26 @@ internal sealed class ModelProviderPreferenceCoordinator
     }
 
     public void ApplyDraftModelProviderPreference(
-        ModelProviderState backendState,
+        ModelProviderState providerState,
         SessionViewViewState viewState,
         string? draftProjectRoot,
         string? draftProjectId)
     {
-        ArgumentNullException.ThrowIfNull(backendState);
+        ArgumentNullException.ThrowIfNull(providerState);
         ArgumentNullException.ThrowIfNull(viewState);
 
         var scopeKey = BuildDraftScopeKey(draftProjectRoot);
         var projectPreferenceKey = BuildProjectPreferenceKey(draftProjectId);
-        var defaults = _configStore.GetEffectiveProviderPreference(backendState.ProviderId.Value, draftProjectRoot);
+        var defaults = _configStore.GetEffectiveProviderPreference(providerState.ProviderId.Value, draftProjectRoot);
         _draftPreferencesByScope.TryGetValue(scopeKey, out var draftPreference);
         viewState.ProjectPreferences.TryGetValue(projectPreferenceKey, out var projectPreference);
-        var preserveCurrentSelection = string.Equals(backendState.DraftScopeKey, scopeKey, StringComparison.OrdinalIgnoreCase);
+        var preserveCurrentSelection = string.Equals(providerState.DraftScopeKey, scopeKey, StringComparison.OrdinalIgnoreCase);
         var matchingDraftPreference = draftPreference is not null &&
-            string.Equals(draftPreference.ProviderId.Value, backendState.ProviderId.Value, StringComparison.OrdinalIgnoreCase)
+            string.Equals(draftPreference.ProviderId.Value, providerState.ProviderId.Value, StringComparison.OrdinalIgnoreCase)
                 ? draftPreference
                 : null;
         var matchingProjectPreference = projectPreference is not null &&
-            string.Equals(projectPreference.ProviderKey, backendState.ProviderId.Value, StringComparison.OrdinalIgnoreCase)
+            string.Equals(projectPreference.ProviderKey, providerState.ProviderId.Value, StringComparison.OrdinalIgnoreCase)
                 ? projectPreference
                 : null;
         var preferredModelId = matchingDraftPreference is not null
@@ -52,21 +52,21 @@ internal sealed class ModelProviderPreferenceCoordinator
             : matchingProjectPreference is not null
                 ? matchingProjectPreference.ModelId ?? defaults.Model
                 : preserveCurrentSelection
-                    ? backendState.SelectedModelId ?? defaults.Model
+                    ? providerState.SelectedModelId ?? defaults.Model
                     : defaults.Model;
 
-        backendState.SelectedModelId = ResolveModelSelection(backendState.Models, preferredModelId);
-        var selectedModel = FindModel(backendState.Models, backendState.SelectedModelId);
+        providerState.SelectedModelId = ResolveModelSelection(providerState.Models, preferredModelId);
+        var selectedModel = FindModel(providerState.Models, providerState.SelectedModelId);
         var preferredReasoningEffort = matchingDraftPreference is not null
             ? matchingDraftPreference.ReasoningEffort ?? defaults.ReasoningEffort
             : matchingProjectPreference is not null
                 ? matchingProjectPreference.ReasoningEffort ?? defaults.ReasoningEffort
                 : preserveCurrentSelection
-                    ? backendState.SelectedReasoningEffort ?? defaults.ReasoningEffort
+                    ? providerState.SelectedReasoningEffort ?? defaults.ReasoningEffort
                     : defaults.ReasoningEffort;
 
-        backendState.SelectedReasoningEffort = ModelProviderPresentation.ResolvePreferredReasoningEffort(selectedModel, preferredReasoningEffort);
-        backendState.DraftScopeKey = scopeKey;
+        providerState.SelectedReasoningEffort = ModelProviderPresentation.ResolvePreferredReasoningEffort(selectedModel, preferredReasoningEffort);
+        providerState.DraftScopeKey = scopeKey;
     }
 
     public ModelProviderPreference? GetDraftModelProviderPreference(
@@ -96,17 +96,17 @@ internal sealed class ModelProviderPreferenceCoordinator
 
         viewState.SessionPreferences.TryGetValue(tab.SessionView.SessionId, out var persistedPreference);
         var defaults = _configStore.GetEffectiveProviderPreference(tab.ProviderId.Value, sessionProjectRoot);
-        modelProviderStates.TryGetValue(tab.ProviderId.Value, out var backendState);
+        modelProviderStates.TryGetValue(tab.ProviderId.Value, out var providerState);
         var preferredModelId = tab.ModelId ?? tab.Session.ModelId ?? persistedPreference?.ModelId ?? defaults.Model;
-        tab.ModelId = ResolveModelSelection(backendState?.Models ?? [], preferredModelId);
+        tab.ModelId = ResolveModelSelection(providerState?.Models ?? [], preferredModelId);
         tab.ReasoningEffort ??= tab.Session.ReasoningEffort ?? persistedPreference?.ReasoningEffort ?? defaults.ReasoningEffort;
 
-        if (backendState is null)
+        if (providerState is null)
         {
             return;
         }
 
-        var selectedModel = FindModel(backendState.Models, tab.ModelId);
+        var selectedModel = FindModel(providerState.Models, tab.ModelId);
         tab.ReasoningEffort = ModelProviderPresentation.ResolvePreferredReasoningEffort(
             selectedModel,
             tab.ReasoningEffort);

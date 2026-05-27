@@ -21,9 +21,9 @@ public sealed class ModelProviderSelectorCoordinatorTests
     {
         var workspaceViewModel = new SessionWorkspaceViewModel();
         var promptComposerViewModel = new PromptComposerViewModel();
-        var backendStates = ModelProviderPresentation.CreateProviderStates();
+        var providerStates = ModelProviderPresentation.CreateProviderStates();
 
-        var codexState = backendStates[ModelProviderIds.Codex.Value];
+        var codexState = providerStates[ModelProviderIds.Codex.Value];
         codexState.Availability = ModelProviderAvailability.Ready;
         codexState.Models.Add(new AgentModelInfo(
             "gpt-5-codex",
@@ -31,7 +31,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
             DefaultReasoningEffort: AgentReasoningEffort.High,
             SupportedReasoningEfforts: [AgentReasoningEffort.Medium, AgentReasoningEffort.High]));
 
-        var copilotState = backendStates[ModelProviderIds.Copilot.Value];
+        var copilotState = providerStates[ModelProviderIds.Copilot.Value];
         copilotState.Availability = ModelProviderAvailability.Ready;
         copilotState.Models.Add(new AgentModelInfo(
             "gpt-4.1",
@@ -56,7 +56,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
         var coordinator = new ModelProviderSelectorCoordinator(
             workspaceViewModel,
             promptComposerViewModel,
-            backendStates,
+            providerStates,
             selectorState,
             sessionSelection,
             preferences,
@@ -75,14 +75,14 @@ public sealed class ModelProviderSelectorCoordinatorTests
         CollectionAssert.AreEqual(new[] { "GPT-4.1", "o4-mini" }, workspaceViewModel.ModelOptions.Select(static option => option.Label).ToArray());
         Assert.AreEqual(2, syncCallCount);
 
-        static void ApplyDraftModelProviderPreference(ModelProviderState backendState)
+        static void ApplyDraftModelProviderPreference(ModelProviderState providerState)
         {
-            backendState.SelectedModelId = ModelProviderPresentation.ResolvePreferredModelId(
-                backendState.Models,
-                backendState.SelectedModelId);
-            backendState.SelectedReasoningEffort = ModelProviderPresentation.ResolvePreferredReasoningEffort(
-                ModelProviderPreferenceCoordinator.FindModel(backendState.Models, backendState.SelectedModelId),
-                backendState.SelectedReasoningEffort);
+            providerState.SelectedModelId = ModelProviderPresentation.ResolvePreferredModelId(
+                providerState.Models,
+                providerState.SelectedModelId);
+            providerState.SelectedReasoningEffort = ModelProviderPresentation.ResolvePreferredReasoningEffort(
+                ModelProviderPreferenceCoordinator.FindModel(providerState.Models, providerState.SelectedModelId),
+                providerState.SelectedReasoningEffort);
         }
     }
 
@@ -96,15 +96,15 @@ public sealed class ModelProviderSelectorCoordinatorTests
             new ModelProviderDescriptor(ModelProviderIds.Codex, "Codex"),
             new ModelProviderDescriptor(new ModelProviderId("zai"), "ZAI"),
         ];
-        var backendStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
-        backendStates[ModelProviderIds.Codex.Value].Availability = ModelProviderAvailability.Ready;
-        backendStates["zai"].Availability = ModelProviderAvailability.Ready;
+        var providerStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
+        providerStates[ModelProviderIds.Codex.Value].Availability = ModelProviderAvailability.Ready;
+        providerStates["zai"].Availability = ModelProviderAvailability.Ready;
 
         var coordinator = CreateCoordinator(
             providerDescriptors,
             workspaceViewModel,
             promptComposerViewModel,
-            backendStates,
+            providerStates,
             static _ => "zai");
 
         var preferredProviderId = coordinator.GetPreferredModelProviderId();
@@ -122,10 +122,10 @@ public sealed class ModelProviderSelectorCoordinatorTests
             new(new ModelProviderId("openai"), "OpenAI"),
             new(new ModelProviderId("anthropic"), "Anthropic"),
         ];
-        var backendStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
-        backendStates["openai"].Availability = ModelProviderAvailability.Ready;
-        backendStates["openai"].Models.Add(new AgentModelInfo("gpt-5.4"));
-        backendStates["anthropic"].Availability = ModelProviderAvailability.Probing;
+        var providerStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
+        providerStates["openai"].Availability = ModelProviderAvailability.Ready;
+        providerStates["openai"].Models.Add(new AgentModelInfo("gpt-5.4"));
+        providerStates["anthropic"].Availability = ModelProviderAvailability.Probing;
 
         var selectorState = new ModelProviderSelectorStateStore(workspaceViewModel, new InlineUiDispatcher());
         var preferences = new FrontendModelProviderPreferencePort(
@@ -137,7 +137,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
             providerDescriptors,
             workspaceViewModel,
             promptComposerViewModel,
-            backendStates,
+            providerStates,
             selectorState,
             CreateSessionSelectionContext(),
             preferences,
@@ -164,10 +164,10 @@ public sealed class ModelProviderSelectorCoordinatorTests
         [
             new(new ModelProviderId("codex"), "Codex subscription"),
         ];
-        var backendStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
-        var backendState = backendStates["codex"];
-        backendState.Availability = ModelProviderAvailability.Ready;
-        backendState.Models.Add(new AgentModelInfo("gpt-5.2", DisplayName: "GPT-5.2"));
+        var providerStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
+        var providerState = providerStates["codex"];
+        providerState.Availability = ModelProviderAvailability.Ready;
+        providerState.Models.Add(new AgentModelInfo("gpt-5.2", DisplayName: "GPT-5.2"));
 
         var selectorState = new ModelProviderSelectorStateStore(workspaceViewModel, new InlineUiDispatcher());
         var preferences = new FrontendModelProviderPreferencePort(
@@ -183,7 +183,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
             providerDescriptors,
             workspaceViewModel,
             promptComposerViewModel,
-            backendStates,
+            providerStates,
             selectorState,
             CreateSessionSelectionContext(),
             preferences,
@@ -213,16 +213,16 @@ public sealed class ModelProviderSelectorCoordinatorTests
             new ModelProviderDescriptor(new ModelProviderId("openai"), "OpenAI"),
             new ModelProviderDescriptor(ModelProviderIds.Codex, "Codex"),
         ];
-        var backendStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
-        backendStates["zai"].Availability = ModelProviderAvailability.Unsupported;
-        backendStates["openai"].Availability = ModelProviderAvailability.Ready;
-        backendStates[ModelProviderIds.Codex.Value].Availability = ModelProviderAvailability.Ready;
+        var providerStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
+        providerStates["zai"].Availability = ModelProviderAvailability.Unsupported;
+        providerStates["openai"].Availability = ModelProviderAvailability.Ready;
+        providerStates[ModelProviderIds.Codex.Value].Availability = ModelProviderAvailability.Ready;
 
         var coordinator = CreateCoordinator(
             providerDescriptors,
             workspaceViewModel,
             promptComposerViewModel,
-            backendStates,
+            providerStates,
             static _ => null);
 
         var preferredProviderId = coordinator.GetPreferredModelProviderId();
@@ -240,15 +240,15 @@ public sealed class ModelProviderSelectorCoordinatorTests
             new ModelProviderDescriptor(ModelProviderIds.Codex, "Codex"),
             new ModelProviderDescriptor(ModelProviderIds.Copilot, "Copilot"),
         ];
-        var backendStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
-        backendStates[ModelProviderIds.Codex.Value].Availability = ModelProviderAvailability.Ready;
-        backendStates[ModelProviderIds.Copilot.Value].Availability = ModelProviderAvailability.Failed;
+        var providerStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
+        providerStates[ModelProviderIds.Codex.Value].Availability = ModelProviderAvailability.Ready;
+        providerStates[ModelProviderIds.Copilot.Value].Availability = ModelProviderAvailability.Failed;
 
         var coordinator = CreateCoordinator(
             providerDescriptors,
             workspaceViewModel,
             promptComposerViewModel,
-            backendStates,
+            providerStates,
             static _ => null,
             static () => ["codex", "copilot", "openai", "anthropic", "google", "vertex"]);
 
@@ -277,9 +277,9 @@ public sealed class ModelProviderSelectorCoordinatorTests
             new(new ModelProviderId("openai"), "OpenAI"),
             new(new ModelProviderId("anthropic"), "Anthropic"),
         ];
-        var backendStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
-        backendStates["openai"].Availability = ModelProviderAvailability.Ready;
-        backendStates["anthropic"].Availability = ModelProviderAvailability.Ready;
+        var providerStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
+        providerStates["openai"].Availability = ModelProviderAvailability.Ready;
+        providerStates["anthropic"].Availability = ModelProviderAvailability.Ready;
 
         var selectorState = new ModelProviderSelectorStateStore(workspaceViewModel, new InlineUiDispatcher());
         var preferences = new FrontendModelProviderPreferencePort(
@@ -292,7 +292,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
             providerDescriptors,
             workspaceViewModel,
             promptComposerViewModel,
-            backendStates,
+            providerStates,
             selectorState,
             sessionSelection,
             preferences,
@@ -327,8 +327,8 @@ public sealed class ModelProviderSelectorCoordinatorTests
         [
             new(new ModelProviderId("openai"), "OpenAI"),
         ];
-        var backendStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
-        backendStates["openai"].Availability = ModelProviderAvailability.Ready;
+        var providerStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
+        providerStates["openai"].Availability = ModelProviderAvailability.Ready;
 
         var selectorState = new ModelProviderSelectorStateStore(workspaceViewModel, new InlineUiDispatcher());
         var preferences = new FrontendModelProviderPreferencePort(
@@ -340,7 +340,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
             providerDescriptors,
             workspaceViewModel,
             promptComposerViewModel,
-            backendStates,
+            providerStates,
             selectorState,
             sessionSelection,
             preferences,
@@ -383,9 +383,9 @@ public sealed class ModelProviderSelectorCoordinatorTests
             new(new ModelProviderId("openai"), "OpenAI"),
             new(new ModelProviderId("anthropic"), "Anthropic"),
         ];
-        var backendStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
-        backendStates["openai"].Availability = ModelProviderAvailability.Ready;
-        backendStates["anthropic"].Availability = ModelProviderAvailability.Ready;
+        var providerStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
+        providerStates["openai"].Availability = ModelProviderAvailability.Ready;
+        providerStates["anthropic"].Availability = ModelProviderAvailability.Ready;
 
         var selectorState = new ModelProviderSelectorStateStore(workspaceViewModel, new InlineUiDispatcher());
         var preferences = new FrontendModelProviderPreferencePort(
@@ -398,7 +398,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
             providerDescriptors,
             workspaceViewModel,
             promptComposerViewModel,
-            backendStates,
+            providerStates,
             selectorState,
             sessionSelection,
             preferences,
@@ -438,9 +438,9 @@ public sealed class ModelProviderSelectorCoordinatorTests
             new(new ModelProviderId("openai"), "OpenAI"),
             new(new ModelProviderId("anthropic"), "Anthropic"),
         ];
-        var backendStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
-        backendStates["openai"].Availability = ModelProviderAvailability.Ready;
-        backendStates["anthropic"].Availability = ModelProviderAvailability.Ready;
+        var providerStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
+        providerStates["openai"].Availability = ModelProviderAvailability.Ready;
+        providerStates["anthropic"].Availability = ModelProviderAvailability.Ready;
 
         var selectorState = new ModelProviderSelectorStateStore(workspaceViewModel, new InlineUiDispatcher());
         var preferences = new FrontendModelProviderPreferencePort(
@@ -455,7 +455,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
             providerDescriptors,
             workspaceViewModel,
             promptComposerViewModel,
-            backendStates,
+            providerStates,
             selectorState,
             sessionSelection,
             preferences,
@@ -498,9 +498,9 @@ public sealed class ModelProviderSelectorCoordinatorTests
             new(new ModelProviderId("openai"), "OpenAI"),
             new(new ModelProviderId("anthropic"), "Anthropic"),
         ];
-        var backendStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
-        backendStates["openai"].Availability = ModelProviderAvailability.Ready;
-        backendStates["anthropic"].Availability = ModelProviderAvailability.Ready;
+        var providerStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
+        providerStates["openai"].Availability = ModelProviderAvailability.Ready;
+        providerStates["anthropic"].Availability = ModelProviderAvailability.Ready;
 
         var selectorState = new ModelProviderSelectorStateStore(workspaceViewModel, new InlineUiDispatcher());
         var preferences = new FrontendModelProviderPreferencePort(
@@ -514,7 +514,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
             providerDescriptors,
             workspaceViewModel,
             promptComposerViewModel,
-            backendStates,
+            providerStates,
             selectorState,
             sessionSelection,
             preferences,
@@ -584,10 +584,10 @@ public sealed class ModelProviderSelectorCoordinatorTests
         [
             new(new ModelProviderId("openai"), "OpenAI"),
         ];
-        var backendStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
-        backendStates["openai"].Availability = ModelProviderAvailability.Ready;
-        backendStates["openai"].Models.Add(new AgentModelInfo("gpt-5.4", DisplayName: "GPT-5.4"));
-        backendStates["openai"].Models.Add(new AgentModelInfo("gpt-5.4-mini", DisplayName: "GPT-5.4 Mini"));
+        var providerStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
+        providerStates["openai"].Availability = ModelProviderAvailability.Ready;
+        providerStates["openai"].Models.Add(new AgentModelInfo("gpt-5.4", DisplayName: "GPT-5.4"));
+        providerStates["openai"].Models.Add(new AgentModelInfo("gpt-5.4-mini", DisplayName: "GPT-5.4 Mini"));
 
         var selectorState = new ModelProviderSelectorStateStore(workspaceViewModel, new InlineUiDispatcher());
         var preferences = new FrontendModelProviderPreferencePort(
@@ -600,7 +600,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
             providerDescriptors,
             workspaceViewModel,
             promptComposerViewModel,
-            backendStates,
+            providerStates,
             selectorState,
             sessionSelection,
             preferences,
@@ -625,11 +625,11 @@ public sealed class ModelProviderSelectorCoordinatorTests
         [
             new(new ModelProviderId("openai"), "OpenAI"),
         ];
-        var backendStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
-        var backendState = backendStates["openai"];
-        backendState.Availability = ModelProviderAvailability.Ready;
-        backendState.Models.Add(new AgentModelInfo("gpt-5.4", DisplayName: "GPT-5.4"));
-        backendState.Models.Add(new AgentModelInfo("gpt-5.4-mini", DisplayName: "GPT-5.4 Mini"));
+        var providerStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
+        var providerState = providerStates["openai"];
+        providerState.Availability = ModelProviderAvailability.Ready;
+        providerState.Models.Add(new AgentModelInfo("gpt-5.4", DisplayName: "GPT-5.4"));
+        providerState.Models.Add(new AgentModelInfo("gpt-5.4-mini", DisplayName: "GPT-5.4 Mini"));
 
         var selectorState = new ModelProviderSelectorStateStore(workspaceViewModel, new InlineUiDispatcher());
         var draftPreferenceApplyCount = 0;
@@ -650,7 +650,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
             providerDescriptors,
             workspaceViewModel,
             promptComposerViewModel,
-            backendStates,
+            providerStates,
             selectorState,
             CreateSessionSelectionContext(),
             preferences,
@@ -662,7 +662,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
         coordinator.OnModelSelectionChanged(newIndex: 1);
 
         Assert.AreEqual(1, workspaceViewModel.SelectedModelIndex);
-        Assert.AreEqual("gpt-5.4-mini", backendState.SelectedModelId);
+        Assert.AreEqual("gpt-5.4-mini", providerState.SelectedModelId);
         Assert.AreEqual(1, draftPreferenceApplyCount);
     }
 
@@ -687,17 +687,17 @@ public sealed class ModelProviderSelectorCoordinatorTests
             new(new ModelProviderId("openai"), "OpenAI"),
             new(new ModelProviderId("anthropic"), "Anthropic"),
         ];
-        var backendStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
-        backendStates["openai"].Availability = ModelProviderAvailability.Ready;
-        backendStates["openai"].Models.Add(new AgentModelInfo("gpt-5.4"));
-        backendStates["anthropic"].Availability = ModelProviderAvailability.Ready;
-        backendStates["anthropic"].Models.Add(new AgentModelInfo("claude-sonnet-4.5"));
+        var providerStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
+        providerStates["openai"].Availability = ModelProviderAvailability.Ready;
+        providerStates["openai"].Models.Add(new AgentModelInfo("gpt-5.4"));
+        providerStates["anthropic"].Availability = ModelProviderAvailability.Ready;
+        providerStates["anthropic"].Models.Add(new AgentModelInfo("claude-sonnet-4.5"));
 
         var coordinator = CreateCoordinator(
             providerDescriptors,
             workspaceViewModel,
             promptComposerViewModel,
-            backendStates,
+            providerStates,
             static _ => null,
             sessionSelection: sessionSelection,
             applySessionModelProviderPreference: static _ => { });
@@ -733,17 +733,17 @@ public sealed class ModelProviderSelectorCoordinatorTests
             new(new ModelProviderId("openai"), "OpenAI"),
             new(new ModelProviderId("anthropic"), "Anthropic"),
         ];
-        var backendStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
-        backendStates["openai"].Availability = ModelProviderAvailability.Ready;
-        backendStates["openai"].Models.Add(new AgentModelInfo("gpt-5.4"));
-        backendStates["anthropic"].Availability = ModelProviderAvailability.Ready;
-        backendStates["anthropic"].Models.Add(new AgentModelInfo("claude-sonnet-4.5"));
+        var providerStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
+        providerStates["openai"].Availability = ModelProviderAvailability.Ready;
+        providerStates["openai"].Models.Add(new AgentModelInfo("gpt-5.4"));
+        providerStates["anthropic"].Availability = ModelProviderAvailability.Ready;
+        providerStates["anthropic"].Models.Add(new AgentModelInfo("claude-sonnet-4.5"));
 
         var coordinator = CreateCoordinator(
             providerDescriptors,
             workspaceViewModel,
             promptComposerViewModel,
-            backendStates,
+            providerStates,
             static _ => null,
             sessionSelection: sessionSelection,
             applySessionModelProviderPreference: static _ => { });
@@ -779,17 +779,17 @@ public sealed class ModelProviderSelectorCoordinatorTests
         [
             new(new ModelProviderId("openai"), "OpenAI"),
         ];
-        var backendStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
-        var backendState = backendStates["openai"];
-        backendState.Availability = ModelProviderAvailability.Ready;
-        backendState.Models.Add(new AgentModelInfo("gpt-5.4", DisplayName: "GPT-5.4"));
-        backendState.Models.Add(new AgentModelInfo("gpt-5.4-mini", DisplayName: "GPT-5.4 Mini"));
+        var providerStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
+        var providerState = providerStates["openai"];
+        providerState.Availability = ModelProviderAvailability.Ready;
+        providerState.Models.Add(new AgentModelInfo("gpt-5.4", DisplayName: "GPT-5.4"));
+        providerState.Models.Add(new AgentModelInfo("gpt-5.4-mini", DisplayName: "GPT-5.4 Mini"));
 
         var coordinator = CreateCoordinator(
             providerDescriptors,
             workspaceViewModel,
             promptComposerViewModel,
-            backendStates,
+            providerStates,
             static _ => null,
             sessionSelection: sessionSelection,
             applySessionModelProviderPreference: static _ => { });
@@ -797,7 +797,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
         sessionStateCoordinator.SelectProjectScope("project-1");
         coordinator.RefreshForDraftScope(new ModelProviderId("openai"));
         coordinator.OnModelSelectionChanged(newIndex: 1);
-        Assert.AreEqual("gpt-5.4-mini", backendState.SelectedModelId);
+        Assert.AreEqual("gpt-5.4-mini", providerState.SelectedModelId);
 
         sessionStateCoordinator.OpenSession(session.SessionId);
         coordinator.RefreshForSession(tab);
@@ -808,7 +808,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
         coordinator.RefreshForDraftScope();
 
         Assert.AreEqual(1, workspaceViewModel.SelectedModelIndex);
-        Assert.AreEqual("gpt-5.4-mini", backendState.SelectedModelId);
+        Assert.AreEqual("gpt-5.4-mini", providerState.SelectedModelId);
     }
 
     [TestMethod]
@@ -828,9 +828,9 @@ public sealed class ModelProviderSelectorCoordinatorTests
         [
             new(new ModelProviderId("openai"), "OpenAI"),
         ];
-        var backendStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
-        backendStates["openai"].Availability = ModelProviderAvailability.Ready;
-        backendStates["openai"].Models.Add(new AgentModelInfo(
+        var providerStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
+        providerStates["openai"].Availability = ModelProviderAvailability.Ready;
+        providerStates["openai"].Models.Add(new AgentModelInfo(
             "gpt-5.4",
             DisplayName: "GPT-5.4",
             SupportedReasoningEfforts: [AgentReasoningEffort.Low, AgentReasoningEffort.High]));
@@ -847,7 +847,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
             providerDescriptors,
             workspaceViewModel,
             promptComposerViewModel,
-            backendStates,
+            providerStates,
             selectorState,
             sessionSelection,
             preferences,
@@ -872,23 +872,23 @@ public sealed class ModelProviderSelectorCoordinatorTests
         [
             new(new ModelProviderId("openai"), "OpenAI"),
         ];
-        var backendStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
-        var backendState = backendStates["openai"];
-        backendState.Availability = ModelProviderAvailability.Ready;
-        backendState.Models.Add(new AgentModelInfo("gpt-5.4", DisplayName: "GPT-5.4"));
-        backendState.Models.Add(new AgentModelInfo("gpt-5.4-mini", DisplayName: "GPT-5.4 Mini"));
+        var providerStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
+        var providerState = providerStates["openai"];
+        providerState.Availability = ModelProviderAvailability.Ready;
+        providerState.Models.Add(new AgentModelInfo("gpt-5.4", DisplayName: "GPT-5.4"));
+        providerState.Models.Add(new AgentModelInfo("gpt-5.4-mini", DisplayName: "GPT-5.4 Mini"));
 
         var coordinator = CreateCoordinator(
             providerDescriptors,
             workspaceViewModel,
             promptComposerViewModel,
-            backendStates,
+            providerStates,
             static _ => null);
 
         var selected = await coordinator.SelectProviderModelAsync(new ModelProviderId("openai"), "gpt-5.4-mini");
 
         Assert.IsTrue(selected);
-        Assert.AreEqual("gpt-5.4-mini", backendState.SelectedModelId);
+        Assert.AreEqual("gpt-5.4-mini", providerState.SelectedModelId);
         Assert.AreEqual(1, workspaceViewModel.SelectedModelIndex);
     }
 
@@ -909,16 +909,16 @@ public sealed class ModelProviderSelectorCoordinatorTests
         [
             new(new ModelProviderId("openai"), "OpenAI"),
         ];
-        var backendStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
-        backendStates["openai"].Availability = ModelProviderAvailability.Ready;
-        backendStates["openai"].Models.Add(new AgentModelInfo("gpt-5.4", DisplayName: "GPT-5.4"));
-        backendStates["openai"].Models.Add(new AgentModelInfo("gpt-5.4-mini", DisplayName: "GPT-5.4 Mini"));
+        var providerStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
+        providerStates["openai"].Availability = ModelProviderAvailability.Ready;
+        providerStates["openai"].Models.Add(new AgentModelInfo("gpt-5.4", DisplayName: "GPT-5.4"));
+        providerStates["openai"].Models.Add(new AgentModelInfo("gpt-5.4-mini", DisplayName: "GPT-5.4 Mini"));
 
         var coordinator = CreateCoordinator(
             providerDescriptors,
             workspaceViewModel,
             promptComposerViewModel,
-            backendStates,
+            providerStates,
             static _ => null,
             sessionSelection: sessionSelection,
             applySessionModelProviderPreference: static _ => { });
@@ -934,7 +934,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
         IReadOnlyList<ModelProviderDescriptor> providerDescriptors,
         SessionWorkspaceViewModel workspaceViewModel,
         PromptComposerViewModel promptComposerViewModel,
-        Dictionary<string, ModelProviderState> backendStates,
+        Dictionary<string, ModelProviderState> providerStates,
         Func<string?, string?> getEffectiveDefaultProviderKey,
         Func<IReadOnlyList<string>>? getConfiguredProviderKeys = null,
         SessionSelectionContext? sessionSelection = null,
@@ -951,7 +951,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
             providerDescriptors,
             workspaceViewModel,
             promptComposerViewModel,
-            backendStates,
+            providerStates,
             selectorState,
             sessionSelection ?? CreateSessionSelectionContext(),
             preferences,
@@ -1012,14 +1012,14 @@ public sealed class ModelProviderSelectorCoordinatorTests
         return coordinator;
     }
 
-    private static void ApplyDraftModelProviderPreference(ModelProviderState backendState)
+    private static void ApplyDraftModelProviderPreference(ModelProviderState providerState)
     {
-        backendState.SelectedModelId = ModelProviderPresentation.ResolvePreferredModelId(
-            backendState.Models,
-            backendState.SelectedModelId);
-        backendState.SelectedReasoningEffort = ModelProviderPresentation.ResolvePreferredReasoningEffort(
-            ModelProviderPreferenceCoordinator.FindModel(backendState.Models, backendState.SelectedModelId),
-            backendState.SelectedReasoningEffort);
+        providerState.SelectedModelId = ModelProviderPresentation.ResolvePreferredModelId(
+            providerState.Models,
+            providerState.SelectedModelId);
+        providerState.SelectedReasoningEffort = ModelProviderPresentation.ResolvePreferredReasoningEffort(
+            ModelProviderPreferenceCoordinator.FindModel(providerState.Models, providerState.SelectedModelId),
+            providerState.SelectedReasoningEffort);
     }
 
     private sealed class InlineUiDispatcher : IUiDispatcher

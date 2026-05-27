@@ -111,7 +111,7 @@ internal sealed class CodeAltaFrontendComposition
             .Add(modelProviderInitializationService)
             .Add(projectFileSearchService)
             .Add<IReadOnlyList<ModelProviderDescriptor>>(providerDescriptors)
-            .Add<IAltaSessionToolBackendPolicy>(new AltaSessionToolBackendPolicy(altaToolProviderIds));
+            .Add<IAltaSessionToolProviderPolicy>(new AltaSessionToolProviderPolicy(altaToolProviderIds));
         if (modelProviderRegistry is not null)
         {
             altaServices.Add(modelProviderRegistry);

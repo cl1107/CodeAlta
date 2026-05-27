@@ -22,17 +22,17 @@ public sealed record PluginAdapterOperationOptions
     /// <summary>Gets the current run id, when known.</summary>
     public string? RunId { get; init; }
 
-    /// <summary>Gets the active backend id, when known.</summary>
+    /// <summary>Gets the active provider id, when known.</summary>
     public string? ProviderId { get; init; }
 
     /// <summary>Gets the active model, when known.</summary>
     public string? Model { get; init; }
 
-    /// <summary>Gets a value indicating whether the active backend is CodeAlta-managed local/raw.</summary>
-    public bool IsCodeAltaManagedBackend { get; init; }
+    /// <summary>Gets a value indicating whether the active provider is CodeAlta-managed local/raw.</summary>
+    public bool IsCodeAltaManagedProvider { get; init; }
 
-    /// <summary>Gets allowed backend family names, when known.</summary>
-    public IReadOnlyList<string> BackendFamilies { get; init; } = [];
+    /// <summary>Gets allowed provider family names, when known.</summary>
+    public IReadOnlyList<string> ProviderFamilies { get; init; } = [];
 
     /// <summary>Gets a value indicating whether an interactive UI is available.</summary>
     public bool HasInteractiveUi { get; init; }
@@ -40,10 +40,10 @@ public sealed record PluginAdapterOperationOptions
     /// <summary>Gets a value indicating whether the caller is running without a frontend UI.</summary>
     public bool IsHeadless { get; init; }
 
-    /// <summary>Gets configuration paths visible to backend factories.</summary>
+    /// <summary>Gets configuration paths visible to provider factories.</summary>
     public IReadOnlyList<string> ConfigurationPaths { get; init; } = [];
 
-    /// <summary>Gets environment values visible to startup/backend contributions.</summary>
+    /// <summary>Gets environment values visible to startup/provider contributions.</summary>
     public IReadOnlyDictionary<string, string?> Environment { get; init; } = new Dictionary<string, string?>();
 }
 
@@ -291,7 +291,7 @@ public sealed class PluginContributionAdapterService
     /// </summary>
     /// <param name="activePlugins">Active plugins.</param>
     /// <param name="channel">The prompt channel.</param>
-    /// <param name="supportsDirectInjection">Whether the backend supports direct injection.</param>
+    /// <param name="supportsDirectInjection">Whether the provider supports direct injection.</param>
     /// <param name="options">Operation options.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>Prompt parts and diagnostics.</returns>
@@ -745,7 +745,7 @@ public sealed class PluginContributionAdapterService
 
     private static bool ToolApplies(PluginToolActivationPolicy policy, PluginAdapterOperationOptions? options)
     {
-        if (policy.RequiresCodeAltaManagedBackend && options?.IsCodeAltaManagedBackend != true)
+        if (policy.RequiresCodeAltaManagedProvider && options?.IsCodeAltaManagedProvider != true)
         {
             return false;
         }
@@ -755,7 +755,7 @@ public sealed class PluginContributionAdapterService
             return false;
         }
 
-        if (policy.BackendFamilies.Count > 0 && !(options?.BackendFamilies ?? []).Intersect(policy.BackendFamilies, StringComparer.OrdinalIgnoreCase).Any())
+        if (policy.ProviderFamilies.Count > 0 && !(options?.ProviderFamilies ?? []).Intersect(policy.ProviderFamilies, StringComparer.OrdinalIgnoreCase).Any())
         {
             return false;
         }
@@ -890,7 +890,7 @@ public sealed class PluginContributionAdapterService
             Model = options?.Model,
             Text = text,
             Attachments = attachments,
-            IsCodeAltaManagedBackend = options?.IsCodeAltaManagedBackend ?? false,
+            IsCodeAltaManagedProvider = options?.IsCodeAltaManagedProvider ?? false,
             CancellationToken = cancellationToken,
         };
 

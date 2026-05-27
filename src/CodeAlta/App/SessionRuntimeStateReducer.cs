@@ -363,7 +363,7 @@ internal sealed class SessionRuntimeStateReducer
             return true;
         }
 
-        // Some backends report manual idle compaction with a turn/run id even though it
+        // Some providers report manual idle compaction with a turn/run id even though it
         // does not leave an agent run in flight. Do not let those compaction lifecycle
         // updates replace or revive the active run; if a real run is already active, its
         // existing tracking remains in place so running-session compaction stays busy.

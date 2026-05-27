@@ -286,8 +286,8 @@ public sealed class PluginPromptSubmittingContext : PluginOperationContext
     /// <summary>Gets prompt attachments.</summary>
     public IReadOnlyList<PluginPromptAttachment> Attachments { get; init; } = [];
 
-    /// <summary>Gets a value indicating whether the target backend is CodeAlta-managed local/raw.</summary>
-    public bool IsCodeAltaManagedBackend { get; init; }
+    /// <summary>Gets a value indicating whether the target provider is CodeAlta-managed local/raw.</summary>
+    public bool IsCodeAltaManagedProvider { get; init; }
 }
 
 /// <summary>Context for system prompt content providers.</summary>
@@ -296,7 +296,7 @@ public sealed class PluginSystemPromptContext : PluginOperationContext
     /// <summary>Gets the prompt channel being built.</summary>
     public PluginPromptChannel Channel { get; init; }
 
-    /// <summary>Gets a value indicating whether the backend supports direct prompt contribution injection.</summary>
+    /// <summary>Gets a value indicating whether the provider supports direct prompt contribution injection.</summary>
     public bool SupportsDirectInjection { get; init; }
 }
 
@@ -306,7 +306,7 @@ public sealed class PluginBeforeAgentRunContext : PluginOperationContext
     /// <summary>Gets the user prompt text for the turn, when available.</summary>
     public string? PromptText { get; init; }
 
-    /// <summary>Gets the input sent to the agent backend, when already materialized.</summary>
+    /// <summary>Gets the input sent to the agent provider, when already materialized.</summary>
     public AgentInput? Input { get; init; }
 
     /// <summary>Gets active tool names.</summary>

@@ -311,11 +311,11 @@ public sealed record PluginCommandAvailability
     /// <summary>Gets a value indicating whether a busy session is required.</summary>
     public bool RequiresBusySession { get; init; }
 
-    /// <summary>Gets a value indicating whether a CodeAlta-managed backend is required.</summary>
-    public bool RequiresCodeAltaManagedBackend { get; init; }
+    /// <summary>Gets a value indicating whether a CodeAlta-managed provider is required.</summary>
+    public bool RequiresCodeAltaManagedProvider { get; init; }
 
-    /// <summary>Gets allowed backend families.</summary>
-    public IReadOnlyList<string> BackendFamilies { get; init; } = [];
+    /// <summary>Gets allowed provider families.</summary>
+    public IReadOnlyList<string> ProviderFamilies { get; init; } = [];
 }
 
 /// <summary>Describes a command result.</summary>
@@ -388,16 +388,16 @@ public sealed record PluginToolActivationPolicy
     /// <summary>Gets the default always-active policy.</summary>
     public static PluginToolActivationPolicy Default { get; } = new();
 
-    /// <summary>Gets a policy for CodeAlta-managed backends only.</summary>
-    public static PluginToolActivationPolicy CodeAltaManagedOnly { get; } = new() { RequiresCodeAltaManagedBackend = true };
+    /// <summary>Gets a policy for CodeAlta-managed providers only.</summary>
+    public static PluginToolActivationPolicy CodeAltaManagedOnly { get; } = new() { RequiresCodeAltaManagedProvider = true };
 
-    /// <summary>Gets a value indicating whether a CodeAlta-managed backend is required.</summary>
-    public bool RequiresCodeAltaManagedBackend { get; init; }
+    /// <summary>Gets a value indicating whether a CodeAlta-managed provider is required.</summary>
+    public bool RequiresCodeAltaManagedProvider { get; init; }
 
-    /// <summary>Gets allowed backend families.</summary>
-    public IReadOnlyList<string> BackendFamilies { get; init; } = [];
+    /// <summary>Gets allowed provider families.</summary>
+    public IReadOnlyList<string> ProviderFamilies { get; init; } = [];
 
-    /// <summary>Gets allowed backend names.</summary>
+    /// <summary>Gets allowed provider names.</summary>
     public IReadOnlyList<string> ProviderNames { get; init; } = [];
 }
 

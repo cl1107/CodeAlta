@@ -80,23 +80,23 @@ public sealed class SessionExecutionOptionsFactoryTests
             sessionState,
             static (_, _) => Task.CompletedTask,
             static _ => false);
-        var backendState = new ModelProviderState(ModelProviderIds.Codex, "Codex")
+        var providerState = new ModelProviderState(ModelProviderIds.Codex, "Codex")
         {
             Availability = ModelProviderAvailability.Ready,
             SelectedModelId = "gpt-selected",
             SelectedReasoningEffort = AgentReasoningEffort.High,
         };
-        backendState.Models.Add(new AgentModelInfo(
+        providerState.Models.Add(new AgentModelInfo(
             "gpt-wrong",
             SupportedReasoningEfforts: [AgentReasoningEffort.Low]));
-        backendState.Models.Add(new AgentModelInfo(
+        providerState.Models.Add(new AgentModelInfo(
             "gpt-selected",
             SupportedReasoningEfforts: [AgentReasoningEffort.High]));
         var factory = new SessionExecutionOptionsFactory(
             catalogOptions,
             new Dictionary<string, ModelProviderState>(StringComparer.Ordinal)
             {
-                [ModelProviderIds.Codex.Value] = backendState,
+                [ModelProviderIds.Codex.Value] = providerState,
             },
             selection,
             new SessionPermissionRequestCoordinator(selection, CreateCommandContext(uiDispatcher)),
@@ -201,7 +201,7 @@ public sealed class SessionExecutionOptionsFactoryTests
         var result = await tool.Handler(
                 new AgentToolInvocation(
                     ModelProviderIds.Codex,
-                    "backend-session",
+                    "provider-session",
                     "tool-call",
                     "alta",
                     arguments.RootElement),

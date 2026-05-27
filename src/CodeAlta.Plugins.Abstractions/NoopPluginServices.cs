@@ -311,7 +311,7 @@ public sealed class NoopPluginAgentService : IPluginAgentService
     public string? ActiveModel => null;
 
     /// <inheritdoc />
-    public bool IsCodeAltaManagedBackend => false;
+    public bool IsCodeAltaManagedProvider => false;
 
     /// <inheritdoc />
     public bool HasCapability(string capabilityName)

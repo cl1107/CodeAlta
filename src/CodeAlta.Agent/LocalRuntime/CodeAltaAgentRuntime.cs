@@ -109,7 +109,7 @@ public sealed class CodeAltaAgentRuntime : IAsyncDisposable
         {
             cancellationToken.ThrowIfCancellationRequested();
             LogInfo(
-                $"Listing models backend={ProviderId.Value} provider={provider.Provider.ProviderKey} displayName={provider.Provider.DisplayName} protocol={provider.Provider.ProtocolFamily} baseUri={FormatUri(provider.Provider.BaseUri)}");
+                $"Listing models runtimeProviderId={ProviderId.Value} provider={provider.Provider.ProviderKey} displayName={provider.Provider.DisplayName} protocol={provider.Provider.ProtocolFamily} baseUri={FormatUri(provider.Provider.BaseUri)}");
 
             IReadOnlyList<AgentModelInfo> models;
             try
@@ -130,12 +130,12 @@ public sealed class CodeAltaAgentRuntime : IAsyncDisposable
             {
                 LogWarn(
                     ex,
-                    $"Failed to list models backend={ProviderId.Value} provider={provider.Provider.ProviderKey} displayName={provider.Provider.DisplayName} protocol={provider.Provider.ProtocolFamily} baseUri={FormatUri(provider.Provider.BaseUri)}");
+                    $"Failed to list models runtimeProviderId={ProviderId.Value} provider={provider.Provider.ProviderKey} displayName={provider.Provider.DisplayName} protocol={provider.Provider.ProtocolFamily} baseUri={FormatUri(provider.Provider.BaseUri)}");
                 throw;
             }
 
             LogInfo(
-                $"Listed models backend={ProviderId.Value} provider={provider.Provider.ProviderKey} displayName={provider.Provider.DisplayName} count={models.Count}");
+                $"Listed models runtimeProviderId={ProviderId.Value} provider={provider.Provider.ProviderKey} displayName={provider.Provider.DisplayName} count={models.Count}");
             _modelCache[provider.Provider.ProviderKey] = models;
             results.AddRange(models);
         }
@@ -146,7 +146,7 @@ public sealed class CodeAltaAgentRuntime : IAsyncDisposable
             .OrderBy(static model => model.DisplayName ?? model.Id, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        LogInfo($"Backend model catalog ready backend={ProviderId.Value} providers={_options.Providers.Count} models={mergedModels.Length}");
+        LogInfo($"Provider model catalog ready runtimeProviderId={ProviderId.Value} providers={_options.Providers.Count} models={mergedModels.Length}");
         return mergedModels;
     }
 
@@ -290,7 +290,7 @@ public sealed class CodeAltaAgentRuntime : IAsyncDisposable
                 return resolved;
             }
 
-            throw new KeyNotFoundException($"The provider '{providerKey}' is not registered for backend '{ProviderId.Value}'.");
+            throw new KeyNotFoundException($"The provider '{providerKey}' is not registered for provider runtime '{ProviderId.Value}'.");
         }
 
         var preferred = _options.Providers.FirstOrDefault(static provider => provider.Provider.IsDefault)
@@ -298,7 +298,7 @@ public sealed class CodeAltaAgentRuntime : IAsyncDisposable
         if (preferred is null)
         {
             throw new InvalidOperationException(
-                $"Backend '{ProviderId.Value}' requires an explicit provider key because no single default provider is configured.");
+                $"Provider runtime '{ProviderId.Value}' requires an explicit provider key because no single default provider is configured.");
         }
 
         return preferred;

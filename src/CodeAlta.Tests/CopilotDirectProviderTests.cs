@@ -98,7 +98,7 @@ public sealed class CopilotDirectProviderTests
                     "application/json"),
             };
         });
-        var backend = new CopilotDirectModelProviderRuntime(new CopilotDirectModelProviderRuntimeOptions
+        var providerRuntime = new CopilotDirectModelProviderRuntime(new CopilotDirectModelProviderRuntimeOptions
         {
             StateRootPath = Path.GetTempPath(),
             Providers =
@@ -119,7 +119,7 @@ public sealed class CopilotDirectProviderTests
         Environment.SetEnvironmentVariable("CODEALTA_TEST_COPILOT_TOKEN", "test-token");
         try
         {
-            var models = await backend.ListModelsAsync().ConfigureAwait(false);
+            var models = await providerRuntime.ListModelsAsync().ConfigureAwait(false);
 
             Assert.AreEqual(1, models.Count);
             Assert.AreEqual("gpt-test", models[0].Id);
@@ -132,7 +132,7 @@ public sealed class CopilotDirectProviderTests
         finally
         {
             Environment.SetEnvironmentVariable("CODEALTA_TEST_COPILOT_TOKEN", null);
-            await backend.DisposeAsync().ConfigureAwait(false);
+            await providerRuntime.DisposeAsync().ConfigureAwait(false);
         }
     }
 
@@ -169,7 +169,7 @@ public sealed class CopilotDirectProviderTests
                     "application/json"),
             };
         });
-        var backend = new CopilotDirectModelProviderRuntime(new CopilotDirectModelProviderRuntimeOptions
+        var providerRuntime = new CopilotDirectModelProviderRuntime(new CopilotDirectModelProviderRuntimeOptions
         {
             StateRootPath = Path.GetTempPath(),
             Providers =
@@ -190,7 +190,7 @@ public sealed class CopilotDirectProviderTests
         Environment.SetEnvironmentVariable("CODEALTA_TEST_COPILOT_TOKEN", "test-token");
         try
         {
-            var models = await backend.ListModelsAsync().ConfigureAwait(false);
+            var models = await providerRuntime.ListModelsAsync().ConfigureAwait(false);
 
             Assert.AreEqual(1, models.Count);
             Assert.AreEqual("claude-haiku-4.5", models[0].Id);
@@ -199,7 +199,7 @@ public sealed class CopilotDirectProviderTests
         finally
         {
             Environment.SetEnvironmentVariable("CODEALTA_TEST_COPILOT_TOKEN", null);
-            await backend.DisposeAsync().ConfigureAwait(false);
+            await providerRuntime.DisposeAsync().ConfigureAwait(false);
         }
     }
 
@@ -236,7 +236,7 @@ public sealed class CopilotDirectProviderTests
                     "application/json"),
             };
         });
-        var backend = new CopilotDirectModelProviderRuntime(new CopilotDirectModelProviderRuntimeOptions
+        var providerRuntime = new CopilotDirectModelProviderRuntime(new CopilotDirectModelProviderRuntimeOptions
         {
             StateRootPath = Path.GetTempPath(),
             Providers =
@@ -257,7 +257,7 @@ public sealed class CopilotDirectProviderTests
         Environment.SetEnvironmentVariable("CODEALTA_TEST_COPILOT_TOKEN", "test-token");
         try
         {
-            var models = await backend.ListModelsAsync().ConfigureAwait(false);
+            var models = await providerRuntime.ListModelsAsync().ConfigureAwait(false);
 
             Assert.AreEqual(1, models.Count);
             Assert.AreEqual("gemini-2.5-pro", models[0].Id);
@@ -267,7 +267,7 @@ public sealed class CopilotDirectProviderTests
         finally
         {
             Environment.SetEnvironmentVariable("CODEALTA_TEST_COPILOT_TOKEN", null);
-            await backend.DisposeAsync().ConfigureAwait(false);
+            await providerRuntime.DisposeAsync().ConfigureAwait(false);
         }
     }
 
@@ -299,7 +299,7 @@ public sealed class CopilotDirectProviderTests
                 Content = new StringContent("{\"data\":[]}", Encoding.UTF8, "application/json"),
             };
         });
-        var backend = new CopilotDirectModelProviderRuntime(new CopilotDirectModelProviderRuntimeOptions
+        var providerRuntime = new CopilotDirectModelProviderRuntime(new CopilotDirectModelProviderRuntimeOptions
         {
             StateRootPath = Path.GetTempPath(),
             Providers =
@@ -321,13 +321,13 @@ public sealed class CopilotDirectProviderTests
         Environment.SetEnvironmentVariable("CODEALTA_TEST_GITHUB_TOKEN", "github-token");
         try
         {
-            _ = await backend.ListModelsAsync().ConfigureAwait(false);
+            _ = await providerRuntime.ListModelsAsync().ConfigureAwait(false);
             Assert.IsTrue(exchanged);
         }
         finally
         {
             Environment.SetEnvironmentVariable("CODEALTA_TEST_GITHUB_TOKEN", null);
-            await backend.DisposeAsync().ConfigureAwait(false);
+            await providerRuntime.DisposeAsync().ConfigureAwait(false);
         }
     }
 
@@ -421,7 +421,7 @@ public sealed class CopilotDirectProviderTests
                     "text/event-stream"),
             };
         });
-        var backend = new CopilotDirectModelProviderRuntime(new CopilotDirectModelProviderRuntimeOptions
+        var providerRuntime = new CopilotDirectModelProviderRuntime(new CopilotDirectModelProviderRuntimeOptions
         {
             StateRootPath = Path.GetTempPath(),
             Providers =
@@ -442,7 +442,7 @@ public sealed class CopilotDirectProviderTests
         Environment.SetEnvironmentVariable("CODEALTA_TEST_COPILOT_TOKEN", "test-token");
         try
         {
-            await using var session = await backend.CreateSessionAsync(new AgentSessionCreateOptions
+            await using var session = await providerRuntime.CreateSessionAsync(new AgentSessionCreateOptions
             {
                 Model = "gpt-test",
                 OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.Deny)),
@@ -462,7 +462,7 @@ public sealed class CopilotDirectProviderTests
         finally
         {
             Environment.SetEnvironmentVariable("CODEALTA_TEST_COPILOT_TOKEN", null);
-            await backend.DisposeAsync().ConfigureAwait(false);
+            await providerRuntime.DisposeAsync().ConfigureAwait(false);
         }
     }
 
@@ -588,7 +588,7 @@ public sealed class CopilotDirectProviderTests
     {
         // Regression test: GitHub Copilot bearer tokens contain ';' and ',' separators
         // that are rejected by HttpRequestHeaders.Add validation but accepted by the
-        // Authorization setter. The backend must route these tokens through the SDK's
+        // Authorization setter. The provider runtime must route these tokens through the SDK's
         // Credentials pipeline rather than ClientOptions.AuthToken to avoid throwing
         // "The format of value 'Bearer ...' is invalid." while sending the prompt.
         const string CopilotToken = "tid=aaaa;ol=bbbb,cccc;exp=1;iat=2;chat=1";

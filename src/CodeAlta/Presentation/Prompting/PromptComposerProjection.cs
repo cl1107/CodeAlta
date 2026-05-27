@@ -32,7 +32,7 @@ namespace CodeAlta.Presentation.Prompting
             bool globalScopeSelected,
             string providerDisplayName,
             ModelProviderAvailability availability,
-            bool anyBackendReady,
+            bool anyProviderReady,
             bool draftTabOpen,
             int openTabCount,
             string? selectedSessionId,
@@ -46,10 +46,10 @@ namespace CodeAlta.Presentation.Prompting
 
             var isUnavailable = availability != ModelProviderAvailability.Ready;
             var placeholder = isUnavailable
-                ? BuildPromptUnavailablePlaceholder(selectedSession, providerDisplayName, availability, anyBackendReady)
+                ? BuildPromptUnavailablePlaceholder(selectedSession, providerDisplayName, availability, anyProviderReady)
                 : BuildPromptPlaceholder(selectedSession, selectedProject, globalScopeSelected, promptPlaceholderContributions);
             var unavailableStatusMessage = isUnavailable
-                ? BuildPromptUnavailableStatusText(selectedSession, providerDisplayName, availability, anyBackendReady)
+                ? BuildPromptUnavailableStatusText(selectedSession, providerDisplayName, availability, anyProviderReady)
                 : null;
             var unavailableStatusTone = availability == ModelProviderAvailability.Probing
                 ? StatusTone.Info
@@ -87,7 +87,7 @@ namespace CodeAlta.Presentation.Prompting
             SessionViewDescriptor? session,
             string providerDisplayName,
             ModelProviderAvailability availability,
-            bool anyBackendReady)
+            bool anyProviderReady)
         {
             if (session is not null)
             {
@@ -101,7 +101,7 @@ namespace CodeAlta.Presentation.Prompting
                 return $"Connecting to {providerDisplayName}...";
             }
 
-            return anyBackendReady
+            return anyProviderReady
                 ? "Select a connected provider to start a session..."
                 : "Configure model providers (Ctrl+G Ctrl+R) to start a session...";
         }
@@ -110,7 +110,7 @@ namespace CodeAlta.Presentation.Prompting
             SessionViewDescriptor? session,
             string providerDisplayName,
             ModelProviderAvailability availability,
-            bool anyBackendReady)
+            bool anyProviderReady)
         {
             if (session is not null)
             {
@@ -124,7 +124,7 @@ namespace CodeAlta.Presentation.Prompting
                 return $"Connecting to {providerDisplayName}. Prompt sending will be available once the provider is ready.";
             }
 
-            return anyBackendReady
+            return anyProviderReady
                 ? "Select a connected provider to send prompts."
                 : "No model provider is ready. Open Model Providers (Ctrl+G Ctrl+R) to configure one.";
         }

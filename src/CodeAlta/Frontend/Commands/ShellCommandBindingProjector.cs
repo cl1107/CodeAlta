@@ -130,18 +130,18 @@ internal sealed class ShellCommandBindingProjector
             return false;
         }
 
-        var backendSession = _sessionCommandService.GetSelectedSession();
-        if ((availability.RequiresCodeAltaManagedBackend || availability.BackendFamilies.Count > 0) && backendSession is null)
+        var providerSession = _sessionCommandService.GetSelectedSession();
+        if ((availability.RequiresCodeAltaManagedProvider || availability.ProviderFamilies.Count > 0) && providerSession is null)
         {
             return false;
         }
 
-        if (availability.RequiresCodeAltaManagedBackend && !IsCodeAltaManagedBackend(backendSession!.ProviderId))
+        if (availability.RequiresCodeAltaManagedProvider && !IsCodeAltaManagedProvider(providerSession!.ProviderId))
         {
             return false;
         }
 
-        if (availability.BackendFamilies.Count > 0 && !availability.BackendFamilies.Contains(backendSession!.ProviderId, StringComparer.OrdinalIgnoreCase))
+        if (availability.ProviderFamilies.Count > 0 && !availability.ProviderFamilies.Contains(providerSession!.ProviderId, StringComparer.OrdinalIgnoreCase))
         {
             return false;
         }
@@ -149,7 +149,7 @@ internal sealed class ShellCommandBindingProjector
         return true;
     }
 
-    private static bool IsCodeAltaManagedBackend(string ProviderId)
+    private static bool IsCodeAltaManagedProvider(string ProviderId)
         => !string.Equals(ProviderId, ModelProviderIds.Codex.Value, StringComparison.OrdinalIgnoreCase) &&
            !string.Equals(ProviderId, ModelProviderIds.Copilot.Value, StringComparison.OrdinalIgnoreCase);
 

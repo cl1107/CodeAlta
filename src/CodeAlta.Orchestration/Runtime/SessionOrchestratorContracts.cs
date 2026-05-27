@@ -29,7 +29,7 @@ public sealed record SessionCommandContext
     /// <summary>Gets the durable session identifier, when the command targets a materialized session.</summary>
     public string? SessionId { get; init; }
 
-    /// <summary>Gets backend execution options associated with the command.</summary>
+    /// <summary>Gets provider execution options associated with the command.</summary>
     public SessionExecutionOptions? ExecutionOptions { get; init; }
 }
 
@@ -422,16 +422,16 @@ public enum SessionLifecycleEventKind
     /// <summary>A durable session was created or materialized.</summary>
     SessionMaterialized,
 
-    /// <summary>A backend run was submitted.</summary>
+    /// <summary>A provider run was submitted.</summary>
     RunSubmitted,
 
-    /// <summary>A backend run completed successfully.</summary>
+    /// <summary>A provider run completed successfully.</summary>
     RunCompleted,
 
-    /// <summary>A backend run failed.</summary>
+    /// <summary>A provider run failed.</summary>
     RunFailed,
 
-    /// <summary>A backend run was aborted.</summary>
+    /// <summary>A provider run was aborted.</summary>
     RunAborted,
 
     /// <summary>The legacy session view was rekeyed to a new runtime session identifier.</summary>

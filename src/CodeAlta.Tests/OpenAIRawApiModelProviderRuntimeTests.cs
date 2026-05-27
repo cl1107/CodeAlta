@@ -49,7 +49,7 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
                 ],
             ]);
 
-        await using var backend = new OpenAIResponsesModelProviderRuntime(new OpenAIResponsesModelProviderRuntimeOptions
+        await using var providerRuntime = new OpenAIResponsesModelProviderRuntime(new OpenAIResponsesModelProviderRuntimeOptions
         {
             StateRootPath = temp.Path,
             Providers =
@@ -73,11 +73,11 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
             },
         });
 
-        var models = await backend.ListModelsAsync().ConfigureAwait(false);
+        var models = await providerRuntime.ListModelsAsync().ConfigureAwait(false);
         Assert.AreEqual(1, models.Count);
         Assert.AreEqual("gpt-test", models[0].Id);
 
-        await using var session = await backend.CreateSessionAsync(new AgentSessionCreateOptions
+        await using var session = await providerRuntime.CreateSessionAsync(new AgentSessionCreateOptions
         {
             Model = "gpt-test",
             WorkingDirectory = temp.Path,
@@ -147,7 +147,7 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
                         inputTokenDetails: OpenAIChatModelFactory.ChatInputTokenUsageDetails(cachedTokenCount: 3))),
             ]);
 
-        await using var backend = new OpenAIChatModelProviderRuntime(new OpenAIChatModelProviderRuntimeOptions
+        await using var providerRuntime = new OpenAIChatModelProviderRuntime(new OpenAIChatModelProviderRuntimeOptions
         {
             StateRootPath = temp.Path,
             Providers =
@@ -178,9 +178,9 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
             },
         });
 
-        _ = await backend.ListModelsAsync().ConfigureAwait(false);
+        _ = await providerRuntime.ListModelsAsync().ConfigureAwait(false);
 
-        await using var session = await backend.CreateSessionAsync(new AgentSessionCreateOptions
+        await using var session = await providerRuntime.CreateSessionAsync(new AgentSessionCreateOptions
         {
             Model = "gpt-chat-test",
             WorkingDirectory = temp.Path,
@@ -231,7 +231,7 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
                     model: "gpt-chat-test"),
             ]);
 
-        await using var backend = new OpenAIChatModelProviderRuntime(new OpenAIChatModelProviderRuntimeOptions
+        await using var providerRuntime = new OpenAIChatModelProviderRuntime(new OpenAIChatModelProviderRuntimeOptions
         {
             StateRootPath = temp.Path,
             Providers =
@@ -256,7 +256,7 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
             },
         });
 
-        await using var session = await backend.CreateSessionAsync(new AgentSessionCreateOptions
+        await using var session = await providerRuntime.CreateSessionAsync(new AgentSessionCreateOptions
         {
             Model = "gpt-chat-test",
             WorkingDirectory = temp.Path,
@@ -422,7 +422,7 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
                 model: "gpt-chat-test"),
         ]);
 
-        await using var backend = new OpenAIChatModelProviderRuntime(new OpenAIChatModelProviderRuntimeOptions
+        await using var providerRuntime = new OpenAIChatModelProviderRuntime(new OpenAIChatModelProviderRuntimeOptions
         {
             StateRootPath = temp.Path,
             Providers =
@@ -440,7 +440,7 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
             },
         });
 
-        await using var session = await backend.CreateSessionAsync(new AgentSessionCreateOptions
+        await using var session = await providerRuntime.CreateSessionAsync(new AgentSessionCreateOptions
         {
             Model = "gpt-chat-test",
             WorkingDirectory = temp.Path,
@@ -474,7 +474,7 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
                 model: "gpt-chat-test"),
         ]);
 
-        await using var backend = new OpenAIChatModelProviderRuntime(new OpenAIChatModelProviderRuntimeOptions
+        await using var providerRuntime = new OpenAIChatModelProviderRuntime(new OpenAIChatModelProviderRuntimeOptions
         {
             StateRootPath = temp.Path,
             Providers =
@@ -488,7 +488,7 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
             },
         });
 
-        await using var session = await backend.CreateSessionAsync(new AgentSessionCreateOptions
+        await using var session = await providerRuntime.CreateSessionAsync(new AgentSessionCreateOptions
         {
             Model = "gpt-chat-test",
             WorkingDirectory = temp.Path,
@@ -531,7 +531,7 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
                 """),
         ]);
 
-        await using var backend = new OpenAIChatModelProviderRuntime(new OpenAIChatModelProviderRuntimeOptions
+        await using var providerRuntime = new OpenAIChatModelProviderRuntime(new OpenAIChatModelProviderRuntimeOptions
         {
             StateRootPath = temp.Path,
             Providers =
@@ -545,7 +545,7 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
             },
         });
 
-        await using var session = await backend.CreateSessionAsync(new AgentSessionCreateOptions
+        await using var session = await providerRuntime.CreateSessionAsync(new AgentSessionCreateOptions
         {
             Model = "gpt-chat-test",
             WorkingDirectory = temp.Path,
@@ -649,7 +649,7 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
             ],
         ]);
 
-        await using var backend = new OpenAIChatModelProviderRuntime(new OpenAIChatModelProviderRuntimeOptions
+        await using var providerRuntime = new OpenAIChatModelProviderRuntime(new OpenAIChatModelProviderRuntimeOptions
         {
             StateRootPath = temp.Path,
             Providers =
@@ -672,7 +672,7 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
             },
         });
 
-        await using var session = await backend.CreateSessionAsync(new AgentSessionCreateOptions
+        await using var session = await providerRuntime.CreateSessionAsync(new AgentSessionCreateOptions
         {
             Model = "deepseek-v4-pro",
             WorkingDirectory = temp.Path,
@@ -779,7 +779,7 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
                 """),
         ]);
 
-        await using var backend = new OpenAIChatModelProviderRuntime(new OpenAIChatModelProviderRuntimeOptions
+        await using var providerRuntime = new OpenAIChatModelProviderRuntime(new OpenAIChatModelProviderRuntimeOptions
         {
             StateRootPath = temp.Path,
             Providers =
@@ -805,7 +805,7 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
             },
         });
 
-        await using var session = await backend.CreateSessionAsync(new AgentSessionCreateOptions
+        await using var session = await providerRuntime.CreateSessionAsync(new AgentSessionCreateOptions
         {
             Model = "MiniMax-M2.7",
             WorkingDirectory = temp.Path,
@@ -1110,7 +1110,7 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
             ],
         ]);
 
-        await using var backend = new OpenAIResponsesModelProviderRuntime(new OpenAIResponsesModelProviderRuntimeOptions
+        await using var providerRuntime = new OpenAIResponsesModelProviderRuntime(new OpenAIResponsesModelProviderRuntimeOptions
         {
             StateRootPath = temp.Path,
             Providers =
@@ -1128,7 +1128,7 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
             },
         });
 
-        await using var session = await backend.CreateSessionAsync(new AgentSessionCreateOptions
+        await using var session = await providerRuntime.CreateSessionAsync(new AgentSessionCreateOptions
         {
             Model = "gpt-test",
             WorkingDirectory = temp.Path,
@@ -1397,7 +1397,7 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
             Content = new StringContent("""{"detail":"model discovery is temporarily unavailable"}"""),
         });
 
-        await using var backend = new OpenAIResponsesModelProviderRuntime(new OpenAIResponsesModelProviderRuntimeOptions
+        await using var providerRuntime = new OpenAIResponsesModelProviderRuntime(new OpenAIResponsesModelProviderRuntimeOptions
         {
             StateRootPath = temp.Path,
             Providers =
@@ -1418,7 +1418,7 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
             },
         });
 
-        var models = await backend.ListModelsAsync().ConfigureAwait(false);
+        var models = await providerRuntime.ListModelsAsync().ConfigureAwait(false);
 
         Assert.AreEqual(
             "gpt-5.5|gpt-5.4|gpt-5.4-mini|gpt-5.3-codex|gpt-5.2",
@@ -1562,7 +1562,7 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
         ]);
         var sequence = new List<string>();
 
-        await using var backend = new OpenAIResponsesModelProviderRuntime(new OpenAIResponsesModelProviderRuntimeOptions
+        await using var providerRuntime = new OpenAIResponsesModelProviderRuntime(new OpenAIResponsesModelProviderRuntimeOptions
         {
             StateRootPath = temp.Path,
             Providers =
@@ -1591,7 +1591,7 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
             },
         });
 
-        await using var session = await backend.CreateSessionAsync(new AgentSessionCreateOptions
+        await using var session = await providerRuntime.CreateSessionAsync(new AgentSessionCreateOptions
         {
             Model = "gpt-5.3-codex",
             WorkingDirectory = temp.Path,
@@ -1673,7 +1673,7 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
             ],
         ]);
 
-        await using var backend = new OpenAIResponsesModelProviderRuntime(new OpenAIResponsesModelProviderRuntimeOptions
+        await using var providerRuntime = new OpenAIResponsesModelProviderRuntime(new OpenAIResponsesModelProviderRuntimeOptions
         {
             StateRootPath = temp.Path,
             Providers =
@@ -1703,7 +1703,7 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
         });
 
         string sessionId;
-        await using (var session = await backend.CreateSessionAsync(new AgentSessionCreateOptions
+        await using (var session = await providerRuntime.CreateSessionAsync(new AgentSessionCreateOptions
         {
             Model = "gpt-5.3-codex",
             WorkingDirectory = temp.Path,
@@ -1717,7 +1717,7 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
             }).ConfigureAwait(false);
         }
 
-        await using (var resumed = await backend.ResumeSessionAsync(
+        await using (var resumed = await providerRuntime.ResumeSessionAsync(
             sessionId,
             new AgentSessionResumeOptions
             {
@@ -1748,19 +1748,19 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
         [
             [
                 CreateTextOnlyAssistantResponseUpdate(
-                    responseId: "response-live-backend-1",
+                    responseId: "response-live-provider-1",
                     modelId: "gpt-5.3-codex",
                     text: "First live answer."),
             ],
             [
                 CreateTextOnlyAssistantResponseUpdate(
-                    responseId: "response-live-backend-2",
+                    responseId: "response-live-provider-2",
                     modelId: "gpt-5.3-codex",
                     text: "Second live answer."),
             ],
         ]);
 
-        await using var backend = new OpenAIResponsesModelProviderRuntime(new OpenAIResponsesModelProviderRuntimeOptions
+        await using var providerRuntime = new OpenAIResponsesModelProviderRuntime(new OpenAIResponsesModelProviderRuntimeOptions
         {
             StateRootPath = temp.Path,
             Providers =
@@ -1783,7 +1783,7 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
             },
         });
 
-        await using var session = await backend.CreateSessionAsync(new AgentSessionCreateOptions
+        await using var session = await providerRuntime.CreateSessionAsync(new AgentSessionCreateOptions
         {
             Model = "gpt-5.3-codex",
             WorkingDirectory = temp.Path,
@@ -2609,7 +2609,7 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
             ],
         ]);
 
-        await using var backend = new OpenAIResponsesModelProviderRuntime(new OpenAIResponsesModelProviderRuntimeOptions
+        await using var providerRuntime = new OpenAIResponsesModelProviderRuntime(new OpenAIResponsesModelProviderRuntimeOptions
         {
             StateRootPath = temp.Path,
             Providers =
@@ -2632,7 +2632,7 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
             },
         });
 
-        await using var session = await backend.CreateSessionAsync(new AgentSessionCreateOptions
+        await using var session = await providerRuntime.CreateSessionAsync(new AgentSessionCreateOptions
         {
             Model = "gpt-5.3-codex",
             WorkingDirectory = temp.Path,

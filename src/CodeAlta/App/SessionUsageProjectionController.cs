@@ -76,22 +76,22 @@ internal sealed class SessionUsageProjectionController
             }
 
             var tab = _sessionSelection.EnsureSessionTab(selectedSession);
-            _modelProviderStates.TryGetValue(tab.ProviderId.Value, out var backendState);
+            _modelProviderStates.TryGetValue(tab.ProviderId.Value, out var providerState);
             _sessionUsageViewModel.Usage = tab.Usage;
-            _sessionUsageViewModel.ProviderName = ResolveProviderDisplayName(tab.ProviderId.Value, backendState);
-            _sessionUsageViewModel.ModelName = tab.ModelId ?? backendState?.SelectedModelId;
+            _sessionUsageViewModel.ProviderName = ResolveProviderDisplayName(tab.ProviderId.Value, providerState);
+            _sessionUsageViewModel.ModelName = tab.ModelId ?? providerState?.SelectedModelId;
             _sessionUsageViewModel.PluginTransientEvents = tab.PluginTransientEvents.Snapshot;
             return;
         }
 
         var providerId = _workspaceContext.GetPreferredModelProviderId();
-        _modelProviderStates.TryGetValue(providerId.Value, out var draftBackendState);
+        _modelProviderStates.TryGetValue(providerId.Value, out var draftProviderState);
         _sessionUsageViewModel.Usage = null;
-        _sessionUsageViewModel.ProviderName = ResolveProviderDisplayName(providerId.Value, draftBackendState);
-        _sessionUsageViewModel.ModelName = draftBackendState?.SelectedModelId;
+        _sessionUsageViewModel.ProviderName = ResolveProviderDisplayName(providerId.Value, draftProviderState);
+        _sessionUsageViewModel.ModelName = draftProviderState?.SelectedModelId;
         _sessionUsageViewModel.PluginTransientEvents = [];
     }
 
-    private static string ResolveProviderDisplayName(string providerKey, ModelProviderState? backendState)
-        => SidebarSessionPresentation.ResolveProviderDisplayName(providerKey, backendState?.DisplayName);
+    private static string ResolveProviderDisplayName(string providerKey, ModelProviderState? providerState)
+        => SidebarSessionPresentation.ResolveProviderDisplayName(providerKey, providerState?.DisplayName);
 }

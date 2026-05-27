@@ -16,7 +16,7 @@ public sealed class OpenAIResponsesModelProviderRuntime : ICodeAltaModelProvider
     public OpenAIResponsesModelProviderRuntime(OpenAIResponsesModelProviderRuntimeOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        _runtime = OpenAIBackendFactory.CreateResponsesProviderRuntime(options);
+        _runtime = OpenAIModelProviderRuntimeFactory.CreateResponsesProviderRuntime(options);
     }
 
     /// <inheritdoc />

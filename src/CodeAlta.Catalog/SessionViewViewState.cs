@@ -441,7 +441,7 @@ public sealed class SessionViewPromptProvenance
     public string Kind { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the backend run identifier, when one was produced immediately.
+    /// Gets or sets the provider run identifier, when one was produced immediately.
     /// </summary>
     [JsonPropertyName("run_id")]
     public string? RunId { get; set; }

@@ -16,19 +16,19 @@ public sealed class ProviderFrontendCoordinatorTests
             ProviderKey = "copilot",
             ProviderType = "copilot",
         };
-        var backendState = new ModelProviderState(ModelProviderIds.Copilot, "Copilot")
+        var providerState = new ModelProviderState(ModelProviderIds.Copilot, "Copilot")
         {
             Availability = ModelProviderAvailability.Ready,
             StatusMessage = "Ready",
         };
-        backendState.Models.Add(new AgentModelInfo("gpt-4.1"));
-        backendState.Models.Add(new AgentModelInfo("gpt-4o"));
+        providerState.Models.Add(new AgentModelInfo("gpt-4.1"));
+        providerState.Models.Add(new AgentModelInfo("gpt-4o"));
 
         var reused = ProviderFrontendCoordinator.TryBuildActiveProviderTestResult(
             definition,
             new Dictionary<string, ModelProviderState>(StringComparer.OrdinalIgnoreCase)
             {
-                [definition.ProviderKey] = backendState,
+                [definition.ProviderKey] = providerState,
             },
             out var result);
 
@@ -46,7 +46,7 @@ public sealed class ProviderFrontendCoordinatorTests
             ProviderKey = "codex",
             ProviderType = "codex",
         };
-        var backendState = new ModelProviderState(ModelProviderIds.Codex, "Codex")
+        var providerState = new ModelProviderState(ModelProviderIds.Codex, "Codex")
         {
             Availability = ModelProviderAvailability.Failed,
             StatusMessage = "Codex startup failed.",
@@ -56,7 +56,7 @@ public sealed class ProviderFrontendCoordinatorTests
             definition,
             new Dictionary<string, ModelProviderState>(StringComparer.OrdinalIgnoreCase)
             {
-                [definition.ProviderKey] = backendState,
+                [definition.ProviderKey] = providerState,
             },
             out var result);
 

@@ -127,9 +127,9 @@ public sealed class SessionViewDescriptor
     public string? MarkdownBody { get; set; }
 
     /// <summary>
-    /// Gets a value indicating whether the session can no longer change backends.
+    /// Gets a value indicating whether the session can no longer change providers.
     /// </summary>
-    public bool IsBackendLocked => StartedAt is not null;
+    public bool IsProviderLocked => StartedAt is not null;
 
     /// <summary>
     /// Gets the provider key to use for execution.
@@ -189,7 +189,7 @@ public sealed class SessionViewDescriptor
 
         if (string.IsNullOrWhiteSpace(ProviderId))
         {
-            throw new ArgumentException("Backend id is required.", nameof(ProviderId));
+            throw new ArgumentException("Provider id is required.", nameof(ProviderId));
         }
 
         if (string.IsNullOrWhiteSpace(WorkingDirectory))

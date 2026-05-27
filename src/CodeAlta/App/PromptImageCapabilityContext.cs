@@ -50,17 +50,17 @@ internal sealed class PromptImageCapabilityContext
         var providerId = selectedTab?.ProviderId ?? (selectedSession is { } session
             ? new ModelProviderId(session.ResolvedProviderKey)
             : _getPreferredProviderId());
-        if (!_modelProviderStates.TryGetValue(providerId.Value, out var backendState))
+        if (!_modelProviderStates.TryGetValue(providerId.Value, out var providerState))
         {
             return (providerId, null);
         }
 
-        var modelId = selectedTab?.ModelId ?? backendState.SelectedModelId;
+        var modelId = selectedTab?.ModelId ?? providerState.SelectedModelId;
         var selectedModel = !string.IsNullOrWhiteSpace(modelId)
-            ? backendState.Models.FirstOrDefault(candidate => string.Equals(candidate.Id, modelId, StringComparison.Ordinal))
+            ? providerState.Models.FirstOrDefault(candidate => string.Equals(candidate.Id, modelId, StringComparison.Ordinal))
             : null;
-        selectedModel ??= ModelProviderPresentation.GetSelectedModel(backendState) ??
-            (backendState.Models.Count == 1 ? backendState.Models[0] : null);
+        selectedModel ??= ModelProviderPresentation.GetSelectedModel(providerState) ??
+            (providerState.Models.Count == 1 ? providerState.Models[0] : null);
         return (providerId, selectedModel);
     }
 }

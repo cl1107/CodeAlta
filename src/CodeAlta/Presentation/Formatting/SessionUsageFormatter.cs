@@ -45,11 +45,11 @@ internal static class SessionUsageFormatter
             : $"{current} / {limit} input tokens";
     }
 
-    public static string BuildMarkdown(AgentSessionUsage? usage, string backendName, string? modelName)
+    public static string BuildMarkdown(AgentSessionUsage? usage, string providerName, string? modelName)
     {
         var builder = new StringBuilder();
         builder.Append("# ")
-            .Append(backendName)
+            .Append(providerName)
             .AppendLine(" context usage");
         builder.AppendLine();
         builder.Append("- Model: ")
@@ -63,7 +63,7 @@ internal static class SessionUsageFormatter
 
         AppendUsageBreakdownMarkdown(builder, usage);
         AppendLimitsAndQuotasMarkdown(builder, usage);
-        AppendBackendSpecificMarkdown(builder, usage);
+        AppendProviderSpecificMarkdown(builder, usage);
 
         return builder.ToString().TrimEnd();
     }
@@ -487,7 +487,7 @@ internal static class SessionUsageFormatter
         }
     }
 
-    private static void AppendBackendSpecificMarkdown(StringBuilder builder, AgentSessionUsage usage)
+    private static void AppendProviderSpecificMarkdown(StringBuilder builder, AgentSessionUsage usage)
     {
         var appended = false;
         if (usage.Details is CodexSessionUsageDetails codex &&

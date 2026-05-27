@@ -4,7 +4,7 @@ using CodeAlta.Agent.OpenAI.Codex;
 
 namespace CodeAlta.Agent.OpenAI;
 
-internal static class OpenAIBackendFactory
+internal static class OpenAIModelProviderRuntimeFactory
 {
     public static ICodeAltaModelProviderRuntime CreateResponsesProviderRuntime(OpenAIResponsesModelProviderRuntimeOptions options)
     {

@@ -126,12 +126,12 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
         _selectorsRefreshing = true;
         try
         {
-            var backendOptions = ModelProviderPresentation.BuildProviderOptions(_providerDescriptors);
+            var providerOptions = ModelProviderPresentation.BuildProviderOptions(_providerDescriptors);
             _workspaceViewModel.ProviderSummaryMarkup = ModelProviderPresentation.BuildProviderSummaryMarkup(
                 _modelProviderStates.Values,
                 isInitializing: false,
                 configuredProviderKeys: GetConfiguredProviderKeys());
-            if (backendOptions.Count == 0)
+            if (providerOptions.Count == 0)
             {
                 _selectorState.SetModelProviderSelection([], -1);
                 _selectorState.SetModelSelection([], -1);
@@ -143,38 +143,38 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
                 return;
             }
 
-            var providerId = preferredProviderId ?? GetPreferredDraftProviderId(backendOptions);
-            var backendIndex = Math.Max(0, backendOptions.FindIndex(option => string.Equals(option.ProviderId.Value, providerId.Value, StringComparison.OrdinalIgnoreCase)));
-            _draftProviderId = backendOptions[backendIndex].ProviderId;
+            var providerId = preferredProviderId ?? GetPreferredDraftProviderId(providerOptions);
+            var providerIndex = Math.Max(0, providerOptions.FindIndex(option => string.Equals(option.ProviderId.Value, providerId.Value, StringComparison.OrdinalIgnoreCase)));
+            _draftProviderId = providerOptions[providerIndex].ProviderId;
             if (preferredProviderId is not null)
             {
                 RememberDraftProviderForCurrentScope(_draftProviderId.Value);
             }
 
-            _selectorState.SetModelProviderSelection(backendOptions, backendIndex);
+            _selectorState.SetModelProviderSelection(providerOptions, providerIndex);
 
-            var backendState = _modelProviderStates[backendOptions[backendIndex].ProviderId.Value];
-            _preferences.ApplyDraftModelProviderState(backendState);
-            var modelOptions = ModelProviderPresentation.BuildModelOptions(backendState);
+            var providerState = _modelProviderStates[providerOptions[providerIndex].ProviderId.Value];
+            _preferences.ApplyDraftModelProviderState(providerState);
+            var modelOptions = ModelProviderPresentation.BuildModelOptions(providerState);
             _selectorState.SetModelSelection(
                 modelOptions,
                 Math.Clamp(
-                modelOptions.FindIndex(option => string.Equals(option.ModelId, backendState.SelectedModelId, StringComparison.Ordinal)),
+                modelOptions.FindIndex(option => string.Equals(option.ModelId, providerState.SelectedModelId, StringComparison.Ordinal)),
                 0,
                 Math.Max(0, modelOptions.Count - 1)));
 
-            var selectedModel = backendState.Models.FirstOrDefault(model => string.Equals(model.Id, backendState.SelectedModelId, StringComparison.Ordinal))
-                                ?? ModelProviderPresentation.GetSelectedModel(backendState);
+            var selectedModel = providerState.Models.FirstOrDefault(model => string.Equals(model.Id, providerState.SelectedModelId, StringComparison.Ordinal))
+                                ?? ModelProviderPresentation.GetSelectedModel(providerState);
             var reasoningOptions = ModelProviderPresentation.BuildReasoningOptions(selectedModel);
             _selectorState.SetReasoningSelection(
                 reasoningOptions,
                 Math.Clamp(
-                reasoningOptions.FindIndex(option => option.Effort == backendState.SelectedReasoningEffort),
+                reasoningOptions.FindIndex(option => option.Effort == providerState.SelectedReasoningEffort),
                 0,
                 Math.Max(0, reasoningOptions.Count - 1)));
             _workspaceViewModel.CanSelectModelProvider = true;
-            _workspaceViewModel.CanSelectModel = backendState.Availability == ModelProviderAvailability.Ready;
-            _workspaceViewModel.CanSelectReasoning = backendState.Availability == ModelProviderAvailability.Ready;
+            _workspaceViewModel.CanSelectModel = providerState.Availability == ModelProviderAvailability.Ready;
+            _workspaceViewModel.CanSelectReasoning = providerState.Availability == ModelProviderAvailability.Ready;
             _syncModelProviderSelectorItems();
         }
         finally
@@ -191,13 +191,13 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
         _selectorsRefreshing = true;
         try
         {
-            var configuredBackendOptions = ModelProviderPresentation.BuildProviderOptions(_providerDescriptors);
-            var backendOptions = BuildSessionProviderOptions(tab, configuredBackendOptions);
+            var configuredProviderOptions = ModelProviderPresentation.BuildProviderOptions(_providerDescriptors);
+            var providerOptions = BuildSessionProviderOptions(tab, configuredProviderOptions);
             _workspaceViewModel.ProviderSummaryMarkup = ModelProviderPresentation.BuildProviderSummaryMarkup(
                 _modelProviderStates.Values,
                 isInitializing: false,
                 configuredProviderKeys: GetConfiguredProviderKeys());
-            if (backendOptions.Count == 0)
+            if (providerOptions.Count == 0)
             {
                 _selectorState.SetModelProviderSelection([], -1);
                 _selectorState.SetModelSelection([], -1);
@@ -210,26 +210,26 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
             }
 
             _selectorState.SetModelProviderSelection(
-                backendOptions,
+                providerOptions,
                 Math.Clamp(
-                backendOptions.FindIndex(option => string.Equals(option.ProviderId.Value, tab.ProviderId.Value, StringComparison.OrdinalIgnoreCase)),
+                providerOptions.FindIndex(option => string.Equals(option.ProviderId.Value, tab.ProviderId.Value, StringComparison.OrdinalIgnoreCase)),
                 0,
-                Math.Max(0, backendOptions.Count - 1)));
+                Math.Max(0, providerOptions.Count - 1)));
 
-            var backendState = GetSessionProviderState(tab, out var backendStateIsRegistered);
+            var providerState = GetSessionProviderState(tab, out var providerStateIsRegistered);
             _preferences.ApplySessionModelProviderState(tab);
 
-            var modelOptions = ModelProviderPresentation.BuildModelOptions(backendState, tab.ModelId);
+            var modelOptions = ModelProviderPresentation.BuildModelOptions(providerState, tab.ModelId);
             _selectorState.SetModelSelection(
                 modelOptions,
                 Math.Clamp(
-                modelOptions.FindIndex(option => string.Equals(option.ModelId, tab.ModelId ?? backendState.SelectedModelId, StringComparison.Ordinal)),
+                modelOptions.FindIndex(option => string.Equals(option.ModelId, tab.ModelId ?? providerState.SelectedModelId, StringComparison.Ordinal)),
                 0,
                 Math.Max(0, modelOptions.Count - 1)));
 
-            var selectedModel = backendState.Models.FirstOrDefault(model =>
+            var selectedModel = providerState.Models.FirstOrDefault(model =>
                                     string.Equals(model.Id, tab.ModelId, StringComparison.Ordinal))
-                                ?? ModelProviderPresentation.GetSelectedModel(backendState);
+                                ?? ModelProviderPresentation.GetSelectedModel(providerState);
             var reasoningOptions = ModelProviderPresentation.BuildReasoningOptions(selectedModel);
             _selectorState.SetReasoningSelection(
                 reasoningOptions,
@@ -237,9 +237,9 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
                 reasoningOptions.FindIndex(option => option.Effort == tab.ReasoningEffort),
                 0,
                 Math.Max(0, reasoningOptions.Count - 1)));
-            _workspaceViewModel.CanSelectModelProvider = HasRegisteredProviderOption(backendOptions) && _canSelectSessionProvider(tab.SessionView, tab);
-            _workspaceViewModel.CanSelectModel = backendStateIsRegistered && backendState.Availability == ModelProviderAvailability.Ready;
-            _workspaceViewModel.CanSelectReasoning = backendStateIsRegistered && backendState.Availability == ModelProviderAvailability.Ready;
+            _workspaceViewModel.CanSelectModelProvider = HasRegisteredProviderOption(providerOptions) && _canSelectSessionProvider(tab.SessionView, tab);
+            _workspaceViewModel.CanSelectModel = providerStateIsRegistered && providerState.Availability == ModelProviderAvailability.Ready;
+            _workspaceViewModel.CanSelectReasoning = providerStateIsRegistered && providerState.Availability == ModelProviderAvailability.Ready;
             _syncModelProviderSelectorItems();
         }
         finally
@@ -272,7 +272,7 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
         if (session is null)
         {
             var selectedProviderId = options[newIndex].ProviderId;
-            if (!_modelProviderStates.TryGetValue(selectedProviderId.Value, out var draftBackendState))
+            if (!_modelProviderStates.TryGetValue(selectedProviderId.Value, out var draftProviderState))
             {
                 RefreshForDraftScope();
                 return;
@@ -283,8 +283,8 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
             RefreshForDraftScope(selectedProviderId);
             _preferences.RememberGlobalPreference(CreatePreference(
                 selectedProviderId,
-                draftBackendState.SelectedModelId,
-                draftBackendState.SelectedReasoningEffort));
+                draftProviderState.SelectedModelId,
+                draftProviderState.SelectedReasoningEffort));
             _workspaceRefresh.ApplySessionUsageProjection();
             return;
         }
@@ -328,37 +328,37 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
         if (session is null)
         {
             var ProviderId = GetPreferredModelProviderId();
-            var draftBackendState = _modelProviderStates[ProviderId.Value];
-            var draftOptions = ModelProviderPresentation.BuildModelOptions(draftBackendState);
+            var draftProviderState = _modelProviderStates[ProviderId.Value];
+            var draftOptions = ModelProviderPresentation.BuildModelOptions(draftProviderState);
             if ((uint)newIndex >= (uint)draftOptions.Count)
             {
                 return;
             }
 
-            draftBackendState.SelectedModelId = draftOptions[newIndex].ModelId;
-            var preferredModel = ModelProviderPreferenceCoordinator.FindModel(draftBackendState.Models, draftBackendState.SelectedModelId);
-            draftBackendState.SelectedReasoningEffort = ModelProviderPresentation.ResolvePreferredReasoningEffort(preferredModel, preferredReasoningEffort: null);
-            UpdateModelSelectorState(draftOptions, newIndex, preferredModel, draftBackendState.SelectedReasoningEffort);
-            _preferences.RememberGlobalPreference(CreatePreference(ProviderId, draftBackendState.SelectedModelId, draftBackendState.SelectedReasoningEffort));
+            draftProviderState.SelectedModelId = draftOptions[newIndex].ModelId;
+            var preferredModel = ModelProviderPreferenceCoordinator.FindModel(draftProviderState.Models, draftProviderState.SelectedModelId);
+            draftProviderState.SelectedReasoningEffort = ModelProviderPresentation.ResolvePreferredReasoningEffort(preferredModel, preferredReasoningEffort: null);
+            UpdateModelSelectorState(draftOptions, newIndex, preferredModel, draftProviderState.SelectedReasoningEffort);
+            _preferences.RememberGlobalPreference(CreatePreference(ProviderId, draftProviderState.SelectedModelId, draftProviderState.SelectedReasoningEffort));
             _workspaceRefresh.ApplySessionUsageProjection();
             return;
         }
 
         var tab = _sessionSelection.EnsureSessionTab(session);
-        if (!_modelProviderStates.TryGetValue(tab.ProviderId.Value, out var backendState))
+        if (!_modelProviderStates.TryGetValue(tab.ProviderId.Value, out var providerState))
         {
             RefreshForSession(tab);
             return;
         }
 
-        var options = ModelProviderPresentation.BuildModelOptions(backendState, tab.ModelId);
+        var options = ModelProviderPresentation.BuildModelOptions(providerState, tab.ModelId);
         if ((uint)newIndex >= (uint)options.Count)
         {
             return;
         }
 
         tab.ModelId = options[newIndex].ModelId;
-        var selectedModel = ModelProviderPreferenceCoordinator.FindModel(backendState.Models, tab.ModelId);
+        var selectedModel = ModelProviderPreferenceCoordinator.FindModel(providerState.Models, tab.ModelId);
         tab.ReasoningEffort = ModelProviderPresentation.ResolvePreferredReasoningEffort(selectedModel, preferredReasoningEffort: null);
         UpdateModelSelectorState(options, newIndex, selectedModel, tab.ReasoningEffort);
         _preferences.RememberSessionPreference(tab.SessionView.SessionId, CreatePreference(new ModelProviderId(tab.ProviderId.Value), tab.ModelId, tab.ReasoningEffort), true);
@@ -377,29 +377,29 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
         if (session is null)
         {
             var ProviderId = GetPreferredModelProviderId();
-            var draftBackendState = _modelProviderStates[ProviderId.Value];
-            var draftSelectedModel = draftBackendState.Models.FirstOrDefault(model => string.Equals(model.Id, draftBackendState.SelectedModelId, StringComparison.Ordinal));
+            var draftProviderState = _modelProviderStates[ProviderId.Value];
+            var draftSelectedModel = draftProviderState.Models.FirstOrDefault(model => string.Equals(model.Id, draftProviderState.SelectedModelId, StringComparison.Ordinal));
             var draftOptions = ModelProviderPresentation.BuildReasoningOptions(draftSelectedModel);
             if ((uint)newIndex >= (uint)draftOptions.Count)
             {
                 return;
             }
 
-            draftBackendState.SelectedReasoningEffort = draftOptions[newIndex].Effort;
+            draftProviderState.SelectedReasoningEffort = draftOptions[newIndex].Effort;
             UpdateReasoningSelectorState(draftOptions, newIndex);
-            _preferences.RememberGlobalPreference(CreatePreference(ProviderId, draftBackendState.SelectedModelId, draftBackendState.SelectedReasoningEffort));
+            _preferences.RememberGlobalPreference(CreatePreference(ProviderId, draftProviderState.SelectedModelId, draftProviderState.SelectedReasoningEffort));
             _workspaceRefresh.ApplySessionUsageProjection();
             return;
         }
 
         var tab = _sessionSelection.EnsureSessionTab(session);
-        if (!_modelProviderStates.TryGetValue(tab.ProviderId.Value, out var backendState))
+        if (!_modelProviderStates.TryGetValue(tab.ProviderId.Value, out var providerState))
         {
             RefreshForSession(tab);
             return;
         }
 
-        var selectedModel = backendState.Models.FirstOrDefault(model => string.Equals(model.Id, tab.ModelId, StringComparison.Ordinal));
+        var selectedModel = providerState.Models.FirstOrDefault(model => string.Equals(model.Id, tab.ModelId, StringComparison.Ordinal));
         var options = ModelProviderPresentation.BuildReasoningOptions(selectedModel);
         if ((uint)newIndex >= (uint)options.Count)
         {
@@ -416,8 +416,8 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(modelId);
 
-        if (!_modelProviderStates.TryGetValue(providerId.Value, out var backendState) ||
-            backendState.Models.All(model => !string.Equals(model.Id, modelId, StringComparison.Ordinal)))
+        if (!_modelProviderStates.TryGetValue(providerId.Value, out var providerState) ||
+            providerState.Models.All(model => !string.Equals(model.Id, modelId, StringComparison.Ordinal)))
         {
             return false;
         }
@@ -425,7 +425,7 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
         var session = _sessionSelection.GetSelectedSession();
         if (session is null)
         {
-            SelectDraftProviderModel(providerId, backendState, modelId);
+            SelectDraftProviderModel(providerId, providerState, modelId);
             return true;
         }
 
@@ -442,31 +442,31 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
             _refreshSelectionAndSessionWorkspace();
         }
 
-        if (!_modelProviderStates.TryGetValue(tab.ProviderId.Value, out backendState))
+        if (!_modelProviderStates.TryGetValue(tab.ProviderId.Value, out providerState))
         {
             return false;
         }
 
-        SelectSessionProviderModel(tab, backendState, modelId);
+        SelectSessionProviderModel(tab, providerState, modelId);
         return true;
     }
 
-    private void SelectDraftProviderModel(ModelProviderId providerId, ModelProviderState backendState, string modelId)
+    private void SelectDraftProviderModel(ModelProviderId providerId, ModelProviderState providerState, string modelId)
     {
         _draftProviderId = providerId;
         RememberDraftProviderForCurrentScope(providerId);
-        backendState.SelectedModelId = modelId.Trim();
-        var selectedModel = ModelProviderPreferenceCoordinator.FindModel(backendState.Models, backendState.SelectedModelId);
-        backendState.SelectedReasoningEffort = ModelProviderPresentation.ResolvePreferredReasoningEffort(selectedModel, preferredReasoningEffort: null);
-        _preferences.RememberGlobalPreference(CreatePreference(providerId, backendState.SelectedModelId, backendState.SelectedReasoningEffort));
+        providerState.SelectedModelId = modelId.Trim();
+        var selectedModel = ModelProviderPreferenceCoordinator.FindModel(providerState.Models, providerState.SelectedModelId);
+        providerState.SelectedReasoningEffort = ModelProviderPresentation.ResolvePreferredReasoningEffort(selectedModel, preferredReasoningEffort: null);
+        _preferences.RememberGlobalPreference(CreatePreference(providerId, providerState.SelectedModelId, providerState.SelectedReasoningEffort));
         RefreshForDraftScope(providerId);
         _workspaceRefresh.ApplySessionUsageProjection();
     }
 
-    private void SelectSessionProviderModel(OpenSessionState tab, ModelProviderState backendState, string modelId)
+    private void SelectSessionProviderModel(OpenSessionState tab, ModelProviderState providerState, string modelId)
     {
         tab.ModelId = modelId.Trim();
-        var selectedModel = ModelProviderPreferenceCoordinator.FindModel(backendState.Models, tab.ModelId);
+        var selectedModel = ModelProviderPreferenceCoordinator.FindModel(providerState.Models, tab.ModelId);
         tab.ReasoningEffort = ModelProviderPresentation.ResolvePreferredReasoningEffort(selectedModel, preferredReasoningEffort: null);
         _preferences.RememberSessionPreference(tab.SessionView.SessionId, CreatePreference(new ModelProviderId(tab.ProviderId.Value), tab.ModelId, tab.ReasoningEffort), true);
         _preferences.RememberGlobalPreference(CreatePreference(new ModelProviderId(tab.ProviderId.Value), tab.ModelId, tab.ReasoningEffort));
@@ -486,10 +486,10 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
                     return GetDefaultProviderId();
                 }
 
-                if (_selectorState.GetSelectedModelProviderIndex() is { } backendIndex &&
-                    (uint)backendIndex < (uint)options.Count)
+                if (_selectorState.GetSelectedModelProviderIndex() is { } providerIndex &&
+                    (uint)providerIndex < (uint)options.Count)
                 {
-                    return options[backendIndex].ProviderId;
+                    return options[providerIndex].ProviderId;
                 }
 
                 if (ResolveConfiguredDefaultProviderId(options) is { } configuredDefaultProviderId)
@@ -497,10 +497,10 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
                     return configuredDefaultProviderId;
                 }
 
-                var readyBackend = options.FirstOrDefault(option => IsModelProviderReady(option.ProviderId));
-                if (readyBackend is not null)
+                var readyProvider = options.FirstOrDefault(option => IsModelProviderReady(option.ProviderId));
+                if (readyProvider is not null)
                 {
-                    return readyBackend.ProviderId;
+                    return readyProvider.ProviderId;
                 }
 
                 return GetDefaultProviderId();
@@ -569,12 +569,12 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
 
     private List<ModelProviderOption> BuildSessionProviderOptions(
         OpenSessionState tab,
-        IReadOnlyList<ModelProviderOption> configuredBackendOptions)
+        IReadOnlyList<ModelProviderOption> configuredProviderOptions)
     {
         ArgumentNullException.ThrowIfNull(tab);
-        ArgumentNullException.ThrowIfNull(configuredBackendOptions);
+        ArgumentNullException.ThrowIfNull(configuredProviderOptions);
 
-        var options = configuredBackendOptions.ToList();
+        var options = configuredProviderOptions.ToList();
         if (options.Any(option => string.Equals(option.ProviderId.Value, tab.ProviderId.Value, StringComparison.OrdinalIgnoreCase)))
         {
             return options;
@@ -587,10 +587,10 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
     private ModelProviderState GetSessionProviderState(OpenSessionState tab, out bool isRegistered)
     {
         ArgumentNullException.ThrowIfNull(tab);
-        if (_modelProviderStates.TryGetValue(tab.ProviderId.Value, out var backendState))
+        if (_modelProviderStates.TryGetValue(tab.ProviderId.Value, out var providerState))
         {
             isRegistered = true;
-            return backendState;
+            return providerState;
         }
 
         isRegistered = false;
@@ -608,43 +608,43 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
         return options.Any(option => _modelProviderStates.ContainsKey(option.ProviderId.Value));
     }
 
-    private ModelProviderId GetPreferredDraftProviderId(IReadOnlyList<ModelProviderOption> backendOptions)
+    private ModelProviderId GetPreferredDraftProviderId(IReadOnlyList<ModelProviderOption> providerOptions)
     {
         if (_draftProviderIdsByScope.TryGetValue(GetCurrentDraftScopeKey(), out var scopedDraftProviderId) &&
-            backendOptions.FirstOrDefault(option => string.Equals(option.ProviderId.Value, scopedDraftProviderId.Value, StringComparison.OrdinalIgnoreCase)) is { } scopedDraftBackend &&
-            IsModelProviderReady(scopedDraftBackend.ProviderId))
+            providerOptions.FirstOrDefault(option => string.Equals(option.ProviderId.Value, scopedDraftProviderId.Value, StringComparison.OrdinalIgnoreCase)) is { } scopedDraftProvider &&
+            IsModelProviderReady(scopedDraftProvider.ProviderId))
         {
-            return scopedDraftBackend.ProviderId;
+            return scopedDraftProvider.ProviderId;
         }
 
         if (_getDraftModelProviderPreference() is { } draftPreference &&
-            backendOptions.FirstOrDefault(option =>
-                string.Equals(option.ProviderId.Value, draftPreference.ModelProviderId.Value, StringComparison.OrdinalIgnoreCase)) is { } persistedDraftBackend)
+            providerOptions.FirstOrDefault(option =>
+                string.Equals(option.ProviderId.Value, draftPreference.ModelProviderId.Value, StringComparison.OrdinalIgnoreCase)) is { } persistedDraftProvider)
         {
-            return persistedDraftBackend.ProviderId;
+            return persistedDraftProvider.ProviderId;
         }
 
         if (_draftProviderId is { } draftProviderId &&
-            backendOptions.FirstOrDefault(option => string.Equals(option.ProviderId.Value, draftProviderId.Value, StringComparison.OrdinalIgnoreCase)) is { } draftBackend)
+            providerOptions.FirstOrDefault(option => string.Equals(option.ProviderId.Value, draftProviderId.Value, StringComparison.OrdinalIgnoreCase)) is { } draftProvider)
         {
-            if (IsModelProviderReady(draftBackend.ProviderId))
+            if (IsModelProviderReady(draftProvider.ProviderId))
             {
-                return draftBackend.ProviderId;
+                return draftProvider.ProviderId;
             }
         }
 
-        if (ResolveConfiguredDefaultProviderId(backendOptions) is { } configuredDefaultProviderId)
+        if (ResolveConfiguredDefaultProviderId(providerOptions) is { } configuredDefaultProviderId)
         {
             return configuredDefaultProviderId;
         }
 
-        var readyBackend = backendOptions.FirstOrDefault(option => IsModelProviderReady(option.ProviderId));
-        if (readyBackend is not null)
+        var readyProvider = providerOptions.FirstOrDefault(option => IsModelProviderReady(option.ProviderId));
+        if (readyProvider is not null)
         {
-            return readyBackend.ProviderId;
+            return readyProvider.ProviderId;
         }
 
-        return backendOptions.FirstOrDefault()?.ProviderId ?? GetDefaultProviderId();
+        return providerOptions.FirstOrDefault()?.ProviderId ?? GetDefaultProviderId();
     }
 
     private bool HasAnyReadyModelProvider()
@@ -704,17 +704,17 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
         var selection = _sessionSelection.Selection;
         var selectedSession = selection.Target is WorkspaceTarget.Session ? _sessionSelection.GetSelectedSession() : null;
         var providerId = selectedSession is not null ? new ModelProviderId(selectedSession.ProviderId) : GetPreferredModelProviderId();
-        if (!_modelProviderStates.TryGetValue(providerId.Value, out var backendState) && selectedSession is not null)
+        if (!_modelProviderStates.TryGetValue(providerId.Value, out var providerState) && selectedSession is not null)
         {
-            backendState = new ModelProviderState(providerId, BuildUnavailableSessionProviderLabel(selectedSession, providerId))
+            providerState = new ModelProviderState(providerId, BuildUnavailableSessionProviderLabel(selectedSession, providerId))
             {
                 Availability = ModelProviderAvailability.Unsupported,
             };
         }
 
-        if (backendState is null || string.IsNullOrWhiteSpace(backendState.DisplayName))
+        if (providerState is null || string.IsNullOrWhiteSpace(providerState.DisplayName))
         {
-            backendState = _modelProviderStates.Values.FirstOrDefault()
+            providerState = _modelProviderStates.Values.FirstOrDefault()
                 ?? new ModelProviderState(GetDefaultProviderId(), GetDefaultProviderId().Value);
         }
 
@@ -722,8 +722,8 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
             selectedSession,
             _sessionSelection.GetSelectedProject(),
             selection.Target is WorkspaceTarget.Draft { IsGlobal: true },
-            backendState.DisplayName,
-            backendState.Availability,
+            providerState.DisplayName,
+            providerState.Availability,
             HasAnyReadyModelProvider(),
             _sessionSelection.HasOpenDraftTab(),
             _sessionSelection.OpenSessionIds.Count + (_sessionSelection.HasOpenDraftTab() ? 1 : 0),

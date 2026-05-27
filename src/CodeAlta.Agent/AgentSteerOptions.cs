@@ -15,7 +15,7 @@ public sealed class AgentSteerOptions
     /// </summary>
     /// <remarks>
     /// When specified, the adapter should only steer the matching in-flight run.
-    /// When omitted, the adapter may use its current active run if the backend supports that behavior.
+    /// When omitted, the adapter may use its current active run if the provider supports that behavior.
     /// </remarks>
     public AgentRunId? ExpectedRunId { get; init; }
 }

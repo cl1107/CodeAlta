@@ -6,7 +6,7 @@ using CodeAlta.Plugins.Abstractions;
 namespace CodeAlta.Orchestration.Runtime.Prompts;
 
 /// <summary>
-/// Materializes headless session-view prompt text and attachments into backend and plugin input shapes.
+/// Materializes headless session-view prompt text and attachments into provider and plugin input shapes.
 /// </summary>
 public sealed class HeadlessPromptAttachmentService
 {
@@ -209,9 +209,9 @@ public sealed class HeadlessPromptAttachmentService
 }
 
 /// <summary>
-/// Describes materialized headless prompt input for backend and plugin pipelines.
+/// Describes materialized headless prompt input for provider and plugin pipelines.
 /// </summary>
-/// <param name="Input">The backend agent input.</param>
+/// <param name="Input">The provider agent input.</param>
 /// <param name="PluginAttachments">Plugin prompt attachments derived from the same headless attachments.</param>
 public sealed record HeadlessPromptMaterializationResult(
     AgentInput Input,

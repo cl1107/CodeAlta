@@ -26,7 +26,7 @@ public abstract record AgentPermissionRequest(
     : AgentEvent(ProviderId, SessionId, Timestamp, RunId);
 
 /// <summary>
-/// Generic permission request for backends that do not expose a richer typed prompt.
+/// Generic permission request for providers that do not expose a richer typed prompt.
 /// </summary>
 /// <param name="ProviderId">The model provider identifier.</param>
 /// <param name="SessionId">The session identifier.</param>

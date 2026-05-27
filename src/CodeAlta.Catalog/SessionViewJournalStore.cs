@@ -14,12 +14,12 @@ namespace CodeAlta.Catalog;
 public sealed class SessionViewJournalStore
 {
     /// <summary>
-    /// Backend raw-event type used for the first-line session header.
+    /// Provider raw-event type used for the first-line session header.
     /// </summary>
     public const string SessionHeaderEventType = "codealta.sessionHeader";
 
     /// <summary>
-    /// Backend raw-event type used for append-only session state snapshots.
+    /// Provider raw-event type used for append-only session state snapshots.
     /// </summary>
     public const string SessionStateEventType = "codealta.sessionState";
 

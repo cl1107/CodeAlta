@@ -16,7 +16,7 @@ public sealed class OpenAIChatModelProviderRuntime : ICodeAltaModelProviderRunti
     public OpenAIChatModelProviderRuntime(OpenAIChatModelProviderRuntimeOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        _runtime = OpenAIBackendFactory.CreateChatProviderRuntime(options);
+        _runtime = OpenAIModelProviderRuntimeFactory.CreateChatProviderRuntime(options);
     }
 
     /// <inheritdoc />

@@ -21,7 +21,7 @@ public sealed class AnthropicModelProviderRuntime : ICodeAltaModelProviderRuntim
     /// <summary>
     /// Initializes a new instance of the <see cref="AnthropicModelProviderRuntime"/> class.
     /// </summary>
-    /// <param name="options">The backend options.</param>
+    /// <param name="options">The provider runtime options.</param>
     public AnthropicModelProviderRuntime(AnthropicModelProviderRuntimeOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -236,7 +236,7 @@ public sealed class AnthropicModelProviderRuntime : ICodeAltaModelProviderRuntim
         }
 
         LogInfo(
-            $"Using Anthropic streaming compatibility fallback backend={providerDescriptor.ProviderKey} provider={providerDescriptor.ProviderKey} displayName={providerDescriptor.DisplayName}");
+            $"Using Anthropic streaming compatibility fallback provider={providerDescriptor.ProviderKey} displayName={providerDescriptor.DisplayName}");
         return new AnthropicStreamingCompatibilityChatClient(adaptiveThinkingChatClient);
     }
 

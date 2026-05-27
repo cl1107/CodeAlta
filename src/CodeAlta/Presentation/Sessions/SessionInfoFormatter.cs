@@ -181,15 +181,15 @@ internal static class SessionInfoFormatter
         }
     }
 
-    private static void AppendProviderFacts(StringBuilder builder, IReadOnlyList<SessionInfoFact> backendFacts)
+    private static void AppendProviderFacts(StringBuilder builder, IReadOnlyList<SessionInfoFact> providerFacts)
     {
-        if (backendFacts.Count == 0)
+        if (providerFacts.Count == 0)
         {
             return;
         }
 
         StartSection(builder, "Provider-specific details");
-        foreach (var fact in backendFacts)
+        foreach (var fact in providerFacts)
         {
             builder.Append("- ")
                 .Append(fact.Label)

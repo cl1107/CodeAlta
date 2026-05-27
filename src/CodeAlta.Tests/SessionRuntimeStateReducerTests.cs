@@ -187,11 +187,11 @@ public sealed class SessionRuntimeStateReducerTests
                 DateTimeOffset.UtcNow,
                 new AgentRunId("run-1"),
                 AgentSessionUpdateKind.Info,
-                "Backend notice."),
+                "Provider notice."),
             isSelectedSession: true);
 
         Assert.IsNotNull(reduction.SessionStatus);
-        Assert.AreEqual("Backend notice.", reduction.SessionStatus.Value.Message);
+        Assert.AreEqual("Provider notice.", reduction.SessionStatus.Value.Message);
         Assert.IsTrue(reduction.SessionStatus.Value.ShowSpinner);
         Assert.AreEqual(StatusTone.Info, reduction.SessionStatus.Value.Tone);
     }

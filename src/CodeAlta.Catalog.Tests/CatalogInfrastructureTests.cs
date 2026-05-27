@@ -656,7 +656,7 @@ public sealed class CatalogInfrastructureTests
     }
 
     [TestMethod]
-    public async Task SessionViewJournalStore_PrependsHeaderWhenBackendCreatedJournalFirst()
+    public async Task SessionViewJournalStore_PrependsHeaderWhenProviderCreatedJournalFirst()
     {
         using var root = TempDirectory.Create();
         var options = new CatalogOptions { GlobalRoot = root.Path };
@@ -665,12 +665,12 @@ public sealed class CatalogInfrastructureTests
         var createdAt = new DateTimeOffset(2026, 05, 12, 10, 00, 00, TimeSpan.Zero);
         var session = new SessionViewDescriptor
         {
-            SessionId = "session-backend-first-test",
+            SessionId = "session-provider-first-test",
             Kind = SessionViewKind.ProjectSession,
             ProviderId = "codex",
             ProviderKey = "codex",
             WorkingDirectory = @"C:\code\repo-main",
-            Title = "Backend first test",
+            Title = "Provider first test",
             Status = SessionViewStatus.Active,
             CreatedAt = createdAt,
             UpdatedAt = createdAt,

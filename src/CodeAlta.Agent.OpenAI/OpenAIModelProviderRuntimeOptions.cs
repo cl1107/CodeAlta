@@ -11,7 +11,7 @@ using OpenAI.Responses;
 namespace CodeAlta.Agent.OpenAI;
 
 /// <summary>
-/// Shared options for the OpenAI-backed local-runtime backends.
+/// Shared options for the OpenAI-backed local-runtime provider runtimes.
 /// </summary>
 public abstract class OpenAIModelProviderRuntimeOptions
 {
@@ -21,7 +21,7 @@ public abstract class OpenAIModelProviderRuntimeOptions
     public ModelProviderId? ProviderIdOverride { get; set; }
 
     /// <summary>
-    /// Gets or sets the optional backend display name override.
+    /// Gets or sets the optional provider display name override.
     /// </summary>
     public string? DisplayNameOverride { get; set; }
 
@@ -37,7 +37,7 @@ public abstract class OpenAIModelProviderRuntimeOptions
 }
 
 /// <summary>
-/// Options for the OpenAI Responses backend.
+/// Options for the OpenAI Responses model provider runtime.
 /// </summary>
 public sealed class OpenAIResponsesModelProviderRuntimeOptions : OpenAIModelProviderRuntimeOptions
 {
@@ -45,7 +45,7 @@ public sealed class OpenAIResponsesModelProviderRuntimeOptions : OpenAIModelProv
 }
 
 /// <summary>
-/// Options for the OpenAI Chat/Completions backend.
+/// Options for the OpenAI Chat/Completions model provider runtime.
 /// </summary>
 public sealed class OpenAIChatModelProviderRuntimeOptions : OpenAIModelProviderRuntimeOptions;
 
@@ -90,7 +90,7 @@ public sealed class OpenAIProviderOptions
     public string? ProjectId { get; set; }
 
     /// <summary>
-    /// Gets or sets whether this provider is the default registration for the backend.
+    /// Gets or sets whether this provider is the default registration for the provider runtime.
     /// </summary>
     public bool IsDefault { get; set; }
 

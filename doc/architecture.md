@@ -170,7 +170,7 @@ The `CodeAlta.Agent` contracts are split by responsibility:
 - `AgentEvent` is a normalized polymorphic event model for content, activity, session updates, plans, interactions, permissions, user-input requests, and errors.
 - `AgentToolDefinition` and `AgentToolSpec` define model-callable host tools with validated names and JSON schemas.
 
-`IAgentBackend`, `AgentBackendId`, and `AgentBackendFactory` remain transitional low-level names where the implementation still carries provider-runtime compatibility surfaces. New user-facing docs and UI should say **model provider** and **session**, not backend-owned session.
+Provider-runtime compatibility surfaces now use model-provider names. Do not reintroduce `IAgentBackend`, `AgentBackendId`, or `AgentBackendFactory`; new user-facing docs and UI should say **model provider** and **session**, not backend-owned session.
 
 Provider packages create model-provider runtimes and turn executors. The CodeAlta local session runtime (`CodeAltaAgentRuntime`/`LocalAgentSession`) replays journals, composes provider requests, executes turns, appends events, and can switch compatible providers by replaying canonical CodeAlta history.
 

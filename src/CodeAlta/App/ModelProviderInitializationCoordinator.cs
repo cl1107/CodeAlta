@@ -199,6 +199,14 @@ internal sealed class ModelProviderInitializationCoordinator
         }
 
         var state = await EnsureProviderStateAsync(providerState.ProviderId, descriptor.DisplayName, cancellationToken).ConfigureAwait(false);
+        lock (completedProviderIds)
+        {
+            if (!isTerminal && completedProviderIds.Contains(key))
+            {
+                return;
+            }
+        }
+
         _dispatchToUi(
             () =>
             {

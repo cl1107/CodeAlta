@@ -63,7 +63,7 @@ internal sealed class ProjectSessionsDialog
         {
             _document
                 .AddColumn(new DataGridColumnInfo<bool>("select", "✅", false, ProjectSessionsDialogRowViewModel.Accessor.IsSelected))
-                .AddColumn(new DataGridColumnInfo<string>("backend", "🤖 Provider", true, ProjectSessionsDialogRowViewModel.Accessor.ProviderDisplayName))
+                .AddColumn(new DataGridColumnInfo<string>("provider", "🤖 Provider", true, ProjectSessionsDialogRowViewModel.Accessor.ProviderDisplayName))
                 .AddColumn(new DataGridColumnInfo<string>("title", "🧵 Session", false, ProjectSessionsDialogRowViewModel.Accessor.Title))
                 .AddColumn(new DataGridColumnInfo<DateTimeOffset?>("updated", "🕒 Updated", true, ProjectSessionsDialogRowViewModel.Accessor.LastUpdatedAt))
                 .AddColumn(new DataGridColumnInfo<int?>("messages", "💬 Messages", true, ProjectSessionsDialogRowViewModel.Accessor.MessageCount))
@@ -94,7 +94,7 @@ internal sealed class ProjectSessionsDialog
         static Visual BuildMessageCountCell(DataTemplateValue<int?> value, in DataTemplateContext _)
             => new TextBlock(value.GetValue()?.ToString() ?? "—");
 
-        static Visual BuildBackendCell(DataTemplateValue<string> value, in DataTemplateContext _)
+        static Visual BuildProviderCell(DataTemplateValue<string> value, in DataTemplateContext _)
         {
             var row = (ProjectSessionsDialogRowViewModel)value.GetBinding().Owner;
             return new Markup(() => SidebarSessionPresentation.BuildProviderMarkup(row.ProviderId, row.ProviderDisplayName, row.SessionKind))
@@ -141,12 +141,12 @@ internal sealed class ProjectSessionsDialog
         });
         grid.Columns.Add(new DataGridColumn<string>
         {
-            Key = "backend",
+            Key = "provider",
             Header = new TextBlock("🤖 Provider"),
             TypedValueAccessor = ProjectSessionsDialogRowViewModel.Accessor.ProviderDisplayName,
             Width = GridLength.Auto,
             Sortable = true,
-            CellTemplate = new DataTemplate<string>(BuildBackendCell, null),
+            CellTemplate = new DataTemplate<string>(BuildProviderCell, null),
         });
         grid.Columns.Add(new DataGridColumn<DateTimeOffset?>
         {

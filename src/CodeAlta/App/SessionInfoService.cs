@@ -83,8 +83,8 @@ internal sealed class SessionInfoService
         }
 
         var tab = _sessionSelection.EnsureSessionTab(session);
-        var backendState = _modelProviderStates.TryGetValue(session.ProviderId, out var resolvedBackendState)
-            ? resolvedBackendState
+        var providerState = _modelProviderStates.TryGetValue(session.ProviderId, out var resolvedProviderState)
+            ? resolvedProviderState
             : new ModelProviderState(new ModelProviderId(session.ProviderId), session.ProviderId);
 
         if (!tab.HistoryLoaded || tab.HistoryEvents is null)
@@ -92,7 +92,7 @@ internal sealed class SessionInfoService
             try
             {
                 // Session/tab history lives in UI-owned state, so capture it before switching to
-                // background backend I/O for the session lookup below.
+                // background provider I/O for the session lookup below.
                 await _sessionSelection.EnsureSessionHistoryLoadedAsync(session, cancellationToken);
             }
             catch (InvalidOperationException)
@@ -102,8 +102,8 @@ internal sealed class SessionInfoService
 
         return new SessionInfoSnapshot(
             session,
-            backendState.DisplayName,
-            tab.ModelId ?? backendState.SelectedModelId,
+            providerState.DisplayName,
+            tab.ModelId ?? providerState.SelectedModelId,
             tab.ReasoningEffort,
             tab.HistoryEvents);
     }

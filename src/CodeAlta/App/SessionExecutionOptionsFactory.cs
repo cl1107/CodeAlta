@@ -51,9 +51,9 @@ internal sealed class SessionExecutionOptionsFactory
     {
         ArgumentNullException.ThrowIfNull(projectRoots);
 
-        _modelProviderStates.TryGetValue(providerId.Value, out var backendState);
-        var model = backendState?.SelectedModelId;
-        var reasoning = backendState?.SelectedReasoningEffort;
+        _modelProviderStates.TryGetValue(providerId.Value, out var providerState);
+        var model = providerState?.SelectedModelId;
+        var reasoning = providerState?.SelectedReasoningEffort;
 
         var sourceProjectId = projectRoots.Count == 0
             ? null

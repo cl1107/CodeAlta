@@ -255,16 +255,17 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
     {
         string? project = null;
         string? state = null;
-        string? backend = null;
+        string? provider = null;
         var limit = 50;
         var includeMetrics = false;
         var command = Leaf("list", "List recoverable/live sessions as JSONL.");
         command.Add("project=", "Filter by project id, slug, or path.", value => project = value);
         command.Add("state=", "Filter by running, idle, inactive, archived, or all.", value => state = ValidateState(value));
-        command.Add("backend=", "Filter by backend/provider id.", value => backend = value);
+        command.Add("provider=", "Filter by provider id.", value => provider = value);
+        command.Add("backend=", "Compatibility alias for --provider.", value => provider = value);
         command.Add("limit=", "Maximum sessions to return.", (int value) => limit = value);
         command.Add("metrics", "Include compact session metrics for emitted rows. This reads stored session history.", value => includeMetrics = value is not null);
-        command.Add(async (_, _) => await HandleSessionListAsync(context, project, state, backend, limit, includeMetrics).ConfigureAwait(false));
+        command.Add(async (_, _) => await HandleSessionListAsync(context, project, state, provider, limit, includeMetrics).ConfigureAwait(false));
         AddHelpText(command, "Examples: `alta session list --project CodeAlta --state all --limit 20`; add `--metrics` for compact duration/usage fields.");
         return command;
     }
@@ -567,7 +568,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         group.Add(CreateToolStatusCommand(context));
         group.Add(CreateToolListCommand(context));
         group.Add(capability);
-        AddHelpText(group, "Examples: `alta tool status`; `alta tool capability list` to see host/runtime/backend/plugin availability as JSONL.");
+        AddHelpText(group, "Examples: `alta tool status`; `alta tool capability list` to see host/runtime/provider/plugin availability as JSONL.");
         return group;
     }
 
@@ -622,7 +623,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
     {
         var detailed = false;
         var command = Leaf("list", "List command capability classifications.");
-        command.Add("detailed", "Emit legacy per-command/runtime/backend/plugin capability records instead of one compact aggregate record.", value => detailed = value is not null);
+        command.Add("detailed", "Emit legacy per-command/runtime/provider/plugin capability records instead of one compact aggregate record.", value => detailed = value is not null);
         command.Add((_, _) =>
         {
             var policies = GetEffectivePolicies(context);
@@ -640,7 +641,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             }
 
             recordCount += WriteRuntimeCapabilities(context);
-            recordCount += WriteBackendCapabilities(context);
+            recordCount += WriteProviderCapabilities(context);
             recordCount += WritePluginCapabilities(context, policies);
             WriteSummary(context, "alta.tool.capability.summary", recordCount, truncated: false);
             return ValueTask.FromResult(AltaExitCodes.Success);
@@ -667,14 +668,15 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         return capabilities.Length;
     }
 
-    private static int WriteBackendCapabilities(AltaCommandContext context)
+    private static int WriteProviderCapabilities(AltaCommandContext context)
     {
-        var capabilities = GetBackendCapabilities(context);
+        var capabilities = GetProviderCapabilities(context);
 
         foreach (var capability in capabilities)
         {
             AltaJsonlWriter.WriteRecord(context.Stdout, new
             {
+                // Compatibility: keep the legacy JSONL record type stable for live-tool clients.
                 type = "alta.tool.backendCapability",
                 version = 1,
                 correlationId = context.CorrelationId,
@@ -697,15 +699,15 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         ("runtime.workSession", context.Services.Get<SessionRuntimeService>() is not null),
         ("providers.agentHub", context.Services.Get<AgentHub>() is not null),
         ("plugins.altaCatalog", context.Services.Get<IAltaPluginCatalog>() is not null),
-        ("sessionTool.backendPolicy", context.Services.Get<IAltaSessionToolBackendPolicy>() is not null),
+        ("sessionTool.providerPolicy", context.Services.Get<IAltaSessionToolProviderPolicy>() is not null),
     ];
 
-    private static BackendCapability[] GetBackendCapabilities(AltaCommandContext context)
+    private static ProviderCapability[] GetProviderCapabilities(AltaCommandContext context)
     {
         var descriptors = GetProviderDescriptors(context);
-        var policy = context.Services.Get<IAltaSessionToolBackendPolicy>();
+        var policy = context.Services.Get<IAltaSessionToolProviderPolicy>();
         return GetProviderProviderIds(context, descriptors)
-            .Select(ProviderId => new BackendCapability(
+            .Select(ProviderId => new ProviderCapability(
                 ProviderId.Value,
                 ProviderId.Value,
                 descriptors.Any(descriptor => string.Equals(descriptor.ProviderId.Value, ProviderId.Value, StringComparison.OrdinalIgnoreCase)),
@@ -755,7 +757,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
     private static Command CreateProviderCommand(AltaCommandContext context)
     {
-        var group = Group("provider", "Inspect registered providers/backends.");
+        var group = Group("provider", "Inspect registered providers.");
         var model = Group("model", "Inspect provider models.");
         model.Add(CreateModelListCommand(context, providerGroupAlias: true));
         group.Add(CreateProviderListCommand(context));
@@ -766,7 +768,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
     private static Command CreateProviderListCommand(AltaCommandContext context)
     {
         var detailed = false;
-        var command = Leaf("list", "List registered provider/backend ids.");
+        var command = Leaf("list", "List registered provider ids.");
         command.Add("detailed", "Emit one detailed metadata record per provider instead of the compact providerKeys array.", value => detailed = value is not null);
         command.Add(async (_, _) => await HandleProviderListAsync(context, detailed).ConfigureAwait(false));
         return command;
@@ -786,7 +788,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
     {
         var options = new ModelListOptions();
         var command = Leaf("list", providerGroupAlias ? "List models for registered providers." : "List models for registered providers.");
-        command.Add("provider=", "Provider/backend id filter.", value => options.Provider = value);
+        command.Add("provider=", "Provider id filter.", value => options.Provider = value);
         command.Add("contains=", "Substring filter over model id, display name, and model ref.", value => options.Contains = value);
         command.Add("reasoning=", "Only include models supporting this reasoning effort.", value => options.ReasoningEffort = ParseReasoningOption(value));
         command.Add("supports-tools", "Only include models that report tool-call support.", value => options.SupportsTools = value is not null);
@@ -888,7 +890,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
     {
         command.Add("model-ref=", "Compact model ref provider:model[@reasoning].", value => options.ModelRef = value);
         command.Add("same-model-as=", "Inherit model selection from a session id.", value => options.SameModelAsSessionId = value);
-        command.Add("provider=", "Provider/backend id.", value => options.ProviderKey = value);
+        command.Add("provider=", "Provider id.", value => options.ProviderKey = value);
         command.Add("model=", "Model id.", value => options.ModelId = value);
         command.Add("reasoning=", "Reasoning effort: minimal, low, medium, high, xhigh, or none.", value => options.ReasoningEffort = ParseReasoningOption(value));
     }
@@ -1015,7 +1017,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         AltaCommandContext context,
         string? projectFilter,
         string? stateFilter,
-        string? backendFilter,
+        string? providerFilter,
         int limit,
         bool includeMetrics)
     {
@@ -1049,7 +1051,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
                               string.Equals(stateFilter, "all", StringComparison.OrdinalIgnoreCase);
         var filtered = infos
             .Where(info => project is null || string.Equals(info.Session.ProjectRef, project.Id, StringComparison.OrdinalIgnoreCase))
-            .Where(info => string.IsNullOrWhiteSpace(backendFilter) || string.Equals(info.Session.ProviderId, backendFilter, StringComparison.OrdinalIgnoreCase))
+            .Where(info => string.IsNullOrWhiteSpace(providerFilter) || string.Equals(info.Session.ProviderId, providerFilter, StringComparison.OrdinalIgnoreCase))
             .Where(info => includeArchived || !string.Equals(info.State, "archived", StringComparison.OrdinalIgnoreCase))
             .Where(info => string.IsNullOrWhiteSpace(stateFilter) || string.Equals(stateFilter, "all", StringComparison.OrdinalIgnoreCase) || string.Equals(info.State, stateFilter, StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(static info => info.Session.LastActiveAt)
@@ -1477,7 +1479,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
                 context.Stderr,
                 context.CorrelationId,
                 "session.historyStoreUnavailable",
-                "Stored session history could not be read; backend history fallback will be used when available.");
+                "Stored session history could not be read; provider history fallback will be used when available.");
         }
 
         if (history is null || history.Count == 0)
@@ -2369,7 +2371,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         string? sourceProjectId,
         string? workingDirectory)
     {
-        var policy = context.Services.Get<IAltaSessionToolBackendPolicy>();
+        var policy = context.Services.Get<IAltaSessionToolProviderPolicy>();
         if (policy is null || !policy.SupportsAltaSessionTool(ProviderId))
         {
             return null;
@@ -2431,7 +2433,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         var providerKey = FirstNonEmpty(request.ProviderKey, inherited?.ProviderKey, GetDefaultProviderKey(context));
         if (string.IsNullOrWhiteSpace(providerKey))
         {
-            return ModelResolutionResult.Fail(NotFound(context, "provider.notFound", "No provider/backend is registered or selected."));
+            return ModelResolutionResult.Fail(NotFound(context, "provider.notFound", "No provider is registered or selected."));
         }
 
         var modelId = FirstNonEmpty(request.ModelId, inherited?.ModelId);
@@ -3188,6 +3190,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             role = mapped.Role,
             source = new
             {
+                // Compatibility: event-source kind is a live-tool wire value from before provider terminology.
                 kind = "backend",
                 ProviderId = agentEvent.ProviderId.Value,
                 runId = agentEvent.RunId?.Value,
@@ -3241,6 +3244,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         {
             record["source"] = new
             {
+                // Compatibility: event-source kind is a live-tool wire value from before provider terminology.
                 kind = "backend",
                 ProviderId = agentEvent.ProviderId.Value,
                 runId = agentEvent.RunId?.Value,
@@ -3459,7 +3463,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
     {
         var ordered = policies.OrderBy(static policy => policy.Path, StringComparer.OrdinalIgnoreCase).ToArray();
         var runtimeCapabilities = GetRuntimeCapabilities(context);
-        var backendCapabilities = GetBackendCapabilities(context);
+        var providerCapabilities = GetProviderCapabilities(context);
         var pluginCapability = GetPluginCapability(context, policies);
         AltaJsonlWriter.WriteRecord(context.Stdout, new
         {
@@ -3474,11 +3478,18 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
                 available = runtimeCapabilities.Where(static capability => capability.Available).Select(static capability => capability.Capability).ToArray(),
                 unavailable = runtimeCapabilities.Where(static capability => !capability.Available).Select(static capability => capability.Capability).ToArray(),
             },
+            providers = new
+            {
+                registered = providerCapabilities.Where(static capability => capability.Registered).Select(static capability => capability.ProviderKey).ToArray(),
+                configured = providerCapabilities.Where(static capability => capability.Configured).Select(static capability => capability.ProviderKey).ToArray(),
+                sessionTool = providerCapabilities.Where(static capability => capability.SupportsAltaSessionTool).Select(static capability => capability.ProviderKey).ToArray(),
+            },
+            // Compatibility: keep the legacy aggregate field for existing live-tool clients.
             backends = new
             {
-                registered = backendCapabilities.Where(static capability => capability.Registered).Select(static capability => capability.ProviderKey).ToArray(),
-                configured = backendCapabilities.Where(static capability => capability.Configured).Select(static capability => capability.ProviderKey).ToArray(),
-                sessionTool = backendCapabilities.Where(static capability => capability.SupportsAltaSessionTool).Select(static capability => capability.ProviderKey).ToArray(),
+                registered = providerCapabilities.Where(static capability => capability.Registered).Select(static capability => capability.ProviderKey).ToArray(),
+                configured = providerCapabilities.Where(static capability => capability.Configured).Select(static capability => capability.ProviderKey).ToArray(),
+                sessionTool = providerCapabilities.Where(static capability => capability.SupportsAltaSessionTool).Select(static capability => capability.ProviderKey).ToArray(),
             },
             plugins = pluginCapability,
         });
@@ -3753,7 +3764,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         long CachedInputTokens,
         long ReasoningTokens);
 
-    private sealed record BackendCapability(
+    private sealed record ProviderCapability(
         string ProviderKey,
         string ProviderId,
         bool Registered,

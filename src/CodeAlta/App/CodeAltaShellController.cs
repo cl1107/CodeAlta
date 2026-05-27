@@ -269,16 +269,16 @@ internal sealed class CodeAltaShellController : ISessionRuntimeEventProjector, I
         ArgumentNullException.ThrowIfNull(knownSessions);
 
         var sessionsToDelete = CollectSessionSubtree(session, knownSessions);
-        var deletedByBackend = false;
+        var deletedFromSessionStore = false;
         foreach (var candidate in sessionsToDelete)
         {
-            deletedByBackend |= await _sessionDeleter.DeleteSessionAsync(candidate, cancellationToken).ConfigureAwait(false);
+            deletedFromSessionStore |= await _sessionDeleter.DeleteSessionAsync(candidate, cancellationToken).ConfigureAwait(false);
         }
 
         var deletedSessionIds = sessionsToDelete.Select(static candidate => candidate.SessionId).ToArray();
         return new DeleteSessionResult(
             deletedSessionIds,
-            deletedByBackend);
+            deletedFromSessionStore);
     }
 
     public async Task<DeleteProjectResult> DeleteProjectAsync(string projectId, CancellationToken cancellationToken)

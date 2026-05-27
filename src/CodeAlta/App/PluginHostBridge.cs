@@ -66,7 +66,7 @@ internal sealed class PluginHostBridge
         SessionViewDescriptor session,
         OpenSessionState tab,
         PromptSubmission prompt,
-        bool isCodeAltaManagedBackend,
+        bool isCodeAltaManagedProvider,
         CancellationToken cancellationToken)
     {
         var result = await _runtime.Adapter.ProcessPromptSubmittingAsync(
@@ -79,7 +79,7 @@ internal sealed class PluginHostBridge
                     DisplayName = image.Title,
                     MediaType = image.MediaType,
                 }).ToArray(),
-                CreateOptions(session, tab, isCodeAltaManagedBackend),
+                CreateOptions(session, tab, isCodeAltaManagedProvider),
                 cancellationToken);
 
         _promptContributionScope.Add(CreatePromptContributionScopeKey(session, tab), result.Result.TemporaryPromptContributions);
@@ -264,7 +264,7 @@ internal sealed class PluginHostBridge
             SessionId = session.SessionId,
             RunId = @event.RunId?.Value,
             ProviderId = @event.ProviderId.Value,
-            IsCodeAltaManagedBackend = IsCodeAltaManagedProvider(new ModelProviderId(@event.ProviderId.Value)),
+            IsCodeAltaManagedProvider = IsCodeAltaManagedProvider(new ModelProviderId(@event.ProviderId.Value)),
         };
         var activePlugins = _runtime.ActivePlugins;
         if (activePlugins.Count == 0)
@@ -472,7 +472,7 @@ internal sealed class PluginHostBridge
         };
     }
 
-    private PluginAdapterOperationOptions CreateOptions(SessionViewDescriptor? session, OpenSessionState? tab, bool isCodeAltaManagedBackend = false)
+    private PluginAdapterOperationOptions CreateOptions(SessionViewDescriptor? session, OpenSessionState? tab, bool isCodeAltaManagedProvider = false)
         => new()
         {
             ProjectId = session?.ProjectRef ?? _getCurrentProject()?.Id,
@@ -481,7 +481,7 @@ internal sealed class PluginHostBridge
             RunId = tab?.ActiveRunId?.Value,
             ProviderId = tab?.ProviderId.Value ?? session?.ResolvedProviderKey,
             Model = tab?.ModelId,
-            IsCodeAltaManagedBackend = isCodeAltaManagedBackend,
+            IsCodeAltaManagedProvider = isCodeAltaManagedProvider,
             HasInteractiveUi = true,
         };
 

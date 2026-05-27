@@ -16,7 +16,7 @@ namespace CodeAlta.App.State;
 /// | Catalog and selection restore | <c>ShellSessionStateCoordinator</c> and catalog/view-state persistence | Snapshot selected target, catalog lists, open session ids, and navigator settings. |
 /// | Live logical tabs | <c>IShellTabService</c> | Snapshot projected tab identity/order/selection only. |
 /// | Prompt draft text and images | <c>PromptDraftUiCoordinator</c> plus prompt composer view models and prompt-draft persistence | No live ownership; consumers read the dedicated prompt services/view models. |
-/// | Model-provider selection and runtime state | <c>ModelProviderSelectorCoordinator</c>, <c>ModelProviderSelectorStateStore</c>, and backend runtime state | No live ownership; projections read the dedicated provider state. |
+/// | Model-provider selection and runtime state | <c>ModelProviderSelectorCoordinator</c>, <c>ModelProviderSelectorStateStore</c>, and provider runtime state | No live ownership; projections read the dedicated provider state. |
 /// | Shell and session status | <c>ShellStatusProjectionController</c> and selected <c>OpenSessionState</c> status fields | Snapshot shell-level status text when needed across boundaries. |
 /// | File editor tabs | <c>FileEditorWorkspaceCoordinator</c> and <c>IShellTabService</c> | Snapshot logical tab projection only. |
 /// | Plugin projections | <c>PluginHostBridge</c> and plugin-owned surfaces/events | No live ownership; plugins enter through explicit bridge/events. |

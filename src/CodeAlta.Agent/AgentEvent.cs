@@ -52,12 +52,12 @@ public enum AgentContentKind
     Reasoning,
 
     /// <summary>
-    /// Reasoning summary text emitted by the backend.
+    /// Reasoning summary text emitted by the provider.
     /// </summary>
     ReasoningSummary,
 
     /// <summary>
-    /// Plan text emitted by the backend.
+    /// Plan text emitted by the provider.
     /// </summary>
     Plan,
 
@@ -364,8 +364,8 @@ public enum AgentPlanStepStatus
 /// <param name="ProviderId">The model provider identifier.</param>
 /// <param name="SessionId">The session identifier.</param>
 /// <param name="Timestamp">Event timestamp.</param>
-/// <param name="BackendEventType">Backend event type identifier.</param>
-/// <param name="Raw">Raw backend payload.</param>
+/// <param name="BackendEventType">Provider raw-event type identifier.</param>
+/// <param name="Raw">Raw provider payload.</param>
 /// <param name="RunId">Optional run identifier.</param>
 public sealed record AgentRawEvent(
     ModelProviderId ProviderId,

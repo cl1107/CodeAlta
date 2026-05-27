@@ -8,7 +8,7 @@ internal static class SessionInfoReportBuilder
 {
     public static SessionInfoReport Build(
         SessionViewDescriptor session,
-        string backendName,
+        string providerName,
         string? modelName,
         AgentReasoningEffort? reasoningEffort,
         AgentSessionMetadata? metadata,
@@ -16,7 +16,7 @@ internal static class SessionInfoReportBuilder
         DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(session);
-        ArgumentException.ThrowIfNullOrWhiteSpace(backendName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(providerName);
 
         var createdAt = metadata?.CreatedAt ?? session.CreatedAt;
         var startedAt = session.StartedAt ?? createdAt;
@@ -25,7 +25,7 @@ internal static class SessionInfoReportBuilder
 
         return new SessionInfoReport(
             SessionTitle: session.Title,
-            ProviderName: backendName,
+            ProviderName: providerName,
             SessionId: session.SessionId,
             WorkingDirectory: session.WorkingDirectory,
             ModelName: modelName,

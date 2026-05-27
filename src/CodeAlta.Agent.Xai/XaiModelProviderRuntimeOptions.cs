@@ -6,7 +6,7 @@ using CodeAlta.Agent.ModelCatalog;
 namespace CodeAlta.Agent.Xai;
 
 /// <summary>
-/// Options used to create an xAI direct local-runtime backend.
+/// Options used to create an xAI direct local-runtime provider runtime.
 /// </summary>
 public sealed class XaiModelProviderRuntimeOptions
 {
@@ -16,7 +16,7 @@ public sealed class XaiModelProviderRuntimeOptions
     public ModelProviderId? ProviderIdOverride { get; set; }
 
     /// <summary>
-    /// Gets or sets the optional backend display name override.
+    /// Gets or sets the optional provider display name override.
     /// </summary>
     public string? DisplayNameOverride { get; set; }
 
@@ -52,7 +52,7 @@ public sealed class XaiProviderOptions
     public Uri? BaseUri { get; set; }
 
     /// <summary>
-    /// Gets or sets whether this provider is the default registration for the backend.
+    /// Gets or sets whether this provider is the default registration for the provider runtime.
     /// </summary>
     public bool IsDefault { get; set; }
 

@@ -92,17 +92,17 @@ internal sealed class ModelCatalogCoordinator
         {
             var tabProviderKey = tab.ProviderId.Value;
             var tabModelId = tab.ModelId;
-            if (string.IsNullOrWhiteSpace(tabModelId) && _modelProviderStates.TryGetValue(tabProviderKey, out var tabBackendState))
+            if (string.IsNullOrWhiteSpace(tabModelId) && _modelProviderStates.TryGetValue(tabProviderKey, out var tabProviderState))
             {
-                tabModelId = tabBackendState.SelectedModelId;
+                tabModelId = tabProviderState.SelectedModelId;
             }
 
             return (tabProviderKey, tabModelId);
         }
 
         var providerKey = _getPreferredModelProviderId().Value;
-        var modelId = _modelProviderStates.TryGetValue(providerKey, out var backendState)
-            ? backendState.SelectedModelId
+        var modelId = _modelProviderStates.TryGetValue(providerKey, out var providerState)
+            ? providerState.SelectedModelId
             : null;
         return (providerKey, modelId);
     }

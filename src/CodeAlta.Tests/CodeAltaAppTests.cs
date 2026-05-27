@@ -1024,10 +1024,10 @@ public sealed class CodeAltaAppTests
 
         Assert.AreEqual(
             "Waiting for Codex to reconnect...",
-            PromptComposerProjectionBuilder.BuildPromptUnavailablePlaceholder(session, "Codex", ModelProviderAvailability.Probing, anyBackendReady: false));
+            PromptComposerProjectionBuilder.BuildPromptUnavailablePlaceholder(session, "Codex", ModelProviderAvailability.Probing, anyProviderReady: false));
         Assert.AreEqual(
             "Configure model providers (Ctrl+G Ctrl+R) to start a session...",
-            PromptComposerProjectionBuilder.BuildPromptUnavailablePlaceholder(null, "Codex", ModelProviderAvailability.Unsupported, anyBackendReady: false));
+            PromptComposerProjectionBuilder.BuildPromptUnavailablePlaceholder(null, "Codex", ModelProviderAvailability.Unsupported, anyProviderReady: false));
     }
 
     [TestMethod]
@@ -1049,19 +1049,19 @@ public sealed class CodeAltaAppTests
 
         Assert.AreEqual(
             "Reconnecting session 'Review startup' to Codex. Prompt sending is temporarily unavailable.",
-            PromptComposerProjectionBuilder.BuildPromptUnavailableStatusText(session, "Codex", ModelProviderAvailability.Probing, anyBackendReady: false));
+            PromptComposerProjectionBuilder.BuildPromptUnavailableStatusText(session, "Codex", ModelProviderAvailability.Probing, anyProviderReady: false));
         Assert.AreEqual(
             "No model provider is ready. Open Model Providers (Ctrl+G Ctrl+R) to configure one.",
-            PromptComposerProjectionBuilder.BuildPromptUnavailableStatusText(null, "Codex", ModelProviderAvailability.Unsupported, anyBackendReady: false));
+            PromptComposerProjectionBuilder.BuildPromptUnavailableStatusText(null, "Codex", ModelProviderAvailability.Unsupported, anyProviderReady: false));
     }
 
     [TestMethod]
     public void ClassifyBackendInitializationFailure_TreatsMissingExecutableAsUnsupported()
     {
-        var backendState = new ModelProviderState(ModelProviderIds.Codex, "Codex");
+        var providerState = new ModelProviderState(ModelProviderIds.Codex, "Codex");
 
         var result = ModelProviderInitializationCoordinator.ClassifyFailure(
-            backendState,
+            providerState,
             new FileNotFoundException("codex executable was not found"));
 
         Assert.AreEqual(ModelProviderAvailability.Unsupported, result.Availability);
@@ -2156,13 +2156,13 @@ public sealed class CodeAltaAppTests
     [TestMethod]
     public void BuildModelOptions_PreservesSelectedModelMissingFromCatalog()
     {
-        var backendState = new ModelProviderState(new ModelProviderId("codex"), "Codex subscription")
+        var providerState = new ModelProviderState(new ModelProviderId("codex"), "Codex subscription")
         {
             SelectedModelId = "gpt-5.5",
         };
-        backendState.Models.Add(new AgentModelInfo("gpt-5.2", DisplayName: "GPT-5.2"));
+        providerState.Models.Add(new AgentModelInfo("gpt-5.2", DisplayName: "GPT-5.2"));
 
-        var options = ModelProviderPresentation.BuildModelOptions(backendState);
+        var options = ModelProviderPresentation.BuildModelOptions(providerState);
 
         Assert.AreEqual("gpt-5.5", options[0].ModelId);
         Assert.AreEqual("gpt-5.5", options[0].Label);
@@ -2172,10 +2172,10 @@ public sealed class CodeAltaAppTests
     [TestMethod]
     public void BuildModelOptions_FallsBackToIdWhenDisplayNameIsBlank()
     {
-        var backendState = new ModelProviderState(new ModelProviderId("qwen"), "Qwen");
-        backendState.Models.Add(new AgentModelInfo("qwen3-flash", DisplayName: " "));
+        var providerState = new ModelProviderState(new ModelProviderId("qwen"), "Qwen");
+        providerState.Models.Add(new AgentModelInfo("qwen3-flash", DisplayName: " "));
 
-        var options = ModelProviderPresentation.BuildModelOptions(backendState);
+        var options = ModelProviderPresentation.BuildModelOptions(providerState);
 
         Assert.AreEqual("qwen3-flash", options[0].Label);
     }
@@ -2199,12 +2199,12 @@ public sealed class CodeAltaAppTests
     [TestMethod]
     public void BuildModelOptions_UsesSelectedModelWhenCatalogIsEmpty()
     {
-        var backendState = new ModelProviderState(new ModelProviderId("codex"), "Codex subscription")
+        var providerState = new ModelProviderState(new ModelProviderId("codex"), "Codex subscription")
         {
             SelectedModelId = "gpt-5.5",
         };
 
-        var options = ModelProviderPresentation.BuildModelOptions(backendState);
+        var options = ModelProviderPresentation.BuildModelOptions(providerState);
 
         Assert.AreEqual(1, options.Count);
         Assert.AreEqual("gpt-5.5", options[0].ModelId);

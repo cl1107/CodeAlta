@@ -590,7 +590,7 @@ public sealed class CodeAltaShellControllerTests
 
         var result = await controller.DeleteSessionAsync(session, [session], CancellationToken.None);
 
-        Assert.IsTrue(result.DeletedByBackend);
+        Assert.IsTrue(result.DeletedFromSessionStore);
         CollectionAssert.AreEqual(new[] { session.SessionId }, result.DeletedSessionIds.ToArray());
         Assert.AreEqual(session.SessionId, deleter.DeletedSessionIds.Single());
         Assert.IsFalse(log.Contains("Importer.Import"));

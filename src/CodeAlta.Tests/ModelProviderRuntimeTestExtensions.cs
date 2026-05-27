@@ -5,12 +5,12 @@ namespace CodeAlta.Tests;
 
 internal static class ModelProviderRuntimeTestExtensions
 {
-    public static void RegisterOrReplaceBackendRuntime(
+    public static void RegisterOrReplaceSessionRuntime(
         this ModelProviderRegistry registry,
         ModelProviderDescriptor descriptor,
-        Func<ITestModelProviderSessionRuntime> createBackend)
+        Func<ITestModelProviderSessionRuntime> createRuntime)
     {
-        registry.RegisterOrReplace(descriptor, () => new LegacyBackendRuntime(descriptor, createBackend()));
+        registry.RegisterOrReplace(descriptor, () => new TestSessionRuntimeAdapter(descriptor, createRuntime()));
     }
 
     public static async Task<IReadOnlyList<AgentModelInfo>> ListModelsAsync(
@@ -82,25 +82,25 @@ internal static class ModelProviderRuntimeTestExtensions
         return null;
     }
 
-    private sealed class LegacyBackendRuntime : IModelProviderSessionRuntime
+    private sealed class TestSessionRuntimeAdapter : IModelProviderSessionRuntime
     {
-        private readonly ITestModelProviderSessionRuntime _backend;
+        private readonly ITestModelProviderSessionRuntime _runtime;
 
-        public LegacyBackendRuntime(ModelProviderDescriptor descriptor, ITestModelProviderSessionRuntime backend)
+        public TestSessionRuntimeAdapter(ModelProviderDescriptor descriptor, ITestModelProviderSessionRuntime runtime)
         {
             Descriptor = descriptor;
-            _backend = backend;
+            _runtime = runtime;
         }
 
         public ModelProviderDescriptor Descriptor { get; }
 
-        public Task StartAsync(CancellationToken cancellationToken = default) => _backend.StartAsync(cancellationToken);
+        public Task StartAsync(CancellationToken cancellationToken = default) => _runtime.StartAsync(cancellationToken);
 
-        public Task StopAsync(CancellationToken cancellationToken = default) => _backend.StopAsync(cancellationToken);
+        public Task StopAsync(CancellationToken cancellationToken = default) => _runtime.StopAsync(cancellationToken);
 
         public async Task<ModelProviderProbeResult> ProbeAsync(CancellationToken cancellationToken = default)
         {
-            var models = await _backend.ListModelsAsync(cancellationToken).ConfigureAwait(false);
+            var models = await _runtime.ListModelsAsync(cancellationToken).ConfigureAwait(false);
             return new ModelProviderProbeResult
             {
                 ProviderId = Descriptor.ProviderId,
@@ -113,11 +113,11 @@ internal static class ModelProviderRuntimeTestExtensions
             => throw new NotSupportedException();
 
         public Task<IAgentSession> CreateSessionAsync(AgentSessionCreateOptions options, CancellationToken cancellationToken = default)
-            => _backend.CreateSessionAsync(options, cancellationToken);
+            => _runtime.CreateSessionAsync(options, cancellationToken);
 
         public Task<IAgentSession> ResumeSessionAsync(string sessionId, AgentSessionResumeOptions options, CancellationToken cancellationToken = default)
-            => _backend.ResumeSessionAsync(sessionId, options, cancellationToken);
+            => _runtime.ResumeSessionAsync(sessionId, options, cancellationToken);
 
-        public ValueTask DisposeAsync() => _backend.DisposeAsync();
+        public ValueTask DisposeAsync() => _runtime.DisposeAsync();
     }
 }

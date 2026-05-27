@@ -35,7 +35,7 @@ public sealed class AgentInstructionTemplateProvider
     /// <param name="session">The active session view.</param>
     /// <param name="project">The owning project, if any.</param>
     /// <returns>
-    /// An instruction bundle containing no overrides so backend defaults remain active
+    /// An instruction bundle containing no overrides so provider defaults remain active
     /// while orchestration-specific prompting is disabled.
     /// </returns>
     public AgentInstructionBundle BuildCoordinatorInstructions(
@@ -59,7 +59,7 @@ public sealed class AgentInstructionTemplateProvider
     /// <param name="session">The active session view.</param>
     /// <param name="project">The owning project, if any.</param>
     /// <returns>
-    /// An instruction bundle containing no overrides so backend defaults remain active
+    /// An instruction bundle containing no overrides so provider defaults remain active
     /// while orchestration-specific prompting is disabled.
     /// </returns>
     public AgentInstructionBundle BuildGeneralInstructions(

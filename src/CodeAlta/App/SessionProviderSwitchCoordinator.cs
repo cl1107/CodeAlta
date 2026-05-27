@@ -9,7 +9,7 @@ namespace CodeAlta.App;
 internal sealed class SessionProviderSwitchCoordinator
 {
     private readonly IReadOnlyDictionary<string, ModelProviderState> _modelProviderStates;
-    private readonly IReadOnlyDictionary<string, LocalRuntimeBackendInfo> _localRuntimeBackends;
+    private readonly IReadOnlyDictionary<string, SwitchableRawApiProviderInfo> _switchableRawApiProviders;
     private readonly Func<OpenSessionState, Task> _applySessionPreferenceAsync;
     private readonly Func<string, Task<bool>> _detachRuntimeSessionAsync;
     private readonly Action<SessionViewDescriptor> _updateSessionState;
@@ -35,14 +35,14 @@ internal sealed class SessionProviderSwitchCoordinator
         _detachRuntimeSessionAsync = detachRuntimeSessionAsync;
         _updateSessionState = updateSessionState;
         _persistViewStateAsync = persistViewStateAsync;
-        _localRuntimeBackends = configStore.LoadGlobalProviderDefinitions(includeDisabled: true)
+        _switchableRawApiProviders = configStore.LoadGlobalProviderDefinitions(includeDisabled: true)
             .Where(static definition => TryMapProtocolFamily(definition.ProviderType, out _))
             .Select(definition =>
             {
                 TryMapProtocolFamily(definition.ProviderType, out var protocolFamily);
-                return new KeyValuePair<string, LocalRuntimeBackendInfo>(
+                return new KeyValuePair<string, SwitchableRawApiProviderInfo>(
                     definition.ProviderKey,
-                    new LocalRuntimeBackendInfo(
+                    new SwitchableRawApiProviderInfo(
                         new ModelProviderId(definition.ProviderKey),
                         definition.ProviderKey,
                         protocolFamily!));
@@ -70,7 +70,7 @@ internal sealed class SessionProviderSwitchCoordinator
 
         return CanSelectSessionProvider(session, tab) &&
                !string.Equals(session.ProviderId, targetProviderId.Value, StringComparison.OrdinalIgnoreCase) &&
-               TryGetLocalRuntimeBackendInfo(targetProviderId, out _) &&
+               TryGetSwitchableRawApiProviderInfo(targetProviderId, out _) &&
                _modelProviderStates.TryGetValue(targetProviderId.Value, out var targetState) &&
                targetState.Availability == ModelProviderAvailability.Ready;
     }
@@ -86,7 +86,7 @@ internal sealed class SessionProviderSwitchCoordinator
         cancellationToken.ThrowIfCancellationRequested();
 
         if (!CanSwitchSessionProvider(session, tab, targetProviderId) ||
-            !TryGetLocalRuntimeBackendInfo(targetProviderId, out var targetBackend))
+            !TryGetSwitchableRawApiProviderInfo(targetProviderId, out var targetProvider))
         {
             return false;
         }
@@ -103,11 +103,11 @@ internal sealed class SessionProviderSwitchCoordinator
         var oldTabReasoningEffort = tab.ReasoningEffort;
         var oldTabUsage = tab.Usage;
 
-        session.ProviderId = targetBackend.ProviderId.Value;
-        session.ProviderKey = targetBackend.ProviderKey;
+        session.ProviderId = targetProvider.ProviderId.Value;
+        session.ProviderKey = targetProvider.ProviderKey;
         session.UpdatedAt = timestamp;
 
-        tab.ProviderId = targetBackend.ProviderId;
+        tab.ProviderId = targetProvider.ProviderId;
         tab.ModelId = null;
         tab.ReasoningEffort = null;
         tab.Usage = null;
@@ -115,7 +115,7 @@ internal sealed class SessionProviderSwitchCoordinator
         try
         {
             await _applySessionPreferenceAsync(tab);
-            NormalizeTargetModelSelection(tab, targetBackend.ProviderId);
+            NormalizeTargetModelSelection(tab, targetProvider.ProviderId);
             session.ModelId = tab.ModelId;
             session.ReasoningEffort = tab.ReasoningEffort;
             if (!string.IsNullOrWhiteSpace(oldSessionId))
@@ -142,13 +142,13 @@ internal sealed class SessionProviderSwitchCoordinator
         return true;
     }
 
-    private bool TryGetLocalRuntimeBackendInfo(ModelProviderId providerId, out LocalRuntimeBackendInfo backendInfo)
+    private bool TryGetSwitchableRawApiProviderInfo(ModelProviderId providerId, out SwitchableRawApiProviderInfo providerInfo)
     {
-        return _localRuntimeBackends.TryGetValue(providerId.Value, out backendInfo!);
+        return _switchableRawApiProviders.TryGetValue(providerId.Value, out providerInfo!);
     }
 
     private bool IsSwitchableSourceProvider(ModelProviderId providerId)
-        => TryGetLocalRuntimeBackendInfo(providerId, out _) || IsNativeProvider(providerId);
+        => TryGetSwitchableRawApiProviderInfo(providerId, out _) || IsNativeProvider(providerId);
 
     private void NormalizeTargetModelSelection(OpenSessionState tab, ModelProviderId targetProviderId)
     {
@@ -190,7 +190,7 @@ internal sealed class SessionProviderSwitchCoordinator
         return protocolFamily is not null;
     }
 
-    private sealed record LocalRuntimeBackendInfo(
+    private sealed record SwitchableRawApiProviderInfo(
         ModelProviderId ProviderId,
         string ProviderKey,
         string ProtocolFamily);

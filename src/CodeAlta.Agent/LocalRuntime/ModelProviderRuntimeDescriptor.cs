@@ -34,7 +34,7 @@ public sealed record ModelProviderRuntimeDescriptor
     public Uri? BaseUri { get; init; }
 
     /// <summary>
-    /// Gets or initializes whether this is the default provider for its backend.
+    /// Gets or initializes whether this is the default provider for its provider runtime.
     /// </summary>
     public bool IsDefault { get; init; }
 

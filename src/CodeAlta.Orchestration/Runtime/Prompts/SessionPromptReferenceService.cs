@@ -10,7 +10,7 @@ namespace CodeAlta.Orchestration.Runtime.Prompts;
 public interface ISessionPromptReferenceService
 {
     /// <summary>
-    /// Resolves prompt references into normalized prompt text and backend attachments.
+    /// Resolves prompt references into normalized prompt text and provider attachments.
     /// </summary>
     /// <param name="prompt">The prompt text.</param>
     /// <param name="projectRoot">The project root used to resolve references.</param>

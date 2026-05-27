@@ -96,5 +96,5 @@ Project-local configuration and extensions live under `<project>/.alta/`, includ
 - Describe current implementation first. Do not keep superseded plans in tracked docs.
 - Verify behavior against `src/**`, tests, default config, and solution metadata before documenting it.
 - Keep high-level documents linked from this page; add focused specs only when a stable implementation contract needs more detail.
-- Prefer implementation terms used in current boundaries: model provider for selectable LLM configuration/runtime adapters, session for conversation/work units, and backend only for transitional low-level `IAgentBackend` compatibility names.
+- Prefer implementation terms used in current boundaries: model provider for selectable LLM configuration/runtime adapters, session for conversation/work units, and backend only for explicit legacy wire/config names or third-party terminal/backend concepts.
 - Keep comparisons to other products and agents out of internal docs unless a configured provider/protocol name is required to explain CodeAlta behavior.

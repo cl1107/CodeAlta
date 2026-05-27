@@ -19,7 +19,7 @@ public sealed class CopilotDirectModelProviderRuntime : ICodeAltaModelProviderRu
     /// <summary>
     /// Initializes a new instance of the <see cref="CopilotDirectModelProviderRuntime"/> class.
     /// </summary>
-    /// <param name="options">The backend options.</param>
+    /// <param name="options">The provider runtime options.</param>
     /// <exception cref="ArgumentException">Thrown when no provider is configured.</exception>
     public CopilotDirectModelProviderRuntime(CopilotDirectModelProviderRuntimeOptions options)
     {

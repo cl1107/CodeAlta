@@ -17,7 +17,7 @@ public sealed class GoogleGenAIModelProviderRuntime : ICodeAltaModelProviderRunt
     /// <summary>
     /// Initializes a new instance of the <see cref="GoogleGenAIModelProviderRuntime"/> class.
     /// </summary>
-    /// <param name="options">The backend options.</param>
+    /// <param name="options">The provider runtime options.</param>
     public GoogleGenAIModelProviderRuntime(GoogleGenAIModelProviderRuntimeOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);

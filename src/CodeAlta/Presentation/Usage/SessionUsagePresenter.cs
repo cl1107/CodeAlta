@@ -108,7 +108,7 @@ internal sealed class SessionUsagePresenter
 
     private Visual BuildDetailsVisual(
         AgentSessionUsage? usage,
-        string backendName,
+        string providerName,
         string? modelName,
         IReadOnlyList<PluginTransientEventProjection> pluginTransientEvents)
     {
@@ -125,7 +125,7 @@ internal sealed class SessionUsagePresenter
 
         stack.Add(new StatusBar()
             .LeftText(new VStack(
-                new Markup($"[bold]{AnsiMarkup.Escape(backendName)} context usage[/]"),
+                new Markup($"[bold]{AnsiMarkup.Escape(providerName)} context usage[/]"),
                 new Markup($"[dim]{AnsiMarkup.Escape(modelName ?? "(default model)")}[/]"))
             {
                 Spacing = 0,
@@ -143,7 +143,7 @@ internal sealed class SessionUsagePresenter
 
         AddUsageBreakdownContent(stack, usage);
         AddLimitsAndQuotasContent(stack, usage);
-        AddBackendSpecificContent(stack, usage);
+        AddProviderSpecificContent(stack, usage);
         AddPluginProjectionContent(stack, pluginTransientEvents);
 
         return BuildPopupContainer(stack);
@@ -278,7 +278,7 @@ internal sealed class SessionUsagePresenter
         }
     }
 
-    private static void AddBackendSpecificContent(VStack stack, AgentSessionUsage usage)
+    private static void AddProviderSpecificContent(VStack stack, AgentSessionUsage usage)
     {
         var added = false;
         if (usage.Details is CodexSessionUsageDetails codex &&

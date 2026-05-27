@@ -47,21 +47,21 @@ internal static class ModelProviderPresentation
             .ToList();
     }
 
-    public static List<ChatModelOption> BuildModelOptions(ModelProviderState backendState, string? selectedModelId = null)
+    public static List<ChatModelOption> BuildModelOptions(ModelProviderState providerState, string? selectedModelId = null)
     {
-        ArgumentNullException.ThrowIfNull(backendState);
+        ArgumentNullException.ThrowIfNull(providerState);
         var effectiveSelectedModelId = string.IsNullOrWhiteSpace(selectedModelId)
-            ? backendState.SelectedModelId
+            ? providerState.SelectedModelId
             : selectedModelId.Trim();
 
-        if (backendState.Models.Count == 0)
+        if (providerState.Models.Count == 0)
         {
             return string.IsNullOrWhiteSpace(effectiveSelectedModelId)
                 ? [new ChatModelOption(null, "(default)")]
                 : [new ChatModelOption(effectiveSelectedModelId, effectiveSelectedModelId)];
         }
 
-        var options = backendState.Models
+        var options = providerState.Models
             .Select(static model => new ChatModelOption(
                 model.Id,
                 string.IsNullOrWhiteSpace(model.DisplayName) ? model.Id : model.DisplayName!))
@@ -106,13 +106,13 @@ internal static class ModelProviderPresentation
         => adoptRequestedProvider ? requestedProvider : currentSelection;
 
     public static string BuildProviderStatusMarkup(
-        IEnumerable<ModelProviderState> backendStates,
+        IEnumerable<ModelProviderState> providerStates,
         ModelProviderId selectedProviderId,
         bool isInitializing)
     {
-        ArgumentNullException.ThrowIfNull(backendStates);
+        ArgumentNullException.ThrowIfNull(providerStates);
 
-        var items = backendStates
+        var items = providerStates
             .OrderBy(static state => state.DisplayName, StringComparer.OrdinalIgnoreCase)
             .Select(state =>
             {
@@ -145,14 +145,14 @@ internal static class ModelProviderPresentation
     }
 
     public static string BuildProviderSummaryMarkup(
-        IEnumerable<ModelProviderState> backendStates,
+        IEnumerable<ModelProviderState> providerStates,
         bool isInitializing,
         IReadOnlyCollection<string>? configuredProviderKeys = null,
         int? configuredProviderCount = null)
     {
-        ArgumentNullException.ThrowIfNull(backendStates);
+        ArgumentNullException.ThrowIfNull(providerStates);
 
-        var states = backendStates.ToArray();
+        var states = providerStates.ToArray();
         if (isInitializing)
         {
             return $"[primary]{NerdFont.MdTimerOutline} Detecting providers[/]";
@@ -241,38 +241,38 @@ internal static class ModelProviderPresentation
         return model?.DefaultReasoningEffort;
     }
 
-    public static string BuildReadyStatusMessage(ModelProviderState backendState)
+    public static string BuildReadyStatusMessage(ModelProviderState providerState)
     {
-        ArgumentNullException.ThrowIfNull(backendState);
+        ArgumentNullException.ThrowIfNull(providerState);
 
-        var selectedModel = GetSelectedModel(backendState);
+        var selectedModel = GetSelectedModel(providerState);
         if (selectedModel is not null)
         {
             return $"Connected · {selectedModel.DisplayName ?? selectedModel.Id}";
         }
 
-        return backendState.Models.Count switch
+        return providerState.Models.Count switch
         {
             0 => "Connected.",
-            1 => $"Connected · {backendState.Models[0].DisplayName ?? backendState.Models[0].Id}",
-            _ => $"Connected · {backendState.Models.Count} models",
+            1 => $"Connected · {providerState.Models[0].DisplayName ?? providerState.Models[0].Id}",
+            _ => $"Connected · {providerState.Models.Count} models",
         };
     }
 
-    public static string BuildUnsupportedProviderMessage(ModelProviderState backendState, string message)
+    public static string BuildUnsupportedProviderMessage(ModelProviderState providerState, string message)
     {
-        ArgumentNullException.ThrowIfNull(backendState);
+        ArgumentNullException.ThrowIfNull(providerState);
 
         var trimmed = string.IsNullOrWhiteSpace(message) ? "CLI not found." : message.Trim();
-        return $"{backendState.DisplayName} is unavailable: {trimmed}";
+        return $"{providerState.DisplayName} is unavailable: {trimmed}";
     }
 
-    public static string BuildFailedProviderMessage(ModelProviderState backendState, string message)
+    public static string BuildFailedProviderMessage(ModelProviderState providerState, string message)
     {
-        ArgumentNullException.ThrowIfNull(backendState);
+        ArgumentNullException.ThrowIfNull(providerState);
 
         var trimmed = string.IsNullOrWhiteSpace(message) ? "Failed to initialize provider." : message.Trim();
-        return $"{backendState.DisplayName} failed: {trimmed}";
+        return $"{providerState.DisplayName} failed: {trimmed}";
     }
 
     public static void ReplaceSelectItems<T>(Select<T> select, IReadOnlyList<T> items)
@@ -292,12 +292,12 @@ internal static class ModelProviderPresentation
         }
     }
 
-    internal static AgentModelInfo? GetSelectedModel(ModelProviderState backendState)
+    internal static AgentModelInfo? GetSelectedModel(ModelProviderState providerState)
     {
-        return string.IsNullOrWhiteSpace(backendState.SelectedModelId)
+        return string.IsNullOrWhiteSpace(providerState.SelectedModelId)
             ? null
-            : backendState.Models.FirstOrDefault(model =>
-                string.Equals(model.Id, backendState.SelectedModelId, StringComparison.Ordinal));
+            : providerState.Models.FirstOrDefault(model =>
+                string.Equals(model.Id, providerState.SelectedModelId, StringComparison.Ordinal));
     }
 
     private static string SplitPascalCase(string value)

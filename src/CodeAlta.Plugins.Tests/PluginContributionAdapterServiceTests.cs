@@ -35,7 +35,7 @@ public sealed class PluginContributionAdapterServiceTests
         var (registry, active) = await ActivateAsync<ComprehensivePlugin>();
         var adapter = new PluginContributionAdapterService(registry);
 
-        var prompt = await adapter.ProcessPromptSubmittingAsync([active], "hello", options: new PluginAdapterOperationOptions { ProviderId = "local", IsCodeAltaManagedBackend = true });
+        var prompt = await adapter.ProcessPromptSubmittingAsync([active], "hello", options: new PluginAdapterOperationOptions { ProviderId = "local", IsCodeAltaManagedProvider = true });
         var (parts, diagnostics) = await adapter.BuildSystemPromptPartsAsync([active], PluginPromptChannel.System, supportsDirectInjection: true);
 
         Assert.AreEqual(0, prompt.Diagnostics.Count, string.Join(Environment.NewLine, prompt.Diagnostics.Select(static diagnostic => diagnostic.Message)));
@@ -79,7 +79,7 @@ public sealed class PluginContributionAdapterServiceTests
     {
         var (registry, active) = await ActivateAsync<ComprehensivePlugin>();
         var adapter = new PluginContributionAdapterService(registry);
-        var managedOptions = new PluginAdapterOperationOptions { IsCodeAltaManagedBackend = true, HasInteractiveUi = true, ConfigurationPaths = ["config.toml"], Environment = new Dictionary<string, string?> { ["A"] = "B" } };
+        var managedOptions = new PluginAdapterOperationOptions { IsCodeAltaManagedProvider = true, HasInteractiveUi = true, ConfigurationPaths = ["config.toml"], Environment = new Dictionary<string, string?> { ["A"] = "B" } };
 
         var startup = await adapter.RunStartupAsync([active], ["--test"], managedOptions);
         var tools = adapter.GetAgentTools(managedOptions);
@@ -96,7 +96,7 @@ public sealed class PluginContributionAdapterServiceTests
         Assert.IsTrue(ComprehensivePlugin.StartupInvoked);
         Assert.AreEqual(1, startup.Resources.Count);
         Assert.AreEqual(2, tools.Count);
-        Assert.AreEqual(1, adapter.GetAgentTools(new PluginAdapterOperationOptions { IsCodeAltaManagedBackend = false }).Count);
+        Assert.AreEqual(1, adapter.GetAgentTools(new PluginAdapterOperationOptions { IsCodeAltaManagedProvider = false }).Count);
         Assert.AreEqual(1, resources.Count);
         Assert.AreEqual(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "skills")), resources[0].Path);
         var pluginSkillRoots = await new PluginSkillRootProvider(() => resources).GetRootsAsync(new SkillDiscoveryContext());
@@ -206,7 +206,7 @@ public sealed class PluginContributionAdapterServiceTests
 
         Assert.AreEqual(0, diagnostics.Count, string.Join(Environment.NewLine, diagnostics.Select(static diagnostic => diagnostic.Message)));
         Assert.AreEqual(0, registry.GetSnapshot().Count);
-        Assert.AreEqual(0, adapter.GetAgentTools(new PluginAdapterOperationOptions { IsCodeAltaManagedBackend = true }).Count);
+        Assert.AreEqual(0, adapter.GetAgentTools(new PluginAdapterOperationOptions { IsCodeAltaManagedProvider = true }).Count);
         Assert.AreEqual(0, adapter.GetResources([active]).Count);
         Assert.AreEqual(PluginCommandDisposition.NotHandled, result.Disposition);
         Assert.IsFalse(active.RuntimeContext.IsValid);

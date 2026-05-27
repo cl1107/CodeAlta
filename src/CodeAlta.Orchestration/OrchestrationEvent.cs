@@ -19,7 +19,7 @@ public sealed record AgentSessionAttachedEvent(
     : OrchestrationEvent(Timestamp);
 
 /// <summary>
-/// Emitted when the hub submits a send/steer operation and receives a backend run id.
+/// Emitted when the hub submits a send/steer operation and receives a provider run id.
 /// </summary>
 public sealed record RunStartedEvent(
     DateTimeOffset Timestamp,
@@ -37,7 +37,7 @@ public sealed record RunCompletedEvent(
     : OrchestrationEvent(Timestamp);
 
 /// <summary>
-/// Emitted when the hub-level send/steer operation fails before returning a backend run id.
+/// Emitted when the hub-level send/steer operation fails before returning a provider run id.
 /// </summary>
 public sealed record RunFailedEvent(
     DateTimeOffset Timestamp,

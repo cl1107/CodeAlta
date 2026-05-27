@@ -51,7 +51,7 @@ public sealed class CodeAltaHostTests
             HasInteractiveUi = false,
             PluginSafeMode = true,
             StartPlugins = false,
-            ConfigureModelProviders = registry => registry.RegisterOrReplaceBackendRuntime(new ModelProviderDescriptor(new ModelProviderId(ProviderId.Value), "Test Provider"), () => new TestModelProviderRuntime(ProviderId)),
+            ConfigureModelProviders = registry => registry.RegisterOrReplaceSessionRuntime(new ModelProviderDescriptor(new ModelProviderId(ProviderId.Value), "Test Provider"), () => new TestModelProviderRuntime(ProviderId)),
         };
 
         await using var host = await CodeAltaHost.CreateAsync(options, CancellationToken.None);

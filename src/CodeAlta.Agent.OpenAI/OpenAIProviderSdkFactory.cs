@@ -137,7 +137,7 @@ internal static class OpenAIProviderSdkFactory
             if (!string.IsNullOrWhiteSpace(provider.SingleModelId))
             {
                 LogInfo(
-                    $"Using configured single-model catalog backend={providerDescriptor.ProviderKey} provider={providerDescriptor.ProviderKey} displayName={providerDescriptor.DisplayName} model={provider.SingleModelId.Trim()}");
+                    $"Using configured single-model catalog provider={providerDescriptor.ProviderKey} displayName={providerDescriptor.DisplayName} model={provider.SingleModelId.Trim()}");
                 return
                 [
                     CreateSingleModelInfo(provider.SingleModelId, providerDescriptor),
@@ -152,7 +152,7 @@ internal static class OpenAIProviderSdkFactory
             if (provider.IsAzureOpenAI)
             {
                 LogInfo(
-                    $"Azure OpenAI model discovery is not supported by the Azure OpenAI SDK; using empty catalog backend={providerDescriptor.ProviderKey} provider={providerDescriptor.ProviderKey} displayName={providerDescriptor.DisplayName}");
+                    $"Azure OpenAI model discovery is not supported by the Azure OpenAI SDK; using empty catalog provider={providerDescriptor.ProviderKey} displayName={providerDescriptor.DisplayName}");
                 return [];
             }
 
@@ -209,14 +209,14 @@ internal static class OpenAIProviderSdkFactory
                 providerDescriptor,
                 options);
             LogInfo(
-                $"Using Codex subscription authenticated model catalog backend={providerDescriptor.ProviderKey} provider={providerDescriptor.ProviderKey} displayName={providerDescriptor.DisplayName} models={models.Count}");
+                $"Using Codex subscription authenticated model catalog provider={providerDescriptor.ProviderKey} displayName={providerDescriptor.DisplayName} models={models.Count}");
             return models;
         }
         catch (Exception ex) when (ShouldUseCodexStaticModelFallback(options, ex))
         {
             LogWarn(
                 ex,
-                $"Codex model discovery failed; falling back to static catalog backend={providerDescriptor.ProviderKey} provider={providerDescriptor.ProviderKey} displayName={providerDescriptor.DisplayName}");
+                $"Codex model discovery failed; falling back to static catalog provider={providerDescriptor.ProviderKey} displayName={providerDescriptor.DisplayName}");
             return ListCodexSubscriptionStaticModels(providerDescriptor);
         }
     }
@@ -226,7 +226,7 @@ internal static class OpenAIProviderSdkFactory
     {
         var models = CodexSubscriptionStaticModelCatalog.List(providerDescriptor);
         LogInfo(
-            $"Using Codex subscription static model catalog backend={providerDescriptor.ProviderKey} provider={providerDescriptor.ProviderKey} displayName={providerDescriptor.DisplayName} models={models.Count}");
+            $"Using Codex subscription static model catalog provider={providerDescriptor.ProviderKey} displayName={providerDescriptor.DisplayName} models={models.Count}");
         return models;
     }
 
@@ -553,9 +553,9 @@ internal static class OpenAIProviderSdkFactory
 
         LogWarn(
             exception,
-            $"Remote model discovery failed; falling back to models.dev catalog backend={providerDescriptor.ProviderKey} provider={providerDescriptor.ProviderKey} displayName={providerDescriptor.DisplayName} modelsDevProviderId={provider.ModelsDevProviderId}");
+            $"Remote model discovery failed; falling back to models.dev catalog provider={providerDescriptor.ProviderKey} displayName={providerDescriptor.DisplayName} modelsDevProviderId={provider.ModelsDevProviderId}");
         LogInfo(
-            $"Using models.dev fallback catalog backend={providerDescriptor.ProviderKey} provider={providerDescriptor.ProviderKey} displayName={providerDescriptor.DisplayName} modelsDevProviderId={provider.ModelsDevProviderId} models={catalogModels.Length}");
+            $"Using models.dev fallback catalog provider={providerDescriptor.ProviderKey} displayName={providerDescriptor.DisplayName} modelsDevProviderId={provider.ModelsDevProviderId} models={catalogModels.Length}");
         models = catalogModels;
         return true;
     }

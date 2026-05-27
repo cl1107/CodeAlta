@@ -211,7 +211,7 @@ public sealed class CodeAltaConfigStore
     }
 
     /// <summary>
-    /// Validates global CodeAlta TOML configuration content without starting backends or sessions.
+    /// Validates global CodeAlta TOML configuration content without starting providers or sessions.
     /// </summary>
     /// <param name="content">The TOML content to validate.</param>
     /// <param name="sourcePath">Optional source path used in diagnostics.</param>

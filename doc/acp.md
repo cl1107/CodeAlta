@@ -1,8 +1,8 @@
 # ACP integration
 
-CodeAlta currently keeps the ACP protocol libraries (`src/CodeAlta.Acp` and `src/CodeAlta.Acp.Generator`) for future server-side integration work. The previous external ACP CLI backend adapter has been removed: the app no longer builds `src/CodeAlta.Agent.Acp`, launches ACP child processes, registers `acp:` model providers, exposes ACP management commands/dialogs, or reads `[acp]` backend definitions as active configuration.
+CodeAlta currently keeps the ACP protocol libraries (`src/CodeAlta.Acp` and `src/CodeAlta.Acp.Generator`) for future server-side integration work. The previous external ACP CLI provider adapter has been removed: the app no longer builds `src/CodeAlta.Agent.Acp`, launches ACP child processes, registers `acp:` model providers, exposes ACP management commands/dialogs, or reads `[acp]` provider definitions as active configuration.
 
-Existing user `[acp]` configuration is intentionally ignored, not migrated or deleted. Config saves preserve existing `[acp]` and `[acp.*]` TOML blocks as compatibility data so users do not lose local notes or legacy backend definitions while the backend path is unavailable.
+Existing user `[acp]` configuration is intentionally ignored, not migrated or deleted. Config saves preserve existing `[acp]` and `[acp.*]` TOML blocks as compatibility data so users do not lose local notes or legacy provider definitions while the ACP path is unavailable.
 
 ## Future ACP server design note
 

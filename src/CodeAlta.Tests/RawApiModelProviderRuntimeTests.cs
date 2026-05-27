@@ -47,7 +47,7 @@ public sealed class RawApiModelProviderRuntimeTests
                     ModelId = "claude-sonnet-test",
                 },
             ]);
-        await using var backend = new AnthropicModelProviderRuntime(new AnthropicModelProviderRuntimeOptions
+        await using var providerRuntime = new AnthropicModelProviderRuntime(new AnthropicModelProviderRuntimeOptions
         {
             StateRootPath = temp.Path,
             Providers =
@@ -71,11 +71,11 @@ public sealed class RawApiModelProviderRuntimeTests
             },
         });
 
-        var models = await backend.ListModelsAsync().ConfigureAwait(false);
+        var models = await providerRuntime.ListModelsAsync().ConfigureAwait(false);
         Assert.AreEqual(1, models.Count);
         Assert.AreEqual("claude-sonnet-test", models[0].Id);
 
-        await using var session = await backend.CreateSessionAsync(new AgentSessionCreateOptions
+        await using var session = await providerRuntime.CreateSessionAsync(new AgentSessionCreateOptions
         {
             Model = "claude-sonnet-test",
             WorkingDirectory = temp.Path,
@@ -97,7 +97,7 @@ public sealed class RawApiModelProviderRuntimeTests
         Assert.IsNotNull(client.LastOptions);
         StringAssert.Contains(client.LastOptions.Instructions, "System instructions");
 
-        await using var resumed = await backend.ResumeSessionAsync(
+        await using var resumed = await providerRuntime.ResumeSessionAsync(
             session.SessionId,
             new AgentSessionResumeOptions
             {
@@ -143,7 +143,7 @@ public sealed class RawApiModelProviderRuntimeTests
             },
         ]);
 
-        await using var backend = new AnthropicModelProviderRuntime(new AnthropicModelProviderRuntimeOptions
+        await using var providerRuntime = new AnthropicModelProviderRuntime(new AnthropicModelProviderRuntimeOptions
         {
             StateRootPath = temp.Path,
             Providers =
@@ -170,9 +170,9 @@ public sealed class RawApiModelProviderRuntimeTests
             },
         });
 
-        _ = await backend.ListModelsAsync().ConfigureAwait(false);
+        _ = await providerRuntime.ListModelsAsync().ConfigureAwait(false);
 
-        await using var session = await backend.CreateSessionAsync(new AgentSessionCreateOptions
+        await using var session = await providerRuntime.CreateSessionAsync(new AgentSessionCreateOptions
         {
             Model = "MiniMax-M2.7",
             WorkingDirectory = temp.Path,
@@ -207,7 +207,7 @@ public sealed class RawApiModelProviderRuntimeTests
             },
         ]);
 
-        await using var backend = new AnthropicModelProviderRuntime(new AnthropicModelProviderRuntimeOptions
+        await using var providerRuntime = new AnthropicModelProviderRuntime(new AnthropicModelProviderRuntimeOptions
         {
             StateRootPath = temp.Path,
             Providers =
@@ -225,7 +225,7 @@ public sealed class RawApiModelProviderRuntimeTests
             },
         });
 
-        await using var session = await backend.CreateSessionAsync(new AgentSessionCreateOptions
+        await using var session = await providerRuntime.CreateSessionAsync(new AgentSessionCreateOptions
         {
             Model = "claude-opus-4-7",
             ReasoningEffort = AgentReasoningEffort.High,
@@ -261,7 +261,7 @@ public sealed class RawApiModelProviderRuntimeTests
             },
         ]);
 
-        await using var backend = new AnthropicModelProviderRuntime(new AnthropicModelProviderRuntimeOptions
+        await using var providerRuntime = new AnthropicModelProviderRuntime(new AnthropicModelProviderRuntimeOptions
         {
             StateRootPath = temp.Path,
             Providers =
@@ -279,7 +279,7 @@ public sealed class RawApiModelProviderRuntimeTests
             },
         });
 
-        await using var session = await backend.CreateSessionAsync(new AgentSessionCreateOptions
+        await using var session = await providerRuntime.CreateSessionAsync(new AgentSessionCreateOptions
         {
             Model = "claude-opus-4-6",
             ReasoningEffort = AgentReasoningEffort.XHigh,
@@ -331,7 +331,7 @@ public sealed class RawApiModelProviderRuntimeTests
                     ModelId = "gemini-test",
                 },
             ]);
-        await using var backend = new GoogleGenAIModelProviderRuntime(new GoogleGenAIModelProviderRuntimeOptions
+        await using var providerRuntime = new GoogleGenAIModelProviderRuntime(new GoogleGenAIModelProviderRuntimeOptions
         {
             StateRootPath = temp.Path,
             Providers =
@@ -355,9 +355,9 @@ public sealed class RawApiModelProviderRuntimeTests
             },
         });
 
-        _ = await backend.ListModelsAsync().ConfigureAwait(false);
+        _ = await providerRuntime.ListModelsAsync().ConfigureAwait(false);
 
-        await using var session = await backend.CreateSessionAsync(new AgentSessionCreateOptions
+        await using var session = await providerRuntime.CreateSessionAsync(new AgentSessionCreateOptions
         {
             Model = "gemini-test",
             WorkingDirectory = temp.Path,

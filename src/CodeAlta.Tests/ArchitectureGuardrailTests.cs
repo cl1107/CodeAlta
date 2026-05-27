@@ -385,7 +385,7 @@ public sealed class ArchitectureGuardrailTests
             .OrderBy(static value => value, StringComparer.Ordinal)
             .ToArray();
 
-        TestContext.WriteLine("Legacy frontend backend-named contract/API references:\n{0}", string.Join(Environment.NewLine, matches));
+        TestContext.WriteLine("Legacy frontend provider-named contract/API references:\n{0}", string.Join(Environment.NewLine, matches));
         Assert.IsNotNull(matches);
     }
 
@@ -395,7 +395,7 @@ public sealed class ArchitectureGuardrailTests
         var codeAltaRoot = GetCodeAltaSourceRoot();
         var allowedLegacyConstructors = new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            ["App/ModelProviderInitializationCoordinator.cs:ModelProviderInitializationCoordinator"] = "Legacy backend initialization seam pending model-provider port migration.",
+            ["App/ModelProviderInitializationCoordinator.cs:ModelProviderInitializationCoordinator"] = "Provider initialization coordinator retains a large constructor pending service split.",
             ["App/IFrontendPersistencePort.cs:FrontendPersistencePort"] = "Transitional port adapter wrapping persistence callbacks.",
             ["App/IModelProviderPreferencePort.cs:DelegatingModelProviderPreferencePort"] = "Transitional adapter preserving frontend preference callbacks.",
             ["App/IModelProviderPreferencePort.cs:FrontendModelProviderPreferencePort"] = "Transitional adapter preserving frontend preference callbacks.",
@@ -1687,7 +1687,7 @@ public sealed class ArchitectureGuardrailTests
         Assert.IsTrue(dialogSource.Contains("var row = (ProjectSessionsDialogRowViewModel)value.GetBinding().Owner;", StringComparison.Ordinal));
         Assert.IsTrue(dialogSource.Contains("return new TextBlock(() => row.LastUpdatedRelative)", StringComparison.Ordinal));
         Assert.IsTrue(dialogSource.Contains(".Tooltip(new TextBlock(() => row.LastUpdatedExact));", StringComparison.Ordinal));
-        Assert.IsTrue(dialogSource.Contains("CellTemplate = new DataTemplate<string>(BuildBackendCell, null)", StringComparison.Ordinal));
+        Assert.IsTrue(dialogSource.Contains("CellTemplate = new DataTemplate<string>(BuildProviderCell, null)", StringComparison.Ordinal));
         Assert.IsTrue(dialogSource.Contains("SidebarSessionPresentation.BuildProviderMarkup(row.ProviderId, row.ProviderDisplayName, row.SessionKind)", StringComparison.Ordinal));
         Assert.IsTrue(dialogSource.Contains(".FilterRowVisible(_viewModel.Bind.FilterRowVisible)", StringComparison.Ordinal));
         Assert.IsTrue(dialogSource.Contains("new CheckBox(\"Filter row\").IsChecked(_viewModel.Bind.FilterRowVisible)", StringComparison.Ordinal));
@@ -1777,11 +1777,11 @@ public sealed class ArchitectureGuardrailTests
     }
 
     [TestMethod]
-    public void ProductionModelProviderRegistry_DoesNotExposeBackendRuntimeBridge()
+    public void ProductionModelProviderRegistry_DoesNotExposeRemovedRuntimeBridge()
     {
         var source = File.ReadAllText(Path.Combine(GetSourceRoot(), "CodeAlta.Agent", "ModelProviderRegistry.cs"));
 
-        Assert.IsFalse(source.Contains("RegisterOrReplaceBackendRuntime", StringComparison.Ordinal));
+        Assert.IsFalse(source.Contains("RegisterOrReplace" + "BackendRuntime", StringComparison.Ordinal));
         Assert.IsFalse(source.Contains("ModelProviderRuntimeModelProviderRuntime", StringComparison.Ordinal));
     }
 

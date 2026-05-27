@@ -16,13 +16,13 @@ public sealed class SessionProviderSwitchCoordinatorTests
         using var temp = TempDirectory.Create();
         WriteProviderConfig(temp.Path);
         var options = new CatalogOptions { GlobalRoot = temp.Path };
-        var backendStates = CreateProviderStates();
+        var providerStates = CreateProviderStates();
         var updatedSessions = new List<SessionViewDescriptor>();
         var detachedSessionIds = new List<string>();
         var persisted = false;
         var coordinator = new SessionProviderSwitchCoordinator(
             new CodeAltaConfigStore(options),
-            backendStates,
+            providerStates,
             tab =>
             {
                 tab.ModelId = "claude-sonnet-4";

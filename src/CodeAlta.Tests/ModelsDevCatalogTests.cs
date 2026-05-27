@@ -111,7 +111,7 @@ public sealed class ModelsDevCatalogTests
     {
         await using var catalog = CreateCatalog();
         using var temp = TestTempDirectory.Create();
-        await using var backend = new OpenAIResponsesModelProviderRuntime(new OpenAIResponsesModelProviderRuntimeOptions
+        await using var providerRuntime = new OpenAIResponsesModelProviderRuntime(new OpenAIResponsesModelProviderRuntimeOptions
         {
             StateRootPath = temp.Path,
             Providers =
@@ -130,7 +130,7 @@ public sealed class ModelsDevCatalogTests
             },
         });
 
-        var model = (await backend.ListModelsAsync().ConfigureAwait(false)).Single();
+        var model = (await providerRuntime.ListModelsAsync().ConfigureAwait(false)).Single();
 
         Assert.AreEqual("GPT 5 Test", model.DisplayName);
         Assert.AreEqual(400000L, model.Capabilities?["contextWindow"]);
@@ -141,7 +141,7 @@ public sealed class ModelsDevCatalogTests
     {
         await using var catalog = CreateCatalog();
         using var temp = TestTempDirectory.Create();
-        await using var backend = new AnthropicModelProviderRuntime(new AnthropicModelProviderRuntimeOptions
+        await using var providerRuntime = new AnthropicModelProviderRuntime(new AnthropicModelProviderRuntimeOptions
         {
             StateRootPath = temp.Path,
             Providers =
@@ -160,7 +160,7 @@ public sealed class ModelsDevCatalogTests
             },
         });
 
-        var model = (await backend.ListModelsAsync().ConfigureAwait(false)).Single();
+        var model = (await providerRuntime.ListModelsAsync().ConfigureAwait(false)).Single();
 
         Assert.AreEqual("Claude Sonnet Test", model.DisplayName);
         Assert.AreEqual(200000L, model.Capabilities?["contextWindow"]);
@@ -171,7 +171,7 @@ public sealed class ModelsDevCatalogTests
     {
         await using var catalog = CreateCatalog();
         using var temp = TestTempDirectory.Create();
-        await using var backend = new AnthropicModelProviderRuntime(new AnthropicModelProviderRuntimeOptions
+        await using var providerRuntime = new AnthropicModelProviderRuntime(new AnthropicModelProviderRuntimeOptions
         {
             StateRootPath = temp.Path,
             Providers =
@@ -189,7 +189,7 @@ public sealed class ModelsDevCatalogTests
             },
         });
 
-        var model = (await backend.ListModelsAsync().ConfigureAwait(false)).Single();
+        var model = (await providerRuntime.ListModelsAsync().ConfigureAwait(false)).Single();
 
         Assert.AreEqual("claude-sonnet-test", model.Id);
         Assert.AreEqual("Claude Sonnet Test", model.DisplayName);
@@ -201,7 +201,7 @@ public sealed class ModelsDevCatalogTests
     {
         await using var catalog = CreateCatalog();
         using var temp = TestTempDirectory.Create();
-        await using var backend = new GoogleGenAIModelProviderRuntime(new GoogleGenAIModelProviderRuntimeOptions
+        await using var providerRuntime = new GoogleGenAIModelProviderRuntime(new GoogleGenAIModelProviderRuntimeOptions
         {
             StateRootPath = temp.Path,
             Providers =
@@ -220,7 +220,7 @@ public sealed class ModelsDevCatalogTests
             },
         });
 
-        var model = (await backend.ListModelsAsync().ConfigureAwait(false)).Single();
+        var model = (await providerRuntime.ListModelsAsync().ConfigureAwait(false)).Single();
 
         Assert.AreEqual("Gemini Test", model.DisplayName);
         Assert.AreEqual(1000000L, model.Capabilities?["contextWindow"]);
@@ -231,7 +231,7 @@ public sealed class ModelsDevCatalogTests
     {
         await using var catalog = CreateCatalog();
         using var temp = TestTempDirectory.Create();
-        await using var backend = new GoogleGenAIModelProviderRuntime(new GoogleGenAIModelProviderRuntimeOptions
+        await using var providerRuntime = new GoogleGenAIModelProviderRuntime(new GoogleGenAIModelProviderRuntimeOptions
         {
             StateRootPath = temp.Path,
             Providers =
@@ -249,7 +249,7 @@ public sealed class ModelsDevCatalogTests
             },
         });
 
-        var model = (await backend.ListModelsAsync().ConfigureAwait(false)).Single();
+        var model = (await providerRuntime.ListModelsAsync().ConfigureAwait(false)).Single();
 
         Assert.AreEqual("gemini-test", model.Id);
         Assert.AreEqual("Gemini Test", model.DisplayName);
@@ -284,7 +284,7 @@ public sealed class ModelsDevCatalogTests
             },
         ]);
 
-        await using var backend = new AnthropicModelProviderRuntime(new AnthropicModelProviderRuntimeOptions
+        await using var providerRuntime = new AnthropicModelProviderRuntime(new AnthropicModelProviderRuntimeOptions
         {
             StateRootPath = temp.Path,
             Providers =
@@ -304,9 +304,9 @@ public sealed class ModelsDevCatalogTests
             },
         });
 
-        _ = await backend.ListModelsAsync().ConfigureAwait(false);
+        _ = await providerRuntime.ListModelsAsync().ConfigureAwait(false);
 
-        await using var session = await backend.CreateSessionAsync(new AgentSessionCreateOptions
+        await using var session = await providerRuntime.CreateSessionAsync(new AgentSessionCreateOptions
         {
             Model = "claude-sonnet-test",
             WorkingDirectory = temp.Path,

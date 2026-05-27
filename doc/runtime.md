@@ -58,9 +58,9 @@ Provider identity is not session ownership. Persisted sessions keep last-used pr
 
 `CodeAlta.Agent` defines the headless agent/session/provider boundary.
 
-### `IAgentBackend` and provider compatibility names
+### Provider compatibility names
 
-`IAgentBackend`, `AgentBackendId`, and `AgentBackendFactory` remain low-level compatibility names for provider runtime adapters in parts of the code. New code should prefer `ModelProviderId`, `ModelProviderDescriptor`, `IModelProviderRegistry`, and `IModelProviderRuntime` when describing selectable providers. Do not use backend terminology to imply that providers own persisted sessions.
+Provider runtime adapters use `ModelProviderId`, `ModelProviderDescriptor`, `IModelProviderRegistry`, and `IModelProviderRuntime` for selectable providers. Do not reintroduce `IAgentBackend`, `AgentBackendId`, or `AgentBackendFactory`, and do not use backend terminology to imply that providers own persisted sessions.
 
 ### `IAgentSession`
 

@@ -11,7 +11,7 @@ namespace CodeAlta.Agent;
 public sealed record AgentToolDefinition(AgentToolSpec Spec, AgentToolHandler Handler);
 
 /// <summary>
-/// Defines tool metadata required for registration with an agent backend.
+/// Defines tool metadata required for registration with an agent provider.
 /// </summary>
 public sealed record AgentToolSpec
 {
@@ -141,10 +141,10 @@ public delegate Task<AgentToolResult> AgentToolHandler(
     CancellationToken cancellationToken);
 
 /// <summary>
-/// Represents a tool result returned to the backend.
+/// Represents a tool result returned to the provider.
 /// </summary>
 /// <param name="Success">Whether the tool call succeeded.</param>
-/// <param name="Items">Content items returned to the backend/LLM.</param>
+/// <param name="Items">Content items returned to the provider/LLM.</param>
 /// <param name="Error">Optional error message.</param>
 public sealed record AgentToolResult(
     bool Success,

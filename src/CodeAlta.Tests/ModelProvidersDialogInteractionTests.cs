@@ -316,7 +316,7 @@ public sealed class ModelProvidersDialogInteractionTests
             definitions =>
             {
                 definitionsFromDisk = definitions.ToArray();
-                return Task.FromResult(ProviderConfigurationSaveResult.RuntimeRefreshFailed("backend initialization failed"));
+                return Task.FromResult(ProviderConfigurationSaveResult.RuntimeRefreshFailed("provider initialization failed"));
             },
             getFocusTarget: () => root);
 

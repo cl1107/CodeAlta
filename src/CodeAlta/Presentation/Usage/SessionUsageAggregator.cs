@@ -30,8 +30,8 @@ internal static class SessionUsageAggregator
     public static string FormatSummary(AgentSessionUsage usage)
         => SessionUsageFormatter.FormatSummary(usage);
 
-    public static string BuildMarkdown(AgentSessionUsage? usage, string backendName, string? modelName)
-        => SessionUsageFormatter.BuildMarkdown(usage, backendName, modelName);
+    public static string BuildMarkdown(AgentSessionUsage? usage, string providerName, string? modelName)
+        => SessionUsageFormatter.BuildMarkdown(usage, providerName, modelName);
 
     public static string? FormatOperationPopupText(AgentOperationUsageSnapshot usage)
         => SessionUsageFormatter.FormatOperationPopupText(usage);

@@ -3,9 +3,9 @@ using System.Text.Json.Serialization;
 namespace CodeAlta.Agent;
 
 /// <summary>
-/// Describes an available model in an agent backend.
+/// Describes an available model in an agent provider.
 /// </summary>
-/// <param name="Id">The backend model identifier.</param>
+/// <param name="Id">The provider model identifier.</param>
 /// <param name="DisplayName">Optional display name.</param>
 /// <param name="Description">Optional model description.</param>
 /// <param name="Provider">Optional provider identifier (e.g. "openai").</param>

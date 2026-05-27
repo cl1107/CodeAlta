@@ -8,7 +8,7 @@ public static class AltaExitCodes
     /// <summary>Command completed successfully.</summary>
     public const int Success = 0;
 
-    /// <summary>Command failed because of a runtime, validation, or backend error.</summary>
+    /// <summary>Command failed because of a runtime, validation, or provider error.</summary>
     public const int Failure = 1;
 
     /// <summary>Command-line parse or usage error.</summary>
@@ -26,6 +26,6 @@ public static class AltaExitCodes
     /// <summary>Timeout or cancellation.</summary>
     public const int TimeoutOrCancellation = 6;
 
-    /// <summary>Unsupported capability in the current backend or runtime.</summary>
+    /// <summary>Unsupported capability in the current provider or runtime.</summary>
     public const int Unsupported = 7;
 }

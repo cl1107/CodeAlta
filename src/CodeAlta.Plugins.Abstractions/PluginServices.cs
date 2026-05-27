@@ -27,7 +27,7 @@ public interface IPluginServices
     /// <summary>Gets prompt services.</summary>
     IPluginPromptService Prompts { get; }
 
-    /// <summary>Gets agent/backend services.</summary>
+    /// <summary>Gets agent/provider services.</summary>
     IPluginAgentService Agents { get; }
 
     /// <summary>Gets plugin-lifetime task services.</summary>
@@ -316,23 +316,23 @@ public interface IPluginPromptService
 }
 
 /// <summary>
-/// Provides read-only agent/backend information.
+/// Provides read-only agent/provider information.
 /// </summary>
 public interface IPluginAgentService
 {
     /// <summary>Gets the active model provider identifier, when known.</summary>
     ModelProviderId? ActiveProviderId { get; }
 
-    /// <summary>Gets the active backend display name, when known.</summary>
+    /// <summary>Gets the active provider display name, when known.</summary>
     string? ActiveProviderDisplayName { get; }
 
     /// <summary>Gets the active model, when known.</summary>
     string? ActiveModel { get; }
 
-    /// <summary>Gets a value indicating whether the current backend is CodeAlta-managed local/raw.</summary>
-    bool IsCodeAltaManagedBackend { get; }
+    /// <summary>Gets a value indicating whether the current provider is CodeAlta-managed local/raw.</summary>
+    bool IsCodeAltaManagedProvider { get; }
 
-    /// <summary>Determines whether a named backend capability is available.</summary>
+    /// <summary>Determines whether a named provider capability is available.</summary>
     /// <param name="capabilityName">The capability name.</param>
     /// <returns><see langword="true"/> when the capability is available.</returns>
     bool HasCapability(string capabilityName);

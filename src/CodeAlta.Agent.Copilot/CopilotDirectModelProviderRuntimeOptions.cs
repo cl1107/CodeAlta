@@ -6,7 +6,7 @@ using CodeAlta.Agent.LocalRuntime.Compaction;
 namespace CodeAlta.Agent.Copilot;
 
 /// <summary>
-/// Options used to create a GitHub Copilot direct local-runtime backend.
+/// Options used to create a GitHub Copilot direct local-runtime provider runtime.
 /// </summary>
 public sealed class CopilotDirectModelProviderRuntimeOptions
 {
@@ -16,7 +16,7 @@ public sealed class CopilotDirectModelProviderRuntimeOptions
     public ModelProviderId? ProviderIdOverride { get; set; }
 
     /// <summary>
-    /// Gets or sets the optional backend display name override.
+    /// Gets or sets the optional provider display name override.
     /// </summary>
     public string? DisplayNameOverride { get; set; }
 
@@ -52,7 +52,7 @@ public sealed class CopilotDirectProviderOptions
     public Uri? BaseUri { get; set; }
 
     /// <summary>
-    /// Gets or sets whether this provider is the default registration for the backend.
+    /// Gets or sets whether this provider is the default registration for the provider runtime.
     /// </summary>
     public bool IsDefault { get; set; }
 

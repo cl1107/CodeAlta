@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace CodeAlta.Agent;
 
 /// <summary>
-/// Identifies a backend run (e.g. a Codex turn id or Copilot message id).
+/// Identifies a provider run (e.g. a Codex turn id or Copilot message id).
 /// </summary>
 /// <param name="Value">The identifier value.</param>
 [JsonConverter(typeof(AgentRunIdJsonConverter))]

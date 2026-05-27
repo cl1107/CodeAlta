@@ -140,7 +140,7 @@ public sealed class XaiDirectProviderTests
         using var temp = TestTempDirectory.Create();
         WriteCachedCredential(temp.Path, "xai");
         var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError));
-        var backend = new XaiDirectModelProviderRuntime(new XaiModelProviderRuntimeOptions
+        var providerRuntime = new XaiDirectModelProviderRuntime(new XaiModelProviderRuntimeOptions
         {
             StateRootPath = temp.Path,
             Providers =
@@ -160,13 +160,13 @@ public sealed class XaiDirectProviderTests
 
         try
         {
-            var models = await backend.ListModelsAsync().ConfigureAwait(false);
+            var models = await providerRuntime.ListModelsAsync().ConfigureAwait(false);
             Assert.IsTrue(models.Count > 0);
             Assert.IsTrue(models.All(static model => model.Id.StartsWith("grok-4", StringComparison.OrdinalIgnoreCase)));
         }
         finally
         {
-            await backend.DisposeAsync().ConfigureAwait(false);
+            await providerRuntime.DisposeAsync().ConfigureAwait(false);
         }
     }
 
@@ -194,7 +194,7 @@ public sealed class XaiDirectProviderTests
                     "application/json"),
             };
         });
-        var backend = new XaiDirectModelProviderRuntime(new XaiModelProviderRuntimeOptions
+        var providerRuntime = new XaiDirectModelProviderRuntime(new XaiModelProviderRuntimeOptions
         {
             StateRootPath = temp.Path,
             Providers =
@@ -215,14 +215,14 @@ public sealed class XaiDirectProviderTests
 
         try
         {
-            var models = await backend.ListModelsAsync().ConfigureAwait(false);
+            var models = await providerRuntime.ListModelsAsync().ConfigureAwait(false);
             Assert.AreEqual(2, models.Count);
             Assert.IsNotNull(models.Single(static m => m.Id == "grok-4"));
             Assert.IsNotNull(models.Single(static m => m.Id == "grok-4-fast"));
         }
         finally
         {
-            await backend.DisposeAsync().ConfigureAwait(false);
+            await providerRuntime.DisposeAsync().ConfigureAwait(false);
         }
     }
 

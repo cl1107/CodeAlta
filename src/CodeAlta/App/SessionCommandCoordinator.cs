@@ -429,27 +429,27 @@ internal sealed class SessionCommandCoordinator
             : session is not null
                 ? new ModelProviderId(session.ResolvedProviderKey)
                 : ResolveSelectedProviderId();
-        if (!_modelProviderStates.TryGetValue(providerId.Value, out var backendState))
+        if (!_modelProviderStates.TryGetValue(providerId.Value, out var providerState))
         {
             return false;
         }
 
-        var modelId = tab?.ModelId ?? backendState.SelectedModelId;
+        var modelId = tab?.ModelId ?? providerState.SelectedModelId;
         var model = !string.IsNullOrWhiteSpace(modelId)
-            ? backendState.Models.FirstOrDefault(candidate => string.Equals(candidate.Id, modelId, StringComparison.Ordinal))
+            ? providerState.Models.FirstOrDefault(candidate => string.Equals(candidate.Id, modelId, StringComparison.Ordinal))
             : null;
-        model ??= ModelProviderPresentation.GetSelectedModel(backendState) ??
-            (backendState.Models.Count == 1 ? backendState.Models[0] : null);
+        model ??= ModelProviderPresentation.GetSelectedModel(providerState) ??
+            (providerState.Models.Count == 1 ? providerState.Models[0] : null);
         return AgentModelCapabilityHelper.SupportsImageInput(providerId, model);
     }
 
     private ModelProviderId ResolveSelectedProviderId()
     {
-        var backendIndex = UiDispatch.Invoke(_selectorState.GetUiDispatcher(), () => _selectorState.GetSelectedModelProviderIndex());
-        var backendOptions = ModelProviderPresentation.BuildProviderOptions(_providerDescriptors);
-        if (backendIndex is { } index && (uint)index < (uint)backendOptions.Count)
+        var providerIndex = UiDispatch.Invoke(_selectorState.GetUiDispatcher(), () => _selectorState.GetSelectedModelProviderIndex());
+        var providerOptions = ModelProviderPresentation.BuildProviderOptions(_providerDescriptors);
+        if (providerIndex is { } index && (uint)index < (uint)providerOptions.Count)
         {
-            return backendOptions[index].ProviderId;
+            return providerOptions[index].ProviderId;
         }
 
         return _modelProviderStates.Values.FirstOrDefault(static state => state.Availability == ModelProviderAvailability.Ready) is { } readyState

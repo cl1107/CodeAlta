@@ -72,8 +72,8 @@ public sealed record AgentWindowUsageSnapshot(
 /// <param name="CacheWriteTokens">The number of tokens written to prompt cache when known.</param>
 /// <param name="CachedInputTokens">The number of cached input tokens reused when known.</param>
 /// <param name="ReasoningTokens">The number of reasoning tokens consumed or produced when known.</param>
-/// <param name="Cost">The backend-reported cost when available.</param>
-/// <param name="DurationMs">The backend-reported duration in milliseconds when available.</param>
+/// <param name="Cost">The provider-reported cost when available.</param>
+/// <param name="DurationMs">The provider-reported duration in milliseconds when available.</param>
 /// <param name="Initiator">The initiator of the operation when reported.</param>
 /// <param name="ParentToolCallId">The parent tool call identifier when this operation belongs to a sub-agent or tool request.</param>
 /// <param name="ReasoningEffort">The reasoning-effort setting used for the operation when reported.</param>
@@ -161,7 +161,7 @@ public enum AgentUsageScope
 }
 
 /// <summary>
-/// Identifies which backend event produced a usage snapshot.
+/// Identifies which provider event produced a usage snapshot.
 /// </summary>
 public enum AgentUsageSource
 {
@@ -181,7 +181,7 @@ public enum AgentUsageSource
     CopilotAssistantUsage,
 
     /// <summary>
-    /// Copilot account quota snapshots fetched explicitly from the backend.
+    /// Copilot account quota snapshots fetched explicitly from the provider.
     /// </summary>
     CopilotAccountQuota,
 
@@ -304,13 +304,13 @@ public sealed record CodexRateLimitWindow(
 /// <param name="OutputTokens">The number of output tokens produced.</param>
 /// <param name="CacheReadTokens">The number of tokens read from prompt cache.</param>
 /// <param name="CacheWriteTokens">The number of tokens written to prompt cache.</param>
-/// <param name="Cost">The backend-reported request cost when available.</param>
-/// <param name="DurationMs">The backend-reported request duration in milliseconds when available.</param>
+/// <param name="Cost">The provider-reported request cost when available.</param>
+/// <param name="DurationMs">The provider-reported request duration in milliseconds when available.</param>
 /// <param name="Initiator">The initiator for the call when reported.</param>
 /// <param name="ParentToolCallId">The parent tool call identifier when this usage belongs to a sub-agent or tool request.</param>
 /// <param name="ReasoningEffort">The reasoning-effort setting used for the request when reported.</param>
-/// <param name="TotalNanoAiu">The Copilot AIU cost reported by the backend when available.</param>
-/// <param name="TokenDetails">Additional backend token details when available.</param>
+/// <param name="TotalNanoAiu">The Copilot AIU cost reported by the provider when available.</param>
+/// <param name="TokenDetails">Additional provider token details when available.</param>
 public sealed record CopilotAssistantUsage(
     string Model,
     long? InputTokens = null,
@@ -344,7 +344,7 @@ public sealed record CopilotTokenDetail(
 /// <param name="MessagesRemoved">The number of messages removed by compaction when reported.</param>
 /// <param name="TokensRemoved">The number of tokens removed by compaction when reported.</param>
 /// <param name="TokensUsed">The token usage for the compaction model call when reported.</param>
-/// <param name="SummaryContent">The backend-provided compaction summary when reported.</param>
+/// <param name="SummaryContent">The provider-provided compaction summary when reported.</param>
 public sealed record CopilotCompactionUsage(
     bool Success,
     long? PreCompactionTokens = null,
