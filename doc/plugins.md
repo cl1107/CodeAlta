@@ -138,6 +138,8 @@ Low-ceremony factories are available through `Command`, `Startup`, `Prompt`, `Pl
 
 UI-only contributions remain frontend responsibilities. Headless hosts can ignore them or expose no-op services through `IPluginUiService.HasInteractiveUi == false`.
 
+When a plugin constructs a `XenoAtom.Terminal.UI.Controls.Dialog` directly, use `PluginDialogLayout.ApplyResponsiveSize(...)` with a deferred bounds delegate (for example, `() => PluginDialogLayout.ResolveDialogBounds(anchor)`) so the dialog keeps the same centered, responsive sizing behavior as built-in dialogs, including cases where the dialog is sized after it is attached to the app.
+
 ## Prompt-editor attachments
 
 Plugins can implement `PluginBase.GetPromptEditorContributions()` to attach plugin-owned behavior to prompt editors. The host exposes only a small editor host (`Text`, `CaretIndex`, `ProjectPath`, editor-state/accepted events, focus, and the editor visual as an anchor); the plugin owns trigger detection, popup/dialog/control choices, insertion behavior, and any plugin-specific presentation. This keeps CodeAlta from hardcoding a generic issue picker or recreating `XenoAtom.Terminal.UI` abstractions in the plugin API.

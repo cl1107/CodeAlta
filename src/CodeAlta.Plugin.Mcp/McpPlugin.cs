@@ -74,15 +74,15 @@ public sealed class McpPlugin : PluginBase
         };
     }
 
-    private static void ShowManagementDialog(PluginOperationContext context)
+    private static void ShowManagementDialog(PluginOperationContext context, Visual? focusTarget = null)
     {
         var projectPath = ResolveProjectPath(context.ProjectPath, context.Services.Workspace.SelectedProjectPath, null);
         new McpServersDialog(
             new McpManagementService(),
             () => new McpManagementRequest { ProjectDirectory = projectPath },
             static (_, _) => Task.CompletedTask,
-            static () => null,
-            static () => null)
+            () => PluginDialogLayout.ResolveDialogBounds(focusTarget),
+            () => focusTarget)
             .Show();
     }
 
@@ -98,9 +98,10 @@ public sealed class McpPlugin : PluginBase
         var label = snapshot.Summary.UnavailableServerCount > 0
             ? $"MCP {snapshot.Summary.ActiveServerCount}/{snapshot.Summary.ConfiguredServerCount} · {snapshot.Summary.UnavailableServerCount} unavailable · tools {snapshot.Summary.ExposedToolCount}/{snapshot.Summary.TotalToolCount}"
             : $"MCP {snapshot.Summary.ActiveServerCount}/{snapshot.Summary.ConfiguredServerCount} · tools {snapshot.Summary.ExposedToolCount}/{snapshot.Summary.TotalToolCount}";
-        return new Button(label)
-            .Tone(snapshot.Summary.UnavailableServerCount > 0 ? ControlTone.Warning : ControlTone.Default)
-            .Click(() => ShowManagementDialog(context));
+        var button = new Button(label)
+            .Tone(snapshot.Summary.UnavailableServerCount > 0 ? ControlTone.Warning : ControlTone.Default);
+        button.Click(() => ShowManagementDialog(context, button));
+        return button;
     }
 
     /// <inheritdoc />

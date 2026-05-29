@@ -2,6 +2,7 @@ using System.Text.Json;
 using CodeAlta.Agent;
 using CodeAlta.Plugins.Abstractions;
 using XenoAtom.Terminal.UI.Controls;
+using XenoAtom.Terminal.UI.Geometry;
 using CliCommand = XenoAtom.CommandLine.Command;
 using CliCommandGroup = XenoAtom.CommandLine.CommandGroup;
 using CliCommandNode = XenoAtom.CommandLine.CommandNode;
@@ -186,6 +187,47 @@ public sealed class PluginAbstractionsTests
         await backgroundTask.Completion;
         await services.Tasks.WhenIdleAsync();
         Assert.IsFalse(services.Tasks.HasRunningTasks);
+    }
+
+    [TestMethod]
+    public void DialogLayout_ResolvesResponsiveSizeAndAppliesDialogDimensions()
+    {
+        var size = PluginDialogLayout.ResolveResponsiveSize(new Rectangle(0, 0, 100, 50), minWidth: 40, minHeight: 20);
+        var missingBoundsSize = PluginDialogLayout.ResolveResponsiveSize(bounds: null, minWidth: 60, minHeight: 18);
+        var dialog = new Dialog();
+
+        PluginDialogLayout.ApplyResponsiveSize(dialog, new Rectangle(0, 0, 120, 60), minWidth: 60, minHeight: 18);
+
+        Assert.AreEqual(80, size.Width);
+        Assert.AreEqual(40, size.Height);
+        Assert.AreEqual(60, missingBoundsSize.Width);
+        Assert.AreEqual(18, missingBoundsSize.Height);
+        Assert.AreEqual(60, dialog.MinWidth);
+        Assert.AreEqual(18, dialog.MinHeight);
+        Assert.AreEqual(96, dialog.Width);
+        Assert.AreEqual(48, dialog.Height);
+    }
+
+    [TestMethod]
+    public void DialogLayout_CanResolveResponsiveSizeFromDeferredBounds()
+    {
+        var bounds = new Rectangle(0, 0, 120, 60);
+        var dialog = new Dialog();
+
+        PluginDialogLayout.ApplyResponsiveSize(dialog, () => bounds, minWidth: 60, minHeight: 18);
+
+        Assert.AreEqual(96, dialog.Width);
+        Assert.AreEqual(48, dialog.Height);
+    }
+
+    [TestMethod]
+    public void DialogLayout_RejectsInvalidResponsiveArguments()
+    {
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => PluginDialogLayout.ResolveResponsiveSize(bounds: null, minWidth: 0, minHeight: 1));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => PluginDialogLayout.ResolveResponsiveSize(bounds: null, minWidth: 1, minHeight: 0));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => PluginDialogLayout.ResolveResponsiveSize(bounds: null, minWidth: 1, minHeight: 1, widthFactor: 0));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => PluginDialogLayout.ResolveResponsiveSize(bounds: null, minWidth: 1, minHeight: 1, heightFactor: 2));
+        Assert.ThrowsExactly<ArgumentNullException>(() => PluginDialogLayout.ApplyResponsiveSize(dialog: null!, bounds: null, minWidth: 1, minHeight: 1));
     }
 
     [TestMethod]

@@ -1,4 +1,5 @@
 using System.Text;
+using CodeAlta.Plugins.Abstractions;
 using XenoAtom.Ansi;
 using XenoAtom.Terminal;
 using XenoAtom.Terminal.UI;
@@ -175,6 +176,7 @@ internal sealed class McpServersDialog
             .IsModal(true)
             .Padding(1)
             .Content(contentHost);
+        PluginDialogLayout.ApplyResponsiveSize(_dialog, _getBounds, minWidth: 110, minHeight: 28, widthFactor: 0.80, heightFactor: 0.80);
         _dialog.AddCommand(new UiCommand
         {
             Id = "CodeAlta.Mcp.Manage.Close",
