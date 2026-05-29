@@ -629,7 +629,7 @@ public sealed class CodeAltaShellControllerTests
     }
 
     [TestMethod]
-    public async Task DeleteProjectAsync_DeletesSessionsMarksProjectArchivedWithoutReloadingCatalog()
+    public async Task DeleteProjectAsync_DeletesSessionsAndProjectWithoutReloadingCatalog()
     {
         var log = new List<string>();
         var shell = new FakeShell(log);
@@ -647,14 +647,45 @@ public sealed class CodeAltaShellControllerTests
         var sessions = new[] { CreateSession("session-1"), CreateSession("session-2") };
         var result = await controller.DeleteProjectAsync(project, sessions, CancellationToken.None);
 
-        Assert.IsTrue(catalog.Projects.Single().Archived);
+        Assert.IsFalse(catalog.Projects.Any(project => string.Equals(project.Id, "project-1", StringComparison.OrdinalIgnoreCase)));
         CollectionAssert.AreEquivalent(new[] { "session-1", "session-2" }, deleter.DeletedSessionIds.ToArray());
         CollectionAssert.AreEquivalent(new[] { "session-1", "session-2" }, result.DeletedSessionIds.ToArray());
-        CollectionAssert.Contains(log, "ProjectCatalog.Save:project-1");
+        CollectionAssert.Contains(log, "ProjectCatalog.Delete:project-1");
         Assert.IsFalse(log.Contains("Importer.Import"));
         Assert.IsFalse(log.Contains("ProjectCatalog.Load"));
         Assert.IsFalse(log.Contains("SessionSource.List"));
-        Assert.IsFalse(log.Contains("SessionSource.List"));
+    }
+
+    [TestMethod]
+    public async Task DeleteProjectAsync_ProjectIdDeletesAllRecoverableProjectSessions()
+    {
+        var log = new List<string>();
+        var shell = new FakeShell(log);
+        var project = new ProjectDescriptor { Id = "project-1", DisplayName = "CodeAlta", ProjectPath = @"C:\repo", Slug = "codealta" };
+        var otherProject = new ProjectDescriptor { Id = "project-2", DisplayName = "Other", ProjectPath = @"C:\other", Slug = "other" };
+        var archivedSession = CreateSession("session-archived");
+        archivedSession.Status = SessionViewStatus.Archived;
+        var otherSession = CreateSession("session-other", otherProject.Id);
+        var catalog = new FakeProjectCatalogStore(log, [project, otherProject]);
+        var deleter = new FakeSessionDeleter(log);
+        var controller = new CodeAltaShellController(
+            shell,
+            new FakeImporter(log),
+            catalog,
+            new FakeRecoverableSessionSource(log, [CreateSession("session-visible"), archivedSession, otherSession]),
+            deleter);
+        controller.AttachUiDispatcher(new FakeUiDispatcher());
+
+        var result = await controller.DeleteProjectAsync(project.Id, CancellationToken.None);
+
+        CollectionAssert.AreEquivalent(new[] { "session-visible", "session-archived" }, deleter.DeletedSessionIds.ToArray());
+        CollectionAssert.AreEquivalent(new[] { "session-visible", "session-archived" }, result.DeletedSessionIds.ToArray());
+        Assert.IsTrue(catalog.Projects.Any(existing => string.Equals(existing.Id, otherProject.Id, StringComparison.OrdinalIgnoreCase)));
+        Assert.IsFalse(catalog.Projects.Any(existing => string.Equals(existing.Id, project.Id, StringComparison.OrdinalIgnoreCase)));
+        CollectionAssert.Contains(log, "ProjectCatalog.GetById:project-1");
+        CollectionAssert.Contains(log, "SessionSource.List");
+        CollectionAssert.Contains(log, "ProjectCatalog.Delete:project-1");
+        Assert.IsFalse(deleter.DeletedSessionIds.Contains(otherSession.SessionId));
     }
 
     private static SessionHostEvent CreateHostEvent(string sessionId)
@@ -850,6 +881,13 @@ public sealed class CodeAltaShellControllerTests
             Projects.RemoveAll(existing => string.Equals(existing.Id, project.Id, StringComparison.OrdinalIgnoreCase));
             Projects.Add(project);
             return Task.CompletedTask;
+        }
+
+        public Task<bool> DeleteAsync(ProjectDescriptor project, CancellationToken cancellationToken)
+        {
+            log.Add($"ProjectCatalog.Delete:{project.Id}");
+            var removed = Projects.RemoveAll(existing => string.Equals(existing.Id, project.Id, StringComparison.OrdinalIgnoreCase)) > 0;
+            return Task.FromResult(removed);
         }
     }
 

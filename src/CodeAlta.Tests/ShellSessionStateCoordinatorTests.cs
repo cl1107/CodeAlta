@@ -379,7 +379,7 @@ public sealed class ShellSessionStateCoordinatorTests
         Assert.IsTrue(coordinator.DraftTabOpen);
         Assert.IsTrue(coordinator.GlobalScopeSelected);
         Assert.IsNull(coordinator.SelectedSessionId);
-        Assert.IsTrue(coordinator.GetProjectById(project.Id)?.Archived);
+        Assert.IsNull(coordinator.GetProjectById(project.Id));
         Assert.IsFalse(coordinator.Sessions.Any(session => session.SessionId == "session-1"));
         Assert.AreEqual(ShellSurface.DraftWorkspace, coordinator.Selection.Surface);
         Assert.IsInstanceOfType<WorkspaceTarget.Draft>(coordinator.Selection.Target);
@@ -407,7 +407,7 @@ public sealed class ShellSessionStateCoordinatorTests
                 ("session-2", ShellTabCloseReason.ProjectClosed),
             },
             closeReasons.ToArray());
-        Assert.IsTrue(coordinator.GetProjectById(project.Id)?.Archived);
+        Assert.IsNull(coordinator.GetProjectById(project.Id));
         Assert.IsFalse(coordinator.Sessions.Any());
     }
 

@@ -96,6 +96,28 @@ public sealed class CatalogInfrastructureTests
     }
 
     [TestMethod]
+    public async Task ProjectCatalog_DeleteAsync_RemovesProjectMarkdownButKeepsWorkingDirectory()
+    {
+        using var root = TempDirectory.Create();
+        var globalRoot = Path.Combine(root.Path, ".alta");
+        var projectRoot = Path.Combine(root.Path, "work", "CodeAlta");
+        Directory.CreateDirectory(projectRoot);
+        await File.WriteAllTextAsync(Path.Combine(projectRoot, "readme.md"), "# CodeAlta").ConfigureAwait(false);
+        var catalog = new ProjectCatalog(new CatalogOptions { GlobalRoot = globalRoot });
+        var project = await catalog.UpsertFromPathAsync(projectRoot).ConfigureAwait(false);
+        var projectMarkdownPath = project.SourcePath;
+
+        var deleted = await catalog.DeleteAsync(project).ConfigureAwait(false);
+
+        Assert.IsTrue(deleted);
+        Assert.IsNotNull(projectMarkdownPath);
+        Assert.IsFalse(File.Exists(projectMarkdownPath));
+        Assert.IsTrue(Directory.Exists(projectRoot));
+        Assert.IsTrue(File.Exists(Path.Combine(projectRoot, "readme.md")));
+        Assert.IsFalse((await catalog.LoadAsync().ConfigureAwait(false)).Any());
+    }
+
+    [TestMethod]
     public async Task ProjectCatalog_UpsertFromPathAsync_ReactivatesArchivedProject()
     {
         using var root = TempDirectory.Create();

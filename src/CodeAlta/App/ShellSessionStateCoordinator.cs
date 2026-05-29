@@ -504,7 +504,7 @@ internal sealed partial class ShellSessionStateCoordinator
         var removedSelectedSession = deletedSessionIds.Contains(SelectedSessionId, StringComparer.OrdinalIgnoreCase);
         var removedSelectedProject = !GlobalScopeSelected &&
             string.Equals(SelectedProjectId, projectId, StringComparison.OrdinalIgnoreCase);
-        _catalogStateCoordinator.ArchiveProject(projectId);
+        _catalogStateCoordinator.RemoveProject(projectId);
         _catalogStateCoordinator.RemoveSessions(deletedSessionIds.ToArray());
 
         foreach (var sessionId in deletedSessionIds)

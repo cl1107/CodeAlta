@@ -304,8 +304,7 @@ internal sealed class CodeAltaShellController : ISessionRuntimeEventProjector, I
             await _sessionDeleter.DeleteSessionAsync(session, cancellationToken).ConfigureAwait(false);
         }
 
-        project.Archived = true;
-        await _projectCatalog.SaveAsync(project, cancellationToken).ConfigureAwait(false);
+        await _projectCatalog.DeleteAsync(project, cancellationToken).ConfigureAwait(false);
         var deletedSessionIds = sessions.Select(static session => session.SessionId).ToArray();
         return new DeleteProjectResult(project.Id, deletedSessionIds);
     }

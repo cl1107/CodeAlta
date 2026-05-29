@@ -130,18 +130,13 @@ internal sealed class ShellCatalogStateCoordinator
             .ToArray();
     }
 
-    public void ArchiveProject(string projectId)
+    public void RemoveProject(string projectId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
 
-        foreach (var project in _projects)
-        {
-            if (string.Equals(project.Id, projectId, StringComparison.OrdinalIgnoreCase))
-            {
-                project.Archived = true;
-                break;
-            }
-        }
+        _projects = _projects
+            .Where(project => !string.Equals(project.Id, projectId, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
     }
 
     public void RemoveSessions(IReadOnlyCollection<string> sessionIds)

@@ -23,4 +23,7 @@ internal sealed class ProjectCatalogStore : IProjectCatalogStore
 
     public Task SaveAsync(ProjectDescriptor project, CancellationToken cancellationToken)
         => _projectCatalog.SaveAsync(project, cancellationToken);
+
+    public Task<bool> DeleteAsync(ProjectDescriptor project, CancellationToken cancellationToken)
+        => _projectCatalog.DeleteAsync(project, cancellationToken);
 }

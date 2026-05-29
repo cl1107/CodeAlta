@@ -139,6 +139,67 @@ public sealed partial class ProjectCatalog
     }
 
     /// <summary>
+    /// Deletes a project descriptor from the portable catalog.
+    /// </summary>
+    /// <param name="project">The project descriptor to delete.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns><see langword="true"/> when at least one project file was deleted; otherwise <see langword="false"/>.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="project"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="project"/> is invalid.</exception>
+    public async Task<bool> DeleteAsync(ProjectDescriptor project, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        project.Validate();
+
+        var normalizedProjectPath = NormalizePath(project.ProjectPath);
+        var markdownPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var projectsRoot = _options.ProjectsRoot;
+        if (Directory.Exists(projectsRoot))
+        {
+            foreach (var markdownPath in EnumerateProjectMarkdownPaths(projectsRoot))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var markdown = await File.ReadAllTextAsync(markdownPath, cancellationToken).ConfigureAwait(false);
+                var descriptor = _serializer.DeserializeProjectMarkdown(markdown);
+                descriptor.ProjectPath = NormalizePath(descriptor.ProjectPath);
+                descriptor.SourcePath = markdownPath;
+                descriptor.Validate();
+                if (string.Equals(descriptor.Id, project.Id, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(NormalizePath(descriptor.ProjectPath), normalizedProjectPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    markdownPaths.Add(markdownPath);
+                }
+            }
+        }
+
+        if (markdownPaths.Count == 0)
+        {
+            AddFallbackProjectMarkdownPath(markdownPaths, project.SourcePath);
+            AddFallbackProjectMarkdownPath(markdownPaths, GetProjectMarkdownPath(project.Slug));
+        }
+
+        var deleted = false;
+        foreach (var markdownPath in markdownPaths)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!File.Exists(markdownPath))
+            {
+                continue;
+            }
+
+            File.Delete(markdownPath);
+            deleted = true;
+        }
+
+        if (deleted)
+        {
+            project.SourcePath = null;
+        }
+
+        return deleted;
+    }
+
+    /// <summary>
     /// Ensures that a project exists in the catalog for the specified path.
     /// </summary>
     /// <param name="projectPath">The local project path.</param>
@@ -333,6 +394,18 @@ public sealed partial class ProjectCatalog
 
     private string GetProjectMarkdownPath(string projectSlug)
         => Path.Combine(_options.ProjectsRoot, $"{projectSlug}.md");
+
+    private void AddFallbackProjectMarkdownPath(HashSet<string> markdownPaths, string? markdownPath)
+    {
+        if (string.IsNullOrWhiteSpace(markdownPath) ||
+            !File.Exists(markdownPath) ||
+            !IsInsideGlobalRoot(NormalizePath(markdownPath), NormalizePath(_options.ProjectsRoot)))
+        {
+            return;
+        }
+
+        markdownPaths.Add(markdownPath);
+    }
 
     private static bool IsFlatProjectMarkdownPath(string? path)
     {

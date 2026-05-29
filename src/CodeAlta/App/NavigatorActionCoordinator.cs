@@ -90,24 +90,18 @@ internal sealed class NavigatorActionCoordinator : IProjectDetailsDialogService
             return;
         }
 
-        var visibleSessions = _sessionStateCoordinator.Sessions
-            .Where(session =>
-                session.Status != SessionViewStatus.Archived &&
-                string.Equals(session.ProjectRef, projectId, StringComparison.OrdinalIgnoreCase))
-            .ToArray();
-
         new ConfirmationDialog(
-            "Delete Project Sessions",
+            "Delete Project",
             [
-                $"Delete {visibleSessions.Length} session(s) from '{project.DisplayName}'?",
-                "The project will be hidden from the default navigator view.",
+                $"Delete project '{project.DisplayName}' and all of its sessions?",
+                "The project catalog file will be removed from CodeAlta.",
             ],
             "Delete",
             ControlTone.Error,
-            () => DeleteProjectAsync(project, visibleSessions),
+            () => DeleteProjectAsync(project),
             _getDialogBounds,
             _getFocusTarget,
-            noteText: "This deletes session history only. The project directory on disk is not deleted.")
+            noteText: "This deletes CodeAlta session history and the project file in ~/.alta. The project directory on disk is not deleted.")
             .Show();
     }
 
@@ -224,19 +218,19 @@ internal sealed class NavigatorActionCoordinator : IProjectDetailsDialogService
         }
     }
 
-    private async Task DeleteProjectAsync(ProjectDescriptor project, IReadOnlyList<SessionViewDescriptor> sessions)
+    private async Task DeleteProjectAsync(ProjectDescriptor project)
     {
         try
         {
-            _setStatus($"Deleting sessions for project '{project.DisplayName}'...", true, StatusTone.Info);
-            var result = await _shellController.DeleteProjectAsync(project, sessions, CancellationToken.None);
+            _setStatus($"Deleting project '{project.DisplayName}'...", true, StatusTone.Info);
+            var result = await _shellController.DeleteProjectAsync(project.Id, CancellationToken.None);
             _sessionStateCoordinator.RemoveDeletedProject(project, result.DeletedSessionIds);
             await _sessionStateCoordinator.RemoveDeletedSessionArtifactsAsync(result.DeletedSessionIds);
             _setReadyStatusForCurrentSelection();
         }
         catch (Exception ex)
         {
-            _setStatus($"Failed to delete project sessions: {ex.Message}", false, StatusTone.Error);
+            _setStatus($"Failed to delete project: {ex.Message}", false, StatusTone.Error);
         }
     }
 
