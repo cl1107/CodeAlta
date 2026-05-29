@@ -17,6 +17,7 @@ namespace CodeAlta.Plugin.Mcp;
 public sealed class McpPlugin : PluginBase
 {
     private readonly McpActivationState _activationState = new();
+    private readonly McpManagementService _managementService = new();
 
     private static readonly PluginKeyBinding ManageServersKeyBinding = new()
     {
@@ -38,10 +39,10 @@ public sealed class McpPlugin : PluginBase
             SearchText = "model context protocol servers tools",
             KeyBinding = ManageServersKeyBinding,
             Availability = PluginCommandAvailability.InteractiveUi,
-            Handler = static (context, cancellationToken) =>
+            Handler = (context, cancellationToken) =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                ShowManagementDialog(context);
+                ShowManagementDialog(context, _managementService);
                 return new ValueTask<PluginCommandResult>(PluginCommandResult.Handled);
             },
         };
@@ -55,7 +56,7 @@ public sealed class McpPlugin : PluginBase
             Region = PluginUiRegion.SessionStatus,
             Name = "mcp-status",
             Order = 100,
-            CreateVisual = static context => CreateStatusIndicator(context),
+            CreateVisual = context => CreateStatusIndicator(context, _managementService, _activationState),
         };
     }
 
@@ -76,11 +77,11 @@ public sealed class McpPlugin : PluginBase
         };
     }
 
-    private static void ShowManagementDialog(PluginOperationContext context, Visual? focusTarget = null)
+    private static void ShowManagementDialog(PluginOperationContext context, McpManagementService managementService, Visual? focusTarget = null)
     {
         var projectPath = ResolveProjectPath(context.ProjectPath, context.Services.Workspace.SelectedProjectPath, null);
         new McpServersDialog(
-            new McpManagementService(),
+            managementService,
             () => new McpManagementRequest { ProjectDirectory = projectPath },
             static (_, _) => Task.CompletedTask,
             () => PluginDialogLayout.ResolveDialogBounds(focusTarget),
@@ -88,22 +89,81 @@ public sealed class McpPlugin : PluginBase
             .Show();
     }
 
-    private static Visual? CreateStatusIndicator(PluginVisualContext context)
+    private static Visual? CreateStatusIndicator(PluginVisualContext context, McpManagementService managementService, McpActivationState activationState)
     {
         var projectPath = ResolveProjectPath(context.ProjectPath, context.Services.Workspace.SelectedProjectPath, null);
-        var snapshot = new McpManagementService().RefreshSnapshot(new McpManagementRequest { ProjectDirectory = projectPath });
+        var snapshot = ResolveStatusSnapshot(managementService, projectPath);
         if (!snapshot.Summary.HasConfiguration && snapshot.Summary.ConfiguredServerCount == 0 && snapshot.Summary.InvalidSourceCount == 0)
         {
             return null;
         }
 
-        var label = snapshot.Summary.UnavailableServerCount > 0
-            ? $"MCP {snapshot.Summary.ActiveServerCount}/{snapshot.Summary.ConfiguredServerCount} · {snapshot.Summary.UnavailableServerCount} unavailable · tools {snapshot.Summary.ExposedToolCount}/{snapshot.Summary.TotalToolCount}"
-            : $"MCP {snapshot.Summary.ActiveServerCount}/{snapshot.Summary.ConfiguredServerCount} · tools {snapshot.Summary.ExposedToolCount}/{snapshot.Summary.TotalToolCount}";
+        var activationScope = ResolveActivationScopeKey(context, projectPath);
+        var activeServers = activationState.GetActiveServers(activationScope);
+        var label = CreateStatusLabel(snapshot, activationState.GetToolCounts(activationScope), activeServers);
         var button = new Button(label)
             .Tone(snapshot.Summary.UnavailableServerCount > 0 ? ControlTone.Warning : ControlTone.Default);
-        button.Click(() => ShowManagementDialog(context, button));
+        button.Click(() => ShowManagementDialog(context, managementService, button));
         return button;
+    }
+
+    internal static string CreateStatusLabel(
+        McpManagementSnapshot snapshot,
+        IReadOnlyDictionary<string, int> activatedToolCounts,
+        IReadOnlyCollection<string> activeServers)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentNullException.ThrowIfNull(activatedToolCounts);
+        ArgumentNullException.ThrowIfNull(activeServers);
+
+        var summary = snapshot.Summary;
+        var builder = new StringBuilder();
+        builder.Append("MCP ")
+            .Append(summary.ActiveServerCount)
+            .Append('/')
+            .Append(summary.ConfiguredServerCount);
+        if (summary.UnavailableServerCount > 0)
+        {
+            builder.Append(" · ")
+                .Append(summary.UnavailableServerCount)
+                .Append(" unavailable");
+        }
+
+        builder.Append(" · ")
+            .Append(CreateStatusToolLabel(snapshot, activatedToolCounts, activeServers));
+        return builder.ToString();
+    }
+
+    private static string CreateStatusToolLabel(
+        McpManagementSnapshot snapshot,
+        IReadOnlyDictionary<string, int> activatedToolCounts,
+        IReadOnlyCollection<string> activeServers)
+    {
+        var summary = snapshot.Summary;
+        if (summary.TotalToolCount > 0 || HasCompletedManagementToolDiscovery(snapshot))
+        {
+            return $"tools {summary.ExposedToolCount}/{summary.TotalToolCount}";
+        }
+
+        var loadedActiveServerCount = activeServers.Count(server => activatedToolCounts.ContainsKey(server));
+        if (loadedActiveServerCount > 0)
+        {
+            return $"active tools {activeServers.Sum(server => activatedToolCounts.TryGetValue(server, out var count) ? count : 0)}";
+        }
+
+        return activeServers.Count > 0 ? "tools pending" : "tools not loaded";
+    }
+
+    private static bool HasCompletedManagementToolDiscovery(McpManagementSnapshot snapshot)
+        => snapshot.Servers.Any(static server => server.LastTestStatus == McpManagementTestStatus.Succeeded);
+
+    private static McpManagementSnapshot ResolveStatusSnapshot(McpManagementService managementService, string? projectPath)
+    {
+        var normalizedProjectPath = string.IsNullOrWhiteSpace(projectPath) ? null : Path.GetFullPath(projectPath);
+        var cached = managementService.CachedSnapshot;
+        return cached is not null && string.Equals(cached.ProjectDirectory, normalizedProjectPath, StringComparison.OrdinalIgnoreCase)
+            ? cached
+            : managementService.RefreshSnapshot(new McpManagementRequest { ProjectDirectory = projectPath });
     }
 
     /// <inheritdoc />

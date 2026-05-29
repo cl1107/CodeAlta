@@ -670,6 +670,40 @@ public sealed class McpConfigTests
         Assert.IsFalse(content.Contains("runtime deferred", StringComparison.OrdinalIgnoreCase));
     }
 
+    [TestMethod]
+    public void StatusLabel_UsesActivatedToolCountsWhenManagementSnapshotHasNoToolCache()
+    {
+        using var project = TempDirectory.Create();
+        Directory.CreateDirectory(Path.Combine(project.Path, ".alta"));
+        File.WriteAllText(
+            Path.Combine(project.Path, ".alta", "mcp.json"),
+            """
+            { "mcpServers": { "docs": { "url": "https://example.test/mcp" } } }
+            """);
+        var snapshot = new McpManagementService().RefreshSnapshot(new McpManagementRequest { ProjectDirectory = project.Path });
+
+        var label = McpPlugin.CreateStatusLabel(snapshot, new Dictionary<string, int>(StringComparer.Ordinal) { ["docs"] = 7 }, ["docs"]);
+
+        Assert.AreEqual("MCP 1/1 · active tools 7", label);
+    }
+
+    [TestMethod]
+    public void StatusLabel_ShowsPendingForActivatedServersBeforeToolEnumeration()
+    {
+        using var project = TempDirectory.Create();
+        Directory.CreateDirectory(Path.Combine(project.Path, ".alta"));
+        File.WriteAllText(
+            Path.Combine(project.Path, ".alta", "mcp.json"),
+            """
+            { "mcpServers": { "docs": { "url": "https://example.test/mcp" } } }
+            """);
+        var snapshot = new McpManagementService().RefreshSnapshot(new McpManagementRequest { ProjectDirectory = project.Path });
+
+        var label = McpPlugin.CreateStatusLabel(snapshot, new Dictionary<string, int>(StringComparer.Ordinal), ["docs"]);
+
+        Assert.AreEqual("MCP 1/1 · tools pending", label);
+    }
+
     private static PluginAltaCommandContext CreateAltaContext(TextWriter stdout, TextWriter stderr, string? projectPath)
         => new()
         {
