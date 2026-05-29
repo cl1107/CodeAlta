@@ -226,6 +226,42 @@ public sealed class McpManagementServiceTests
     }
 
     [TestMethod]
+    public void ToolGridRows_UseCompactColumnsAndPolicyNotes()
+    {
+        var grid = new DataGridControl();
+
+        McpServersDialog.ConfigureToolsGridColumns(grid, canEditPolicy: true);
+        var enabled = new McpToolGridRow(new McpManagementToolSnapshot
+        {
+            Name = "create_pull_request",
+            Title = "Create pull request",
+            Description = "Verbose description that is intentionally not shown in the compact grid.",
+            Alias = "mcp__github__create_pull_request",
+            Enabled = true,
+            Availability = "available",
+        });
+        var disabled = new McpToolGridRow(new McpManagementToolSnapshot
+        {
+            Name = "issue_write",
+            Title = "Create or update issue",
+            Alias = "mcp__github__issue_write",
+            Enabled = false,
+            Availability = "disabled_by_policy",
+            Diagnostic = "MCP tool 'issue_write' on server 'github' is disabled by policy.",
+        });
+
+        CollectionAssert.AreEqual(new[] { "enabled", "name", "title", "policy" }, grid.Columns.Select(static column => column.Key).ToArray());
+        Assert.AreEqual("create_pull_request", enabled.Name);
+        Assert.AreEqual("Create pull request", enabled.Title);
+        Assert.AreEqual(string.Empty, enabled.PolicyNote);
+        Assert.AreEqual("disabled", disabled.PolicyNote);
+        var nameColumn = grid.Columns.Single(static column => column.Key == "name");
+        Assert.AreEqual(GridUnitType.Auto, nameColumn.Width.Type);
+        Assert.AreEqual(44, nameColumn.MaxWidth);
+        Assert.IsFalse(grid.Columns.Any(static column => column.Key is "alias" or "description" or "availability"));
+    }
+
+    [TestMethod]
     public async Task TestServerAsync_UpdatesSnapshotWithStdioToolRowsAndPolicyState()
     {
         using var project = TempDirectory.Create();

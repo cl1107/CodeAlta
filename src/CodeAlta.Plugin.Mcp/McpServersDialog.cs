@@ -1315,12 +1315,10 @@ internal sealed class McpServersDialog
         using (document.BeginUpdate())
         {
             document
-                .AddColumn(new DataGridColumnInfo<bool>("enabled", "Enabled", !canEditPolicy, McpToolGridRow.Accessor.Enabled))
-                .AddColumn(new DataGridColumnInfo<string>("name", "Raw MCP name/title", true, McpToolGridRow.Accessor.NameTitle))
-                .AddColumn(new DataGridColumnInfo<string>("alias", "Qualified alias", true, McpToolGridRow.Accessor.Alias))
-                .AddColumn(new DataGridColumnInfo<string>("availability", "Availability", true, McpToolGridRow.Accessor.Availability))
-                .AddColumn(new DataGridColumnInfo<string>("description", "Description", true, McpToolGridRow.Accessor.Description))
-                .AddColumn(new DataGridColumnInfo<string>("diagnostic", "Diagnostic", true, McpToolGridRow.Accessor.Diagnostic));
+                .AddColumn(new DataGridColumnInfo<bool>("enabled", "On", !canEditPolicy, McpToolGridRow.Accessor.Enabled))
+                .AddColumn(new DataGridColumnInfo<string>("name", "Name", true, McpToolGridRow.Accessor.Name))
+                .AddColumn(new DataGridColumnInfo<string>("title", "Title", true, McpToolGridRow.Accessor.Title))
+                .AddColumn(new DataGridColumnInfo<string>("policy", "Policy", true, McpToolGridRow.Accessor.PolicyNote));
 
             foreach (var toolRow in toolRows)
             {
@@ -1347,12 +1345,12 @@ internal sealed class McpServersDialog
         };
     }
 
-    private static void ConfigureToolsGridColumns(DataGridControl grid, bool canEditPolicy)
+    internal static void ConfigureToolsGridColumns(DataGridControl grid, bool canEditPolicy)
     {
         grid.Columns.Add(new DataGridColumn<bool>
         {
             Key = "enabled",
-            Header = new TextBlock("Enabled"),
+            Header = new TextBlock("On"),
             TypedValueAccessor = McpToolGridRow.Accessor.Enabled,
             Width = GridLength.Auto,
             ReadOnly = !canEditPolicy,
@@ -1362,41 +1360,27 @@ internal sealed class McpServersDialog
         grid.Columns.Add(new DataGridColumn<string>
         {
             Key = "name",
-            Header = new TextBlock("Raw MCP name/title"),
-            TypedValueAccessor = McpToolGridRow.Accessor.NameTitle,
-            Width = GridLength.Star(2),
+            Header = new TextBlock("Name"),
+            TypedValueAccessor = McpToolGridRow.Accessor.Name,
+            Width = GridLength.Auto,
+            MinWidth = 12,
+            MaxWidth = 44,
             Sortable = true,
         });
         grid.Columns.Add(new DataGridColumn<string>
         {
-            Key = "alias",
-            Header = new TextBlock("Qualified alias"),
-            TypedValueAccessor = McpToolGridRow.Accessor.Alias,
-            Width = GridLength.Star(2),
+            Key = "title",
+            Header = new TextBlock("Title"),
+            TypedValueAccessor = McpToolGridRow.Accessor.Title,
+            Width = GridLength.Fixed(32),
             Sortable = true,
         });
         grid.Columns.Add(new DataGridColumn<string>
         {
-            Key = "availability",
-            Header = new TextBlock("Availability"),
-            TypedValueAccessor = McpToolGridRow.Accessor.Availability,
-            Width = GridLength.Star(1),
-            Sortable = true,
-        });
-        grid.Columns.Add(new DataGridColumn<string>
-        {
-            Key = "description",
-            Header = new TextBlock("Description"),
-            TypedValueAccessor = McpToolGridRow.Accessor.Description,
-            Width = GridLength.Star(3),
-            Sortable = true,
-        });
-        grid.Columns.Add(new DataGridColumn<string>
-        {
-            Key = "diagnostic",
-            Header = new TextBlock("Diagnostic"),
-            TypedValueAccessor = McpToolGridRow.Accessor.Diagnostic,
-            Width = GridLength.Star(2),
+            Key = "policy",
+            Header = new TextBlock("Policy"),
+            TypedValueAccessor = McpToolGridRow.Accessor.PolicyNote,
+            Width = GridLength.Fixed(18),
             Sortable = true,
         });
     }
@@ -1634,13 +1618,9 @@ internal sealed partial class McpToolGridRow
     {
         Tool = tool ?? throw new ArgumentNullException(nameof(tool));
         Enabled = tool.Enabled;
-        NameTitle = string.IsNullOrWhiteSpace(tool.Title)
-            ? tool.Name
-            : string.Concat(tool.Name, " (", tool.Title, ")");
-        Alias = tool.Alias;
-        Availability = tool.Availability;
-        Description = tool.Description ?? string.Empty;
-        Diagnostic = tool.Diagnostic ?? string.Empty;
+        Name = tool.Name;
+        Title = tool.Title ?? string.Empty;
+        PolicyNote = FormatPolicyNote(tool);
     }
 
     public event EventHandler<bool>? EnabledChanged;
@@ -1651,19 +1631,13 @@ internal sealed partial class McpToolGridRow
     public partial bool Enabled { get; set; }
 
     [Bindable]
-    public partial string NameTitle { get; set; }
+    public partial string Name { get; set; }
 
     [Bindable]
-    public partial string Alias { get; set; }
+    public partial string Title { get; set; }
 
     [Bindable]
-    public partial string Availability { get; set; }
-
-    [Bindable]
-    public partial string Description { get; set; }
-
-    [Bindable]
-    public partial string Diagnostic { get; set; }
+    public partial string PolicyNote { get; set; }
 
     public void RestoreEnabled(bool enabled)
     {
@@ -1684,5 +1658,33 @@ internal sealed partial class McpToolGridRow
         {
             EnabledChanged?.Invoke(this, value);
         }
+    }
+
+    private static string FormatPolicyNote(McpManagementToolSnapshot tool)
+    {
+        if (tool.Enabled)
+        {
+            return string.Empty;
+        }
+
+        var diagnostic = tool.Diagnostic ?? string.Empty;
+        if (diagnostic.Contains("not in the policy allowed_tools", StringComparison.OrdinalIgnoreCase))
+        {
+            return "not allowed";
+        }
+
+        if (diagnostic.StartsWith("MCP server '", StringComparison.OrdinalIgnoreCase) &&
+            diagnostic.Contains(" is disabled", StringComparison.OrdinalIgnoreCase))
+        {
+            return "server disabled";
+        }
+
+        if (string.Equals(tool.Availability, "disabled_by_policy", StringComparison.OrdinalIgnoreCase) ||
+            diagnostic.Contains("disabled", StringComparison.OrdinalIgnoreCase))
+        {
+            return "disabled";
+        }
+
+        return string.IsNullOrWhiteSpace(tool.Availability) ? "unavailable" : tool.Availability;
     }
 }
