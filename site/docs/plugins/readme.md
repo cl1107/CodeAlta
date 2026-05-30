@@ -4,7 +4,7 @@ title: Plugins
 
 # Plugins
 
-CodeAlta plugins are trusted source packages that can extend the shell, prompt flow, agent runtime, timeline projections, and the in-session `alta` live tool.
+CodeAlta plugins are trusted source packages and built-in extensions that can extend the shell, prompt flow, agent runtime, timeline projections, and the in-session `alta` live tool.
 
 Plugins are for local automation you choose to run. Building a source plugin can execute SDK/NuGet/MSBuild logic, and loading it executes .NET code inside the CodeAlta process.
 
@@ -13,6 +13,17 @@ Plugins are for local automation you choose to run. Building a source plugin can
 
 > [!IMPORTANT]
 > Plugin APIs are preview surface area before CodeAlta `1.0`. Interfaces, contribution points, service exposure, and behavior can change between `0.x` releases; some CodeAlta capabilities may not be exposed yet, and some exposed capabilities may still be incomplete or incorrectly shaped.
+
+## Built-in plugins
+
+CodeAlta ships trusted built-in plugins through the same plugin runtime used for source plugins:
+
+{.table}
+| Plugin | What it adds |
+|---|---|
+| [GitHub](github.md) | `#` issue lookup in GitHub repositories and an optional `gh` agent tool when the GitHub CLI is installed. |
+| [MCP](mcp.md) | Model Context Protocol server configuration, `alta mcp` commands, session-activated MCP agent tools, and the MCP Servers dialog. |
+| [Statistics](statistics.md) | Transient per-turn/session statistics timeline cards and a `statistics estimate` live-tool command. |
 
 ## Plugin locations
 
@@ -48,10 +59,23 @@ alta --plugins-status
 
 ## Disable or bypass plugins
 
-Source plugins are enabled by default when discovered. Disable a plugin in TOML when you do not want it built or loaded:
+Source plugins and built-in plugins are enabled by default when discovered. Disable a plugin in TOML when you do not want it built or loaded:
 
 ```toml
 [plugins.HelloWorld]
+enabled = false
+```
+
+Built-in plugin IDs are lowercase, for example:
+
+```toml
+[plugins.github]
+enabled = false
+
+[plugins.mcp]
+enabled = false
+
+[plugins.statistics]
 enabled = false
 ```
 
@@ -139,18 +163,6 @@ Plugin shell commands are no-argument frontend activations. A `PluginCommandCont
 `PluginCommandContext` exposes public services such as `Ui`, `Sessions`, `Prompts`, and `Workspace`, but not raw slash text or argument tokens. Commands that need input should use plugin UI services, prompt/session services, or a plugin-owned dialog/workflow contribution. Plugins do not receive internal frontend command types, XenoAtom `Visual` targets, or frontend view models.
 
 Prompt-editor attachments can attach plugin-owned behavior to prompt editors. CodeAlta provides only a small editor host, including the prompt project path; each plugin owns its trigger detection and visual presentation. Attachments can also set `PluginPromptEditorContribution.PlaceholderText` with a short placeholder segment such as `[#] to reference a GitHub issue`, which appears in the ready prompt placeholder while that contribution applies.
-
-Built-in plugins use the same model. The GitHub plugin owns its `#` issue lookup UI in GitHub repositories and inserts Markdown links such as `[#18](https://github.com/org/repo/issues/18)`. It also exposes the `gh` CLI as an agent tool only when `gh` is installed; the tool receives arguments as an array of strings and passes them to `ProcessStartInfo.ArgumentList` instead of a shell command string. The statistics plugin projects per-turn/session statistics from normalized agent events without writing plugin messages into canonical conversation history.
-
-<figure class="my-4">
-  <img class="img-fluid rounded-4 shadow" src="{{site.basepath}}/img/alta-github-issue-picker.gif" alt="CodeAlta GitHub issue prompt picker dialog" loading="lazy">
-  <figcaption class="small text-secondary mt-2">The built-in GitHub plugin contributes the prompt issue picker and keeps the dialog UI plugin-owned.</figcaption>
-</figure>
-
-<figure class="my-4">
-  <img class="img-fluid rounded-4 shadow" src="{{site.basepath}}/img/alta-plugin-statistics.png" alt="CodeAlta timeline statistics card contributed by a plugin" loading="lazy">
-  <figcaption class="small text-secondary mt-2">The built-in statistics plugin demonstrates how plugins can project useful timeline cards without changing conversation history.</figcaption>
-</figure>
 
 ## Extend the `alta` live tool
 

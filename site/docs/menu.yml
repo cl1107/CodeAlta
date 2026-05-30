@@ -5,5 +5,5 @@ doc:
   - {path: model-providers.md, title: "<i class='bi bi-cpu' aria-hidden='true'></i> Model Providers"}
   - {path: workspace.md, title: "<i class='bi bi-display' aria-hidden='true'></i> Workspace and Dialogs"}
   - {path: sessions.md, title: "<i class='bi bi-diagram-3' aria-hidden='true'></i> Sessions and Delegation"}
-  - {path: plugins.md, title: "<i class='bi bi-puzzle' aria-hidden='true'></i> Plugins"}
+  - {path: plugins/readme.md, title: "<i class='bi bi-puzzle' aria-hidden='true'></i> Plugins", folder: true}
   - {path: troubleshooting.md, title: "<i class='bi bi-life-preserver' aria-hidden='true'></i> Troubleshooting"}

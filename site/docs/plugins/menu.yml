@@ -1,0 +1,5 @@
+doc:
+  - {path: readme.md, title: "<i class='bi bi-puzzle' aria-hidden='true'></i> Overview"}
+  - {path: github.md, title: "GitHub"}
+  - {path: mcp.md, title: "MCP"}
+  - {path: statistics.md, title: "Statistics"}
