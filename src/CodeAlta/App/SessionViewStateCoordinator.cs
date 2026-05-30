@@ -6,6 +6,7 @@ namespace CodeAlta.App;
 internal sealed class SessionViewStateCoordinator
 {
     private readonly SessionViewCatalog _sessionCatalog;
+    private readonly SemaphoreSlim _persistViewStateGate = new(1, 1);
 
     public SessionViewStateCoordinator(SessionViewCatalog sessionCatalog)
     {
@@ -20,6 +21,7 @@ internal sealed class SessionViewStateCoordinator
     {
         ArgumentNullException.ThrowIfNull(viewState);
 
+        await _persistViewStateGate.WaitAsync().ConfigureAwait(false);
         try
         {
             await _sessionCatalog.SaveViewStateAsync(viewState, CancellationToken.None).ConfigureAwait(false);
@@ -27,6 +29,10 @@ internal sealed class SessionViewStateCoordinator
         catch (Exception ex)
         {
             CodeAlta.Views.CodeAltaApp.UiLogger.Error(ex, "Failed to persist session view state.");
+        }
+        finally
+        {
+            _persistViewStateGate.Release();
         }
     }
 

@@ -180,32 +180,16 @@ internal sealed class SessionPromptDispatchCoordinator
             if (dispatchAsSteer)
             {
                 pendingSteerId = _queueCoordinator.AddPendingSteer(tab, prompt);
-                var oldSessionId = session.SessionId;
-                try
-                {
-                    var result = await _orchestrator.SteerAsync(CreateSteerRequest(session, executionOptions, agentInput, prompt), cancellationToken);
-                    runId = new AgentRunId(result.RunId ?? throw new InvalidOperationException("The orchestrator did not return a run id for the steered prompt."));
-                }
-                finally
-                {
-                    RekeySessionIfNeeded(oldSessionId, session, tab);
-                }
+                var result = await _orchestrator.SteerAsync(CreateSteerRequest(session, executionOptions, agentInput, prompt), cancellationToken);
+                runId = new AgentRunId(result.RunId ?? throw new InvalidOperationException("The orchestrator did not return a run id for the steered prompt."));
             }
             else
             {
                 renderedOptimisticPrompt = true;
                 tab.Timeline.RenderOptimisticUserPrompt(promptInput.NormalizedPromptText, imageReferences, DateTimeOffset.UtcNow);
 
-                var oldSessionId = session.SessionId;
-                try
-                {
-                    var result = await _orchestrator.SubmitPromptAsync(CreateSubmitRequest(session, executionOptions, agentInput, prompt), cancellationToken);
-                    runId = new AgentRunId(result.RunId ?? throw new InvalidOperationException("The orchestrator did not return a run id for the submitted prompt."));
-                }
-                finally
-                {
-                    RekeySessionIfNeeded(oldSessionId, session, tab);
-                }
+                var result = await _orchestrator.SubmitPromptAsync(CreateSubmitRequest(session, executionOptions, agentInput, prompt), cancellationToken);
+                runId = new AgentRunId(result.RunId ?? throw new InvalidOperationException("The orchestrator did not return a run id for the submitted prompt."));
             }
 
             // Agent runtime sessions can complete and publish Idle before SendAsync returns.
@@ -343,19 +327,6 @@ internal sealed class SessionPromptDispatchCoordinator
             SessionId = session.SessionId,
             ExecutionOptions = executionOptions,
         };
-
-    private void RekeySessionIfNeeded(string oldSessionId, SessionViewDescriptor session, OpenSessionState tab)
-    {
-        if (string.IsNullOrWhiteSpace(oldSessionId) ||
-            string.Equals(oldSessionId, session.SessionId, StringComparison.OrdinalIgnoreCase))
-        {
-            return;
-        }
-
-        tab.SessionView = session;
-        tab.ViewModel.SessionId = session.SessionId;
-        _commandContext.RekeySessionIdentity(oldSessionId, session);
-    }
 
     private static string? ResolveReferenceProjectRoot(SessionExecutionOptions executionOptions)
     {

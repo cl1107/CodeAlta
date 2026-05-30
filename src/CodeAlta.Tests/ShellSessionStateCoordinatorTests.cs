@@ -120,17 +120,106 @@ public sealed class ShellSessionStateCoordinatorTests
     {
         using var temp = TempDirectory.Create();
         var options = new CatalogOptions { GlobalRoot = temp.Path };
+        var sessionCatalog = new SessionViewCatalog(options);
+        var dispatcher = new InlineUiDispatcher();
+        var publisher = new FrontendEventPublisher(dispatcher);
+        var events = new List<ShellFrontendEvent>();
+        publisher.Subscribe(events.Add);
         var replacedDraftSessionIds = new List<string>();
-        var coordinator = CreateCoordinator(options, replaceDraftTabWithSession: replacedDraftSessionIds.Add);
+        var coordinator = CreateCoordinator(
+            options,
+            sessionCatalog,
+            replaceDraftTabWithSession: replacedDraftSessionIds.Add,
+            stateStore: new ShellStateStore(dispatcher),
+            frontendEvents: publisher);
         var project = CreateProject("project-1", "CodeAlta");
         var session = CreateSession("session-1", project.Id);
         coordinator.ApplyRecoveredCatalogState([project], []);
+        events.Clear();
 
         await coordinator.RegisterCreatedSessionAsync(session);
 
         CollectionAssert.AreEqual(new[] { "session-1" }, replacedDraftSessionIds.ToArray());
         Assert.AreEqual("session-1", coordinator.SelectedSessionId);
         CollectionAssert.Contains(coordinator.ViewState.OpenSessionIds, "session-1");
+        Assert.IsTrue(events.OfType<CatalogChangedEvent>().Any(), "Created sessions must refresh the sidebar/catalog projection immediately.");
+        Assert.IsTrue(events.OfType<SelectionChangedEvent>().Any(selection => selection.Snapshot?.Selection.SelectedSessionId == "session-1"));
+
+        var persisted = await sessionCatalog.LoadViewStateAsync().ConfigureAwait(false);
+        Assert.AreEqual("session-1", persisted.SelectedSessionId);
+        Assert.AreEqual(SessionViewSelectionSurface.Session, persisted.Selection.Surface);
+        Assert.AreEqual("session-1", persisted.Selection.SessionId);
+        CollectionAssert.Contains(persisted.OpenSessionIds, "session-1");
+    }
+
+    [TestMethod]
+    public async Task CloseSessionTabAsync_ClearsPendingStartupRestoreBeforeRecoveryCanReopenIt()
+    {
+        using var temp = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = temp.Path };
+        var sessionCatalog = new SessionViewCatalog(options);
+        var coordinator = CreateCoordinator(options, sessionCatalog);
+        var project = CreateProject("project-1", "CodeAlta");
+        var session = CreateSession("session-1", project.Id);
+        coordinator.ApplyRecoveredCatalogState([project], [session]);
+        coordinator.OpenSession(session.SessionId);
+        coordinator.PendingStartupSessionRestoreId = session.SessionId;
+
+        await coordinator.CloseSessionTabAsync(session.SessionId).ConfigureAwait(false);
+        coordinator.ApplyRecoveredCatalogState([project], [session], pruneMissingSessions: false);
+
+        Assert.IsNull(coordinator.PendingStartupSessionRestoreId);
+        Assert.IsNull(coordinator.SelectedSessionId);
+        Assert.AreEqual(SessionViewSelectionSurface.Draft, coordinator.ViewState.Selection.Surface);
+        Assert.AreEqual(SessionViewDraftScope.Project, coordinator.ViewState.Selection.DraftScope);
+        Assert.AreEqual(project.Id, coordinator.ViewState.Selection.ProjectId);
+        Assert.IsFalse(coordinator.ViewState.OpenSessionIds.Contains(session.SessionId, StringComparer.OrdinalIgnoreCase));
+
+        var persisted = await sessionCatalog.LoadViewStateAsync().ConfigureAwait(false);
+        Assert.IsNull(persisted.SelectedSessionId);
+        Assert.AreEqual(SessionViewSelectionSurface.Draft, persisted.Selection.Surface);
+        Assert.IsFalse(persisted.OpenSessionIds.Contains(session.SessionId, StringComparer.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
+    public void SelectProjectScope_ClearsPendingStartupRestoreBeforeRecoveryCanReopenIt()
+    {
+        using var temp = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = temp.Path };
+        var coordinator = CreateCoordinator(options);
+        var project = CreateProject("project-1", "CodeAlta");
+        var session = CreateSession("session-1", project.Id);
+        coordinator.ApplyRecoveredCatalogState([project], [session]);
+        coordinator.OpenSession(session.SessionId);
+        coordinator.PendingStartupSessionRestoreId = session.SessionId;
+
+        coordinator.SelectProjectScope(project.Id);
+        coordinator.ApplyRecoveredCatalogState([project], [session], pruneMissingSessions: false);
+
+        Assert.IsNull(coordinator.PendingStartupSessionRestoreId);
+        Assert.IsNull(coordinator.SelectedSessionId);
+        Assert.AreEqual(SessionViewSelectionSurface.Draft, coordinator.ViewState.Selection.Surface);
+        Assert.AreEqual(SessionViewDraftScope.Project, coordinator.ViewState.Selection.DraftScope);
+        Assert.AreEqual(project.Id, coordinator.ViewState.Selection.ProjectId);
+        Assert.IsFalse(coordinator.ViewState.OpenSessionIds.Contains(session.SessionId, StringComparer.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
+    public void SelectProjectScope_PreservesOpenSessionIdsForOpenSessionTabs()
+    {
+        using var temp = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = temp.Path };
+        var project = CreateProject("project-1", "CodeAlta");
+        var session = CreateSession("session-1", project.Id);
+        var coordinator = CreateCoordinator(options, getOpenSessionTabIds: () => [session.SessionId]);
+        coordinator.ApplyRecoveredCatalogState([project], [session]);
+        coordinator.OpenSession(session.SessionId);
+
+        coordinator.SelectProjectScope(project.Id);
+
+        CollectionAssert.Contains(coordinator.ViewState.OpenSessionIds, session.SessionId);
+        Assert.IsNull(coordinator.SelectedSessionId);
+        Assert.AreEqual(SessionViewSelectionSurface.Draft, coordinator.ViewState.Selection.Surface);
     }
 
     [TestMethod]
@@ -703,8 +792,8 @@ public sealed class ShellSessionStateCoordinatorTests
             ModelId = "gpt-4.1",
             ReasoningEffort = AgentReasoningEffort.High,
         };
-        coordinator.PendingStartupSessionRestoreId = session.SessionId;
         coordinator.OpenSession(session.SessionId);
+        coordinator.PendingStartupSessionRestoreId = session.SessionId;
 
         var tab = coordinator.FindOpenSession(session.SessionId);
         Assert.IsNotNull(tab);

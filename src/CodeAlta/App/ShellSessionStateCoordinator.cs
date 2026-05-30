@@ -99,7 +99,14 @@ internal sealed partial class ShellSessionStateCoordinator
     public string? SelectedSessionId
     {
         get => _selectionCoordinator.SelectedSessionId;
-        set => _selectionCoordinator.SelectedSessionId = value;
+        set
+        {
+            _selectionCoordinator.SelectedSessionId = value;
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                PendingStartupSessionRestoreId = null;
+            }
+        }
     }
 
     public string? PendingStartupSessionRestoreId
@@ -277,6 +284,8 @@ internal sealed partial class ShellSessionStateCoordinator
     public void SelectGlobalScope()
     {
         _tabLifecycle.ResetPendingSessionTabSelection();
+        PendingStartupSessionRestoreId = null;
+        PruneOpenSessionIdsToCurrentSessionTabs();
         _selectionCoordinator.SelectGlobalScope(Projects);
         ViewState.SelectedSessionId = null;
         ViewState.UpdatedAt = DateTimeOffset.UtcNow;
@@ -290,6 +299,8 @@ internal sealed partial class ShellSessionStateCoordinator
 
         var previousSelection = Selection;
         _tabLifecycle.ResetPendingSessionTabSelection();
+        PendingStartupSessionRestoreId = null;
+        PruneOpenSessionIdsToCurrentSessionTabs();
         _selectionCoordinator.SelectProjectScope(projectId, Projects);
         ViewState.SelectedSessionId = null;
         ViewState.UpdatedAt = DateTimeOffset.UtcNow;
@@ -319,14 +330,23 @@ internal sealed partial class ShellSessionStateCoordinator
             () =>
             {
                 _catalogStateCoordinator.UpsertSession(session);
-                OpenSession(session.SessionId);
+                OpenSessionCore(session.SessionId, persistViewState: false, publishSelectionChanged: false, loadHistory: false);
                 _tabLifecycle.ReplaceDraftTabWithSession(session.SessionId);
+                SyncStateStore(catalogChanged: true, selectionChanged: true);
             });
 
+        await PersistViewStateAsync();
         await _historyLoader.EnsureSessionHistoryLoadedAsync(session, CancellationToken.None);
     }
 
     public OpenSessionResult OpenSession(string sessionId)
+        => OpenSessionCore(sessionId, persistViewState: true, publishSelectionChanged: true, loadHistory: true);
+
+    private OpenSessionResult OpenSessionCore(
+        string sessionId,
+        bool persistViewState,
+        bool publishSelectionChanged,
+        bool loadHistory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
 
@@ -347,14 +367,23 @@ internal sealed partial class ShellSessionStateCoordinator
         ViewState.SelectedSessionId = sessionId;
         ViewState.UpdatedAt = DateTimeOffset.UtcNow;
         _selectionCoordinator.SelectSession(session);
+        PendingStartupSessionRestoreId = null;
         if (SessionHistoryCoordinator.CanLoadSessionHistory(session) && !_modelProviderReadiness.IsModelProviderReady(session))
         {
             PendingStartupSessionRestoreId = session.SessionId;
         }
 
-        _ = PersistViewStateAsync();
-        SyncStateStore(selectionChanged: true);
-        _ = _historyLoader.EnsureSessionHistoryLoadedAsync(session, CancellationToken.None);
+        if (persistViewState)
+        {
+            _ = PersistViewStateAsync();
+        }
+
+        SyncStateStore(selectionChanged: publishSelectionChanged);
+        if (loadHistory)
+        {
+            _ = _historyLoader.EnsureSessionHistoryLoadedAsync(session, CancellationToken.None);
+        }
+
         return alreadyOpen
             ? OpenSessionResult.AlreadyOpen
             : OpenSessionResult.Opened;
@@ -366,6 +395,7 @@ internal sealed partial class ShellSessionStateCoordinator
 
         var wasOpen = ViewState.OpenSessionIds.Contains(sessionId, StringComparer.OrdinalIgnoreCase);
         _tabLifecycle.ResetPendingSessionTabSelection();
+        ClearPendingStartupSessionRestore(sessionId);
         var removedSelectedSession = string.Equals(SelectedSessionId, sessionId, StringComparison.OrdinalIgnoreCase);
         var removedSession = FindSession(sessionId);
         var openSessionTabIds = removedSelectedSession
@@ -469,6 +499,7 @@ internal sealed partial class ShellSessionStateCoordinator
             _tabLifecycle.RemoveSessionTabPage(sessionId, ShellTabCloseReason.SessionDeleted);
             _openSessionStateStore.RemoveSessionTab(sessionId);
             _promptDrafts.DeletePromptDraft(sessionId);
+            ClearPendingStartupSessionRestore(sessionId);
 
             if (string.Equals(ViewState.SelectedSessionId, sessionId, StringComparison.OrdinalIgnoreCase))
             {
@@ -513,6 +544,7 @@ internal sealed partial class ShellSessionStateCoordinator
             _tabLifecycle.RemoveSessionTabPage(sessionId, ShellTabCloseReason.ProjectClosed);
             _openSessionStateStore.RemoveSessionTab(sessionId);
             _promptDrafts.DeletePromptDraft(sessionId);
+            ClearPendingStartupSessionRestore(sessionId);
 
             if (string.Equals(ViewState.SelectedSessionId, sessionId, StringComparison.OrdinalIgnoreCase))
             {
@@ -563,6 +595,22 @@ internal sealed partial class ShellSessionStateCoordinator
 
     public OpenSessionState? FindOpenSession(string sessionId)
         => _openSessionStateStore.FindOpenSession(sessionId);
+
+    private void ClearPendingStartupSessionRestore(string sessionId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
+
+        if (string.Equals(PendingStartupSessionRestoreId, sessionId, StringComparison.OrdinalIgnoreCase))
+        {
+            PendingStartupSessionRestoreId = null;
+        }
+    }
+
+    private void PruneOpenSessionIdsToCurrentSessionTabs()
+    {
+        var openSessionTabIds = _tabLifecycle.GetOpenSessionTabIds();
+        ViewState.OpenSessionIds.RemoveAll(sessionId => !openSessionTabIds.Contains(sessionId, StringComparer.OrdinalIgnoreCase));
+    }
 
     public ProjectDescriptor? GetSelectedProject()
     {

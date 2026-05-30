@@ -89,6 +89,27 @@ public sealed class AgentRuntimeTests
     }
 
     [TestMethod]
+    public async Task AgentRuntime_CreateSession_UsesRequestedSessionId()
+    {
+        using var temp = TestTempDirectory.Create();
+        var agentRuntime = CreateAgentRuntime(temp.Path, out _);
+
+        await using var session = await agentRuntime.CreateSessionAsync(
+                new AgentSessionCreateOptions
+                {
+                    SessionId = "codealta-owned-session",
+                    ProviderKey = "openai",
+                    Model = "gpt-5.4",
+                    WorkingDirectory = "C:\\repo\\requested",
+                    OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
+                }).ConfigureAwait(false);
+
+        var sessions = await CreateSessionStore(temp.Path).ListSessionsAsync().ToArrayAsync().ConfigureAwait(false);
+        Assert.AreEqual("codealta-owned-session", session.SessionId);
+        Assert.AreEqual("codealta-owned-session", sessions.Single().SessionId);
+    }
+
+    [TestMethod]
     public async Task AgentRuntime_ResumeSession_LoadsLegacyProviderIdOnlyJournalAndSwitchesProvider()
     {
         using var temp = TestTempDirectory.Create();

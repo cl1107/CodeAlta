@@ -52,7 +52,7 @@ Same-session mutation is serialized by internal mailbox actors and session coord
 - session listing, local history loading, project import, and pending-session restore do not wait for provider readiness;
 - model lists are loaded during provider initialization or explicit refresh, then reused by session start/resume paths.
 
-Provider identity is not session ownership. Persisted sessions keep last-used provider/model metadata for UX defaults and resume choices; the session id remains the durable session identity.
+Provider identity is not session ownership. Persisted sessions keep last-used provider/model metadata for UX defaults and resume choices; the session id remains the durable session identity. When CodeAlta starts a new or empty session, it generates the canonical session id before provider attachment, passes it to the agent/provider runtime, and treats a different returned id as a provider contract violation rather than rekeying the session.
 
 ## Agent contracts
 

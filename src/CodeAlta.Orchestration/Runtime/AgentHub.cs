@@ -51,7 +51,7 @@ public sealed class AgentHub : IAsyncDisposable
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The active session handle.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="options"/> is <see langword="null"/>.</exception>
-    /// <exception cref="InvalidOperationException">Thrown when no provider key was provided.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when no provider key was provided, or when the provider returns a different requested session identifier.</exception>
     public async Task<AgentSessionHandle> StartSessionAsync(
         AgentSessionCreateOptions options,
         CancellationToken cancellationToken = default)
@@ -64,6 +64,7 @@ public sealed class AgentHub : IAsyncDisposable
         try
         {
             session = await runtime.CreateSessionAsync(options, cancellationToken).ConfigureAwait(false);
+            EnsureRuntimePreservedRequestedSessionId(options.SessionId, session.SessionId);
             return await AttachSessionAsync(providerId, runtime, session, options.ParentSessionId, cancellationToken).ConfigureAwait(false);
         }
         catch
@@ -87,7 +88,7 @@ public sealed class AgentHub : IAsyncDisposable
     /// <returns>The active session handle.</returns>
     /// <exception cref="ArgumentException">Thrown when <paramref name="sessionId"/> is empty.</exception>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="options"/> is <see langword="null"/>.</exception>
-    /// <exception cref="InvalidOperationException">Thrown when no provider key was provided.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when no provider key was provided, or when the provider returns a different requested session identifier.</exception>
     public async Task<AgentSessionHandle> ResumeSessionAsync(
         string sessionId,
         AgentSessionResumeOptions options,
@@ -102,6 +103,7 @@ public sealed class AgentHub : IAsyncDisposable
         try
         {
             session = await runtime.ResumeSessionAsync(sessionId, options, cancellationToken).ConfigureAwait(false);
+            EnsureRuntimePreservedRequestedSessionId(sessionId, session.SessionId);
             return await AttachSessionAsync(providerId, runtime, session, options.ParentSessionId, cancellationToken).ConfigureAwait(false);
         }
         catch
@@ -428,6 +430,24 @@ public sealed class AgentHub : IAsyncDisposable
         }
 
         return new ModelProviderId(options.ProviderKey.Trim());
+    }
+
+    private static void EnsureRuntimePreservedRequestedSessionId(string? requestedSessionId, string actualSessionId)
+    {
+        if (string.IsNullOrWhiteSpace(requestedSessionId))
+        {
+            return;
+        }
+
+        var requested = requestedSessionId.Trim();
+        if (string.Equals(requested, actualSessionId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(
+            $"Agent runtime returned session id '{actualSessionId}' for requested CodeAlta session id '{requested}'. " +
+            "Providers must preserve CodeAlta-owned session identifiers.");
     }
 
     private static async ValueTask DisposeProviderRuntimeAsync(ProviderSessionRuntimeLease runtime)

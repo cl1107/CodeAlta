@@ -1663,7 +1663,7 @@ public sealed class AltaLiveToolTests
     }
 
     [TestMethod]
-    public async Task SessionTool_CreateFromRekeyedDraftParentUsesCanonicalLineageAndNotifiesParent()
+    public async Task SessionTool_CreateFromDraftParentKeepsCodeAltaSessionIdAndNotifiesParent()
     {
         using var root = TempDirectory.Create();
         var options = new CatalogOptions { GlobalRoot = root.Path };
@@ -1728,24 +1728,71 @@ public sealed class AltaLiveToolTests
         providerRuntime.PublishAssistantCompleted(childSessionId, new AgentRunId(childRunId), "child final result");
         providerRuntime.PublishIdle(childSessionId, new AgentRunId(childRunId));
 
-        Assert.AreEqual("session-1", canonicalParentSessionId);
-        Assert.AreNotEqual("draft-parent", canonicalParentSessionId);
-        Assert.IsNull(providerRuntime.CreatedOptions[0].SessionId, "Provider-managed draft replacement must not request the draft id from the providerRuntime.");
+        Assert.AreEqual("draft-parent", canonicalParentSessionId);
+        Assert.AreEqual("draft-parent", providerRuntime.ResumedOptions[0].SessionId, "Codex draft resumes must request the CodeAlta-owned session id.");
         Assert.IsTrue(createResult.Success, createResult.Error);
         Assert.AreEqual(canonicalParentSessionId, createRecord.GetProperty("parentSessionId").GetString());
-        Assert.AreNotEqual("draft-parent", createRecord.GetProperty("parentSessionId").GetString());
         Assert.IsTrue(ReadJsonLines(children.Stdout).Any(line =>
             line.GetProperty("type").GetString() == "alta.session.item" &&
             line.GetProperty("sessionId").GetString() == childSessionId &&
             line.GetProperty("parentSessionId").GetString() == canonicalParentSessionId));
-        Assert.IsNotNull(providerRuntime.CreatedOptions[1].DeveloperInstructions);
-        StringAssert.Contains(providerRuntime.CreatedOptions[1].DeveloperInstructions!, $"Parent session: `{canonicalParentSessionId}`");
+        Assert.IsNotNull(providerRuntime.CreatedOptions.Last().DeveloperInstructions);
+        StringAssert.Contains(providerRuntime.CreatedOptions.Last().DeveloperInstructions!, $"Parent session: `{canonicalParentSessionId}`");
         await WaitUntilAsync(() => providerRuntime.SteeredOptions.Count == 1).ConfigureAwait(false);
         var parentNotification = ExtractText(providerRuntime.SteeredOptions.Single().Input);
         StringAssert.Contains(parentNotification, $"Source session: {childSessionId}");
         StringAssert.Contains(parentNotification, $"Target session: {canonicalParentSessionId}");
         StringAssert.Contains(parentNotification, "Kind: answer");
         StringAssert.Contains(parentNotification, "child final result");
+    }
+
+    [TestMethod]
+    public async Task CodexDraftWithChangedRunToolsKeepsCodeAltaSessionId()
+    {
+        using var root = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = root.Path };
+        var providerRuntime = new StatefulProviderRuntime(ModelProviderIds.Codex);
+        var runtime = CreateRuntime(options, providerRuntime);
+        await using var _ = runtime.ConfigureAwait(false);
+        var initialOptions = new SessionExecutionOptions
+        {
+            ProviderId = ModelProviderIds.Codex,
+            ProviderKey = ModelProviderIds.Codex.Value,
+            WorkingDirectory = root.Path,
+            ProjectRoots = [],
+            OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
+        };
+        var session = await runtime.CreateGlobalSessionAsync(initialOptions, "Draft").ConfigureAwait(false);
+        var createdSessionId = session.SessionId;
+        using var toolSchema = JsonDocument.Parse("{}");
+        var runOptions = new SessionExecutionOptions
+        {
+            ProviderId = ModelProviderIds.Codex,
+            ProviderKey = ModelProviderIds.Codex.Value,
+            WorkingDirectory = root.Path,
+            ProjectRoots = [],
+            Tools =
+            [
+                new AgentToolDefinition(
+                    new AgentToolSpec("fixture_tool", "Fixture tool", toolSchema.RootElement.Clone()),
+                    static (_, _) => Task.FromResult(new AgentToolResult(true, [new AgentToolResultItem.Text("ok")]))),
+            ],
+            OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
+        };
+
+        await runtime.SendAsync(session, runOptions, new AgentSendOptions { Input = AgentInput.Text("hello") }).ConfigureAwait(false);
+
+        Assert.AreEqual(createdSessionId, session.SessionId);
+        Assert.IsFalse(string.IsNullOrWhiteSpace(createdSessionId));
+        Assert.IsTrue(providerRuntime.CreatedOptions.Count >= 1);
+        Assert.IsTrue(providerRuntime.ResumedOptions.Count >= 1);
+        Assert.IsTrue(
+            providerRuntime.CreatedOptions.All(created => string.Equals(created.SessionId, createdSessionId, StringComparison.Ordinal)),
+            "Codex draft session starts must consistently request the CodeAlta-owned session id.");
+        Assert.IsTrue(
+            providerRuntime.ResumedOptions.All(resumed => string.Equals(resumed.SessionId, createdSessionId, StringComparison.Ordinal)),
+            "Codex draft session resumes must consistently request the CodeAlta-owned session id.");
+        Assert.AreEqual("hello", ExtractText(providerRuntime.SentOptions.Single().Input));
     }
 
     [TestMethod]

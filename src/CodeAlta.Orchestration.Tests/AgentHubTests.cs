@@ -29,6 +29,28 @@ public sealed class AgentHubTests
         Assert.AreEqual(0, runtime.ProbeCallCount);
     }
 
+    [TestMethod]
+    public async Task StartSessionAsync_RejectsRuntimeSessionIdMismatch()
+    {
+        var runtime = new RewritingSessionRuntime("provider");
+        var registry = new ModelProviderRegistry();
+        registry.RegisterOrReplace(runtime.Descriptor, () => runtime);
+        await using var hub = new AgentHub(registry, Path.Combine(Path.GetTempPath(), Path.GetRandomFileName()));
+
+        var exception = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+                () => hub.StartSessionAsync(
+                    new AgentSessionCreateOptions
+                    {
+                        SessionId = "codealta-session",
+                        ProviderKey = "provider",
+                        WorkingDirectory = Environment.CurrentDirectory,
+                        OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
+                    }))
+            .ConfigureAwait(false);
+
+        StringAssert.Contains(exception.Message, "Providers must preserve CodeAlta-owned session identifiers.");
+    }
+
     private sealed class CountingProviderRuntime(string providerId) : IAgentModelProviderRuntime
     {
         public int StartCallCount { get; private set; }
@@ -68,6 +90,39 @@ public sealed class AgentHubTests
             ProbeCallCount++;
             return Task.FromResult(new ModelProviderProbeResult { ProviderId = Descriptor.ProviderId, Availability = ModelProviderAvailability.Ready });
         }
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    private sealed class RewritingSessionRuntime(string providerId) : IModelProviderSessionRuntime
+    {
+        public ModelProviderDescriptor Descriptor { get; } = new(new ModelProviderId(providerId), "Rewriting") { DefaultModelId = "test-model" };
+
+        public ModelProviderRuntimeDescriptor RuntimeDescriptor { get; } = new()
+        {
+            ProtocolFamily = "test",
+            ProviderKey = providerId,
+            DisplayName = "Rewriting",
+            TransportKind = AgentTransportKind.OpenAIResponses,
+        };
+
+        public Task StartAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task StopAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task<ModelProviderProbeResult> ProbeAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult(new ModelProviderProbeResult { ProviderId = Descriptor.ProviderId, Availability = ModelProviderAvailability.Ready });
+
+        public IModelProviderTurnExecutor CreateTurnExecutor() => new NoOpTurnExecutor();
+
+        public Task<IReadOnlyList<AgentModelInfo>> ListModelsAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<AgentModelInfo>>([]);
+
+        public Task<IAgentSession> CreateSessionAsync(AgentSessionCreateOptions options, CancellationToken cancellationToken = default)
+            => Task.FromResult<IAgentSession>(new CountingSession(Descriptor.ProviderId, "provider-session"));
+
+        public Task<IAgentSession> ResumeSessionAsync(string sessionId, AgentSessionResumeOptions options, CancellationToken cancellationToken = default)
+            => Task.FromResult<IAgentSession>(new CountingSession(Descriptor.ProviderId, "provider-session"));
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }

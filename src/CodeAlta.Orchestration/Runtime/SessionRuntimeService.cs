@@ -473,15 +473,12 @@ public sealed class SessionRuntimeService : IAsyncDisposable
         }
 
         var previousSessionId = string.IsNullOrWhiteSpace(session.SessionId) ? null : session.SessionId;
-        var replacingDraftSession = previousSessionId is not null && ShouldReplaceDraftSession(session, providerProviderId);
-        if (previousSessionId is null && CanCreateSessionWithRequestedSessionId(providerProviderId))
+        if (previousSessionId is null)
         {
             session.SessionId = Guid.CreateVersion7().ToString();
         }
 
-        var requestedSessionId = replacingDraftSession
-            ? null
-            : NormalizeOptionalText(session.SessionId);
+        var requestedSessionId = NormalizeOptionalText(session.SessionId);
 
         var sessionOptions = new AgentSessionResumeOptions
         {
@@ -502,17 +499,12 @@ public sealed class SessionRuntimeService : IAsyncDisposable
             OnUserInputRequest = options.OnUserInputRequest,
         };
 
-        var startNewSession = previousSessionId is null || ShouldReplaceDraftSession(session, providerProviderId);
-        var canStartReplacementSession = !startNewSession &&
-            await CanStartReplacementSessionForMissingResumeAsync(providerProviderId, cancellationToken).ConfigureAwait(false);
+        var startNewSession = previousSessionId is null;
 
         if (startNewSession)
         {
             var handle = await _agentHub.StartSessionAsync(sessionOptions, cancellationToken).ConfigureAwait(false);
             sessionHandleId = handle.HandleId;
-            session.SessionId = string.IsNullOrWhiteSpace(handle.SessionId)
-                ? previousSessionId ?? session.SessionId
-                : handle.SessionId;
         }
         else
         {
@@ -521,17 +513,12 @@ public sealed class SessionRuntimeService : IAsyncDisposable
             {
                 handle = await _agentHub.ResumeSessionAsync(session.SessionId, sessionOptions, cancellationToken).ConfigureAwait(false);
             }
-            catch (KeyNotFoundException) when (canStartReplacementSession)
+            catch (KeyNotFoundException)
             {
                 handle = await _agentHub.StartSessionAsync(sessionOptions, cancellationToken).ConfigureAwait(false);
             }
 
             sessionHandleId = handle.HandleId;
-
-            if (previousSessionId is null)
-            {
-                session.SessionId = handle.SessionId;
-            }
         }
 
         session.ProviderId = options.ProviderId.Value;
@@ -549,7 +536,7 @@ public sealed class SessionRuntimeService : IAsyncDisposable
         }
 
         PublishSessionCatalogEvent(session);
-        PublishSessionLifecycleEvent(session.SessionId, previousSessionId);
+        PublishSessionLifecycleEvent(session.SessionId);
 
         RuntimeSessionEntry? entry = null;
         var actor = _sessionActors.GetOrCreate(session.SessionId);
@@ -1104,22 +1091,6 @@ public sealed class SessionRuntimeService : IAsyncDisposable
         }
 
         _entries.Clear();
-    }
-
-    private static bool CanCreateSessionWithRequestedSessionId(ModelProviderId ProviderId)
-        => !string.Equals(ProviderId.Value, ModelProviderIds.Codex.Value, StringComparison.OrdinalIgnoreCase);
-
-    private static Task<bool> CanStartReplacementSessionForMissingResumeAsync(
-        ModelProviderId ProviderId,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        if (IsProviderManagedSessionRuntime(ProviderId) || !CanCreateSessionWithRequestedSessionId(ProviderId))
-        {
-            return Task.FromResult(false);
-        }
-
-        return Task.FromResult(true);
     }
 
     private async Task<ProjectDescriptor?> ResolveProjectAsync(SessionViewDescriptor session, CancellationToken cancellationToken)
@@ -1859,27 +1830,16 @@ public sealed class SessionRuntimeService : IAsyncDisposable
             }));
     }
 
-    private void PublishSessionLifecycleEvent(
-        string sessionId,
-        string? previousSessionId)
+    private void PublishSessionLifecycleEvent(string sessionId)
     {
-        var kind = previousSessionId is not null &&
-                   !string.Equals(previousSessionId, sessionId, StringComparison.OrdinalIgnoreCase)
-            ? SessionLifecycleEventKind.SessionRekeyed
-            : SessionLifecycleEventKind.SessionStarted;
         _events.TryPublish(new SessionLifecycleRuntimeEvent(
             sessionId,
             DateTimeOffset.UtcNow,
             new SessionLifecycleEvent
             {
                 SessionId = sessionId,
-                Kind = kind,
-                PreviousId = kind == SessionLifecycleEventKind.SessionRekeyed
-                    ? previousSessionId
-                    : null,
-                Message = kind == SessionLifecycleEventKind.SessionStarted
-                    ? "Runtime session started."
-                    : "Runtime session rekeyed.",
+                Kind = SessionLifecycleEventKind.SessionStarted,
+                Message = "Runtime session started.",
             }));
     }
 
@@ -1985,19 +1945,8 @@ public sealed class SessionRuntimeService : IAsyncDisposable
         return fallback;
     }
 
-    private static bool IsProviderManagedSessionRuntime(ModelProviderId ProviderId)
-        => string.Equals(ProviderId.Value, ModelProviderIds.Codex.Value, StringComparison.OrdinalIgnoreCase) ||
-           string.Equals(ProviderId.Value, ModelProviderIds.Copilot.Value, StringComparison.OrdinalIgnoreCase);
-
     private static string? ResolveParentSessionId(string? parentSessionId, string? createdBySessionId)
         => NormalizeOptionalText(parentSessionId) ?? NormalizeOptionalText(createdBySessionId);
-
-    private static bool ShouldReplaceDraftSession(SessionViewDescriptor session, ModelProviderId ProviderId)
-    {
-        return session.StartedAt is null &&
-               session.Status == SessionViewStatus.Draft &&
-               string.Equals(ProviderId.Value, ModelProviderIds.Codex.Value, StringComparison.OrdinalIgnoreCase);
-    }
 
     private static string NormalizePath(string path)
     {
