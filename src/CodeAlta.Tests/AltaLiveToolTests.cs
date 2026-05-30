@@ -300,6 +300,7 @@ public sealed class AltaLiveToolTests
         Assert.IsNotNull(prompt);
         StringAssert.Contains(prompt, "- Active: `memory`");
         StringAssert.Contains(prompt, "- Inactive (`alta mcp activate <id>*`): (none)");
+        StringAssert.Contains(prompt, "- Activation adds tools on next user turn.");
     }
 
     [TestMethod]

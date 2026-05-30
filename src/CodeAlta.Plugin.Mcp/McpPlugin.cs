@@ -365,6 +365,8 @@ public sealed class McpPlugin : PluginBase
         builder.AppendLine();
         builder.Append("- Inactive (`alta mcp activate <id>*`): ");
         AppendServerList(builder, inactiveServers, maxServers);
+        builder.AppendLine();
+        builder.Append("- Activation adds tools on next user turn.");
 
         return new ValueTask<string?>(builder.ToString().TrimEnd());
     }

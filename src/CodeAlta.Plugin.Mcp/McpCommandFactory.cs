@@ -102,7 +102,8 @@ internal static class McpCommandFactory
                 activeServers = activated,
                 activeToolCount = direct.Tools.Count,
                 diagnosticCount = direct.Diagnostics.Count,
-                note = "MCP tools from active servers were loaded now and are registered on the next agent run as mcp__<server>__<tool>.",
+                nextTurnRequired = true,
+                note = "Activated for future runs; tools are available after the next user prompt/turn as mcp__<server>__<tool>.",
             });
             return 0;
         });

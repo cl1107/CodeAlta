@@ -181,6 +181,8 @@ public sealed class McpRuntimeServiceTests
             Assert.AreEqual("alta.mcp.activate", activateRecord.RootElement.GetProperty("type").GetString());
             Assert.AreEqual(1, activateRecord.RootElement.GetProperty("activeToolCount").GetInt32());
             Assert.AreEqual(0, activateRecord.RootElement.GetProperty("diagnosticCount").GetInt32());
+            Assert.IsTrue(activateRecord.RootElement.GetProperty("nextTurnRequired").GetBoolean());
+            StringAssert.Contains(activateRecord.RootElement.GetProperty("note").GetString()!, "next user prompt/turn");
         }
 
         var context = new PluginBeforeAgentRunContext
@@ -215,6 +217,7 @@ public sealed class McpRuntimeServiceTests
         Assert.IsNotNull(prompt);
         StringAssert.Contains(prompt, "- Active: `tiny`");
         StringAssert.Contains(prompt, "- Inactive (`alta mcp activate <id>*`): (none)");
+        StringAssert.Contains(prompt, "- Activation adds tools on next user turn.");
     }
 
     [TestMethod]
@@ -266,6 +269,7 @@ public sealed class McpRuntimeServiceTests
         Assert.IsNotNull(prompt);
         StringAssert.Contains(prompt, "- Active: `tiny`");
         StringAssert.Contains(prompt, "- Inactive (`alta mcp activate <id>*`): (none)");
+        StringAssert.Contains(prompt, "- Activation adds tools on next user turn.");
     }
 
     [TestMethod]
