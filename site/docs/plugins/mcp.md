@@ -131,6 +131,52 @@ Remote server:
 
 `${NAME}` placeholders are expanded only in stdio `env` values and remote `headers` values. If the referenced environment variable is missing, CodeAlta reports an `environment_variable_not_found` diagnostic and does not send the literal placeholder to the server.
 
+### GitHub MCP server example
+
+The [GitHub MCP server](https://github.com/github/github-mcp-server) can run as
+a remote HTTP server. A CodeAlta project can configure it like this in
+`.alta/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": {
+        "Authorization": "Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}"
+      }
+    }
+  }
+}
+```
+
+Store the token outside the JSON file. If the
+[GitHub CLI](https://cli.github.com/) is already authenticated, you can reuse
+its token for the CodeAlta process:
+
+```powershell
+$env:GITHUB_PERSONAL_ACCESS_TOKEN = gh auth token
+alta
+```
+
+```sh
+export GITHUB_PERSONAL_ACCESS_TOKEN="$(gh auth token)"
+alta
+```
+
+> [!NOTE]
+> Environment variables set this way are only available to that shell and the
+> CodeAlta process launched from it. Use your operating system's secret storage
+> or environment-variable configuration when you need persistence, and never
+> commit the resolved token to MCP JSON.
+
+> [!TIP]
+> For many GitHub tasks, installing and authenticating `gh` is simpler than
+> adding the GitHub MCP server. CodeAlta's GitHub plugin can expose `gh` as an
+> agent tool, and GitHub operations can then go through the official CLI. Use
+> the GitHub MCP server when you specifically want its MCP toolsets.
+
 ## TOML policy fields
 
 Connection fields stay in JSON. Enablement, tool filtering, prompt limits, timeouts, and direct-tool policy live in `config.toml` under `[plugins.mcp]` and `[plugins.mcp.servers.<server>]`:

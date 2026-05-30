@@ -6,6 +6,12 @@ title: GitHub plugin
 
 The built-in GitHub plugin adds issue lookup while you write prompts and exposes the GitHub CLI as an agent tool when `gh` is installed.
 
+> [!TIP]
+> Install the [GitHub CLI](https://cli.github.com/) and run `gh auth login` for
+> the smoothest GitHub workflow. When `gh` is available, CodeAlta can let agents
+> perform GitHub operations through the official CLI instead of a broad MCP
+> server toolset.
+
 ## What it contributes
 
 - Prompt-editor attachment for GitHub issue references.
@@ -29,7 +35,7 @@ If you set `GITHUB_TOKEN` or `GH_TOKEN`, CodeAlta uses it for GitHub REST API ca
 
 ## GitHub CLI agent tool
 
-When the `gh` executable is available, the plugin contributes a CodeAlta-managed `gh` agent tool. The tool accepts an `arguments` array and passes each item directly to `ProcessStartInfo.ArgumentList`, not through a shell command string.
+When the `gh` executable is available, the plugin contributes a CodeAlta-managed `gh` agent tool. Install it from [cli.github.com](https://cli.github.com/) and authenticate with `gh auth login`. The tool accepts an `arguments` array and passes each item directly to `ProcessStartInfo.ArgumentList`, not through a shell command string.
 
 For example, an agent can call `gh` with arguments equivalent to:
 
