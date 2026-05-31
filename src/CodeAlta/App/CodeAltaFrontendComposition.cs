@@ -49,6 +49,7 @@ internal sealed class CodeAltaFrontendComposition
     public required ShellWorkspaceContext ShellWorkspaceContext { get; init; }
     public required SessionSelectionContext SessionSelectionContext { get; init; }
     public required WorkspaceRefreshContext WorkspaceRefreshContext { get; init; }
+    public required ReminderUiCoordinator ReminderUiCoordinator { get; init; }
 
     public static CodeAltaFrontendComposition Create(
         IReadOnlyList<ModelProviderDescriptor> providerDescriptors,
@@ -127,10 +128,12 @@ internal sealed class CodeAltaFrontendComposition
 
         var altaRegistry = new AltaCommandRegistry();
         var altaDispatcher = new AltaCommandDispatcher(altaRegistry, altaServices);
+        var reminderService = new AltaReminderService(altaServices);
         pluginHostBridge?.Alta?.SetDispatcher(altaDispatcher);
         altaServices
             .Add(altaRegistry)
-            .Add(altaDispatcher);
+            .Add(altaDispatcher)
+            .Add(reminderService);
         _ = CoordinatorAgentsBootstrapper.Ensure(
             catalogOptions.GlobalRoot,
             AltaHelpText.RenderRootHelp(altaRegistry, altaServices));
@@ -210,6 +213,17 @@ internal sealed class CodeAltaFrontendComposition
             () => frontendEvents.Publish(new CatalogChangedEvent()),
             frontend.SetStatus,
             frontend.SetReadyStatusForCurrentSelection);
+        var reminderUiCoordinator = new ReminderUiCoordinator(
+            reminderService,
+            new ReminderUiCoordinatorPort
+            {
+                GetSelectedSession = sessionStateCoordinator.GetSelectedSession,
+                GetDialogBounds = () => DialogBoundsResolver.ResolveAppBounds(frontend.SessionInput is { } input ? input : sidebarCoordinator.View.Tree),
+                GetFocusTarget = () => frontend.SessionInput is { } input ? input : sidebarCoordinator.View.Tree,
+                SetStatus = (message, tone) => frontend.SetStatus(message, tone: tone),
+                DispatchToUi = frontend.DispatchToUi,
+                RefreshProjection = frontend.RefreshSidebarProjection,
+            });
         var sessionProviderSwitchCoordinator = new SessionProviderSwitchCoordinator(
             configStore,
             modelProviderStates,
@@ -418,6 +432,7 @@ internal sealed class CodeAltaFrontendComposition
             ShellWorkspaceContext = shellWorkspaceContext,
             SessionSelectionContext = sessionSelectionContext,
             WorkspaceRefreshContext = workspaceRefreshContext,
+            ReminderUiCoordinator = reminderUiCoordinator,
         };
 
     }

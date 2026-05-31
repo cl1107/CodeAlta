@@ -52,11 +52,12 @@ internal static class SidebarTreeProjectionBuilder
         row.UpdateTitle("Global");
         row.UpdateActivity(visibleSessions.FirstOrDefault()?.LastActiveAt, nowUtc);
         var hasRunningSession = visibleSessions.Any(session => getSessionVisualState(session.SessionId).IsRunning);
+        var hasActiveReminder = visibleSessions.Any(session => getSessionVisualState(session.SessionId).HasActiveReminder);
         var hasGlobalDraft = hasDraftPrompt(null, true);
         row.UpdateStateIndicator(
-            hasRunningSession ? null : BuildDraftStateIconMarkup(hasGlobalDraft, SidebarAccent.Global),
+            BuildDraftStateIconMarkup(hasRunningSession ? false : hasGlobalDraft, hasActiveReminder, SidebarAccent.Global),
             hasRunningSession,
-            hasRunningSession ? null : ResolveDraftStateTooltip(hasGlobalDraft, isGlobal: true));
+            ResolveDraftStateTooltip(hasRunningSession ? false : hasGlobalDraft, hasActiveReminder, isGlobal: true));
 
         var children = visibleSessions
             .CreateSessionHierarchy(
@@ -131,11 +132,12 @@ internal static class SidebarTreeProjectionBuilder
         row.UpdateTitle(project.DisplayName);
         row.UpdateActivity(projectSessions.OrderByDescending(static session => session.LastActiveAt).FirstOrDefault()?.LastActiveAt, nowUtc);
         var hasRunningSession = projectSessions.Any(session => getSessionVisualState(session.SessionId).IsRunning);
+        var hasActiveReminder = projectSessions.Any(session => getSessionVisualState(session.SessionId).HasActiveReminder);
         var hasProjectDraft = hasDraftPrompt(project.Id, false);
         row.UpdateStateIndicator(
-            hasRunningSession ? null : BuildDraftStateIconMarkup(hasProjectDraft, SidebarAccent.Projects),
+            BuildDraftStateIconMarkup(hasRunningSession ? false : hasProjectDraft, hasActiveReminder, SidebarAccent.Projects),
             hasRunningSession,
-            hasRunningSession ? null : ResolveDraftStateTooltip(hasProjectDraft, isGlobal: false));
+            ResolveDraftStateTooltip(hasRunningSession ? false : hasProjectDraft, hasActiveReminder, isGlobal: false));
 
         var children = projectSessions
             .CreateSessionHierarchy(
@@ -179,13 +181,12 @@ internal static class SidebarTreeProjectionBuilder
         row.UpdateActivity(session.LastActiveAt, nowUtc);
         var visualState = getSessionVisualState(session.SessionId);
         var accent = SidebarSessionPresentation.ResolveSessionAccent(session.ProviderId, session.Kind);
-        var stateTooltip = ResolveLineageDiagnosticTooltip(node.LineageDiagnostic, session);
         row.UpdateStateIndicator(
             visualState.IsRunning
-                ? null
+                ? BuildSessionStateIconMarkup(visualState with { HasPromptDraft = false }, accent, node.LineageDiagnostic)
                 : BuildSessionStateIconMarkup(visualState, accent, node.LineageDiagnostic),
             visualState.IsRunning,
-            visualState.IsRunning ? null : stateTooltip);
+            ResolveSessionStateTooltip(visualState.IsRunning ? visualState with { HasPromptDraft = false } : visualState, node.LineageDiagnostic, session));
 
         var childNodes = node.Children
             .Select(child => CreateSessionNode(child, getSessionVisualState, getOrCreateRow, nowUtc))
@@ -340,18 +341,44 @@ internal static class SidebarTreeProjectionBuilder
             return BuildLineageDiagnosticIconMarkup();
         }
 
-        return visualState.HasPromptDraft
-            ? SidebarSessionPresentation.BuildEditedPromptIconMarkup(accent)
-            : null;
+        return BuildStateIcons(visualState.HasPromptDraft, visualState.HasActiveReminder, accent);
     }
 
-    private static string? BuildDraftStateIconMarkup(bool hasPromptDraft, SidebarAccent accent)
-        => hasPromptDraft ? SidebarSessionPresentation.BuildEditedPromptIconMarkup(accent) : null;
+    private static string? BuildDraftStateIconMarkup(bool hasPromptDraft, bool hasActiveReminder, SidebarAccent accent)
+        => BuildStateIcons(hasPromptDraft, hasActiveReminder, accent);
 
-    private static string? ResolveDraftStateTooltip(bool hasPromptDraft, bool isGlobal)
-        => hasPromptDraft
-            ? isGlobal ? "Global draft prompt edited" : "Project draft prompt edited"
-            : null;
+    private static string? ResolveDraftStateTooltip(bool hasPromptDraft, bool hasActiveReminder, bool isGlobal)
+        => JoinTooltipParts(
+            hasPromptDraft ? isGlobal ? "Global draft prompt edited" : "Project draft prompt edited" : null,
+            hasActiveReminder ? isGlobal ? "Global session reminder active" : "Project session reminder active" : null);
+
+    private static string? ResolveSessionStateTooltip(SessionVisualState visualState, SessionLineageDiagnostic diagnostic, SessionViewDescriptor session)
+        => JoinTooltipParts(
+            ResolveLineageDiagnosticTooltip(diagnostic, session),
+            visualState.HasPromptDraft ? "Prompt draft edited" : null,
+            visualState.HasActiveReminder ? "Reminder active" : null);
+
+    private static string? BuildStateIcons(bool hasPromptDraft, bool hasActiveReminder, SidebarAccent accent)
+    {
+        var icons = new List<string>(2);
+        if (hasPromptDraft)
+        {
+            icons.Add(SidebarSessionPresentation.BuildEditedPromptIconMarkup(accent));
+        }
+
+        if (hasActiveReminder)
+        {
+            icons.Add(SidebarSessionPresentation.BuildReminderIconMarkup(accent));
+        }
+
+        return icons.Count == 0 ? null : string.Join(' ', icons);
+    }
+
+    private static string? JoinTooltipParts(params string?[] parts)
+    {
+        var values = parts.Where(static part => !string.IsNullOrWhiteSpace(part)).ToArray();
+        return values.Length == 0 ? null : string.Join(" · ", values);
+    }
 
     private static string BuildLineageDiagnosticIconMarkup()
         => $"[{UiPalette.GetStatusToneMarkup(StatusTone.Warning)}]{NerdFont.MdAlertCircleOutline}[/]";

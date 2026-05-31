@@ -75,6 +75,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
     private readonly ProviderFrontendCoordinator _providerUi;
     private readonly ProviderDialogCoordinator _providerDialogCoordinator;
     private readonly PromptDialogCoordinator _promptDialogCoordinator;
+    private readonly ReminderUiCoordinator _reminderUiCoordinator;
     private readonly FileEditorWorkspaceCoordinator _fileEditorWorkspaceCoordinator;
     private readonly InitialCatalogStateCoordinator _initialCatalogStateCoordinator;
     private readonly Action _openModels;
@@ -194,6 +195,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
         _modelProviderSelectorCoordinator = composition.ModelProviderSelectorCoordinator;
         _userPromptSelectorCoordinator = composition.UserPromptSelectorCoordinator;
         _openModels = composition.ModelCatalogCoordinator.Open;
+        _reminderUiCoordinator = composition.ReminderUiCoordinator;
         _projectionCoordinator = new ShellProjectionCoordinator(
             _frontendEvents,
             _workspaceCoordinator,
@@ -262,7 +264,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
             _sidebarCoordinator.OpenNavigatorSettings,
             () => EnsureSessionUsagePresenter().TogglePopupFromIndicator(),
             () => { if (SessionInput is not null) EnsureSessionInfoPresenter().TogglePopup(SessionInput); },
-            () => _sessionWorkspaceView?.OpenExpandedPromptDialog(), ToggleCommandBarMultiLine);
+            () => _sessionWorkspaceView?.OpenExpandedPromptDialog(), ToggleCommandBarMultiLine, _reminderUiCoordinator.Open);
         var navigation = new DelegatingShellNavigationCommandService(
             FocusSidebar, FocusPromptEditor, FocusModelProviderSelector, () => SidebarUiStateHelpers.ToggleNavigator(_sidebarCoordinator.View, FocusPromptTarget),
             () => { _ = _sessionTabStripCoordinator.TrySelectRelativeTab(-1); return Task.CompletedTask; },
@@ -299,6 +301,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
     async ValueTask IShellFrontendHostLifecycle.DisposeFrontendAsync()
     {
         _projectionCoordinator.Dispose();
+        _reminderUiCoordinator.Dispose();
         await PersistViewStateAsync();
         await _fileEditorWorkspaceCoordinator.DisposeAsync();
         await _runtimeEventPump.DisposeAsync();
@@ -376,7 +379,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
     }
 
     internal void RefreshSidebarProjection()
-        => SidebarUiStateHelpers.RefreshProjection(_sidebarCoordinator, _sessionStateCoordinator, _promptDraftUiCoordinator, sessionId => _sessionStateCoordinator.FindOpenSession(sessionId), _sessionRuntimeEventCoordinator.IsSessionRunning, VerifyBindableAccess);
+        => SidebarUiStateHelpers.RefreshProjection(_sidebarCoordinator, _sessionStateCoordinator, _promptDraftUiCoordinator, sessionId => _sessionStateCoordinator.FindOpenSession(sessionId), _sessionRuntimeEventCoordinator.IsSessionRunning, _reminderUiCoordinator.HasActiveReminder, VerifyBindableAccess);
 
     internal void SyncSidebarSelectionToCurrentState()
         => _sidebarCoordinator.SyncSelectionToCurrentState(SidebarUiStateHelpers.ResolveCurrentTarget(_sessionStateCoordinator));
@@ -504,7 +507,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
             ShellViewModel = _shellViewModel,
             WorkspaceViewModel = _sessionWorkspaceViewModel,
             PromptComposerViewModel = _promptComposerViewModel,
-            WorkspaceChromeController = SessionWorkspaceChromeController.Create(() => CreateUsageComputedVisual(EnsureSessionUsagePresenter().BuildIndicatorVisual), () => ShellPluginFooterComposer.ComposeRegion(pb, PluginUiRegion.SessionStatus, GetSelectedSession()?.SessionId), anchor => EnsureSessionInfoPresenter().TogglePopup(anchor), () => ObserveUiTask(OpenModelProvidersAsync, "open model providers")),
+            WorkspaceChromeController = SessionWorkspaceChromeController.Create(() => CreateUsageComputedVisual(EnsureSessionUsagePresenter().BuildIndicatorVisual), () => ShellPluginFooterComposer.ComposeRegion(pb, PluginUiRegion.SessionStatus, GetSelectedSession()?.SessionId), anchor => EnsureSessionInfoPresenter().TogglePopup(anchor), () => ObserveUiTask(OpenModelProvidersAsync, "open model providers"), _reminderUiCoordinator.GetSelectedSessionReminderCount, _reminderUiCoordinator.Open),
             PromptComposerController = PromptComposerViewController.Create(acceptedPrompt => ObserveUiTask(() => _shellCommandSurfaceCoordinator.HandleAcceptedPromptAsync(acceptedPrompt), "submit the current prompt"), () => ObserveUiTask(() => _shellCommandSurfaceCoordinator.SubmitCurrentPromptAsync(steer: false), "submit the current prompt"), () => ObserveUiTask(() => _shellCommandSurfaceCoordinator.AbortSelectedSessionAsync(), "abort the selected session"), openHelp, showPalette),
             QueuedPromptController = QueuedPromptStripController.Create(markdown => (_sessionWorkspaceView?.SessionPaneLayout.App)?.Terminal.Clipboard.TrySetText(markdown), queuedPromptId => ObserveUiTask(() => _sessionCommandCoordinator.ConvertSelectedSessionQueuedPromptToSteerAsync(queuedPromptId), "convert the queued prompt to steer"), pendingSteerId => _sessionCommandCoordinator.DeleteSelectedSessionPendingSteer(pendingSteerId), queuedPromptId => _sessionCommandCoordinator.DeleteSelectedSessionQueuedPrompt(queuedPromptId), (queuedPromptId, remainingCount) => _sessionCommandCoordinator.UpdateSelectedSessionQueuedPromptCount(queuedPromptId, remainingCount), (queuedPromptId, text) => _sessionCommandCoordinator.UpdateSelectedSessionQueuedPromptText(queuedPromptId, text), (onAccepted, placeholder) => SessionWorkspaceView.CreateStyledPromptEditor(onAccepted, openHelp, showPalette, pfs, promptRoot, pec, placeholder)),
             UserPromptSelectorController = UserPromptSelectorController.Create(OnUserPromptSelectionChanged, () => ObserveUiTask(OpenPromptsAsync, "open prompts")),

@@ -2045,6 +2045,28 @@ public sealed class AltaLiveToolTests
     }
 
     [TestMethod]
+    public void ReminderService_UpdateContentChangesStoredMessageAndPreview()
+    {
+        var reminderService = new AltaReminderService(new AltaServiceCollection());
+        var descriptor = reminderService.Create(new AltaReminderCreateRequest
+        {
+            TargetSessionId = "session-1",
+            Content = "original reminder message",
+            Duration = TimeSpan.FromDays(1),
+            RepeatCount = 1,
+        });
+
+        var updated = reminderService.TryUpdateContent(descriptor.ReminderId, "updated reminder message", out var updatedDescriptor);
+        var found = reminderService.TryGetContent(descriptor.ReminderId, out var content);
+
+        Assert.IsTrue(updated);
+        Assert.IsTrue(found);
+        Assert.AreEqual("updated reminder message", content);
+        Assert.AreEqual("updated reminder message", updatedDescriptor!.ContentPreview);
+        Assert.IsTrue(reminderService.TryDelete(descriptor.ReminderId, out _));
+    }
+
+    [TestMethod]
     public async Task SessionSend_AppliesHeadlessPluginPromptAndToolAugmentation()
     {
         using var root = TempDirectory.Create();

@@ -452,7 +452,7 @@ public sealed class CodeAltaAppSidebarTests
             @"C:\global",
             [project.Id],
             new NavigatorSettings(),
-            static _ => new SessionVisualState(IsRunning: true, HasPromptDraft: false),
+            static _ => new SessionVisualState(IsRunning: true, HasPromptDraft: false, HasActiveReminder: false),
             static (_, _) => false,
             (nodeId, kind, selectionTarget) => GetOrCreateRow(rows, nodeId, kind, selectionTarget),
             timestamp.AddMinutes(1));
@@ -476,13 +476,38 @@ public sealed class CodeAltaAppSidebarTests
             @"C:\global",
             [project.Id],
             new NavigatorSettings(),
-            static _ => new SessionVisualState(IsRunning: false, HasPromptDraft: true),
+            static _ => new SessionVisualState(IsRunning: false, HasPromptDraft: true, HasActiveReminder: false),
             static (_, _) => false,
             (nodeId, kind, selectionTarget) => GetOrCreateRow(rows, nodeId, kind, selectionTarget),
             timestamp.AddMinutes(1));
 
         Assert.IsFalse(rows[$"session:{session.SessionId}"].ShowStateSpinner);
         StringAssert.Contains(rows[$"session:{session.SessionId}"].StateIconMarkup, NerdFont.MdSquareEditOutline.ToString());
+    }
+
+    [TestMethod]
+    public void Build_ActiveReminderSessionsExposeReminderIconState()
+    {
+        var timestamp = DateTimeOffset.Parse("2026-03-29T10:00:00+00:00");
+        var project = CreateProject("project-1", "CodeAlta", @"C:\repo");
+        var session = CreateSession("session-1", "Recovered session", SessionViewKind.ProjectSession, project.Id, ModelProviderIds.Codex.Value, project.ProjectPath, timestamp);
+        var rows = new Dictionary<string, SidebarNodeViewModel>(StringComparer.OrdinalIgnoreCase);
+
+        SidebarTreeProjectionBuilder.Build(
+            [project],
+            [session],
+            @"C:\global",
+            [project.Id],
+            new NavigatorSettings(),
+            static _ => new SessionVisualState(IsRunning: false, HasPromptDraft: false, HasActiveReminder: true),
+            static (_, _) => false,
+            (nodeId, kind, selectionTarget) => GetOrCreateRow(rows, nodeId, kind, selectionTarget),
+            timestamp.AddMinutes(1));
+
+        Assert.IsFalse(rows[$"session:{session.SessionId}"].ShowStateSpinner);
+        StringAssert.Contains(rows[$"session:{session.SessionId}"].StateIconMarkup, NerdFont.MdTimerOutline.ToString());
+        StringAssert.Contains(rows[$"project:{project.Id}"].StateIconMarkup, NerdFont.MdTimerOutline.ToString());
+        StringAssert.Contains(rows[$"project:{project.Id}"].StateTooltip, "reminder active");
     }
 
     [TestMethod]

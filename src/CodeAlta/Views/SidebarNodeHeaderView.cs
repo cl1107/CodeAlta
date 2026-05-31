@@ -80,23 +80,26 @@ internal sealed class SidebarNodeHeaderView : Visual
         _stateIndicator = new ComputedVisual(
             () =>
             {
+                Visual? stateIcon = string.IsNullOrWhiteSpace(_row.StateIconMarkup)
+                    ? null
+                    : new Markup(() => _row.StateIconMarkup!)
+                    {
+                        Wrap = false,
+                    };
+
+                if (stateIcon is not null && !string.IsNullOrWhiteSpace(_row.StateTooltip))
+                {
+                    stateIcon = stateIcon.Tooltip(new TextBlock(() => _row.StateTooltip!));
+                }
+
                 if (_row.ShowStateSpinner)
                 {
-                    return _stateSpinner;
+                    return stateIcon is null
+                        ? _stateSpinner
+                        : new HStack(_stateSpinner, stateIcon) { Spacing = 1 };
                 }
 
-                if (string.IsNullOrWhiteSpace(_row.StateIconMarkup))
-                {
-                    return null;
-                }
-
-                var stateIcon = new Markup(() => _row.StateIconMarkup!)
-                {
-                    Wrap = false,
-                };
-                return string.IsNullOrWhiteSpace(_row.StateTooltip)
-                    ? stateIcon
-                    : stateIcon.Tooltip(new TextBlock(() => _row.StateTooltip!));
+                return stateIcon;
             })
         {
             VerticalAlignment = Align.Center,

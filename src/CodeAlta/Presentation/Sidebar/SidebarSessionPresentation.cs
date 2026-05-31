@@ -50,4 +50,7 @@ internal static class SidebarSessionPresentation
 
     public static string BuildEditedPromptIconMarkup(SidebarAccent accent)
         => $"[{UiPalette.GetSidebarAccentMarkup(accent)}]{NerdFont.MdSquareEditOutline}[/]";
+
+    public static string BuildReminderIconMarkup(SidebarAccent accent)
+        => $"[{UiPalette.GetSidebarAccentMarkup(accent)}]{NerdFont.MdTimerOutline}[/]";
 }

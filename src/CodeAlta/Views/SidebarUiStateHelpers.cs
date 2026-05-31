@@ -41,6 +41,7 @@ internal static class SidebarUiStateHelpers
         PromptDraftUiCoordinator promptDraftUiCoordinator,
         Func<string, OpenSessionState?> findOpenSession,
         Func<string, bool> isRuntimeSessionRunning,
+        Func<string, bool> hasActiveReminder,
         Action verifyBindableAccess)
     {
         ArgumentNullException.ThrowIfNull(sidebarCoordinator);
@@ -48,6 +49,7 @@ internal static class SidebarUiStateHelpers
         ArgumentNullException.ThrowIfNull(promptDraftUiCoordinator);
         ArgumentNullException.ThrowIfNull(findOpenSession);
         ArgumentNullException.ThrowIfNull(isRuntimeSessionRunning);
+        ArgumentNullException.ThrowIfNull(hasActiveReminder);
         ArgumentNullException.ThrowIfNull(verifyBindableAccess);
 
         sidebarCoordinator.RefreshProjection(
@@ -57,8 +59,8 @@ internal static class SidebarUiStateHelpers
             ResolveCurrentTarget(sessionStateCoordinator),
             sessionStateCoordinator.NavigatorSettings,
             sessionId => findOpenSession(sessionId) is { } tab
-                ? new SessionVisualState(tab.StatusBusy || isRuntimeSessionRunning(sessionId), tab.HasPromptDraft)
-                : new SessionVisualState(isRuntimeSessionRunning(sessionId), promptDraftUiCoordinator.HasPersistedPromptDraft(sessionId)),
+                ? new SessionVisualState(tab.StatusBusy || isRuntimeSessionRunning(sessionId), tab.HasPromptDraft, hasActiveReminder(sessionId))
+                : new SessionVisualState(isRuntimeSessionRunning(sessionId), promptDraftUiCoordinator.HasPersistedPromptDraft(sessionId), hasActiveReminder(sessionId)),
             promptDraftUiCoordinator.HasDraftPrompt,
             verifyBindableAccess);
     }

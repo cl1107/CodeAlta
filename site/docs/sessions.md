@@ -93,7 +93,7 @@ summary back here.
 
 For parent/child delegated work, CodeAlta uses a notification-based pattern: the child final reply or child-run error is forwarded back to the parent session automatically. The parent agent should yield instead of repeatedly polling while waiting.
 
-Agents can also ask the live tool to schedule in-process reminder prompts with `alta reminder create --duration <seconds> --content ...`. Reminders default to the calling session, can target another session with `--session <session-id>`, can repeat with `--repeat <count>`, and can be inspected or removed with `alta reminder list` and `alta reminder delete <reminder-id>`.
+Agents can also ask the live tool to schedule in-process reminder prompts with `alta reminder create --duration <seconds> --content ...`. Reminders default to the calling session, can target another session with `--session <session-id>`, can repeat with `--repeat <count>`, and can be inspected or removed with `alta reminder list` and `alta reminder delete <reminder-id>`. In the TUI, use the compact clock button in the prompt bar or `/reminder` (`Ctrl+G Ctrl+D`) to create, delete, and edit reminder messages for the selected session.
 
 ## Prompting for CodeAlta self-inspection
 

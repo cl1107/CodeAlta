@@ -59,6 +59,10 @@ internal static class BuiltinShellCommands
         new KeyGesture(TerminalChar.CtrlG, TerminalModifiers.Ctrl),
         new KeyGesture(TerminalChar.CtrlT, TerminalModifiers.Ctrl));
 
+    public static readonly KeySequence RemindersShortcutSequence = new(
+        new KeyGesture(TerminalChar.CtrlG, TerminalModifiers.Ctrl),
+        new KeyGesture(TerminalChar.CtrlD, TerminalModifiers.Ctrl));
+
     public static readonly KeySequence ToggleNavigatorShortcutSequence = new(
         new KeyGesture(TerminalChar.CtrlG, TerminalModifiers.Ctrl),
         new KeyGesture(TerminalChar.CtrlG, TerminalModifiers.Ctrl));
@@ -215,6 +219,7 @@ internal static class BuiltinShellCommands
 
     internal static readonly ShellCommand SessionUsage = Dialog("CodeAlta.Session.SessionUsage", "Context Usage", "Show context and usage details for the selected session.", "context_usage", ShellCommandHelpCategory.Inspection, SessionUsageShortcutSequence, static context => { context.Dialogs.OpenSessionUsage(); return Task.CompletedTask; }, ShellCommandPlacement.PromptEditor);
     internal static readonly ShellCommand SessionInfo = Dialog("CodeAlta.Session.Info", "Session Info", "Show information about the selected session.", "session_info", ShellCommandHelpCategory.Inspection, SessionInfoShortcutSequence, static context => { context.Dialogs.OpenSessionInfo(); return Task.CompletedTask; }, ShellCommandPlacement.PromptEditor | ShellCommandPlacement.WorkspaceRoot, canExecute: static context => context.Availability.CanShowSessionInfo());
+    internal static readonly ShellCommand Reminders = Dialog("CodeAlta.Session.Reminders", "Reminders", "Create, list, and delete delayed prompt reminders for the selected session.", "reminder", ShellCommandHelpCategory.Session, RemindersShortcutSequence, static context => { context.Dialogs.OpenReminders(); return Task.CompletedTask; }, ShellCommandPlacement.PromptEditor | ShellCommandPlacement.WorkspaceRoot, searchText: "reminders delayed_prompt", canExecute: static context => context.Availability.CanShowSessionInfo());
 
     internal static readonly ShellCommand MessagePrevious = ScrollMessage("CodeAlta.Session.MessagePrevious", "Previous Message", "Scroll to the previous user prompt or assistant message in the selected session.", "msg_prev", new KeyGesture(TerminalKey.F3), SessionMessageScrollTarget.Previous);
     internal static readonly ShellCommand MessageNext = ScrollMessage("CodeAlta.Session.MessageNext", "Next Message", "Scroll to the next user prompt or assistant message in the selected session.", "msg_next", new KeyGesture(TerminalKey.F4), SessionMessageScrollTarget.Next);
@@ -323,6 +328,7 @@ internal static class BuiltinShellCommands
         yield return ToggleCommandBarMultiLine;
         yield return SessionUsage;
         yield return SessionInfo;
+        yield return Reminders;
         yield return MessagePrevious;
         yield return MessageNext;
         yield return MessageFirst;

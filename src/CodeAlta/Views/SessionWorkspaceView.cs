@@ -43,6 +43,7 @@ internal sealed class SessionWorkspaceView
     internal static readonly KeySequence ModelProvidersShortcutSequence = BuiltinShellCommands.ModelProvidersShortcutSequence;
     internal static readonly KeySequence SessionUsageShortcutSequence = BuiltinShellCommands.SessionUsageShortcutSequence;
     internal static readonly KeySequence SessionInfoShortcutSequence = BuiltinShellCommands.SessionInfoShortcutSequence;
+    internal static readonly KeySequence RemindersShortcutSequence = BuiltinShellCommands.RemindersShortcutSequence;
 
     public SessionWorkspaceView(
         CodeAltaShellViewModel shellViewModel,
@@ -296,6 +297,22 @@ internal sealed class SessionWorkspaceView
             .Tooltip(new TextBlock($"Configure model providers ({ModelProvidersShortcutSequence})."));
 
         var usageIndicator = _chromeController.BuildSessionUsageIndicatorVisual();
+        var reminderButton = new Button(new Markup(() =>
+            {
+                var count = _chromeController.GetActiveReminderCount();
+                return count > 0
+                    ? $"{NerdFont.MdTimerOutline} {count}"
+                    : $"{NerdFont.MdTimerOutline}";
+            })
+            {
+                Wrap = false,
+            })
+            .Style(ButtonStyle.Default with
+            {
+                Padding = Thickness.Zero,
+            })
+            .Click(_chromeController.OpenReminders)
+            .Tooltip(new TextBlock(() => $"Manage reminders for the selected session ({RemindersShortcutSequence})."));
         var statusLine = new SessionStatusLineView(shellViewModel, _thinkingAnimationPhase01, _chromeController.BuildPluginSessionStatusVisual).Root;
         var queuedPromptList = new QueuedPromptStripView(
             workspaceViewModel,
@@ -305,6 +322,7 @@ internal sealed class SessionWorkspaceView
         [
             providerSummaryButton,
             usageIndicator,
+            reminderButton,
             sessionInfoButton,
             promptComposerView.ExpandButton,
             promptComposerView.SendButton,

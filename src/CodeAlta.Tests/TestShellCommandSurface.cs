@@ -34,6 +34,7 @@ internal static class TestShellCommandSurface
                 static () => { },
                 static () => { },
                 static () => { },
+                static () => { },
                 static () => { }),
             Navigation = new DelegatingShellNavigationCommandService(
                 static () => { },

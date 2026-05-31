@@ -279,6 +279,8 @@ internal interface IShellDialogCommandService
 
     void ToggleCommandBarMultiLine();
 
+    void OpenReminders();
+
     void ExitApp();
 }
 
@@ -301,6 +303,7 @@ internal sealed class DelegatingShellDialogCommandService : IShellDialogCommandS
     private readonly Action _openSessionInfo;
     private readonly Action _openExpandedPromptEditor;
     private readonly Action _toggleCommandBarMultiLine;
+    private readonly Action _openReminders;
 
     public DelegatingShellDialogCommandService(
         Func<Rectangle?> getDialogBounds,
@@ -319,7 +322,8 @@ internal sealed class DelegatingShellDialogCommandService : IShellDialogCommandS
         Action openSessionUsage,
         Action openSessionInfo,
         Action openExpandedPromptEditor,
-        Action toggleCommandBarMultiLine)
+        Action toggleCommandBarMultiLine,
+        Action openReminders)
     {
         ArgumentNullException.ThrowIfNull(getDialogBounds);
         ArgumentNullException.ThrowIfNull(getDialogFocusTarget);
@@ -338,6 +342,7 @@ internal sealed class DelegatingShellDialogCommandService : IShellDialogCommandS
         ArgumentNullException.ThrowIfNull(openSessionInfo);
         ArgumentNullException.ThrowIfNull(openExpandedPromptEditor);
         ArgumentNullException.ThrowIfNull(toggleCommandBarMultiLine);
+        ArgumentNullException.ThrowIfNull(openReminders);
         _getDialogBounds = getDialogBounds;
         _getDialogFocusTarget = getDialogFocusTarget;
         _getProjects = getProjects;
@@ -355,6 +360,7 @@ internal sealed class DelegatingShellDialogCommandService : IShellDialogCommandS
         _openSessionInfo = openSessionInfo;
         _openExpandedPromptEditor = openExpandedPromptEditor;
         _toggleCommandBarMultiLine = toggleCommandBarMultiLine;
+        _openReminders = openReminders;
     }
 
     public Rectangle? GetDialogBounds() => _getDialogBounds();
@@ -390,6 +396,8 @@ internal sealed class DelegatingShellDialogCommandService : IShellDialogCommandS
     public void OpenExpandedPromptEditor() => _openExpandedPromptEditor();
 
     public void ToggleCommandBarMultiLine() => _toggleCommandBarMultiLine();
+
+    public void OpenReminders() => _openReminders();
 
     public void ExitApp() => GetDialogFocusTarget()?.App?.Stop();
 }
