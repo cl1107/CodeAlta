@@ -44,5 +44,35 @@ internal interface IUiDispatcher
 
     Task InvokeAsync(Action action);
 
+    Task InvokeAsync(Action action, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return Task.FromCanceled(cancellationToken);
+        }
+
+        var task = InvokeAsync(action);
+        return cancellationToken.CanBeCanceled
+            ? task.WaitAsync(cancellationToken)
+            : task;
+    }
+
     Task<T> InvokeAsync<T>(Func<T> action);
+
+    Task<T> InvokeAsync<T>(Func<T> action, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return Task.FromCanceled<T>(cancellationToken);
+        }
+
+        var task = InvokeAsync(action);
+        return cancellationToken.CanBeCanceled
+            ? task.WaitAsync(cancellationToken)
+            : task;
+    }
 }

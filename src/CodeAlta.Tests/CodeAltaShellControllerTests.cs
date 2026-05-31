@@ -156,6 +156,37 @@ public sealed class CodeAltaShellControllerTests
     }
 
     [TestMethod]
+    public async Task DisposeAsync_CancelsStartupInitializationWaitingForUiDispatcher()
+    {
+        var log = new List<string>();
+        var controller = new CodeAltaShellController(
+            new FakeShell(log),
+            new FakeImporter(log),
+            new FakeProjectCatalogStore(
+                log,
+                [
+                    new ProjectDescriptor
+                    {
+                        Id = "project-1",
+                        DisplayName = "CodeAlta",
+                        ProjectPath = @"C:\repo",
+                        Slug = "codealta",
+                    },
+                ]),
+            new FakeRecoverableSessionSource(log, [CreateSession("session-1")]),
+            new FakeSessionDeleter(log));
+        var dispatcher = new BlockingUiDispatcher();
+        controller.AttachUiDispatcher(dispatcher);
+
+        controller.StartInitialization(CancellationToken.None);
+        await dispatcher.WaitForInvokeAsync().ConfigureAwait(false);
+
+        await controller.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(false);
+
+        Assert.IsTrue(dispatcher.InvokeCallCount > 0);
+    }
+
+    [TestMethod]
     public async Task InitializeAsync_AppliesRecoverableSessionsProgressivelyFromOneStream()
     {
         var log = new List<string>();
@@ -976,5 +1007,45 @@ public sealed class CodeAltaShellControllerTests
             InvokeCallCount++;
             return Task.FromResult(action());
         }
+    }
+
+    private sealed class BlockingUiDispatcher : IUiDispatcher
+    {
+        private readonly TaskCompletionSource<bool> _invokeStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource<bool> _blocked = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public int InvokeCallCount { get; private set; }
+
+        public bool CheckAccess()
+            => false;
+
+        public void Post(Action action)
+        {
+            ArgumentNullException.ThrowIfNull(action);
+        }
+
+        public Task InvokeAsync(Action action)
+        {
+            ArgumentNullException.ThrowIfNull(action);
+            InvokeCallCount++;
+            _invokeStarted.TrySetResult(true);
+            return _blocked.Task;
+        }
+
+        public Task<T> InvokeAsync<T>(Func<T> action)
+        {
+            ArgumentNullException.ThrowIfNull(action);
+            InvokeCallCount++;
+            _invokeStarted.TrySetResult(true);
+            return _blocked.Task.ContinueWith(
+                static (_, state) => ((Func<T>)state!)(),
+                action,
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+        }
+
+        public Task WaitForInvokeAsync()
+            => _invokeStarted.Task.WaitAsync(TimeSpan.FromSeconds(3));
     }
 }

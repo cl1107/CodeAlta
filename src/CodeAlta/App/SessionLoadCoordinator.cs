@@ -35,7 +35,7 @@ internal sealed class SessionLoadCoordinator
         {
             appliedAny = true;
             recoveredSessions[session.SessionId] = session;
-            await ApplySnapshotAsync(projects, recoveredSessions, pruneMissingSessions: false);
+            await ApplySnapshotAsync(projects, recoveredSessions, pruneMissingSessions: false, cancellationToken);
         }
 
         if (!appliedAny)
@@ -45,18 +45,21 @@ internal sealed class SessionLoadCoordinator
                 {
                     _shell.ApplyRecoveredCatalogState(projects, []);
                     _shell.TrySchedulePendingStartupSessionRestore(CancellationToken.None);
-                });
+                },
+                cancellationToken);
             return;
         }
 
-        await ApplySnapshotAsync(projects, recoveredSessions, pruneMissingSessions: true);
+        await ApplySnapshotAsync(projects, recoveredSessions, pruneMissingSessions: true, cancellationToken);
     }
 
     private Task ApplySnapshotAsync(
         IReadOnlyList<ProjectDescriptor> projects,
         Dictionary<string, SessionViewDescriptor> recoveredSessions,
-        bool pruneMissingSessions)
+        bool pruneMissingSessions,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var sessions = recoveredSessions.Values
             .OrderByDescending(static item => item.LastActiveAt)
             .ToArray();
@@ -66,6 +69,7 @@ internal sealed class SessionLoadCoordinator
             {
                 _shell.ApplyRecoveredCatalogState(projects, sessions, pruneMissingSessions);
                 _shell.TrySchedulePendingStartupSessionRestore(CancellationToken.None);
-            });
+            },
+            cancellationToken);
     }
 }

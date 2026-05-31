@@ -78,7 +78,8 @@ internal sealed class CodeAltaShellController : ISessionRuntimeEventProjector, I
         try
         {
             await UiDispatcher.InvokeAsync(
-                    () => _shell.SetStatus("Refreshing project and session catalog...", showSpinner: true))
+                    () => _shell.SetStatus("Refreshing project and session catalog...", showSpinner: true),
+                    cancellationToken)
                 .ConfigureAwait(false);
 
             await _knownProjectImporter.ImportAsync(cancellationToken).ConfigureAwait(false);
@@ -89,7 +90,8 @@ internal sealed class CodeAltaShellController : ISessionRuntimeEventProjector, I
                     () =>
                     {
                         _shell.SetReadyStatusForCurrentSelection();
-                    })
+                    },
+                    cancellationToken)
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -107,7 +109,7 @@ internal sealed class CodeAltaShellController : ISessionRuntimeEventProjector, I
     {
         ArgumentNullException.ThrowIfNull(runtimeEvent);
         cancellationToken.ThrowIfCancellationRequested();
-        return UiDispatcher.InvokeAsync(() => _shell.HandleRuntimeEvent(runtimeEvent));
+        return UiDispatcher.InvokeAsync(() => _shell.HandleRuntimeEvent(runtimeEvent), cancellationToken);
     }
 
     public void QueueRuntimeEvent(SessionRuntimeEvent runtimeEvent, CancellationToken cancellationToken)
@@ -154,14 +156,14 @@ internal sealed class CodeAltaShellController : ISessionRuntimeEventProjector, I
     public Task SelectGlobalScopeAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return UiDispatcher.InvokeAsync(_shell.SelectGlobalScope);
+        return UiDispatcher.InvokeAsync(_shell.SelectGlobalScope, cancellationToken);
     }
 
     public Task SelectProjectScopeAsync(string projectId, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
         cancellationToken.ThrowIfCancellationRequested();
-        return UiDispatcher.InvokeAsync(() => _shell.SelectProjectScope(projectId));
+        return UiDispatcher.InvokeAsync(() => _shell.SelectProjectScope(projectId), cancellationToken);
     }
 
     public Task OpenSessionAsync(string sessionId, CancellationToken cancellationToken)
@@ -173,7 +175,8 @@ internal sealed class CodeAltaShellController : ISessionRuntimeEventProjector, I
             {
                 _shell.OpenSession(sessionId);
                 _shell.FocusPromptEditor();
-            });
+            },
+            cancellationToken);
     }
 
     public Task<ProjectDescriptor> OpenFolderAsync(string folderPath, CancellationToken cancellationToken)
@@ -185,7 +188,8 @@ internal sealed class CodeAltaShellController : ISessionRuntimeEventProjector, I
         cancellationToken.ThrowIfCancellationRequested();
 
         await UiDispatcher.InvokeAsync(
-                () => _shell.SetStatus($"Opening '{folderPath}'...", showSpinner: true))
+                () => _shell.SetStatus($"Opening '{folderPath}'...", showSpinner: true),
+                cancellationToken)
             .ConfigureAwait(false);
 
         var project = await ResolveOpenProjectAsync(folderPath, includeHidden, cancellationToken).ConfigureAwait(false);
@@ -197,7 +201,8 @@ internal sealed class CodeAltaShellController : ISessionRuntimeEventProjector, I
                     _shell.SelectProjectScope(project.Id);
                     _shell.SetReadyStatusForCurrentSelection();
                     _shell.FocusPromptEditor();
-                })
+                },
+                cancellationToken)
             .ConfigureAwait(false);
 
         return project;
@@ -501,7 +506,8 @@ internal sealed class CodeAltaShellController : ISessionRuntimeEventProjector, I
                 _shell.SetReadyStatusForCurrentSelection();
                 _shell.SetInitialized(true);
                 _shell.TrySchedulePendingStartupSessionRestore(CancellationToken.None);
-            });
+            },
+            cancellationToken);
     }
 
     private static async Task<IReadOnlyList<SessionViewDescriptor>> CollectRecoverableSessionsAsync(
