@@ -512,6 +512,200 @@ public sealed class AltaLiveToolTests
     }
 
     [TestMethod]
+    public async Task AskHelp_IncludesPayloadSchemaAndYieldGuidance()
+    {
+        var result = await CreateDispatcher().InvokeAsync(["ask", "--help"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+
+        Assert.AreEqual(AltaExitCodes.Success, result.ExitCode);
+        Assert.IsTrue(result.IsHelp);
+        StringAssert.Contains(result.Stdout, "Payload JSON Schema:");
+        StringAssert.Contains(result.Stdout, "\"questions\"");
+        StringAssert.Contains(result.Stdout, "alta ask --stdin");
+        StringAssert.Contains(result.Stdout, "alta.ask.queued");
+        StringAssert.Contains(result.Stdout, "not poll");
+    }
+
+    [TestMethod]
+    public async Task AskCommand_QueuesForCallerSessionAndReturnsYieldGuidance()
+    {
+        var askService = new AltaAskService();
+        var dispatcher = CreateDispatcher(new AltaServiceCollection().Add<IAltaAskService>(askService));
+        var caller = new AltaCallerIdentity { Kind = "agent", SourceSessionId = "session-ask" };
+
+        var result = await dispatcher.InvokeAsync(
+                ["ask", "--stdin"],
+                caller: caller,
+                stdin: """
+                {
+                  "questions": [
+                    {
+                      "title": "Plan",
+                      "question": "Does this plan look correct?",
+                      "choices": [{ "title": "Approve" }, { "title": "Revise" }],
+                      "freeform": { "title": "Notes", "placeholder": "Optional notes..." }
+                    }
+                  ]
+                }
+                """)
+            .ConfigureAwait(false);
+
+        Assert.AreEqual(AltaExitCodes.Success, result.ExitCode, result.Stderr);
+        var queuedRecord = ReadJsonLines(result.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.ask.queued");
+        Assert.IsFalse(string.IsNullOrWhiteSpace(queuedRecord.GetProperty("askId").GetString()));
+        Assert.AreEqual("session-ask", queuedRecord.GetProperty("sessionId").GetString());
+        Assert.IsTrue(queuedRecord.GetProperty("queued").GetBoolean());
+        Assert.IsTrue(queuedRecord.GetProperty("shouldYield").GetBoolean());
+        Assert.AreEqual("stop", queuedRecord.GetProperty("recommendedAction").GetString());
+        Assert.IsFalse(queuedRecord.GetProperty("activeWaitAllowed").GetBoolean());
+        Assert.IsFalse(queuedRecord.GetProperty("shouldPoll").GetBoolean());
+        StringAssert.Contains(queuedRecord.GetProperty("nextStep").GetString(), "Yield now");
+
+        var queued = askService.Peek("session-ask");
+        Assert.IsNotNull(queued);
+        Assert.AreEqual(queuedRecord.GetProperty("askId").GetString(), queued.AskId);
+        Assert.AreEqual("Plan", queued.Request.Questions.Single().Title);
+        Assert.AreEqual("Approve", queued.Request.Questions.Single().Choices[0].Title);
+    }
+
+    [TestMethod]
+    public async Task AskCommand_RequiresExplicitSessionOutsideAgentCaller()
+    {
+        var dispatcher = CreateDispatcher(new AltaServiceCollection().Add<IAltaAskService>(new AltaAskService()));
+
+        var result = await dispatcher.InvokeAsync(
+                ["ask", "--stdin"],
+                caller: AltaCallerIdentity.Cli,
+                stdin: "{\"questions\":[{\"title\":\"Q\",\"question\":\"Answer?\",\"freeform\":{}}]}")
+            .ConfigureAwait(false);
+
+        Assert.AreEqual(AltaExitCodes.Usage, result.ExitCode);
+        var error = ReadJsonLines(result.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.error");
+        Assert.AreEqual("usage.missingSession", error.GetProperty("code").GetString());
+        StringAssert.Contains(error.GetProperty("usageHint").GetString(), "alta ask --help");
+    }
+
+    [TestMethod]
+    public async Task AskCommand_ReportsMalformedJsonAndInvalidPayloadAsUsageDiagnostics()
+    {
+        var dispatcher = CreateDispatcher(new AltaServiceCollection().Add<IAltaAskService>(new AltaAskService()));
+        var caller = new AltaCallerIdentity { Kind = "agent", SourceSessionId = "session-ask" };
+
+        var malformed = await dispatcher.InvokeAsync(["ask", "--stdin"], caller: caller, stdin: "{ not json").ConfigureAwait(false);
+        var invalid = await dispatcher.InvokeAsync(
+                ["ask", "--stdin"],
+                caller: caller,
+                stdin: "{\"questions\":[{\"title\":\"Q\",\"question\":\"Answer?\"}]}")
+            .ConfigureAwait(false);
+
+        Assert.AreEqual(AltaExitCodes.Usage, malformed.ExitCode);
+        var malformedError = ReadJsonLines(malformed.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.error");
+        Assert.AreEqual("usage.invalidJson", malformedError.GetProperty("code").GetString());
+        StringAssert.Contains(malformedError.GetProperty("usageHint").GetString(), "alta ask --help");
+
+        Assert.AreEqual(AltaExitCodes.Usage, invalid.ExitCode);
+        var invalidError = ReadJsonLines(invalid.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.error");
+        Assert.AreEqual("usage.invalidPayload", invalidError.GetProperty("code").GetString());
+        StringAssert.Contains(invalidError.GetProperty("message").GetString(), "requires choices or freeform");
+    }
+
+    [TestMethod]
+    public async Task ToolCapabilityList_ReportsAskAsMutatingRuntimeRequiredCommand()
+    {
+        var result = await CreateDispatcher().InvokeAsync(["tool", "capability", "list"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+
+        Assert.AreEqual(AltaExitCodes.Success, result.ExitCode);
+        var capability = ReadJsonLines(result.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.tool.capabilities");
+        AssertJsonArrayContains(capability.GetProperty("paths"), "ask");
+        AssertJsonArrayContains(capability.GetProperty("mutating"), "ask");
+        Assert.IsFalse(capability.GetProperty("outOfProcess").EnumerateArray().Any(static item => item.GetString() == "ask"));
+    }
+
+    [TestMethod]
+    public void AltaAskService_QueuesFifoPerSessionAndRaisesQueueChangedEvents()
+    {
+        var service = new AltaAskService();
+        var changedSessions = new List<string>();
+        service.QueueChanged += (_, e) => changedSessions.Add(e.SessionId);
+        var caller = new AltaCallerIdentity { Kind = "agent", SourceSessionId = "session-a" };
+        var firstRequest = CreateAskRequest("First");
+        var secondRequest = CreateAskRequest("Second");
+
+        var first = service.QueueAsync(firstRequest, "session-a", caller).GetAwaiter().GetResult();
+        var second = service.QueueAsync(secondRequest, "session-a", caller).GetAwaiter().GetResult();
+
+        Assert.AreEqual(first.AskId, service.Peek("session-a")!.AskId);
+        Assert.AreEqual(first.AskId, service.Dequeue("session-a")!.AskId);
+        Assert.AreEqual(second.AskId, service.Dequeue("session-a")!.AskId);
+        Assert.IsNull(service.Peek("session-a"));
+        CollectionAssert.AreEqual(new[] { "session-a", "session-a", "session-a", "session-a" }, changedSessions);
+    }
+
+    [TestMethod]
+    public void AltaAskAnswerMarkdownFormatter_FormatsChoicesFreeformFileAndEscapesMarkdown()
+    {
+        var request = new AltaAskRequest
+        {
+            File = new AltaAskFile { Path = "src/Code`Alta/File.cs" },
+            Questions =
+            [
+                new AltaAskQuestion
+                {
+                    Title = "Plan",
+                    Question = "Use *this* plan?",
+                    Choices = [new AltaAskChoice { Title = "Approve_now" }, new AltaAskChoice { Title = "Revise" }],
+                },
+                new AltaAskQuestion
+                {
+                    Title = "Notes",
+                    Question = "Any notes?",
+                    Freeform = new AltaAskFreeform { Title = "Notes" },
+                },
+                new AltaAskQuestion
+                {
+                    Title = "Unanswered",
+                    Question = "Anything else?",
+                    Freeform = new AltaAskFreeform(),
+                },
+            ],
+        };
+
+        var markdown = AltaAskAnswerMarkdownFormatter.Format(
+            request,
+            [
+                new AltaAskAnswer { QuestionIndex = 0, SelectedChoiceIndexes = [0] },
+                new AltaAskAnswer { QuestionIndex = 1, FreeformText = "Line 1\n- bullet" },
+            ]);
+
+        StringAssert.StartsWith(markdown, "# Ask response");
+        StringAssert.Contains(markdown, "File: `src/CodeˋAlta/File.cs`");
+        StringAssert.Contains(markdown, "Use \\*this\\* plan?");
+        StringAssert.Contains(markdown, "Approve\\_now");
+        StringAssert.Contains(markdown, "````text");
+        StringAssert.Contains(markdown, "Line 1\n- bullet");
+        StringAssert.Contains(markdown, "No answer provided.");
+        Assert.IsFalse(markdown.Contains("askId", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
+    public void AltaAskValidator_NormalizesFilePathAndRejectsEscapes()
+    {
+        using var root = TempDirectory.Create();
+        var childDirectory = Path.Combine(root.Path, "src");
+        Directory.CreateDirectory(childDirectory);
+        File.WriteAllText(Path.Combine(childDirectory, "Program.cs"), "// sample");
+        var request = CreateAskRequest("Review") with
+        {
+            File = new AltaAskFile { Path = Path.Combine("src", "Program.cs") },
+        };
+
+        var normalized = AltaAskValidator.ValidateAndNormalize(request, [root.Path], root.Path);
+
+        Assert.AreEqual("src/Program.cs", normalized.File!.Path);
+        var escaping = request with { File = new AltaAskFile { Path = "../outside.txt" } };
+        Assert.ThrowsExactly<ArgumentException>(() => AltaAskValidator.ValidateAndNormalize(escaping, [root.Path], root.Path));
+    }
+
+    [TestMethod]
     public async Task DiscoveryLists_DefaultToCompactRecordsAndDetailedRestoresItems()
     {
         using var root = TempDirectory.Create();
@@ -2938,6 +3132,20 @@ public sealed class AltaLiveToolTests
         => Assert.IsTrue(
             values.Any(item => string.Equals(item, expected, StringComparison.Ordinal)),
             $"Expected JSON array to contain '{expected}'.");
+
+    private static AltaAskRequest CreateAskRequest(string title)
+        => new()
+        {
+            Questions =
+            [
+                new AltaAskQuestion
+                {
+                    Title = title,
+                    Question = $"{title}?",
+                    Freeform = new AltaAskFreeform(),
+                },
+            ],
+        };
 
     private static AltaCommandDispatcher CreateDispatcher(params IAltaCommandContributor[] contributors)
     {

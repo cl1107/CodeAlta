@@ -217,6 +217,28 @@ public sealed class AgentJsonSerializationTests
     }
 
     [TestMethod]
+    public void AgentContentCompletedEvent_ToJson_SerializesAskIdForUserPromptCorrelation()
+    {
+        var @event = new AgentContentCompletedEvent(
+            ModelProviderIds.Codex,
+            "session-1",
+            DateTimeOffset.Parse("2026-04-06T10:30:00+00:00"),
+            new AgentRunId("run-1"),
+            AgentContentKind.User,
+            "user-1",
+            null,
+            "# Ask response\n\nProceed.",
+            AskId: "ask-123");
+
+        using var document = JsonDocument.Parse(@event.ToJson());
+        var root = document.RootElement;
+
+        Assert.AreEqual("contentCompleted", root.GetProperty("$type").GetString());
+        Assert.AreEqual("ask-123", root.GetProperty("ask_id").GetString());
+        Assert.AreEqual("# Ask response\n\nProceed.", root.GetProperty("content").GetString());
+    }
+
+    [TestMethod]
     public void AgentConversationMessage_ToJson_SerializesPolymorphicParts()
     {
         using var argumentsDocument = JsonDocument.Parse("""{"path":"Program.cs"}""");

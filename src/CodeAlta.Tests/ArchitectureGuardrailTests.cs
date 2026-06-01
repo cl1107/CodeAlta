@@ -824,6 +824,20 @@ public sealed class ArchitectureGuardrailTests
     }
 
     [TestMethod]
+    public void AskModeCoordinator_MarksAskActiveBeforeOpeningSession()
+    {
+        var source = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "App", "AskModeCoordinator.cs"));
+        var activeIndex = source.IndexOf("_activeAskId = ask.AskId;", StringComparison.Ordinal);
+        var openIndex = source.IndexOf("_sessionState.OpenSession(sessionId);", StringComparison.Ordinal);
+
+        Assert.IsTrue(activeIndex >= 0, "Ask mode should mark the ask active before presentation can publish reentrant events.");
+        Assert.IsTrue(openIndex >= 0, "Ask mode should still open/select the source session before projection.");
+        Assert.IsTrue(activeIndex < openIndex, "Ask mode must guard against SelectionChanged reentrancy before opening the session.");
+        StringAssert.Contains(source, "catch");
+        StringAssert.Contains(source, "ClearActive();");
+    }
+
+    [TestMethod]
     public void FrontendRefactorV2_CleanupGuardrailsPreventLegacyFacadeShims()
     {
         var codeAltaRoot = GetCodeAltaSourceRoot();

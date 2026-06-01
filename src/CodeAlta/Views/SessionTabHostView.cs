@@ -12,6 +12,7 @@ internal sealed class SessionTabHostView
     private readonly Dictionary<string, TabPage> _tabPages = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, VSplitter> _sessionTabContentSplitters = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, SessionPromptPanel> _sessionPromptPanels = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, AskProjectionState> _askProjectionStates = new(StringComparer.OrdinalIgnoreCase);
     private string? _activeSessionTabContentId;
 
     public SessionTabHostView(SessionTabHostController controller)
@@ -82,6 +83,7 @@ internal sealed class SessionTabHostView
         }
 
         _sessionPromptPanels.Remove(tabId);
+        _askProjectionStates.Remove(tabId);
         if (string.Equals(_activeSessionTabContentId, tabId, StringComparison.OrdinalIgnoreCase))
         {
             _activeSessionTabContentId = null;
@@ -145,6 +147,45 @@ internal sealed class SessionTabHostView
 
         _activeSessionTabContentId = tabId;
     }
+
+    public bool EnterAskMode(string tabId, Visual askForm, Visual? fileReview = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tabId);
+        ArgumentNullException.ThrowIfNull(askForm);
+        if (!_sessionTabContentSplitters.TryGetValue(tabId, out var splitter) || !_sessionPromptPanels.TryGetValue(tabId, out var promptPanel))
+        {
+            return false;
+        }
+
+        if (_askProjectionStates.ContainsKey(tabId))
+        {
+            return true;
+        }
+
+        _askProjectionStates[tabId] = new AskProjectionState(splitter.First, splitter.Second);
+        if (fileReview is not null)
+        {
+            splitter.First = fileReview;
+        }
+
+        splitter.Second = askForm;
+        return true;
+    }
+
+    public bool ExitAskMode(string tabId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tabId);
+        if (!_sessionTabContentSplitters.TryGetValue(tabId, out var splitter) || !_askProjectionStates.Remove(tabId, out var state))
+        {
+            return false;
+        }
+
+        splitter.First = state.Primary;
+        splitter.Second = state.Bottom;
+        return true;
+    }
+
+    private sealed record AskProjectionState(Visual? Primary, Visual? Bottom);
 }
 
 internal sealed class SessionPromptPanel

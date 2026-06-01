@@ -50,6 +50,7 @@ internal sealed class CodeAltaFrontendComposition
     public required SessionSelectionContext SessionSelectionContext { get; init; }
     public required WorkspaceRefreshContext WorkspaceRefreshContext { get; init; }
     public required ReminderUiCoordinator ReminderUiCoordinator { get; init; }
+    public required AskModeCoordinator AskModeCoordinator { get; init; }
 
     public static CodeAltaFrontendComposition Create(
         IReadOnlyList<ModelProviderDescriptor> providerDescriptors,
@@ -106,6 +107,8 @@ internal sealed class CodeAltaFrontendComposition
         var modelProviderPreferences = new ModelProviderPreferenceCoordinator(configStore, CodeAlta.Views.CodeAltaApp.UiLogger);
         var userPromptPreferences = new UserPromptPreferenceCoordinator();
         var altaToolProviderIds = ResolveAltaToolProviderIds(configStore);
+        var askService = new AltaAskService();
+        askService.QueueChanged += (_, args) => frontendEvents.Publish(new AskQueueChangedEvent(args.SessionId));
         var altaServices = new AltaServiceCollection()
             .Add(catalogOptions)
             .Add(projectCatalog)
@@ -115,6 +118,7 @@ internal sealed class CodeAltaFrontendComposition
             .Add(agentHub)
             .Add(modelProviderInitializationService)
             .Add(projectFileSearchService)
+            .Add<IAltaAskService>(askService)
             .Add<IReadOnlyList<ModelProviderDescriptor>>(providerDescriptors)
             .Add<IAltaSessionToolProviderPolicy>(new AltaSessionToolProviderPolicy(altaToolProviderIds));
         if (modelProviderRegistry is not null)
@@ -401,6 +405,13 @@ internal sealed class CodeAltaFrontendComposition
             altaToolProviderIds,
             frontend.GetAlwaysEnqueue,
             userPromptSelectorCoordinator.GetPreferredUserPromptName);
+        var askModeCoordinator = new AskModeCoordinator(
+            askService,
+            sessionStateCoordinator,
+            sessionCommandCoordinator,
+            frontendEvents,
+            sessionWorkspaceViewModel,
+            frontend.SetStatus);
 
         return new CodeAltaFrontendComposition
         {
@@ -437,6 +448,7 @@ internal sealed class CodeAltaFrontendComposition
             SessionSelectionContext = sessionSelectionContext,
             WorkspaceRefreshContext = workspaceRefreshContext,
             ReminderUiCoordinator = reminderUiCoordinator,
+            AskModeCoordinator = askModeCoordinator,
         };
 
     }

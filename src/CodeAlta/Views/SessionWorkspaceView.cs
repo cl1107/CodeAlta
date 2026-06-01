@@ -140,6 +140,7 @@ internal sealed class SessionWorkspaceView
         _sessionTabHostView = new SessionTabHostView(tabHostController);
         SessionPaneLayout = _sessionTabHostView.Root;
         Root = SessionPaneLayout;
+        _workspaceViewModel.SetAskModeHandlers((tabId, askForm) => EnterAskMode(tabId, askForm), ExitAskMode, () => SessionPaneLayout.GetAbsoluteBounds(), control => SessionPaneLayout.App?.Focus(control));
         foreach (var command in shellCommandSurfaceCoordinator.CommandsFor(ShellCommandPlacement.WorkspaceRoot))
         {
             Root.AddCommand(shellCommandSurfaceCoordinator.CreateViewCommand(command));
@@ -204,6 +205,12 @@ internal sealed class SessionWorkspaceView
 
     public void ActivateSessionTabContent(string? tabId)
         => _sessionTabHostView.ActivateSessionTabContent(tabId);
+
+    public bool EnterAskMode(string tabId, Visual askForm, Visual? fileReview = null)
+        => _sessionTabHostView.EnterAskMode(tabId, askForm, fileReview);
+
+    public bool ExitAskMode(string tabId)
+        => _sessionTabHostView.ExitAskMode(tabId);
 
     public void OpenExpandedPromptDialog()
         => ActivePromptPanel.Composer.OpenExpandedPromptDialog();

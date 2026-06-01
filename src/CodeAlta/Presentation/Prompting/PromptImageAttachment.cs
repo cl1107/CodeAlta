@@ -62,15 +62,15 @@ internal sealed record PromptImageAttachmentReference(
         => new(Path, DisplayName: Title, MediaType: MediaType);
 }
 
-internal sealed record PromptSubmission(string Text, IReadOnlyList<PromptImageAttachment> Images)
+internal sealed record PromptSubmission(string Text, IReadOnlyList<PromptImageAttachment> Images, string? AskId = null)
 {
-    public static PromptSubmission Create(string? text, IReadOnlyList<PromptImageAttachment>? images = null)
+    public static PromptSubmission Create(string? text, IReadOnlyList<PromptImageAttachment>? images = null, string? askId = null)
     {
         var normalizedText = text?.Trim() ?? string.Empty;
         var clonedImages = images is { Count: > 0 }
             ? images.Select(static image => image.Copy()).ToArray()
             : [];
-        return new PromptSubmission(normalizedText, clonedImages);
+        return new PromptSubmission(normalizedText, clonedImages, string.IsNullOrWhiteSpace(askId) ? null : askId.Trim());
     }
 
     public static PromptSubmission TextOnly(string text)
@@ -79,10 +79,16 @@ internal sealed record PromptSubmission(string Text, IReadOnlyList<PromptImageAt
         return Create(text, []);
     }
 
+    public PromptSubmission WithAskId(string askId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(askId);
+        return this with { AskId = askId.Trim() };
+    }
+
     public bool HasContent => !string.IsNullOrWhiteSpace(Text) || Images.Count > 0;
 
     public PromptSubmission Copy()
-        => Create(Text, Images);
+        => Create(Text, Images, AskId);
 
     public IReadOnlyList<PromptImageAttachmentReference> ToUnsavedReferences()
         => Images.Select(static image => new PromptImageAttachmentReference(image.Title, $"memory:{image.Id}", image.MediaType)).ToArray();

@@ -15,6 +15,7 @@ public sealed class PluginAltaCommandContributor : IAltaCommandContributor
     private static readonly FrozenSet<string> ReservedRootCommands = new[]
     {
         "version",
+        "ask",
         "project",
         "session",
         "skill",

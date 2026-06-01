@@ -201,6 +201,28 @@ internal sealed class SessionCommandCoordinator
     public bool IsCurrentPromptEmpty()
         => _commandContext.IsSessionInputEmpty();
 
+    public async Task SendAskResponseAsync(
+        SessionViewDescriptor session,
+        OpenSessionState tab,
+        string markdown,
+        string askId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(tab);
+        ArgumentException.ThrowIfNullOrWhiteSpace(markdown);
+        ArgumentException.ThrowIfNullOrWhiteSpace(askId);
+
+        await _sessionSelection.EnsureSessionHistoryLoadedAsync(session, cancellationToken);
+        tab.Timeline.ReplaceTruncatedHistoryLoadButton();
+        await _promptDispatchCoordinator.DispatchPromptAsync(
+            session,
+            tab,
+            PromptSubmission.TextOnly(markdown).WithAskId(askId),
+            steer: false,
+            cancellationToken);
+    }
+
     public async Task AbortSelectedSessionAsync()
     {
         var session = _sessionSelection.GetSelectedSession();

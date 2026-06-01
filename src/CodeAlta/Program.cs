@@ -47,6 +47,14 @@ catch (CodeAltaAlreadyRunningException ex)
 }
 catch (Exception ex)
 {
+    try
+    {
+        LogManager.GetLogger("CodeAlta.Program").Error(ex, "Top-level exception");
+    }
+    catch
+    {
+    }
+
     CodeAltaCrashReporter.ReportFatalException("Top-level exception", ex);
     Terminal.WriteLine(ex.ToString());
     return 1;

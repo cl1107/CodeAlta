@@ -9,4 +9,9 @@ public sealed class AgentSendOptions
     /// Gets or initializes the input to send.
     /// </summary>
     public required AgentInput Input { get; init; }
+
+    /// <summary>
+    /// Gets the optional ask identifier associated with this user prompt.
+    /// </summary>
+    public string? AskId { get; init; }
 }

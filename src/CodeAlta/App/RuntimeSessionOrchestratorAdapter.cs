@@ -31,7 +31,7 @@ internal sealed class RuntimeSessionOrchestratorAdapter : ISessionOrchestrator
         var runId = await _runtimeService.SendAsync(
             session,
             request.Context.ExecutionOptions ?? throw new ArgumentException("Execution options are required.", nameof(request)),
-            new AgentSendOptions { Input = request.PreparedInput ?? AgentInput.Text(request.Prompt) },
+            new AgentSendOptions { Input = request.PreparedInput ?? AgentInput.Text(request.Prompt), AskId = request.AskId },
             cancellationToken);
         return new SessionCommandResult
         {

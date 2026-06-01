@@ -155,6 +155,9 @@ public sealed record SubmitSessionPromptRequest
     /// <summary>Gets a pre-materialized agent input when the caller has already resolved attachments/references.</summary>
     public AgentInput? PreparedInput { get; init; }
 
+    /// <summary>Gets the optional ask identifier associated with this user prompt.</summary>
+    public string? AskId { get; init; }
+
     /// <summary>Gets prompt attachments.</summary>
     public IReadOnlyList<SessionPromptAttachment> Attachments { get; init; } = [];
 

@@ -1,4 +1,5 @@
 using XenoAtom.Terminal.UI;
+using XenoAtom.Terminal.UI.Geometry;
 using CodeAlta.Models;
 using CodeAlta.Presentation.Prompting;
 
@@ -10,6 +11,10 @@ public sealed partial class SessionWorkspaceViewModel
     private Action<int>? _modelProviderSelectionChanged;
     private Action<int>? _modelSelectionChanged;
     private Action<int>? _reasoningSelectionChanged;
+    private Func<string, Visual, bool>? _enterAskMode;
+    private Func<string, bool>? _exitAskMode;
+    private Func<Rectangle?>? _getAskModeBounds;
+    private Action<Visual>? _focusAskModeControl;
     private int _suppressSelectionChangedNotifications;
 
     public SessionWorkspaceViewModel()
@@ -100,6 +105,35 @@ public sealed partial class SessionWorkspaceViewModel
     {
         _userPromptSelectionChanged = userPromptSelectionChanged;
     }
+
+    internal void SetAskModeHandlers(
+        Func<string, Visual, bool> enterAskMode,
+        Func<string, bool> exitAskMode,
+        Func<Rectangle?> getAskModeBounds,
+        Action<Visual> focusAskModeControl)
+    {
+        ArgumentNullException.ThrowIfNull(enterAskMode);
+        ArgumentNullException.ThrowIfNull(exitAskMode);
+        ArgumentNullException.ThrowIfNull(getAskModeBounds);
+        ArgumentNullException.ThrowIfNull(focusAskModeControl);
+
+        _enterAskMode = enterAskMode;
+        _exitAskMode = exitAskMode;
+        _getAskModeBounds = getAskModeBounds;
+        _focusAskModeControl = focusAskModeControl;
+    }
+
+    internal bool TryEnterAskMode(string tabId, Visual askForm)
+        => _enterAskMode?.Invoke(tabId, askForm) == true;
+
+    internal bool ExitAskMode(string tabId)
+        => _exitAskMode?.Invoke(tabId) == true;
+
+    internal Rectangle? GetAskModeBounds()
+        => _getAskModeBounds?.Invoke();
+
+    internal void FocusAskModeControl(Visual control)
+        => _focusAskModeControl?.Invoke(control);
 
     internal IDisposable SuppressSelectionChangedNotifications()
     {

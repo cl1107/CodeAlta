@@ -20,6 +20,8 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
     private static readonly TimeSpan AgentCallerSubmitAckTimeout = TimeSpan.FromSeconds(5);
     private const string NotificationFollowUpNextStep = "Do not call any tool, shell sleep, reminder, status, tail, events, or polling command to wait for completion; yield control and wait for parent-session notifications.";
     private const string NotificationFollowUpGuidance = "Do not poll or actively wait for this delegated session to complete. CodeAlta will forward the delegated session's final assistant reply to the parent session automatically.";
+    private const string AskNextStep = "Do not call another tool or poll. Yield now and wait for the next user prompt containing the ask response.";
+    private const string AskPayloadSchema = "{\"type\":\"object\",\"properties\":{\"file\":{\"type\":\"object\",\"properties\":{\"path\":{\"type\":\"string\"}},\"required\":[\"path\"],\"additionalProperties\":false},\"questions\":{\"type\":\"array\",\"minItems\":1,\"items\":{\"type\":\"object\",\"properties\":{\"title\":{\"type\":\"string\"},\"question\":{\"type\":\"string\"},\"description\":{\"type\":\"string\"},\"choices\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"title\":{\"type\":\"string\"},\"description\":{\"type\":\"string\"}},\"required\":[\"title\"],\"additionalProperties\":false}},\"freeform\":{\"type\":\"object\",\"properties\":{\"title\":{\"type\":\"string\"},\"placeholder\":{\"type\":\"string\"}},\"additionalProperties\":false}},\"required\":[\"title\",\"question\"],\"additionalProperties\":false}}},\"required\":[\"questions\"],\"additionalProperties\":false}";
 
     private static readonly string[] NotificationFollowUpForbiddenWaitActions =
     [
@@ -35,6 +37,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
     private static readonly AltaCommandPolicy[] Policies =
     [
         Read("version", supportsCatalogOnlyContext: true),
+        Mutating("ask"),
         Read("project list", supportsCatalogOnlyContext: true),
         Read("project show", supportsCatalogOnlyContext: true),
         Read("project resolve", supportsCatalogOnlyContext: true),
@@ -87,6 +90,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
     {
         ArgumentNullException.ThrowIfNull(context);
         yield return CreateVersionCommand(context.Invocation);
+        yield return CreateAskCommand(context.Invocation);
         yield return CreateProjectCommand(context.Invocation);
         yield return CreateSessionCommand(context.Invocation);
         yield return CreateReminderCommand(context.Invocation);
@@ -166,6 +170,25 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             });
             return ValueTask.FromResult(AltaExitCodes.Success);
         });
+        return command;
+    }
+
+    private static Command CreateAskCommand(AltaCommandContext context)
+    {
+        var useStdin = false;
+        string? sessionId = null;
+        var command = Leaf("ask", "Queue structured user questions for this session and return immediately with yield guidance.");
+        command.Add("stdin", "Read the ask JSON payload from stdin. Required.", value => useStdin = value is not null);
+        command.Add("session=", "Target session id. Defaults to the calling agent session; required outside an agent session.", value => sessionId = value);
+        command.Add(async (_, _) => await HandleAskAsync(context, sessionId, useStdin).ConfigureAwait(false));
+        AddHelpText(
+            command,
+            "Payload JSON Schema:",
+            EscapeHelpText(AskPayloadSchema),
+            "Example:",
+            "  `alta ask --stdin`",
+            EscapeHelpText("  stdin: {\"questions\":[{\"title\":\"Plan\",\"question\":\"Does this plan look correct?\",\"choices\":[{\"title\":\"Approve\"},{\"title\":\"Revise\"}],\"freeform\":{\"title\":\"Notes\",\"placeholder\":\"Optional notes...\"}}]}"),
+            "LLM guidance: after a successful `alta.ask.queued` result, stop and yield. Do not poll; wait for the next user prompt containing the ask response.");
         return command;
     }
 
@@ -1027,6 +1050,9 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         }
     }
 
+    private static string EscapeHelpText(string text)
+        => text.Replace("{", "{{", StringComparison.Ordinal).Replace("}", "}}", StringComparison.Ordinal);
+
     private static void AddMessageOptions(Command command, PromptOptions options)
     {
         command.Add("message=", "Prompt/message text.", value => options.Message = value);
@@ -1076,6 +1102,79 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         return normalized is "note" or "request" or "handoff" or "answer"
             ? normalized
             : throw new CommandOptionException("Message kind must be note, request, handoff, or answer.", "--kind");
+    }
+
+    private static async ValueTask<int> HandleAskAsync(AltaCommandContext context, string? sessionId, bool useStdin)
+    {
+        if (!useStdin)
+        {
+            return UsageError(context, "usage.missingStdin", "Ask requires a JSON payload via --stdin.", "alta ask");
+        }
+
+        var targetSessionId = FirstNonEmpty(sessionId, context.Caller.SourceSessionId);
+        if (string.IsNullOrWhiteSpace(targetSessionId) || (string.IsNullOrWhiteSpace(sessionId) && !string.Equals(context.Caller.Kind, "agent", StringComparison.OrdinalIgnoreCase)))
+        {
+            return UsageError(context, "usage.missingSession", "A target session id is required outside a session caller. Use --session <session-id>.", "alta ask");
+        }
+
+        if (!TryGetAskService(context, out var askService))
+        {
+            return AltaExitCodes.ServiceUnavailable;
+        }
+
+        var stdin = await context.Stdin.ReadToEndAsync(context.CancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(stdin))
+        {
+            return UsageError(context, "usage.missingPayload", "Ask requires a non-empty JSON payload on stdin.", "alta ask");
+        }
+
+        AltaAskRequest? request;
+        try
+        {
+            request = JsonSerializer.Deserialize(stdin, AltaAskJsonSerializerContext.Default.AltaAskRequest);
+        }
+        catch (JsonException ex)
+        {
+            return UsageError(context, "usage.invalidJson", $"Ask payload is not valid JSON: {ex.Message}", "alta ask");
+        }
+
+        if (request is null)
+        {
+            return UsageError(context, "usage.invalidPayload", "Ask payload must be a JSON object.", "alta ask");
+        }
+
+        var roots = await ResolveAskAllowedRootsAsync(context, targetSessionId).ConfigureAwait(false);
+        if (roots.ExitCode != AltaExitCodes.Success)
+        {
+            return roots.ExitCode;
+        }
+
+        AltaAskRequest normalized;
+        try
+        {
+            normalized = AltaAskValidator.ValidateAndNormalize(request, roots.AllowedRoots, roots.BaseDirectory);
+        }
+        catch (ArgumentException ex)
+        {
+            return UsageError(context, "usage.invalidPayload", ex.Message, "alta ask");
+        }
+
+        var result = await askService.QueueAsync(normalized, targetSessionId, context.Caller, context.CancellationToken).ConfigureAwait(false);
+        AltaJsonlWriter.WriteRecord(context.Stdout, new
+        {
+            type = "alta.ask.queued",
+            version = 1,
+            correlationId = context.CorrelationId,
+            result.AskId,
+            result.SessionId,
+            queued = true,
+            shouldYield = true,
+            recommendedAction = "stop",
+            activeWaitAllowed = false,
+            shouldPoll = false,
+            nextStep = AskNextStep,
+        });
+        return AltaExitCodes.Success;
     }
 
     private static async ValueTask<int> HandleProjectListAsync(AltaCommandContext context, bool includeArchived, bool detailed)
@@ -2786,6 +2885,62 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             AltaExitCodes.ServiceUnavailable,
             "Required in-process service 'AltaReminderService' is unavailable.");
         return false;
+    }
+
+    private static bool TryGetAskService(AltaCommandContext context, out IAltaAskService askService)
+    {
+        askService = context.Services.Get<IAltaAskService>()!;
+        if (askService is not null)
+        {
+            return true;
+        }
+
+        AltaJsonlWriter.WriteError(
+            context.Stderr,
+            context.CorrelationId,
+            "service.unavailable",
+            AltaExitCodes.ServiceUnavailable,
+            "Required in-process service 'IAltaAskService' is unavailable.");
+        return false;
+    }
+
+    private static async Task<AskAllowedRootsResult> ResolveAskAllowedRootsAsync(AltaCommandContext context, string sessionId)
+    {
+        if (context.Services.Get<SessionRuntimeService>() is null &&
+            context.Services.Get<SessionViewCatalog>() is null &&
+            context.Services.Get<IAltaSessionQueryService>() is null)
+        {
+            var fallback = !string.IsNullOrWhiteSpace(context.Cwd) ? ResolvePath(context, context.Cwd) : Environment.CurrentDirectory;
+            return AskAllowedRootsResult.Success(fallback, [fallback]);
+        }
+
+        var infoResult = await ResolveSessionInfoAsync(context, sessionId).ConfigureAwait(false);
+        if (infoResult.ExitCode != AltaExitCodes.Success)
+        {
+            return AskAllowedRootsResult.Fail(infoResult.ExitCode);
+        }
+
+        var roots = new List<string>();
+        var workingDirectory = infoResult.Info!.Session.WorkingDirectory;
+        if (!string.IsNullOrWhiteSpace(workingDirectory))
+        {
+            roots.Add(ResolvePath(context, workingDirectory));
+        }
+
+        if (!string.IsNullOrWhiteSpace(infoResult.Info.Session.ProjectRef) && context.Services.Get<ProjectCatalog>() is { } projectCatalog)
+        {
+            var project = await ResolveProjectAsync(projectCatalog, infoResult.Info.Session.ProjectRef, context, includeArchived: true).ConfigureAwait(false);
+            if (!string.IsNullOrWhiteSpace(project?.ProjectPath))
+            {
+                roots.Add(ResolvePath(context, project.ProjectPath));
+            }
+        }
+
+        var normalizedRoots = roots
+            .Where(Directory.Exists)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        return AskAllowedRootsResult.Success(normalizedRoots.FirstOrDefault() ?? Environment.CurrentDirectory, normalizedRoots);
     }
 
     private static async Task<SessionInfoResolutionResult> ResolveSessionInfoAsync(AltaCommandContext context, string sessionId, bool includeLocalState = false)
@@ -4959,6 +5114,13 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         public static SessionInfoResolutionResult Success(AltaSessionInfo info, IReadOnlyList<AltaSessionInfo> infos) => new(AltaExitCodes.Success, info, infos);
 
         public static SessionInfoResolutionResult Fail(int exitCode) => new(exitCode, null, []);
+    }
+
+    private sealed record AskAllowedRootsResult(int ExitCode, string BaseDirectory, IReadOnlyList<string> AllowedRoots)
+    {
+        public static AskAllowedRootsResult Success(string baseDirectory, IReadOnlyList<string> allowedRoots) => new(AltaExitCodes.Success, baseDirectory, allowedRoots);
+
+        public static AskAllowedRootsResult Fail(int exitCode) => new(exitCode, string.Empty, []);
     }
 
     private sealed record SessionModelSelectionResult(int ExitCode, bool Found, AltaModelSelection? Selection)

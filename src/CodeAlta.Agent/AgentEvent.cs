@@ -412,6 +412,7 @@ public sealed record AgentContentDeltaEvent(
 /// <param name="ParentActivityId">Optional parent activity identifier.</param>
 /// <param name="Content">The finalized content.</param>
 /// <param name="Details">Optional structured content metadata.</param>
+/// <param name="AskId">Optional ask identifier associated with a user prompt.</param>
 public sealed record AgentContentCompletedEvent(
     ModelProviderId ProviderId,
     string SessionId,
@@ -421,7 +422,8 @@ public sealed record AgentContentCompletedEvent(
     string ContentId,
     string? ParentActivityId,
     string Content,
-    JsonElement? Details = null)
+    JsonElement? Details = null,
+    [property: JsonPropertyName("ask_id")] string? AskId = null)
     : AgentEvent(ProviderId, SessionId, Timestamp, RunId);
 
 /// <summary>

@@ -50,6 +50,7 @@ public sealed class ProgramThreadGuardTests
         Assert.IsTrue(programSource.Contains("Program.StartPluginRuntimeForCommandLine(args, CancellationToken.None);", StringComparison.Ordinal));
         Assert.IsTrue(programSource.Contains("return command.RunAsync(args).AsTask().GetAwaiter().GetResult();", StringComparison.Ordinal));
         Assert.IsTrue(programSource.Contains("ReportCommandLinePluginStartup(result, stopwatch.Elapsed, pluginBootstrapOptions);", StringComparison.Ordinal));
+        Assert.IsTrue(programSource.Contains("LogManager.GetLogger(\"CodeAlta.Program\").Error(ex, \"Top-level exception\");", StringComparison.Ordinal));
         Assert.IsFalse(programSource.Contains("await Program.StartPluginRuntimeForCommandLineAsync", StringComparison.Ordinal));
         Assert.IsFalse(programSource.Contains("return await command.RunAsync(args)", StringComparison.Ordinal));
         Assert.IsTrue(programSource.Contains("internal partial class Program", StringComparison.Ordinal));

@@ -300,6 +300,7 @@ internal sealed class SessionPromptDispatchCoordinator
             Context = CreateCommandContext(session, executionOptions),
             Prompt = prompt.Text,
             PreparedInput = input,
+            AskId = prompt.AskId,
         };
 
     private static SteerSessionRequest CreateSteerRequest(

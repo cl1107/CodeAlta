@@ -79,6 +79,7 @@ Use `--detailed` only when per-item metadata is needed. Discovery commands defau
 | Group | Purpose |
 | --- | --- |
 | `version` | Report host/live-tool version metadata. |
+| `ask` | Queue structured user questions for the calling session and return yield guidance. |
 | `project` | List, show, resolve, upsert, and inspect current project context. |
 | `session` | List, create, show, send, queue, steer, abort, compact, inspect, report, and coordinate sessions. |
 | `reminder` | Schedule delayed prompt content for the current or another session, and list/delete reminders. |
@@ -138,6 +139,48 @@ alta session compact <session-id>
 ```
 
 Control commands acknowledge submission. They do not block until the target model finishes. If a session is busy, `send --queue-if-busy` and `session queue` persist queue items with caller attribution; the runtime drains at most one queued prompt when that session becomes idle.
+
+## Ask command
+
+Use `alta ask --stdin` when an agent needs structured user input before continuing. Agent callers default to their source session; CLI or plugin callers outside an agent session must pass `--session <session-id>`. The command requires the in-process runtime/frontend ask service and returns immediately after queueing. It does not wait for the user to answer.
+
+```text
+alta ask --stdin
+alta ask --session <session-id> --stdin
+```
+
+Payloads are JSON objects. Keep strings concise and prefer `--stdin` so shell quoting does not corrupt the request:
+
+```json
+{
+  "file": { "path": "src/CodeAlta/Views/SessionWorkspaceView.cs" },
+  "questions": [
+    {
+      "title": "Plan",
+      "question": "Does this implementation plan look correct?",
+      "description": "Review the proposed approach before implementation starts.",
+      "choices": [
+        { "title": "Approve", "description": "Proceed with the plan as written." },
+        { "title": "Revise", "description": "Ask the agent to adjust the plan first." }
+      ],
+      "freeform": {
+        "title": "Additional instructions",
+        "placeholder": "Optional notes or requested changes..."
+      }
+    }
+  ]
+}
+```
+
+Validation requires at least one question; each question requires a `title`, `question`, and at least one of `choices` or `freeform`. The command bounds question/choice counts and text lengths. If `file.path` is present it is resolved under the session workspace/project roots and rejected when it escapes those roots. In this phase the path is carried as answer context and included in the generated response Markdown; ask-mode file editor projection remains follow-up work.
+
+Successful output is JSONL headed by `alta.result` followed by one `alta.ask.queued` record:
+
+```json
+{"type":"alta.ask.queued","version":1,"askId":"019...","sessionId":"...","queued":true,"shouldYield":true,"recommendedAction":"stop","activeWaitAllowed":false,"shouldPoll":false,"nextStep":"Do not call another tool or poll. Yield now and wait for the next user prompt containing the ask response."}
+```
+
+After receiving `alta.ask.queued`, an LLM should stop the turn: do not call another tool, sleep, poll, or inspect status while waiting. CodeAlta presents the ask when the target session is idle, collects answers in ask mode, and submits a normal user prompt back to the same session. The formatted prompt omits the ask id from user-visible Markdown; CodeAlta carries the optional ask id on the prompt/journal event for correlation.
 
 ## Reminders
 

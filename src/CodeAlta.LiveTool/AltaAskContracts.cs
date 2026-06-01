@@ -1,0 +1,527 @@
+using System.Text;
+using System.Text.Json.Serialization;
+
+namespace CodeAlta.LiveTool;
+
+/// <summary>
+/// Describes a user-facing ask queued by an agent for the current CodeAlta session.
+/// </summary>
+public sealed record AltaAskRequest
+{
+    /// <summary>Gets the optional file to review while answering the ask.</summary>
+    public AltaAskFile? File { get; init; }
+
+    /// <summary>Gets the questions to present to the user.</summary>
+    public IReadOnlyList<AltaAskQuestion> Questions { get; init; } = [];
+}
+
+/// <summary>
+/// Describes one question in an <see cref="AltaAskRequest"/>.
+/// </summary>
+public sealed record AltaAskQuestion
+{
+    /// <summary>Gets the short tab/display title.</summary>
+    public string? Title { get; init; }
+
+    /// <summary>Gets the question text.</summary>
+    public string? Question { get; init; }
+
+    /// <summary>Gets optional explanatory text.</summary>
+    public string? Description { get; init; }
+
+    /// <summary>Gets optional fixed choices.</summary>
+    public IReadOnlyList<AltaAskChoice> Choices { get; init; } = [];
+
+    /// <summary>Gets optional freeform answer configuration.</summary>
+    public AltaAskFreeform? Freeform { get; init; }
+}
+
+/// <summary>
+/// Describes a selectable answer choice.
+/// </summary>
+public sealed record AltaAskChoice
+{
+    /// <summary>Gets the choice title shown to the user and returned in answer Markdown.</summary>
+    public string? Title { get; init; }
+
+    /// <summary>Gets optional choice explanatory text.</summary>
+    public string? Description { get; init; }
+}
+
+/// <summary>
+/// Describes a freeform answer field.
+/// </summary>
+public sealed record AltaAskFreeform
+{
+    /// <summary>Gets the optional freeform field title.</summary>
+    public string? Title { get; init; }
+
+    /// <summary>Gets optional placeholder text.</summary>
+    public string? Placeholder { get; init; }
+}
+
+/// <summary>
+/// Describes a file to review while answering an ask.
+/// </summary>
+public sealed record AltaAskFile
+{
+    /// <summary>Gets the project- or workspace-relative file path.</summary>
+    public string? Path { get; init; }
+}
+
+/// <summary>
+/// Describes one answered ask question.
+/// </summary>
+public sealed record AltaAskAnswer
+{
+    /// <summary>Gets the zero-based question index.</summary>
+    public int QuestionIndex { get; init; }
+
+    /// <summary>Gets selected zero-based choice indexes.</summary>
+    public IReadOnlyList<int> SelectedChoiceIndexes { get; init; } = [];
+
+    /// <summary>Gets optional freeform answer text.</summary>
+    public string? FreeformText { get; init; }
+}
+
+/// <summary>
+/// Describes a queued ask instance.
+/// </summary>
+public sealed record AltaQueuedAsk
+{
+    /// <summary>Gets the generated ask id.</summary>
+    public required string AskId { get; init; }
+
+    /// <summary>Gets the target source session id.</summary>
+    public required string SessionId { get; init; }
+
+    /// <summary>Gets the queued ask request.</summary>
+    public required AltaAskRequest Request { get; init; }
+
+    /// <summary>Gets the caller identity that queued the ask.</summary>
+    public required AltaCallerIdentity Caller { get; init; }
+
+    /// <summary>Gets when the ask was queued.</summary>
+    public required DateTimeOffset CreatedAt { get; init; }
+}
+
+/// <summary>
+/// Result returned after queueing an ask.
+/// </summary>
+public sealed record AltaAskQueueResult
+{
+    /// <summary>Gets the generated ask id.</summary>
+    public required string AskId { get; init; }
+
+    /// <summary>Gets the target source session id.</summary>
+    public required string SessionId { get; init; }
+}
+
+/// <summary>
+/// Session-scoped ask queue service used by the live tool and frontend.
+/// </summary>
+public interface IAltaAskService
+{
+    /// <summary>Occurs after the pending ask queue for a session changes.</summary>
+    event EventHandler<AltaAskQueueChangedEventArgs>? QueueChanged;
+
+    /// <summary>Queues an ask for the target session.</summary>
+    /// <param name="request">The validated ask request.</param>
+    /// <param name="sessionId">The target session id.</param>
+    /// <param name="caller">The caller identity.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The queued ask id and target session id.</returns>
+    Task<AltaAskQueueResult> QueueAsync(AltaAskRequest request, string sessionId, AltaCallerIdentity caller, CancellationToken cancellationToken = default);
+
+    /// <summary>Peeks at the next pending ask for a session without removing it.</summary>
+    /// <param name="sessionId">The session id.</param>
+    /// <returns>The next queued ask, or <see langword="null"/> when none is pending.</returns>
+    AltaQueuedAsk? Peek(string sessionId);
+
+    /// <summary>Dequeues the next pending ask for a session.</summary>
+    /// <param name="sessionId">The session id.</param>
+    /// <returns>The dequeued ask, or <see langword="null"/> when none is pending.</returns>
+    AltaQueuedAsk? Dequeue(string sessionId);
+}
+
+/// <summary>
+/// Event arguments describing an ask queue change.
+/// </summary>
+public sealed class AltaAskQueueChangedEventArgs : EventArgs
+{
+    /// <summary>Initializes a new instance of the <see cref="AltaAskQueueChangedEventArgs"/> class.</summary>
+    /// <param name="sessionId">The session whose ask queue changed.</param>
+    public AltaAskQueueChangedEventArgs(string sessionId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
+        SessionId = sessionId;
+    }
+
+    /// <summary>Gets the session whose ask queue changed.</summary>
+    public string SessionId { get; }
+}
+
+/// <summary>
+/// In-memory FIFO implementation of <see cref="IAltaAskService"/>.
+/// </summary>
+public sealed class AltaAskService : IAltaAskService
+{
+    private readonly object _gate = new();
+    private readonly Dictionary<string, Queue<AltaQueuedAsk>> _queues = new(StringComparer.Ordinal);
+
+    /// <inheritdoc />
+    public event EventHandler<AltaAskQueueChangedEventArgs>? QueueChanged;
+
+    /// <inheritdoc />
+    public Task<AltaAskQueueResult> QueueAsync(AltaAskRequest request, string sessionId, AltaCallerIdentity caller, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
+        ArgumentNullException.ThrowIfNull(caller);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var queued = new AltaQueuedAsk
+        {
+            AskId = Guid.CreateVersion7().ToString(),
+            SessionId = sessionId.Trim(),
+            Request = request,
+            Caller = caller,
+            CreatedAt = DateTimeOffset.UtcNow,
+        };
+
+        lock (_gate)
+        {
+            if (!_queues.TryGetValue(queued.SessionId, out var queue))
+            {
+                queue = new Queue<AltaQueuedAsk>();
+                _queues.Add(queued.SessionId, queue);
+            }
+
+            queue.Enqueue(queued);
+        }
+
+        QueueChanged?.Invoke(this, new AltaAskQueueChangedEventArgs(queued.SessionId));
+        return Task.FromResult(new AltaAskQueueResult { AskId = queued.AskId, SessionId = queued.SessionId });
+    }
+
+    /// <inheritdoc />
+    public AltaQueuedAsk? Peek(string sessionId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
+        lock (_gate)
+        {
+            return _queues.TryGetValue(sessionId, out var queue) && queue.Count > 0 ? queue.Peek() : null;
+        }
+    }
+
+    /// <inheritdoc />
+    public AltaQueuedAsk? Dequeue(string sessionId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
+        AltaQueuedAsk? queued = null;
+        lock (_gate)
+        {
+            if (_queues.TryGetValue(sessionId, out var queue) && queue.Count > 0)
+            {
+                queued = queue.Dequeue();
+                if (queue.Count == 0)
+                {
+                    _queues.Remove(sessionId);
+                }
+            }
+        }
+
+        if (queued is not null)
+        {
+            QueueChanged?.Invoke(this, new AltaAskQueueChangedEventArgs(sessionId));
+        }
+
+        return queued;
+    }
+}
+
+/// <summary>
+/// Validates and normalizes ask requests.
+/// </summary>
+public static class AltaAskValidator
+{
+    /// <summary>Gets the maximum number of questions accepted in one ask.</summary>
+    public const int MaxQuestions = 12;
+
+    /// <summary>Gets the maximum number of choices accepted for one question.</summary>
+    public const int MaxChoicesPerQuestion = 20;
+
+    /// <summary>Gets the maximum length for short title fields.</summary>
+    public const int MaxTitleLength = 120;
+
+    /// <summary>Gets the maximum length for question and description text fields.</summary>
+    public const int MaxTextLength = 4000;
+
+    /// <summary>Gets the maximum length for placeholder text fields.</summary>
+    public const int MaxPlaceholderLength = 500;
+
+    /// <summary>Validates and normalizes an ask request.</summary>
+    /// <param name="request">The request to validate.</param>
+    /// <param name="allowedRoots">Optional file roots allowed for request file paths.</param>
+    /// <param name="baseDirectory">The base directory used for relative file path resolution.</param>
+    /// <returns>The normalized request.</returns>
+    /// <exception cref="ArgumentException">Thrown when the request is invalid.</exception>
+    public static AltaAskRequest ValidateAndNormalize(AltaAskRequest request, IReadOnlyList<string>? allowedRoots = null, string? baseDirectory = null)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.Questions is null || request.Questions.Count == 0)
+        {
+            throw new ArgumentException("Ask payload requires at least one question.", nameof(request));
+        }
+
+        if (request.Questions.Count > MaxQuestions)
+        {
+            throw new ArgumentException($"Ask payload contains too many questions; maximum is {MaxQuestions}.", nameof(request));
+        }
+
+        var questions = new AltaAskQuestion[request.Questions.Count];
+        for (var index = 0; index < request.Questions.Count; index++)
+        {
+            questions[index] = ValidateQuestion(request.Questions[index], index);
+        }
+
+        var file = request.File is null ? null : ValidateFile(request.File, allowedRoots, baseDirectory);
+        return new AltaAskRequest { File = file, Questions = questions };
+    }
+
+    private static AltaAskQuestion ValidateQuestion(AltaAskQuestion question, int index)
+    {
+        if (question is null)
+        {
+            throw new ArgumentException($"Question {index + 1} is required.");
+        }
+
+        var title = RequireText(question.Title, $"Question {index + 1} title", MaxTitleLength);
+        var text = RequireText(question.Question, $"Question {index + 1} text", MaxTextLength);
+        var description = OptionalText(question.Description, $"Question {index + 1} description", MaxTextLength);
+        var questionChoices = question.Choices ?? [];
+        if (questionChoices.Count == 0 && question.Freeform is null)
+        {
+            throw new ArgumentException($"Question {index + 1} requires choices or freeform.");
+        }
+
+        if (questionChoices.Count > MaxChoicesPerQuestion)
+        {
+            throw new ArgumentException($"Question {index + 1} contains too many choices; maximum is {MaxChoicesPerQuestion}.");
+        }
+
+        var choices = new AltaAskChoice[questionChoices.Count];
+        for (var choiceIndex = 0; choiceIndex < questionChoices.Count; choiceIndex++)
+        {
+            var choice = questionChoices[choiceIndex] ?? throw new ArgumentException($"Question {index + 1} choice {choiceIndex + 1} is required.");
+            choices[choiceIndex] = new AltaAskChoice
+            {
+                Title = RequireText(choice.Title, $"Question {index + 1} choice {choiceIndex + 1} title", MaxTitleLength),
+                Description = OptionalText(choice.Description, $"Question {index + 1} choice {choiceIndex + 1} description", MaxTextLength),
+            };
+        }
+
+        var freeform = question.Freeform is null
+            ? null
+            : new AltaAskFreeform
+            {
+                Title = OptionalText(question.Freeform.Title, $"Question {index + 1} freeform title", MaxTitleLength),
+                Placeholder = OptionalText(question.Freeform.Placeholder, $"Question {index + 1} freeform placeholder", MaxPlaceholderLength),
+            };
+
+        return new AltaAskQuestion
+        {
+            Title = title,
+            Question = text,
+            Description = description,
+            Choices = choices,
+            Freeform = freeform,
+        };
+    }
+
+    private static AltaAskFile ValidateFile(AltaAskFile file, IReadOnlyList<string>? allowedRoots, string? baseDirectory)
+    {
+        var path = RequireText(file.Path, "File path", 1000);
+        if (System.IO.Path.IsPathFullyQualified(path) && allowedRoots is null or { Count: 0 })
+        {
+            throw new ArgumentException("File path must be relative when no allowed roots are available.");
+        }
+
+        var rootCandidates = allowedRoots?
+            .Where(static root => !string.IsNullOrWhiteSpace(root))
+            .Select(static root => System.IO.Path.GetFullPath(root))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray() ?? [];
+        var baseRoot = !string.IsNullOrWhiteSpace(baseDirectory)
+            ? System.IO.Path.GetFullPath(baseDirectory)
+            : rootCandidates.FirstOrDefault() ?? Environment.CurrentDirectory;
+        var fullPath = System.IO.Path.GetFullPath(System.IO.Path.IsPathFullyQualified(path) ? path : System.IO.Path.Combine(baseRoot, path));
+        if (rootCandidates.Length > 0 && !rootCandidates.Any(root => IsUnderRoot(fullPath, root)))
+        {
+            throw new ArgumentException("File path must stay inside the session workspace or project roots.");
+        }
+
+        var displayPath = rootCandidates.Length > 0
+            ? ToRelativePath(rootCandidates.First(root => IsUnderRoot(fullPath, root)), fullPath)
+            : path.Replace('\\', '/');
+        return new AltaAskFile { Path = displayPath };
+    }
+
+    private static string RequireText(string? value, string field, int maxLength)
+    {
+        var normalized = OptionalText(value, field, maxLength);
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            throw new ArgumentException($"{field} is required.");
+        }
+
+        return normalized;
+    }
+
+    private static string? OptionalText(string? value, string field, int maxLength)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        var normalized = value.Trim();
+        if (normalized.Length > maxLength)
+        {
+            throw new ArgumentException($"{field} is too long; maximum is {maxLength} characters.");
+        }
+
+        return normalized.Length == 0 ? null : normalized;
+    }
+
+    private static bool IsUnderRoot(string path, string root)
+    {
+        var normalizedRoot = root.TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar) + System.IO.Path.DirectorySeparatorChar;
+        return string.Equals(path.TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar), root.TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar), StringComparison.OrdinalIgnoreCase) ||
+               path.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string ToRelativePath(string root, string path)
+        => System.IO.Path.GetRelativePath(root, path).Replace('\\', '/');
+}
+
+/// <summary>
+/// Formats ask answers as compact Markdown prompt text.
+/// </summary>
+public static class AltaAskAnswerMarkdownFormatter
+{
+    /// <summary>Formats ask answers as Markdown without exposing the ask id.</summary>
+    /// <param name="request">The original ask request.</param>
+    /// <param name="answers">The answers supplied by the user.</param>
+    /// <returns>Markdown suitable for a normal user prompt.</returns>
+    public static string Format(AltaAskRequest request, IReadOnlyList<AltaAskAnswer> answers)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(answers);
+        var answersByQuestion = answers
+            .Where(static answer => answer.QuestionIndex >= 0)
+            .GroupBy(static answer => answer.QuestionIndex)
+            .ToDictionary(static group => group.Key, static group => group.Last());
+        var builder = new StringBuilder();
+        builder.AppendLine("# Ask response");
+        builder.AppendLine();
+        if (!string.IsNullOrWhiteSpace(request.File?.Path))
+        {
+            builder.Append("File: `").Append(EscapeCodeSpan(request.File.Path!)).AppendLine("`");
+            builder.AppendLine();
+        }
+
+        builder.AppendLine("## Answers");
+        builder.AppendLine();
+        for (var index = 0; index < request.Questions.Count; index++)
+        {
+            var question = request.Questions[index];
+            builder.Append(index + 1).Append(". ").AppendLine(EscapeInline(question.Question ?? question.Title ?? $"Question {index + 1}"));
+            builder.AppendLine();
+            if (answersByQuestion.TryGetValue(index, out var answer))
+            {
+                AppendAnswer(builder, question, answer);
+            }
+            else
+            {
+                builder.AppendLine("No answer provided.");
+            }
+
+            if (index + 1 < request.Questions.Count)
+            {
+                builder.AppendLine();
+            }
+        }
+
+        return builder.ToString().TrimEnd() + Environment.NewLine;
+    }
+
+    private static void AppendAnswer(StringBuilder builder, AltaAskQuestion question, AltaAskAnswer answer)
+    {
+        var wrote = false;
+        foreach (var choiceIndex in answer.SelectedChoiceIndexes.Distinct().Order())
+        {
+            if ((uint)choiceIndex < (uint)question.Choices.Count)
+            {
+                builder.AppendLine(EscapeInline(question.Choices[choiceIndex].Title ?? $"Choice {choiceIndex + 1}"));
+                wrote = true;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(answer.FreeformText))
+        {
+            if (wrote)
+            {
+                builder.AppendLine();
+            }
+
+            AppendFreeform(builder, answer.FreeformText!);
+            wrote = true;
+        }
+
+        if (!wrote)
+        {
+            builder.AppendLine("No answer provided.");
+        }
+    }
+
+    private static void AppendFreeform(StringBuilder builder, string text)
+    {
+        var normalized = text.Replace("\r\n", "\n", StringComparison.Ordinal).Trim();
+        if (RequiresFence(normalized))
+        {
+            builder.AppendLine("````text");
+            builder.AppendLine(normalized.Replace("````", "``` `", StringComparison.Ordinal));
+            builder.AppendLine("````");
+            return;
+        }
+
+        builder.AppendLine(EscapeInline(normalized));
+    }
+
+    private static bool RequiresFence(string text)
+        => text.Contains('\n') || text.StartsWith('#') || text.StartsWith('>') || text.StartsWith('-') || text.StartsWith('*') || text.StartsWith("```", StringComparison.Ordinal);
+
+    private static string EscapeInline(string text)
+        => text.Replace("\\", "\\\\", StringComparison.Ordinal)
+            .Replace("`", "\\`", StringComparison.Ordinal)
+            .Replace("*", "\\*", StringComparison.Ordinal)
+            .Replace("_", "\\_", StringComparison.Ordinal)
+            .Replace("[", "\\[", StringComparison.Ordinal)
+            .Replace("]", "\\]", StringComparison.Ordinal);
+
+    private static string EscapeCodeSpan(string text)
+        => text.Replace("`", "\u02cb", StringComparison.Ordinal);
+}
+
+[JsonSourceGenerationOptions(
+    PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
+    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
+[JsonSerializable(typeof(AltaAskRequest))]
+[JsonSerializable(typeof(AltaAskQuestion))]
+[JsonSerializable(typeof(AltaAskChoice))]
+[JsonSerializable(typeof(AltaAskFreeform))]
+[JsonSerializable(typeof(AltaAskFile))]
+[JsonSerializable(typeof(AltaAskAnswer))]
+[JsonSerializable(typeof(IReadOnlyList<AltaAskAnswer>))]
+internal sealed partial class AltaAskJsonSerializerContext : JsonSerializerContext;
