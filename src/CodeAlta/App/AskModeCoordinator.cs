@@ -73,14 +73,15 @@ internal sealed class AskModeCoordinator : IDisposable
                 "submit ask response",
                 _setStatus);
             form.CancelRequested += (_, _) => ShowCancelConfirmation(ask, form);
-            if (!_workspaceViewModel.TryEnterAskMode(sessionId, form.Root))
+            var fileReview = AskFileReviewView.Create(ask.Request.File, GetAskFileRootCandidates(session));
+            if (!_workspaceViewModel.TryEnterAskMode(sessionId, form.Root, fileReview))
             {
                 ClearActive();
                 return false;
             }
 
             _setStatus("Answer the queued ask, then submit to continue the session.", false, StatusTone.Info);
-            _workspaceViewModel.FocusAskModeControl(form.Tabs);
+            _workspaceViewModel.FocusAskModeControl(form.InitialFocusTarget);
             return true;
         }
         catch
@@ -194,6 +195,37 @@ internal sealed class AskModeCoordinator : IDisposable
         session = candidate;
         tab = openTab;
         return true;
+    }
+
+    private IReadOnlyList<string> GetAskFileRootCandidates(SessionViewDescriptor session)
+    {
+        var roots = new List<string>();
+        AddRoot(session.WorkingDirectory);
+        if (_sessionState.GetProjectById(session.ProjectRef)?.ProjectPath is { } projectPath)
+        {
+            AddRoot(projectPath);
+        }
+
+        if (roots.Count == 0)
+        {
+            roots.Add(Environment.CurrentDirectory);
+        }
+
+        return roots;
+
+        void AddRoot(string? path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return;
+            }
+
+            var fullPath = Path.GetFullPath(path);
+            if (!roots.Contains(fullPath, StringComparer.OrdinalIgnoreCase))
+            {
+                roots.Add(fullPath);
+            }
+        }
     }
 
     private bool IsActive(AltaQueuedAsk ask)

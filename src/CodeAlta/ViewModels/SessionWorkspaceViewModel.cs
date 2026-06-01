@@ -11,7 +11,7 @@ public sealed partial class SessionWorkspaceViewModel
     private Action<int>? _modelProviderSelectionChanged;
     private Action<int>? _modelSelectionChanged;
     private Action<int>? _reasoningSelectionChanged;
-    private Func<string, Visual, bool>? _enterAskMode;
+    private Func<string, Visual, Visual?, bool>? _enterAskMode;
     private Func<string, bool>? _exitAskMode;
     private Func<Rectangle?>? _getAskModeBounds;
     private Action<Visual>? _focusAskModeControl;
@@ -107,7 +107,7 @@ public sealed partial class SessionWorkspaceViewModel
     }
 
     internal void SetAskModeHandlers(
-        Func<string, Visual, bool> enterAskMode,
+        Func<string, Visual, Visual?, bool> enterAskMode,
         Func<string, bool> exitAskMode,
         Func<Rectangle?> getAskModeBounds,
         Action<Visual> focusAskModeControl)
@@ -123,8 +123,8 @@ public sealed partial class SessionWorkspaceViewModel
         _focusAskModeControl = focusAskModeControl;
     }
 
-    internal bool TryEnterAskMode(string tabId, Visual askForm)
-        => _enterAskMode?.Invoke(tabId, askForm) == true;
+    internal bool TryEnterAskMode(string tabId, Visual askForm, Visual? fileReview = null)
+        => _enterAskMode?.Invoke(tabId, askForm, fileReview) == true;
 
     internal bool ExitAskMode(string tabId)
         => _exitAskMode?.Invoke(tabId) == true;

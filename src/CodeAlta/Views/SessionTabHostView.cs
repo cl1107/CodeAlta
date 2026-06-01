@@ -1,9 +1,12 @@
 using System.Diagnostics.CodeAnalysis;
 using CodeAlta.Presentation.Chat;
 using CodeAlta.ViewModels;
+using XenoAtom.Terminal;
 using XenoAtom.Terminal.UI;
+using XenoAtom.Terminal.UI.Commands;
 using XenoAtom.Terminal.UI.Controls;
 using XenoAtom.Terminal.UI.Geometry;
+using XenoAtom.Terminal.UI.Input;
 
 namespace CodeAlta.Views;
 
@@ -20,7 +23,16 @@ internal sealed class SessionTabHostView
         ArgumentNullException.ThrowIfNull(controller);
 
         SessionTabControl = new TabControl();
-        SessionTabControl.SelectionChanged((_, e) => controller.SelectTab(e.NewIndex));
+        AddAskNavigationCommands();
+        SessionTabControl.SelectionChanged((_, e) =>
+        {
+            if (!ReferenceEquals(e.OriginalSource, SessionTabControl))
+            {
+                return;
+            }
+
+            controller.SelectTab(e.NewIndex);
+        });
 
         var sessionPaneLayout = new Grid
             {
@@ -162,7 +174,7 @@ internal sealed class SessionTabHostView
             return true;
         }
 
-        _askProjectionStates[tabId] = new AskProjectionState(splitter.First, splitter.Second);
+        _askProjectionStates[tabId] = new AskProjectionState(askForm, splitter.First, splitter.Second);
         if (fileReview is not null)
         {
             splitter.First = fileReview;
@@ -185,7 +197,119 @@ internal sealed class SessionTabHostView
         return true;
     }
 
-    private sealed record AskProjectionState(Visual? Primary, Visual? Bottom);
+    private void AddAskNavigationCommands()
+    {
+        SessionTabControl.AddCommand(new Command
+        {
+            Id = "CodeAlta.SessionTabs.AskPreviousQuestion",
+            LabelMarkup = "Previous ask question",
+            Gesture = new KeyGesture(TerminalKey.Left),
+            Presentation = CommandPresentation.None,
+            ConsumesGestureWhenUnavailable = false,
+            CanExecute = _ => CanRouteSessionTabKeyToAsk(),
+            Execute = _ => ExecuteActiveAskCommand("CodeAlta.Ask.Previous"),
+        });
+        SessionTabControl.AddCommand(new Command
+        {
+            Id = "CodeAlta.SessionTabs.AskNextQuestion",
+            LabelMarkup = "Next ask question",
+            Gesture = new KeyGesture(TerminalKey.Right),
+            Presentation = CommandPresentation.None,
+            ConsumesGestureWhenUnavailable = false,
+            CanExecute = _ => CanRouteSessionTabKeyToAsk(),
+            Execute = _ => ExecuteActiveAskCommand("CodeAlta.Ask.Next"),
+        });
+        SessionTabControl.AddCommand(new Command
+        {
+            Id = "CodeAlta.SessionTabs.AskConsumeUp",
+            LabelMarkup = "Keep ask focus",
+            Gesture = new KeyGesture(TerminalKey.Up),
+            Presentation = CommandPresentation.None,
+            ConsumesGestureWhenUnavailable = false,
+            CanExecute = _ => CanConsumeSplitterKeyDuringAsk(),
+            Execute = static _ => { },
+        });
+        SessionTabControl.AddCommand(new Command
+        {
+            Id = "CodeAlta.SessionTabs.AskConsumeDown",
+            LabelMarkup = "Keep ask focus",
+            Gesture = new KeyGesture(TerminalKey.Down),
+            Presentation = CommandPresentation.None,
+            ConsumesGestureWhenUnavailable = false,
+            CanExecute = _ => CanConsumeSplitterKeyDuringAsk(),
+            Execute = static _ => { },
+        });
+    }
+
+    private bool CanRouteSessionTabKeyToAsk()
+        => TryGetActiveAskProjection(out _) && SessionTabControl.App?.FocusedElement is not TextBox;
+
+    private bool CanConsumeSplitterKeyDuringAsk()
+        => TryGetActiveAskProjection(out _) && SessionTabControl.App?.FocusedElement is VSplitter;
+
+    private bool ExecuteActiveAskCommand(string commandId)
+    {
+        if (!TryGetActiveAskProjection(out var state))
+        {
+            return false;
+        }
+
+        var commands = state.AskForm.Commands;
+        for (var i = 0; i < commands.Count; i++)
+        {
+            var command = commands[i];
+            if (string.Equals(command.Id, commandId, StringComparison.Ordinal) && command.IsVisibleFor(state.AskForm) && command.CanExecuteFor(state.AskForm))
+            {
+                command.Execute(state.AskForm);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool TryGetActiveAskProjection([NotNullWhen(true)] out AskProjectionState? state)
+    {
+        state = null;
+        if (TryGetSelectedTabId() is { } selectedTabId && _askProjectionStates.TryGetValue(selectedTabId, out state))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_activeSessionTabContentId) && _askProjectionStates.TryGetValue(_activeSessionTabContentId, out state))
+        {
+            return true;
+        }
+
+        if (_askProjectionStates.Count == 1)
+        {
+            state = _askProjectionStates.Values.First();
+            return true;
+        }
+
+        return false;
+    }
+
+    private string? TryGetSelectedTabId()
+    {
+        if ((uint)SessionTabControl.SelectedIndex >= (uint)SessionTabControl.Tabs.Count)
+        {
+            return null;
+        }
+
+        var selectedPage = SessionTabControl.Tabs[SessionTabControl.SelectedIndex];
+        foreach (var (tabId, page) in _tabPages)
+        {
+            if (ReferenceEquals(page, selectedPage))
+            {
+                return tabId;
+            }
+        }
+
+        return null;
+    }
+
+    private sealed record AskProjectionState(Visual AskForm, Visual? Primary, Visual? Bottom);
 }
 
 internal sealed class SessionPromptPanel

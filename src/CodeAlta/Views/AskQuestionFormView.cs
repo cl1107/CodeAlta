@@ -5,14 +5,19 @@ using XenoAtom.Terminal.UI.Commands;
 using XenoAtom.Terminal.UI.Controls;
 using XenoAtom.Terminal.UI.Geometry;
 using XenoAtom.Terminal.UI.Input;
+using XenoAtom.Terminal.UI.Styling;
+using XenoAtom.Terminal.UI.Templating;
 
 namespace CodeAlta.Views;
 
 internal sealed class AskQuestionFormView
 {
+    private const string NextQuestionGlyph = "→";
+    private const string LastQuestionGlyph = "✓";
+
     private readonly AltaAskRequest _request;
     private readonly bool[] _visited;
-    private readonly CheckBox[][] _choiceBoxes;
+    private readonly OptionList<AskChoiceOption>?[] _choiceLists;
     private readonly TextBox?[] _freeformBoxes;
 
     public AskQuestionFormView(AltaQueuedAsk ask)
@@ -20,37 +25,31 @@ internal sealed class AskQuestionFormView
         ArgumentNullException.ThrowIfNull(ask);
         _request = ask.Request;
         _visited = new bool[_request.Questions.Count];
-        _choiceBoxes = new CheckBox[_request.Questions.Count][];
+        _choiceLists = new OptionList<AskChoiceOption>?[_request.Questions.Count];
         _freeformBoxes = new TextBox?[_request.Questions.Count];
 
         var pages = _request.Questions
-            .Select((question, index) => new TabPage(question.Title ?? $"Question {index + 1}", BuildQuestionPage(question, index)))
+            .Select((question, index) => new TabPage(BuildQuestionTabHeader(question, index), BuildQuestionPage(question, index)))
             .ToArray();
         Tabs = new TabControl(pages)
+            .Style(TabControlStyle.NoBorder)
+            .HorizontalAlignment(Align.Stretch)
+            .VerticalAlignment(Align.Stretch);
+        Tabs.SelectionChanged((_, e) =>
         {
-            HorizontalAlignment = Align.Stretch,
-            VerticalAlignment = Align.Stretch,
-        };
-        Tabs.SelectionChanged((_, e) => SelectedIndex = e.NewIndex);
+            SelectedIndex = e.NewIndex;
+            FocusSelectedQuestionInput();
+        });
         if (Tabs.Tabs.Count > 0)
         {
             Tabs.SelectedIndex = 0;
         }
 
+        InitialFocusTarget = GetQuestionFocusTarget(0) ?? Tabs;
         Root = new DockLayout(
             top: null,
             content: Tabs,
-            bottom: new HStack(
-            [
-                new Button(new TextBlock("Submit"))
-                    .Click(SubmitOrAdvance),
-                new Button(new TextBlock("Cancel"))
-                    .Click(() => CancelRequested?.Invoke(this, EventArgs.Empty)),
-            ])
-            {
-                Spacing = 1,
-                HorizontalAlignment = Align.End,
-            })
+            bottom: BuildBottomBar())
         {
             HorizontalAlignment = Align.Stretch,
             VerticalAlignment = Align.Stretch,
@@ -68,6 +67,8 @@ internal sealed class AskQuestionFormView
 
     public TabControl Tabs { get; }
 
+    public Visual InitialFocusTarget { get; }
+
     public int SelectedIndex { get; private set; }
 
     public IReadOnlyList<bool> Visited => _visited;
@@ -82,6 +83,7 @@ internal sealed class AskQuestionFormView
 
         Tabs.SelectedIndex = Math.Min(Tabs.SelectedIndex + 1, _request.Questions.Count - 1);
         SelectedIndex = Tabs.SelectedIndex;
+        FocusSelectedQuestionInput();
     }
 
     public void Previous()
@@ -94,6 +96,7 @@ internal sealed class AskQuestionFormView
 
         Tabs.SelectedIndex = Math.Max(Tabs.SelectedIndex - 1, 0);
         SelectedIndex = Tabs.SelectedIndex;
+        FocusSelectedQuestionInput();
     }
 
     public void SubmitOrAdvance()
@@ -104,10 +107,41 @@ internal sealed class AskQuestionFormView
         {
             Tabs.SelectedIndex = nextUnvisited;
             SelectedIndex = nextUnvisited;
+            FocusSelectedQuestionInput();
             return;
         }
 
         Submitted?.Invoke(this, CollectAnswers());
+    }
+
+    private Visual BuildQuestionTabHeader(AltaAskQuestion question, int index)
+    {
+        var title = question.Title ?? $"Question {index + 1}";
+        var progressGlyph = index + 1 < _request.Questions.Count ? NextQuestionGlyph : LastQuestionGlyph;
+        return new TextBlock($"{title} {progressGlyph}");
+    }
+
+    private Visual BuildBottomBar()
+    {
+        return new VStack(
+            new Markup("[dim]LEFT/RIGHT questions · UP/DOWN choices · ENTER select/submit · ESC cancel[/]") { Wrap = true },
+            new HStack(
+            [
+                new Button(new TextBlock("Submit"))
+                    .Tone(ControlTone.Primary)
+                    .Click(SubmitOrAdvance),
+                new Button(new TextBlock("Cancel"))
+                    .Tone(ControlTone.Error)
+                    .Click(() => CancelRequested?.Invoke(this, EventArgs.Empty)),
+            ])
+            {
+                Spacing = 1,
+                HorizontalAlignment = Align.Start,
+            })
+        {
+            Spacing = 1,
+            HorizontalAlignment = Align.Stretch,
+        };
     }
 
     private Visual BuildQuestionPage(AltaAskQuestion question, int index)
@@ -121,46 +155,64 @@ internal sealed class AskQuestionFormView
             children.Add(new TextBlock(question.Description) { Wrap = true });
         }
 
-        var answerChildren = new List<Visual>();
-        _choiceBoxes[index] = question.Choices
-            .Select((choice, choiceIndex) =>
+        if (question.Choices.Count > 0)
+        {
+            var choices = question.Choices
+                .Select((choice, choiceIndex) => new AskChoiceOption(choiceIndex, $"{choiceIndex + 1}. {choice.Title}", choice.Description))
+                .ToArray();
+            var choiceList = new OptionList<AskChoiceOption>(choices, selectedIndex: 0)
             {
-                var box = new CheckBox($"{choiceIndex + 1}. {choice.Title}");
-                answerChildren.Add(box);
-                if (!string.IsNullOrWhiteSpace(choice.Description))
+                AutoFocus = true,
+                ItemTemplate = new DataTemplate<AskChoiceOption>((value, in _) =>
                 {
-                    answerChildren.Add(new TextBlock(choice.Description) { Wrap = true });
-                }
+                    var option = value.GetValue();
+                    if (string.IsNullOrWhiteSpace(option.Description))
+                    {
+                        return new TextBlock(option.Title) { Wrap = true };
+                    }
 
-                return box;
-            })
-            .ToArray();
+                    return new VStack(
+                        new TextBlock(option.Title) { Wrap = true },
+                        new TextBlock(option.Description) { Wrap = true })
+                    {
+                        Spacing = 0,
+                        HorizontalAlignment = Align.Stretch,
+                    };
+                }, null),
+                HorizontalAlignment = Align.Stretch,
+                VerticalAlignment = Align.Stretch,
+            };
+            choiceList.KeyDown((_, e) => HandleQuestionNavigationKeyDown(e));
+            choiceList.ItemActivated((_, _) => SubmitOrAdvance());
+            _choiceLists[index] = choiceList;
+            children.Add(choiceList);
+        }
 
         if (question.Freeform is not null)
         {
             if (!string.IsNullOrWhiteSpace(question.Freeform.Title))
             {
-                answerChildren.Add(new TextBlock(question.Freeform.Title) { Wrap = true });
+                children.Add(new TextBlock(question.Freeform.Title) { Wrap = true });
             }
 
             var freeform = new TextBox()
                 .Placeholder(question.Freeform.Placeholder ?? string.Empty)
                 .HorizontalAlignment(Align.Stretch);
+            freeform.AutoFocus = question.Choices.Count == 0;
             _freeformBoxes[index] = freeform;
-            answerChildren.Add(freeform);
+            children.Add(freeform);
         }
 
-        children.Add(new ScrollViewer(new VStack(answerChildren.ToArray()) { Spacing = 1 }.Stretch(), focusable: false)
-            .HorizontalScrollEnabled(false)
-            .VerticalScrollEnabled(true)
-            .Stretch());
-        return new VStack(children.ToArray())
+        return new ScrollViewer(new VStack(children.ToArray())
         {
             Spacing = 1,
             Margin = new Thickness(1, 1, 1, 1),
             HorizontalAlignment = Align.Stretch,
             VerticalAlignment = Align.Stretch,
-        };
+        }, focusable: false)
+            .HorizontalScrollEnabled(false)
+            .VerticalScrollEnabled(true)
+            .Stretch();
     }
 
     private void AddNavigationCommands(Visual visual)
@@ -173,14 +225,15 @@ internal sealed class AskQuestionFormView
 
     private void HandleKeyDown(KeyEventArgs e)
     {
+        if (HandleQuestionNavigationKeyDown(e))
+        {
+            return;
+        }
+
         switch (e.Key)
         {
-            case TerminalKey.Right:
-                Next();
-                e.Handled = true;
-                break;
-            case TerminalKey.Left:
-                Previous();
+            case TerminalKey.Up:
+            case TerminalKey.Down:
                 e.Handled = true;
                 break;
             case TerminalKey.Enter:
@@ -191,6 +244,41 @@ internal sealed class AskQuestionFormView
                 CancelRequested?.Invoke(this, EventArgs.Empty);
                 e.Handled = true;
                 break;
+        }
+    }
+
+    private bool HandleQuestionNavigationKeyDown(KeyEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case TerminalKey.Right:
+                Next();
+                e.Handled = true;
+                return true;
+            case TerminalKey.Left:
+                Previous();
+                e.Handled = true;
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private Visual? GetQuestionFocusTarget(int questionIndex)
+    {
+        if ((uint)questionIndex >= (uint)_request.Questions.Count)
+        {
+            return null;
+        }
+
+        return _choiceLists[questionIndex] is { } choiceList ? choiceList : _freeformBoxes[questionIndex];
+    }
+
+    private void FocusSelectedQuestionInput()
+    {
+        if (GetQuestionFocusTarget(SelectedIndex) is { } target)
+        {
+            target.App?.Focus(target);
         }
     }
 
@@ -207,10 +295,9 @@ internal sealed class AskQuestionFormView
         var answers = new AltaAskAnswer[_request.Questions.Count];
         for (var index = 0; index < _request.Questions.Count; index++)
         {
-            var selectedChoices = _choiceBoxes[index]
-                .Select((box, choiceIndex) => box.IsChecked ? choiceIndex : -1)
-                .Where(static choiceIndex => choiceIndex >= 0)
-                .ToArray();
+            var selectedChoices = _choiceLists[index] is { } choiceList && (uint)choiceList.SelectedIndex < (uint)choiceList.Items.Count
+                ? [choiceList.Items[choiceList.SelectedIndex].ChoiceIndex]
+                : Array.Empty<int>();
             answers[index] = new AltaAskAnswer
             {
                 QuestionIndex = index,
@@ -221,4 +308,6 @@ internal sealed class AskQuestionFormView
 
         return answers;
     }
+
+    private sealed record AskChoiceOption(int ChoiceIndex, string Title, string? Description);
 }

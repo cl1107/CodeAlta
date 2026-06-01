@@ -140,7 +140,7 @@ internal sealed class SessionWorkspaceView
         _sessionTabHostView = new SessionTabHostView(tabHostController);
         SessionPaneLayout = _sessionTabHostView.Root;
         Root = SessionPaneLayout;
-        _workspaceViewModel.SetAskModeHandlers((tabId, askForm) => EnterAskMode(tabId, askForm), ExitAskMode, () => SessionPaneLayout.GetAbsoluteBounds(), control => SessionPaneLayout.App?.Focus(control));
+        _workspaceViewModel.SetAskModeHandlers((tabId, askForm, fileReview) => EnterAskMode(tabId, askForm, fileReview), ExitAskMode, () => SessionPaneLayout.GetAbsoluteBounds(), control => SessionPaneLayout.App?.Focus(control));
         foreach (var command in shellCommandSurfaceCoordinator.CommandsFor(ShellCommandPlacement.WorkspaceRoot))
         {
             Root.AddCommand(shellCommandSurfaceCoordinator.CreateViewCommand(command));
