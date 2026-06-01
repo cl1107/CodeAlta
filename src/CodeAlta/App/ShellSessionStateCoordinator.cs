@@ -25,6 +25,7 @@ internal sealed partial class ShellSessionStateCoordinator
     private readonly ShellCatalogStateCoordinator _catalogStateCoordinator;
     private readonly OpenSessionStateStore _openSessionStateStore;
     private readonly SessionViewStateCoordinator _viewStateCoordinator;
+    private readonly HashSet<string> _locallyRegisteredSessionIds = new(StringComparer.OrdinalIgnoreCase);
 
     public ShellSessionStateCoordinator(
         ProjectCatalog projectCatalog,
@@ -150,6 +151,7 @@ internal sealed partial class ShellSessionStateCoordinator
         ArgumentNullException.ThrowIfNull(projects);
         ArgumentNullException.ThrowIfNull(sessions);
 
+        sessions = PreserveLocallyRegisteredSessions(sessions);
         var previousPendingStartupSessionRestoreId = PendingStartupSessionRestoreId;
         var recovery = _catalogStateCoordinator.ApplyRecoveredCatalogState(
             projects,
@@ -175,6 +177,7 @@ internal sealed partial class ShellSessionStateCoordinator
     {
         ArgumentNullException.ThrowIfNull(session);
 
+        RememberLocallyRegisteredSession(session);
         _viewStateCoordinator.ApplySessionLocalState([session], ViewState, readJournal: false);
         var localState = _viewStateCoordinator.RememberSessionLocalState(ViewState, session);
         global::CodeAlta.CodeAltaTaskMonitor.Observe(
@@ -330,6 +333,7 @@ internal sealed partial class ShellSessionStateCoordinator
             _uiDispatcher,
             () =>
             {
+                RememberLocallyRegisteredSession(session);
                 _catalogStateCoordinator.UpsertSession(session);
                 OpenSessionCore(session.SessionId, persistViewState: false, publishSelectionChanged: false, loadHistory: false);
                 _tabLifecycle.ReplaceDraftTabWithSession(session.SessionId);
@@ -458,6 +462,7 @@ internal sealed partial class ShellSessionStateCoordinator
                 continue;
             }
 
+            _locallyRegisteredSessionIds.Remove(sessionId);
             _promptDrafts.DeletePromptDraft(sessionId);
             PendingStartupSessionRestoreId = string.Equals(PendingStartupSessionRestoreId, sessionId, StringComparison.OrdinalIgnoreCase)
                 ? null
@@ -496,6 +501,7 @@ internal sealed partial class ShellSessionStateCoordinator
 
         foreach (var sessionId in deletedSessionIds)
         {
+            _locallyRegisteredSessionIds.Remove(sessionId);
             ViewState.OpenSessionIds.RemoveAll(id => string.Equals(id, sessionId, StringComparison.OrdinalIgnoreCase));
             _tabLifecycle.RemoveSessionTabPage(sessionId, ShellTabCloseReason.SessionDeleted);
             _openSessionStateStore.RemoveSessionTab(sessionId);
@@ -541,6 +547,7 @@ internal sealed partial class ShellSessionStateCoordinator
 
         foreach (var sessionId in deletedSessionIds)
         {
+            _locallyRegisteredSessionIds.Remove(sessionId);
             ViewState.OpenSessionIds.RemoveAll(id => string.Equals(id, sessionId, StringComparison.OrdinalIgnoreCase));
             _tabLifecycle.RemoveSessionTabPage(sessionId, ShellTabCloseReason.ProjectClosed);
             _openSessionStateStore.RemoveSessionTab(sessionId);
@@ -611,6 +618,57 @@ internal sealed partial class ShellSessionStateCoordinator
     {
         var openSessionTabIds = _tabLifecycle.GetOpenSessionTabIds();
         ViewState.OpenSessionIds.RemoveAll(sessionId => !openSessionTabIds.Contains(sessionId, StringComparer.OrdinalIgnoreCase));
+    }
+
+    private void RememberLocallyRegisteredSession(SessionViewDescriptor session)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        if (!string.IsNullOrWhiteSpace(session.SessionId))
+        {
+            _locallyRegisteredSessionIds.Add(session.SessionId);
+        }
+    }
+
+    private IReadOnlyList<SessionViewDescriptor> PreserveLocallyRegisteredSessions(IReadOnlyList<SessionViewDescriptor> recoveredSessions)
+    {
+        ArgumentNullException.ThrowIfNull(recoveredSessions);
+        if (_locallyRegisteredSessionIds.Count == 0)
+        {
+            return recoveredSessions;
+        }
+
+        var recoveredSessionIds = recoveredSessions
+            .Where(static session => !string.IsNullOrWhiteSpace(session.SessionId))
+            .Select(static session => session.SessionId)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        _locallyRegisteredSessionIds.ExceptWith(recoveredSessionIds);
+        if (_locallyRegisteredSessionIds.Count == 0)
+        {
+            return recoveredSessions;
+        }
+
+        List<SessionViewDescriptor>? mergedSessions = null;
+        foreach (var session in Sessions)
+        {
+            if (string.IsNullOrWhiteSpace(session.SessionId) ||
+                recoveredSessionIds.Contains(session.SessionId) ||
+                !_locallyRegisteredSessionIds.Contains(session.SessionId))
+            {
+                continue;
+            }
+
+            mergedSessions ??= [.. recoveredSessions];
+            mergedSessions.Add(session);
+            recoveredSessionIds.Add(session.SessionId);
+        }
+
+        return mergedSessions is null
+            ? recoveredSessions
+            : mergedSessions
+                .OrderByDescending(static session => session.LastActiveAt)
+                .ThenBy(static session => session.Title, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(static session => session.SessionId, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
     }
 
     public ProjectDescriptor? GetSelectedProject()

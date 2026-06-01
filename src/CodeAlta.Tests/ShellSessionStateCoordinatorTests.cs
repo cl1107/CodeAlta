@@ -199,6 +199,34 @@ public sealed class ShellSessionStateCoordinatorTests
     }
 
     [TestMethod]
+    public async Task ApplyRecoveredCatalogState_StaleRecoveryPreservesLocallyCreatedSession()
+    {
+        using var temp = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = temp.Path };
+        var coordinator = CreateCoordinator(options);
+        var project = CreateProject("project-1", "CodeAlta");
+        var recoveredSession = CreateSession("recovered-session", project.Id);
+        var createdSession = CreateSession("created-session", project.Id);
+        coordinator.ApplyRecoveredCatalogState([project], [recoveredSession]);
+        coordinator.SelectProjectScope(project.Id);
+
+        await coordinator.RegisterCreatedSessionAsync(createdSession).ConfigureAwait(false);
+        coordinator.ApplyRecoveredCatalogState([project], [recoveredSession], pruneMissingSessions: false);
+        coordinator.ApplyRecoveredCatalogState([project], [recoveredSession]);
+
+        Assert.IsNotNull(coordinator.FindSession(createdSession.SessionId));
+        Assert.AreEqual(createdSession.SessionId, coordinator.SelectedSessionId);
+        CollectionAssert.Contains(coordinator.ViewState.OpenSessionIds, createdSession.SessionId);
+        Assert.AreEqual(SessionViewSelectionSurface.Session, coordinator.ViewState.Selection.Surface);
+        Assert.AreEqual(createdSession.SessionId, coordinator.ViewState.Selection.SessionId);
+
+        coordinator.ApplyRecoveredCatalogState([project], [recoveredSession, createdSession]);
+        coordinator.ApplyRecoveredCatalogState([project], [recoveredSession]);
+
+        Assert.IsNull(coordinator.FindSession(createdSession.SessionId));
+    }
+
+    [TestMethod]
     public async Task CloseSessionTabAsync_ClearsPendingStartupRestoreBeforeRecoveryCanReopenIt()
     {
         using var temp = TempDirectory.Create();
