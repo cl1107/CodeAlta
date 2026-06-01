@@ -13,7 +13,7 @@ The preferred workflow is the **Model Providers** dialog (`Ctrl+G Ctrl+R`). Adva
 
 ## Default configuration file
 
-On first run, CodeAlta creates a default `~/.alta/config.toml` with common providers disabled. When a later CodeAlta version adds bundled default entries, startup adds only the missing entries to your existing global config and keeps the previous file as `config.toml.backup*` before replacing it. Enable only the providers you want to use.
+On first run, CodeAlta creates a default `~/.alta/config.toml` with common providers disabled. Later launches leave your existing global config untouched, even when a newer CodeAlta version bundles additional default entries, so you can remove, rename, or customize providers without startup adding them back. Enable only the providers you want to use.
 
 | Provider key | Display name | Type | Default model or role | Credential field |
 | --- | --- | --- | --- | --- |
