@@ -146,8 +146,8 @@ public sealed class PromptManagementDialogTests
     {
         using var tempDirectory = TempDirectory.Create();
         var appBase = Path.Combine(tempDirectory.Path, "app");
-        var builtInPath = WriteSystemPromptRoot(Path.Combine(appBase, "content", "instructions"), "default", "built-in body");
-        var overridePath = WriteSystemPromptRoot(Path.Combine(tempDirectory.Path, "global", "instructions"), "default", "override body");
+        var builtInPath = WriteSystemPromptRoot(Path.Combine(appBase, "content", "prompts"), "default", "built-in body");
+        var overridePath = WriteSystemPromptRoot(Path.Combine(tempDirectory.Path, "global", "prompts"), "default", "override body");
         var catalog = new UserPromptCatalog(new FileSystemPromptContentLocator(appBase));
 
         var prompts = catalog.ListSystemPrompts(new UserPromptCatalogQuery
@@ -183,7 +183,7 @@ public sealed class PromptManagementDialogTests
 
     private static string WritePrompt(string root, string body)
     {
-        var promptDirectory = Path.Combine(root, "global", "instructions", "prompts");
+        var promptDirectory = Path.Combine(root, "global", "prompts", "developer");
         Directory.CreateDirectory(promptDirectory);
         var promptPath = Path.Combine(promptDirectory, "custom.prompt.md");
         File.WriteAllText(promptPath, $"---\nname: Custom Prompt\n---\n{body}\n");
@@ -191,7 +191,7 @@ public sealed class PromptManagementDialogTests
     }
 
     private static string WriteSystemPrompt(string root, string body)
-        => WriteSystemPromptRoot(Path.Combine(root, "global", "instructions"), "custom", body);
+        => WriteSystemPromptRoot(Path.Combine(root, "global", "prompts"), "custom", body);
 
     private static string WriteSystemPromptRoot(string instructionsRoot, string id, string body)
     {

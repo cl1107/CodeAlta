@@ -13,7 +13,7 @@ namespace CodeAlta.Orchestration.Runtime.SystemPrompts;
 public sealed class SystemPromptBuilder
 {
     private const string DefaultName = "default";
-    private static readonly string[] KnownTopLevelEntries = ["system", "prompts", "template.yml"];
+    private static readonly string[] KnownTopLevelEntries = ["system", "developer", "template.yml"];
     private readonly ISystemPromptContentLocator _contentLocator;
 
     /// <summary>
@@ -52,11 +52,11 @@ public sealed class SystemPromptBuilder
         WarnForIgnoredFiles(roots, diagnostics);
 
         var template = ResolveTemplate(roots, request, diagnostics);
-        var promptResolution = ResolveResource(roots, "prompts", ".prompt.md", template.InstructionName, diagnostics, SystemPromptResourceKind.UserPrompt);
+        var promptResolution = ResolveResource(roots, "developer", ".prompt.md", template.InstructionName, diagnostics, SystemPromptResourceKind.UserPrompt);
 
         if (promptResolution.Selected is null)
         {
-            throw new InvalidOperationException($"Missing required user prompt 'prompts/{template.InstructionName}.prompt.md'.");
+            throw new InvalidOperationException($"Missing required developer prompt 'developer/{template.InstructionName}.prompt.md'.");
         }
 
         var selectedSystemOverride = NormalizeName(request.SelectedBaseName);
@@ -64,7 +64,7 @@ public sealed class SystemPromptBuilder
         var selectedSystemReason = selectedSystemOverride is not null
             ? "runtime"
             : promptResolution.Selected.SystemPromptName is not null
-                ? $"prompt:{template.InstructionName}"
+                ? $"developer:{template.InstructionName}"
                 : template.BaseReason;
         var systemResolution = ResolveResource(roots, "system", ".system-prompt.md", selectedSystemName, diagnostics, SystemPromptResourceKind.SystemPrompt);
 
@@ -82,10 +82,10 @@ public sealed class SystemPromptBuilder
         }
 
         var developerParts = new List<RenderedPromptPart>();
-        AddDeveloperPart(developerParts, parts, CreateResourcePart(promptResolution.Selected, "prompt", template.InstructionName, "developer", 300, "selected", promptResolution.ReplacedPath), "User Prompt", promptResolution.Selected.Body);
+        AddDeveloperPart(developerParts, parts, CreateResourcePart(promptResolution.Selected, "developer", template.InstructionName, "developer", 300, "selected", promptResolution.ReplacedPath), "User Prompt", promptResolution.Selected.Body);
         foreach (var skipped in promptResolution.Skipped)
         {
-            parts.Add(CreateResourcePart(skipped.Resource, "prompt", template.InstructionName, "developer", 300, skipped.Status, null));
+            parts.Add(CreateResourcePart(skipped.Resource, "developer", template.InstructionName, "developer", 300, skipped.Status, null));
         }
 
         template = template with { BaseName = selectedSystemName, BaseReason = selectedSystemReason };
@@ -171,7 +171,7 @@ public sealed class SystemPromptBuilder
             throw new InvalidOperationException($"Required shipped system prompt '{systemPath}' was not found.");
         }
 
-        var promptPath = Path.Combine(roots.ShippedPromptRoot, "prompts", "default.prompt.md");
+        var promptPath = Path.Combine(roots.ShippedPromptRoot, "developer", "default.prompt.md");
         if (!File.Exists(promptPath))
         {
             diagnostics.Add(SystemPromptDiagnostic.Error("missing_shipped_prompt", $"Required shipped default user prompt '{promptPath}' was not found.", promptPath));
@@ -186,7 +186,7 @@ public sealed class SystemPromptBuilder
             foreach (var directory in Directory.EnumerateDirectories(root.Path))
             {
                 var name = Path.GetFileName(directory);
-                if (!string.Equals(name, "system", StringComparison.OrdinalIgnoreCase) && !string.Equals(name, "prompts", StringComparison.OrdinalIgnoreCase))
+                if (!string.Equals(name, "system", StringComparison.OrdinalIgnoreCase) && !string.Equals(name, "developer", StringComparison.OrdinalIgnoreCase))
                 {
                     diagnostics.Add(SystemPromptDiagnostic.Warning("ignored_unknown_prompt_folder", $"Ignoring unknown prompt resource folder '{directory}'.", directory));
                 }
@@ -206,7 +206,7 @@ public sealed class SystemPromptBuilder
             }
 
             WarnWrongSuffix(root.Path, "system", ".system-prompt.md", diagnostics);
-            WarnWrongSuffix(root.Path, "prompts", ".prompt.md", diagnostics);
+            WarnWrongSuffix(root.Path, "developer", ".prompt.md", diagnostics);
         }
     }
 
@@ -297,10 +297,8 @@ public sealed class SystemPromptBuilder
                     }
 
                     break;
-                case "base":
                 case "system":
-                case "instruction":
-                case "prompt":
+                case "developer":
                     break;
                 case "skills":
                     options = options with { Skills = ParseBool(values[key], key, path, diagnostics, ref hasErrors) };
@@ -321,8 +319,8 @@ public sealed class SystemPromptBuilder
         }
 
         return new ParsedTemplate(
-            NormalizeName(values.GetValueOrDefault("system")) ?? NormalizeName(values.GetValueOrDefault("base")),
-            NormalizeName(values.GetValueOrDefault("prompt")) ?? NormalizeName(values.GetValueOrDefault("instruction")),
+            NormalizeName(values.GetValueOrDefault("system")),
+            NormalizeName(values.GetValueOrDefault("developer")),
             options,
             hasErrors);
     }
@@ -476,7 +474,7 @@ public sealed class SystemPromptBuilder
 
     private static SystemPromptManifestPart CreateResourcePart(PromptResource resource, string kind, string name, string target, int order, string status, string? replaces)
         => new(
-            Key: kind == "system" ? $"system/{name}" : $"prompts/{name}",
+            Key: kind == "system" ? $"system/{name}" : $"developer/{name}",
             Kind: kind,
             Name: name,
             Target: target,

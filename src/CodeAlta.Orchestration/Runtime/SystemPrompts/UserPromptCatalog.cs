@@ -4,7 +4,7 @@ using System.Text;
 namespace CodeAlta.Orchestration.Runtime.SystemPrompts;
 
 /// <summary>
-/// Discovers file-backed CodeAlta user prompts from built-in, user-global, and project-local instruction roots.
+/// Discovers file-backed CodeAlta user prompts from built-in, user-global, and project-local prompt roots.
 /// </summary>
 public sealed class UserPromptCatalog
 {
@@ -16,7 +16,7 @@ public sealed class UserPromptCatalog
     /// <summary>
     /// Initializes a new instance of the <see cref="UserPromptCatalog"/> class.
     /// </summary>
-    /// <param name="contentLocator">Optional content locator used to resolve instruction roots.</param>
+    /// <param name="contentLocator">Optional content locator used to resolve prompt roots.</param>
     public UserPromptCatalog(ISystemPromptContentLocator? contentLocator = null)
     {
         _contentLocator = contentLocator ?? new FileSystemPromptContentLocator();
@@ -201,19 +201,19 @@ public sealed class UserPromptCatalog
 
     private static IEnumerable<UserPromptRoot> EnumeratePromptRoots(SystemPromptContentRoots roots)
     {
-        if (Directory.Exists(Path.Combine(roots.ShippedPromptRoot, "prompts")))
+        if (Directory.Exists(Path.Combine(roots.ShippedPromptRoot, "developer")))
         {
-            yield return new UserPromptRoot(UserPromptSourceKind.BuiltIn, 0, Path.Combine(roots.ShippedPromptRoot, "prompts"));
+            yield return new UserPromptRoot(UserPromptSourceKind.BuiltIn, 0, Path.Combine(roots.ShippedPromptRoot, "developer"));
         }
 
-        if (Directory.Exists(Path.Combine(roots.UserPromptRoot, "prompts")))
+        if (Directory.Exists(Path.Combine(roots.UserPromptRoot, "developer")))
         {
-            yield return new UserPromptRoot(UserPromptSourceKind.UserGlobal, 1, Path.Combine(roots.UserPromptRoot, "prompts"));
+            yield return new UserPromptRoot(UserPromptSourceKind.UserGlobal, 1, Path.Combine(roots.UserPromptRoot, "developer"));
         }
 
-        if (roots.ProjectPromptResourcesTrusted && roots.ProjectPromptRoot is not null && Directory.Exists(Path.Combine(roots.ProjectPromptRoot, "prompts")))
+        if (roots.ProjectPromptResourcesTrusted && roots.ProjectPromptRoot is not null && Directory.Exists(Path.Combine(roots.ProjectPromptRoot, "developer")))
         {
-            yield return new UserPromptRoot(UserPromptSourceKind.Project, 2, Path.Combine(roots.ProjectPromptRoot, "prompts"));
+            yield return new UserPromptRoot(UserPromptSourceKind.Project, 2, Path.Combine(roots.ProjectPromptRoot, "developer"));
         }
     }
 
@@ -432,10 +432,10 @@ public enum UserPromptSourceKind
     /// <summary>The prompt is shipped with CodeAlta.</summary>
     BuiltIn,
 
-    /// <summary>The prompt comes from the user-global <c>~/.alta/instructions/prompts</c> root.</summary>
+    /// <summary>The prompt comes from the user-global <c>~/.alta/prompts/developer</c> root.</summary>
     UserGlobal,
 
-    /// <summary>The prompt comes from the project-local <c>.alta/instructions/prompts</c> root.</summary>
+    /// <summary>The prompt comes from the project-local <c>.alta/prompts/developer</c> root.</summary>
     Project,
 }
 

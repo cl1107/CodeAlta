@@ -918,7 +918,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         group.Add(CreatePromptEditCommand(context));
         AddHelpText(
             group,
-            "User prompts live under instructions/prompts/*.prompt.md and can choose a system prompt. System prompts live under instructions/system/*.system-prompt.md.",
+            "User prompts live under prompts/developer/*.prompt.md and can choose a system prompt. System prompts live under prompts/system/*.system-prompt.md.",
             "Default target is user prompts; add `--system` for system prompts. `--scope` accepts global, project, builtin, or all and defaults to all.",
             "LLM workflow: run `alta prompt list` to find a prompt-id, optionally `alta prompt show <prompt-id>`, then pass it to `alta session send <session-id> --prompt-id <prompt-id> ...`.",
             "Examples:",
@@ -982,7 +982,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
     {
         command.Add("scope=", "Prompt source scope: global, project, builtin, or all. List/show default all; edit default global and only allows global/project.", value => options.Scope = ValidatePromptScope(value));
         command.Add("project=", "Project id, slug, or path for project-local prompts. Defaults to caller project, matching cwd catalog project, or cwd.", value => options.Project = value);
-        command.Add("system", "Target system prompts under system/*.system-prompt.md. Omit for user prompts under prompts/*.prompt.md.", value => options.System = value is not null);
+        command.Add("system", "Target system prompts under system/*.system-prompt.md. Omit for user prompts under developer/*.prompt.md.", value => options.System = value is not null);
         if (includeVerbose)
         {
             command.Add("verbose", "Include full prompt content/body in prompt records.", value => options.Verbose = value is not null);
@@ -2431,8 +2431,8 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
         var catalog = new UserPromptCatalog();
         var directory = options.Scope == "project"
-            ? options.System ? catalog.ResolveProjectSystemPromptDirectory(queryResult.Query!) : AppendPromptSubdirectory(catalog.ResolveProjectPromptDirectory(queryResult.Query!), "prompts")
-            : options.System ? catalog.ResolveUserSystemPromptDirectory(queryResult.Query!) : Path.Combine(catalog.ResolveUserPromptDirectory(queryResult.Query!), "prompts");
+            ? options.System ? catalog.ResolveProjectSystemPromptDirectory(queryResult.Query!) : AppendPromptSubdirectory(catalog.ResolveProjectPromptDirectory(queryResult.Query!), "developer")
+            : options.System ? catalog.ResolveUserSystemPromptDirectory(queryResult.Query!) : Path.Combine(catalog.ResolveUserPromptDirectory(queryResult.Query!), "developer");
         if (string.IsNullOrWhiteSpace(directory))
         {
             return UsageError(context, "usage.missingProject", "Project prompt creation requires a project root. Provide --project or invoke from a project directory.", CommandPath);
@@ -2509,8 +2509,8 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
         var catalog = new UserPromptCatalog();
         var directory = options.Scope == "project"
-            ? options.System ? catalog.ResolveProjectSystemPromptDirectory(queryResult.Query!) : AppendPromptSubdirectory(catalog.ResolveProjectPromptDirectory(queryResult.Query!), "prompts")
-            : options.System ? catalog.ResolveUserSystemPromptDirectory(queryResult.Query!) : Path.Combine(catalog.ResolveUserPromptDirectory(queryResult.Query!), "prompts");
+            ? options.System ? catalog.ResolveProjectSystemPromptDirectory(queryResult.Query!) : AppendPromptSubdirectory(catalog.ResolveProjectPromptDirectory(queryResult.Query!), "developer")
+            : options.System ? catalog.ResolveUserSystemPromptDirectory(queryResult.Query!) : Path.Combine(catalog.ResolveUserPromptDirectory(queryResult.Query!), "developer");
         if (string.IsNullOrWhiteSpace(directory))
         {
             return UsageError(context, "usage.missingProject", "Project prompt editing requires a project root. Provide --project or invoke from a project directory.", "alta prompt edit");

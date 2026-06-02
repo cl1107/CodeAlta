@@ -129,8 +129,8 @@ public sealed class AltaLiveToolTests
     public async Task PromptListAndShow_EmitProgressivePromptRecordsForUserAndSystemScopes()
     {
         using var root = TempDirectory.Create();
-        var globalPromptDirectory = Path.Combine(root.Path, "instructions", "prompts");
-        var globalSystemDirectory = Path.Combine(root.Path, "instructions", "system");
+        var globalPromptDirectory = Path.Combine(root.Path, "prompts", "developer");
+        var globalSystemDirectory = Path.Combine(root.Path, "prompts", "system");
         Directory.CreateDirectory(globalPromptDirectory);
         Directory.CreateDirectory(globalSystemDirectory);
         await File.WriteAllTextAsync(
@@ -2170,7 +2170,7 @@ public sealed class AltaLiveToolTests
     public async Task SessionSend_PromptIdSelectsUserPromptForThatSend()
     {
         using var root = TempDirectory.Create();
-        var globalPromptDirectory = Path.Combine(root.Path, "instructions", "prompts");
+        var globalPromptDirectory = Path.Combine(root.Path, "prompts", "developer");
         Directory.CreateDirectory(globalPromptDirectory);
         await File.WriteAllTextAsync(
             Path.Combine(globalPromptDirectory, "custom.prompt.md"),

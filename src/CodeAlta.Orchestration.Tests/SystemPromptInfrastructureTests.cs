@@ -65,6 +65,7 @@ public sealed class SystemPromptInfrastructureTests
         WritePrompt(appBase, "default", "Default", "default", "Built-in default prompt.");
         WriteSystem(projectRoot, "custom-system", "Project custom system.");
         WritePrompt(projectRoot, "review", "Review", "custom-system", "Review the current change set.");
+        WriteTemplate(projectRoot, "default", "review");
 
         var builder = new SystemPromptBuilder(new FileSystemPromptContentLocator(appBase));
         var bundle = builder.Build(new SystemPromptBuildRequest
@@ -88,7 +89,6 @@ public sealed class SystemPromptInfrastructureTests
                 ProjectPath = projectRoot,
             },
             UserCodeAltaRoot = globalRoot,
-            SelectedPromptName = "review",
             PartOptionsOverride = new PartialSystemPromptPartOptions(
                 Skills: false,
                 ProjectContext: false,
@@ -101,14 +101,14 @@ public sealed class SystemPromptInfrastructureTests
         StringAssert.Contains(bundle.DeveloperInstructions!, "Review the current change set.");
         Assert.AreEqual("custom-system", bundle.Manifest.Template.BaseName);
         Assert.AreEqual("review", bundle.Manifest.Template.InstructionName);
-        Assert.IsTrue(bundle.Manifest.Parts.Any(static part => part.Key == "prompts/review" && part.Status == "selected"));
+        Assert.IsTrue(bundle.Manifest.Parts.Any(static part => part.Key == "developer/review" && part.Status == "selected"));
     }
 
     private static void WriteSystem(string root, string id, string body)
     {
         var directory = root.EndsWith("project", StringComparison.OrdinalIgnoreCase)
-            ? Path.Combine(root, ".alta", "instructions", "system")
-            : Path.Combine(root, "content", "instructions", "system");
+            ? Path.Combine(root, ".alta", "prompts", "system")
+            : Path.Combine(root, "content", "prompts", "system");
         Directory.CreateDirectory(directory);
         File.WriteAllText(Path.Combine(directory, id + ".system-prompt.md"), $"""
             ---
@@ -121,10 +121,10 @@ public sealed class SystemPromptInfrastructureTests
     private static void WritePrompt(string root, string id, string name, string system, string body)
     {
         var directory = root.EndsWith("app", StringComparison.OrdinalIgnoreCase)
-            ? Path.Combine(root, "content", "instructions", "prompts")
+            ? Path.Combine(root, "content", "prompts", "developer")
             : root.EndsWith("project", StringComparison.OrdinalIgnoreCase)
-                ? Path.Combine(root, ".alta", "instructions", "prompts")
-                : Path.Combine(root, "instructions", "prompts");
+                ? Path.Combine(root, ".alta", "prompts", "developer")
+                : Path.Combine(root, "prompts", "developer");
         Directory.CreateDirectory(directory);
         File.WriteAllText(Path.Combine(directory, id + ".prompt.md"), $"""
             ---
@@ -133,6 +133,17 @@ public sealed class SystemPromptInfrastructureTests
             description: Test user prompt.
             ---
             {body}
+            """);
+    }
+
+    private static void WriteTemplate(string root, string system, string developer)
+    {
+        var directory = Path.Combine(root, ".alta", "prompts");
+        Directory.CreateDirectory(directory);
+        File.WriteAllText(Path.Combine(directory, "template.yml"), $"""
+            version: 1
+            system: {system}
+            developer: {developer}
             """);
     }
 

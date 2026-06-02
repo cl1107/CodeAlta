@@ -182,7 +182,7 @@ internal sealed class PromptManagementDialog
             HorizontalAlignment = Align.Stretch,
         };
 
-        var intro = new Markup("[dim]Prompts are Markdown files under built-in content, ~/.alta/instructions, or project .alta/instructions. Later sources override earlier ids; built-ins are read-only. Use the System Prompt tab to edit only global/project system prompt overrides.[/]")
+        var intro = new Markup("[dim]Prompts are Markdown files under built-in content, ~/.alta/prompts, or project .alta/prompts. Later sources override earlier ids; built-ins are read-only. Use the System Prompt tab to edit only global/project system prompt overrides.[/]")
         {
             Wrap = true,
         };
@@ -1063,10 +1063,10 @@ internal sealed class PromptManagementDialog
     private string ResolvePromptDirectory(PromptStorageScope scope)
     {
         var query = CreateQuery();
-        var instructionsRoot = scope == PromptStorageScope.Project
+        var promptsRoot = scope == PromptStorageScope.Project
             ? _promptCatalog.ResolveProjectPromptDirectory(query) ?? _promptCatalog.ResolveUserPromptDirectory(query)
             : _promptCatalog.ResolveUserPromptDirectory(query);
-        return Path.Combine(instructionsRoot, "prompts");
+        return Path.Combine(promptsRoot, "developer");
     }
 
     private string ResolveResourceDirectory(PromptStorageScope scope, PromptResourceTab resourceTab)

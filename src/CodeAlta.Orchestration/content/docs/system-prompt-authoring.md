@@ -1,23 +1,23 @@
 # Prompt and Instruction Authoring
 
-CodeAlta instruction resources live under `instructions/` roots and are selected by convention.
+CodeAlta prompt resources live under `prompts/` roots and are selected by convention.
 
 ## Roots and precedence
 
 Resources are discovered from:
 
-1. Built-in `content/instructions/`.
-2. User-global `~/.alta/instructions/`.
-3. Project-local `<project>/.alta/instructions/`.
+1. Built-in `content/prompts/`.
+2. User-global `~/.alta/prompts/`.
+3. Project-local `<project>/.alta/prompts/`.
 
 Later roots override earlier roots when they contain the same file id.
 
 ```text
-instructions/
+prompts/
   system/
     default.system-prompt.md
     my-custom-system.system-prompt.md
-  prompts/
+  developer/
     default.prompt.md
     reviewer.prompt.md
   template.yml
@@ -57,11 +57,11 @@ The file name supplies the prompt id. For example, `team-reviewer.prompt.md` cre
 ```yaml
 version: 1
 system: team-default
-prompt: team-reviewer
+developer: team-reviewer
 skills: true
 project_context: true
 runtime_context: true
 tool_guidance: true
 ```
 
-The legacy keys `base` and `instruction` are still read for compatibility, but new templates should use `system` and `prompt`.
+The template accepts `system` for the system prompt id and `developer` for the selectable developer prompt id.

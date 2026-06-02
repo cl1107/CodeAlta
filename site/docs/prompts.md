@@ -6,8 +6,8 @@ title: Prompts and Instructions
 
 CodeAlta separates the instructions that shape an agent session into two file-backed layers:
 
-- **System prompts** are the invariant host/agent rules. They are stored as `<id>.system-prompt.md` files under an `instructions/system` folder.
-- **User prompts** are selectable session profiles. They are stored as `<id>.prompt.md` files under an `instructions/prompts` folder and are shown in the footer **Prompt:** selector.
+- **System prompts** are the invariant host/agent rules. They are stored as `<id>.system-prompt.md` files under a `prompts/system` folder.
+- **User prompts** are selectable session profiles. They are stored as `<id>.prompt.md` files under a `prompts/developer` folder and are shown in the footer **Prompt:** selector.
 
 The active user prompt is included when a session starts or resumes. Its optional `system` property chooses which system prompt id to use; when omitted, CodeAlta uses `default`.
 
@@ -16,17 +16,17 @@ The active user prompt is included when a session starts or resumes. Its optiona
 Prompt resources are layered in this order:
 
 1. Built-in resources shipped with CodeAlta.
-2. User-global resources under `~/.alta/instructions/`.
-3. Project-local resources under `<project>/.alta/instructions/`.
+2. User-global resources under `~/.alta/prompts/`.
+3. Project-local resources under `<project>/.alta/prompts/`.
 
 Each root has the same layout:
 
 ```text
-instructions/
+prompts/
   system/
     default.system-prompt.md
     my-custom-system.system-prompt.md
-  prompts/
+  developer/
     default.prompt.md
     reviewer.prompt.md
   template.yml        # optional advanced defaults
@@ -63,12 +63,12 @@ The live tool exposes the same resources for automation. Use `alta prompt list -
 
 System prompt files carry host-level behavior and should be short, stable, and explicit. User prompts are better for workflow-specific session behavior.
 
-Advanced users can add `template.yml` under `~/.alta/instructions/` or `<project>/.alta/instructions/` to choose default ids and generated context parts:
+Advanced users can add `template.yml` under `~/.alta/prompts/` or `<project>/.alta/prompts/` to choose default ids and generated context parts:
 
 ```yaml
 version: 1
 system: default
-prompt: default
+developer: default
 skills: true
 project_context: true
 runtime_context: true

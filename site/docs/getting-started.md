@@ -29,7 +29,7 @@ Then launch the terminal UI:
 alta
 ```
 
-CodeAlta stores user state under `~/.alta/`, including configuration, logs, cached provider state, session journals, user prompts under `~/.alta/instructions/prompts`, plugins, and skills.
+CodeAlta stores user state under `~/.alta/`, including configuration, logs, cached provider state, session journals, user prompts under `~/.alta/prompts/developer`, plugins, and skills.
 
 ## Terminal font requirement
 

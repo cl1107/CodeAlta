@@ -16,7 +16,7 @@ public interface ISystemPromptContentLocator
     /// <summary>
     /// Resolves a path under the shipped prompt resource root.
     /// </summary>
-    /// <param name="relativePromptPath">Relative path under <c>content/instructions</c>.</param>
+    /// <param name="relativePromptPath">Relative path under <c>content/prompts</c>.</param>
     /// <returns>The absolute path.</returns>
     /// <exception cref="ArgumentException">Thrown when the path is empty or escapes the prompt root.</exception>
     string ResolveBuiltInPromptPath(string relativePromptPath);
@@ -103,16 +103,16 @@ public sealed class FileSystemPromptContentLocator : ISystemPromptContentLocator
         var projectRoot = NormalizeOptionalRoot(context.ProjectRoot);
 
         return new SystemPromptContentRoots(
-            ShippedPromptRoot: Path.Combine(appBaseDirectory, "content", "instructions"),
+            ShippedPromptRoot: Path.Combine(appBaseDirectory, "content", "prompts"),
             ShippedDocsRoot: Path.Combine(appBaseDirectory, "content", "docs"),
-            UserPromptRoot: Path.Combine(userCodeAltaRoot, "instructions"),
-            ProjectPromptRoot: projectRoot is null ? null : Path.Combine(projectRoot, ".alta", "instructions"),
+            UserPromptRoot: Path.Combine(userCodeAltaRoot, "prompts"),
+            ProjectPromptRoot: projectRoot is null ? null : Path.Combine(projectRoot, ".alta", "prompts"),
             ProjectPromptResourcesTrusted: context.ProjectPromptResourcesTrusted);
     }
 
     /// <inheritdoc />
     public string ResolveBuiltInPromptPath(string relativePromptPath)
-        => ResolveUnderRoot(Path.Combine(GetAppBaseDirectory(), "content", "instructions"), relativePromptPath);
+        => ResolveUnderRoot(Path.Combine(GetAppBaseDirectory(), "content", "prompts"), relativePromptPath);
 
     /// <inheritdoc />
     public string ResolveBuiltInDocPath(string fileName)

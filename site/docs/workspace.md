@@ -81,7 +81,7 @@ Use `F3` / `F4` to jump between previous and next user or assistant messages. Us
 
 Press `Enter` to send and `Shift+Enter` for a new line. If the selected session is busy, `Enter` adds the prompt to the waiting list instead of dropping it. Queued prompts can be edited, repeated, steered immediately when supported, deleted, or cleared with `F10`.
 
-The footer **Prompt:** selector chooses the user prompt profile for the current draft/session. Built-in prompts appear first, followed by global `~/.alta/instructions/prompts` prompts and project `.alta/instructions/prompts` prompts. Global/project prompts with the same file id override lower-precedence prompts; see [Prompts and Instructions]({{site.basepath}}/docs/prompts/).
+The footer **Prompt:** selector chooses the user prompt profile for the current draft/session. Built-in prompts appear first, followed by global `~/.alta/prompts/developer` prompts and project `.alta/prompts/developer` prompts. Global/project prompts with the same file id override lower-precedence prompts; see [Prompts and Instructions]({{site.basepath}}/docs/prompts/).
 
 `Ctrl+Enter` steers a running provider session. If the provider cannot steer live, CodeAlta re-queues the prompt for the next normal turn.
 
