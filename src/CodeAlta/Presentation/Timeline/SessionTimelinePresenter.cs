@@ -957,7 +957,12 @@ internal sealed class SessionTimelinePresenter
         }
 
         RemoveMessageNavigationAnchors([oldItem]);
-        ToolCalls.OnNonToolTimelineItemAppended();
+        var deferToolCallGroupReset = shouldApply is not null;
+        if (!deferToolCallGroupReset)
+        {
+            ToolCalls.OnNonToolTimelineItemAppended();
+        }
+
         if (_bufferedHistoryItems is not null)
         {
             if (shouldApply is not null && !shouldApply())
@@ -968,10 +973,20 @@ internal sealed class SessionTimelinePresenter
             var index = _bufferedHistoryItems.IndexOf(oldItem);
             if (index >= 0)
             {
+                if (deferToolCallGroupReset)
+                {
+                    ToolCalls.OnNonToolTimelineItemAppended();
+                }
+
                 _bufferedHistoryItems[index] = newItem;
             }
             else if (!ContainsItemByContent(_bufferedHistoryItems, newItem))
             {
+                if (deferToolCallGroupReset)
+                {
+                    ToolCalls.OnNonToolTimelineItemAppended();
+                }
+
                 _bufferedHistoryItems.Add(newItem);
             }
 
@@ -988,10 +1003,20 @@ internal sealed class SessionTimelinePresenter
             var index = Flow.Items.IndexOf(oldItem);
             if (index >= 0)
             {
+                if (deferToolCallGroupReset)
+                {
+                    ToolCalls.OnNonToolTimelineItemAppended();
+                }
+
                 Flow.Items[index] = newItem;
             }
             else if (IndexOfFlowItemByContent(Flow, newItem) < 0)
             {
+                if (deferToolCallGroupReset)
+                {
+                    ToolCalls.OnNonToolTimelineItemAppended();
+                }
+
                 Flow.Items.Add(newItem);
             }
         });
@@ -1004,7 +1029,8 @@ internal sealed class SessionTimelinePresenter
             return;
         }
 
-        if (resetActiveToolCallGroup)
+        var deferToolCallGroupReset = resetActiveToolCallGroup && shouldApply is not null;
+        if (resetActiveToolCallGroup && !deferToolCallGroupReset)
         {
             ToolCalls.OnNonToolTimelineItemAppended();
         }
@@ -1021,6 +1047,11 @@ internal sealed class SessionTimelinePresenter
                 return;
             }
 
+            if (deferToolCallGroupReset)
+            {
+                ToolCalls.OnNonToolTimelineItemAppended();
+            }
+
             _bufferedHistoryItems.Add(item);
             return;
         }
@@ -1029,6 +1060,18 @@ internal sealed class SessionTimelinePresenter
         {
             if (shouldApply is not null && !shouldApply())
             {
+                return;
+            }
+
+            if (deferToolCallGroupReset)
+            {
+                if (IndexOfFlowItemByContent(Flow, item) >= 0)
+                {
+                    return;
+                }
+
+                ToolCalls.OnNonToolTimelineItemAppended();
+                Flow.Items.Add(item);
                 return;
             }
 

@@ -468,6 +468,28 @@ public sealed class SessionTimelinePresenterTests
     }
 
     [TestMethod]
+    public void StaleDeferredProjection_DoesNotSplitSequentialToolCallGroup()
+    {
+        var dispatcher = new DeferringUiDispatcher();
+        var presenter = new SessionTimelinePresenter(dispatcher, static () => null);
+        var timestamp = DateTimeOffset.UtcNow;
+        var shouldApplyProjection = true;
+
+        presenter.ToolCalls.TryHandleActivity(CreateToolActivity("tool-1", timestamp));
+        presenter.UpsertPluginProjection(
+            "projection-1",
+            timestamp.AddMilliseconds(1),
+            "Projection that is stale before it reaches the UI.",
+            shouldApply: () => shouldApplyProjection);
+        shouldApplyProjection = false;
+        presenter.ToolCalls.TryHandleActivity(CreateToolActivity("tool-2", timestamp.AddMilliseconds(2)));
+
+        dispatcher.DrainPostedActions();
+
+        Assert.AreEqual(1, presenter.Flow.Items.Count);
+    }
+
+    [TestMethod]
     public void Reset_ClearsTimelineItemsAndResetsAssistantTracking()
     {
         var presenter = CreatePresenter();
@@ -537,6 +559,19 @@ public sealed class SessionTimelinePresenterTests
             null,
             content));
 
+    private static AgentActivityEvent CreateToolActivity(string activityId, DateTimeOffset timestamp)
+        => new(
+            ModelProviderIds.Codex,
+            "session-1",
+            timestamp,
+            null,
+            AgentActivityKind.ToolCall,
+            AgentActivityPhase.Started,
+            activityId,
+            null,
+            "read_file",
+            null);
+
     private sealed class InlineUiDispatcher : IUiDispatcher
     {
         public bool CheckAccess()
@@ -559,6 +594,41 @@ public sealed class SessionTimelinePresenterTests
         {
             ArgumentNullException.ThrowIfNull(action);
             return Task.FromResult(action());
+        }
+    }
+
+    private sealed class DeferringUiDispatcher : IUiDispatcher
+    {
+        private readonly Queue<Action> _postedActions = new();
+
+        public bool CheckAccess()
+            => false;
+
+        public void Post(Action action)
+        {
+            ArgumentNullException.ThrowIfNull(action);
+            _postedActions.Enqueue(action);
+        }
+
+        public Task InvokeAsync(Action action)
+        {
+            ArgumentNullException.ThrowIfNull(action);
+            action();
+            return Task.CompletedTask;
+        }
+
+        public Task<T> InvokeAsync<T>(Func<T> action)
+        {
+            ArgumentNullException.ThrowIfNull(action);
+            return Task.FromResult(action());
+        }
+
+        public void DrainPostedActions()
+        {
+            while (_postedActions.Count > 0)
+            {
+                _postedActions.Dequeue()();
+            }
         }
     }
 
