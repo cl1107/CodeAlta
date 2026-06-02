@@ -100,6 +100,7 @@ alta tool status
 alta tool capability list
 alta notes get
 alta project current
+alta session current
 alta project list
 alta provider list
 alta model list --provider <provider-key>
@@ -116,6 +117,7 @@ Most list commands support compact defaults plus a `--detailed` mode.
 Useful read commands:
 
 ```text
+alta session current
 alta session list --project <project> --state all --limit 20
 alta session show <session-id>
 alta session status <session-id>
@@ -126,6 +128,8 @@ alta session metrics <session-id> --scope last-turn
 alta session tail <session-id> --last 10
 alta session events <session-id> --kind assistant.message --fields timestamp,kind,text
 ```
+
+`alta session current` is the shortest way for an agent-invoked live-tool call to discover its own CodeAlta session id. It does not require a session catalog lookup; outside a caller with session context it returns a usage diagnostic.
 
 Useful control commands:
 

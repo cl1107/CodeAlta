@@ -49,6 +49,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         Read("project resolve", supportsCatalogOnlyContext: true),
         Read("project current", supportsCatalogOnlyContext: true),
         Mutating("project upsert", requiresRuntime: false, supportsCatalogOnlyContext: true),
+        Read("session current", supportsCatalogOnlyContext: true),
         Read("session list"),
         Read("session show"),
         Read("session status"),
@@ -302,6 +303,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
     private static Command CreateSessionCommand(AltaCommandContext context)
     {
         var group = Group("session", "Inspect, create, and control CodeAlta work sessions.");
+        group.Add(CreateSessionCurrentCommand(context));
         group.Add(CreateSessionListCommand(context));
         group.Add(CreateSessionShowCommand(context));
         group.Add(CreateSessionStatusCommand(context));
@@ -325,12 +327,21 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             group,
             "Common: list by project, create child sessions, send prompts, inspect result/metrics snapshots, and steer active runs.",
             "Examples:",
+            "  `alta session current`",
             "  `alta session list --project CodeAlta --state all --limit 20`",
             "  `alta session create --project CodeAlta --same-model-as <session-id>`",
             "  `alta session send <session-id> --stdin`",
             "  `alta session result <session-id>`",
             "  `alta session report <session-id-1> <session-id-2> --include=result,metrics`");
         return group;
+    }
+
+    private static Command CreateSessionCurrentCommand(AltaCommandContext context)
+    {
+        var command = Leaf("current", "Show the calling agent's current session id.");
+        command.Add((_, _) => ValueTask.FromResult(HandleSessionCurrent(context)));
+        AddHelpText(command, "Example: `alta session current` returns the current caller session id for an agent-invoked live-tool call.");
+        return command;
     }
 
     private static Command CreateSessionListCommand(AltaCommandContext context)
@@ -1149,6 +1160,27 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         return normalized is "note" or "request" or "handoff" or "answer"
             ? normalized
             : throw new CommandOptionException("Message kind must be note, request, handoff, or answer.", "--kind");
+    }
+
+    private static int HandleSessionCurrent(AltaCommandContext context)
+    {
+        if (string.IsNullOrWhiteSpace(context.Caller.SourceSessionId))
+        {
+            return UsageError(context, "usage.missingCurrentSession", "No current session id is available for this caller.", "alta session current");
+        }
+
+        AltaJsonlWriter.WriteRecord(context.Stdout, new
+        {
+            type = "alta.session.current",
+            version = 1,
+            correlationId = context.CorrelationId,
+            sessionId = context.Caller.SourceSessionId,
+            sourceSessionId = context.Caller.SourceSessionId,
+            sourceProjectId = context.Caller.SourceProjectId,
+            sourceAgentId = context.Caller.SourceAgentId,
+            callerKind = context.Caller.Kind,
+        });
+        return AltaExitCodes.Success;
     }
 
     private static async ValueTask<int> HandleAskAsync(AltaCommandContext context, string? sessionId, bool useStdin)

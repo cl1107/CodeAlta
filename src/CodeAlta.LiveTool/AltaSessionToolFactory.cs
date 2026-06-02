@@ -12,7 +12,7 @@ public static class AltaSessionToolFactory
     private const string ToolName = "alta";
     private const string ToolDescription =
         "In-process gateway to the current CodeAlta host. " +
-        "Use it to discover projects, sessions, providers/models, skills, plugins, and tool capabilities; " +
+        "Use it to discover the current session identity, projects, sessions, providers/models, skills, plugins, and tool capabilities; " +
         "inspect live or recoverable session status/history; create project/global child sessions; " +
         "send, queue, steer, abort, compact, or coordinate sessions and peer-agent requests; " +
         "create/list/delete delayed prompt reminders; " +

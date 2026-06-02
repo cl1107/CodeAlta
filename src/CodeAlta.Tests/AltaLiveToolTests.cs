@@ -103,6 +103,7 @@ public sealed class AltaLiveToolTests
         Assert.IsTrue(result.IsHelp);
         StringAssert.StartsWith(result.Stdout, "Usage: alta [options] <command> [command-options]");
         StringAssert.Contains(result.Stdout, "Guidance: non-help commands return JSONL headed by `alta.result`");
+        StringAssert.Contains(result.Stdout, "alta session current");
         StringAssert.Contains(result.Stdout, "alta session list --project <project> --state all");
         StringAssert.Contains(result.Stdout, "--limit 20");
         StringAssert.Contains(result.Stdout, "alta session create --project <project> --reasoning low");
@@ -112,6 +113,41 @@ public sealed class AltaLiveToolTests
         StringAssert.Contains(result.Stdout, "Discover: `alta <command> --help` or `alta <command> <subcommand> --help`.");
         AssertHelpOrder(result.Stdout, "  session", "Guidance:");
         AssertHelpOrder(result.Stdout, "  plugin", "Guidance:");
+    }
+
+    [TestMethod]
+    public async Task SessionCurrent_ReturnsCallerSessionContextWithoutRuntimeLookup()
+    {
+        var dispatcher = CreateDispatcher(new AltaServiceCollection()
+            .Add<IAltaSessionQueryService>(new ThrowingSessionQueryService()));
+        var caller = new AltaCallerIdentity
+        {
+            Kind = "agent",
+            SourceSessionId = "session-current",
+            SourceProjectId = "project-current",
+            SourceAgentId = "agent-current",
+        };
+
+        var result = await dispatcher.InvokeAsync(["session", "current"], caller: caller).ConfigureAwait(false);
+
+        Assert.AreEqual(AltaExitCodes.Success, result.ExitCode, result.Stderr);
+        var current = ReadJsonLines(result.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.session.current");
+        Assert.AreEqual("session-current", current.GetProperty("sessionId").GetString());
+        Assert.AreEqual("session-current", current.GetProperty("sourceSessionId").GetString());
+        Assert.AreEqual("project-current", current.GetProperty("sourceProjectId").GetString());
+        Assert.AreEqual("agent-current", current.GetProperty("sourceAgentId").GetString());
+        Assert.AreEqual("agent", current.GetProperty("callerKind").GetString());
+    }
+
+    [TestMethod]
+    public async Task SessionCurrent_RequiresCallerSessionContext()
+    {
+        var result = await CreateDispatcher().InvokeAsync(["session", "current"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+
+        Assert.AreEqual(AltaExitCodes.Usage, result.ExitCode);
+        var error = ReadJsonLines(result.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.error");
+        Assert.AreEqual("usage.missingCurrentSession", error.GetProperty("code").GetString());
+        StringAssert.Contains(error.GetProperty("usageHint").GetString(), "alta session current --help");
     }
 
     [TestMethod]
@@ -281,7 +317,8 @@ public sealed class AltaLiveToolTests
         var tool = AltaSessionToolFactory.Create(CreateDispatcher(), new AltaSessionToolOptions());
 
         StringAssert.Contains(tool.Spec.Description, "In-process gateway to the current CodeAlta host");
-        StringAssert.Contains(tool.Spec.Description, "discover projects, sessions, providers/models, skills, plugins, and tool capabilities");
+        StringAssert.Contains(tool.Spec.Description, "current session identity");
+        StringAssert.Contains(tool.Spec.Description, "projects, sessions, providers/models, skills, plugins, and tool capabilities");
         StringAssert.Contains(tool.Spec.Description, "create project/global child sessions");
         StringAssert.Contains(tool.Spec.Description, "send, queue, steer, abort, compact");
         StringAssert.Contains(tool.Spec.Description, "peer-agent requests");
@@ -659,6 +696,7 @@ public sealed class AltaLiveToolTests
 
         Assert.AreEqual(AltaExitCodes.Success, result.ExitCode);
         var capability = ReadJsonLines(result.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.tool.capabilities");
+        AssertJsonArrayContains(capability.GetProperty("paths"), "session current");
         AssertJsonArrayContains(capability.GetProperty("paths"), "ask");
         AssertJsonArrayContains(capability.GetProperty("mutating"), "ask");
         Assert.IsFalse(capability.GetProperty("outOfProcess").EnumerateArray().Any(static item => item.GetString() == "ask"));

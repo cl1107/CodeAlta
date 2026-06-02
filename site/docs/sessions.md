@@ -126,7 +126,7 @@ project and check whether a recent session already investigated the
 plugin startup issue.
 ```
 
-The agent may use the live tool to gather this information, but the important user workflow is the prompt: ask for the coordination outcome you want, not for individual low-level commands.
+The agent may use the live tool to gather this information, starting with `alta session current` when it needs its own session id, but the important user workflow is the prompt: ask for the coordination outcome you want, not for individual low-level commands.
 
 ## Comparing models on the same task
 
