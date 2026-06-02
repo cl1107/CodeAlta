@@ -8,6 +8,7 @@ using CodeAlta.Orchestration.Runtime;
 using CodeAlta.Orchestration.Runtime.Plugins;
 using CodeAlta.Presentation.Prompting;
 using CodeAlta.Presentation.Timeline;
+using CodeAlta.Plugins.Abstractions;
 using CodeAlta.Threading;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Controls;
@@ -657,6 +658,79 @@ public sealed class SessionRuntimeEventCoordinatorTests
         Assert.IsTrue(promptFocusIndex > shellChromeIndex, "Prompt focus should be requested after shell chrome refreshes so later projection updates do not steal focus.");
     }
 
+    [TestMethod]
+    public async Task HandleAgentEvent_RendersPluginProjectionOutsidePluginProjectionLock()
+    {
+        var session = CreateSession();
+        var tab = CreateOpenSessionState(session);
+        var renderCompleted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var observer = new DerivedProjectionObserver(
+            () => new PluginDerivedSessionEvent
+            {
+                EventId = "stats",
+                Markdown = "statistics",
+                VisualFactory = _ =>
+                {
+                    renderCompleted.TrySetResult(Monitor.IsEntered(tab.Session.PluginProjectionSyncRoot));
+                    return new TextBlock("statistics");
+                },
+            });
+        var coordinator = CreateCoordinator(session, tab, pluginAgentEventObserver: observer);
+
+        coordinator.HandleAgentEvent(
+            session,
+            tab,
+            new AgentContentCompletedEvent(
+                ModelProviderIds.Copilot,
+                session.SessionId,
+                DateTimeOffset.UtcNow,
+                null,
+                AgentContentKind.Assistant,
+                "assistant-1",
+                null,
+                "Done"));
+
+        var renderedWhileLockHeld = await renderCompleted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.IsFalse(renderedWhileLockHeld, "Plugin projection visuals must not be rendered while the projection lock is held because UI dispatch can re-enter session reset.");
+    }
+
+    [TestMethod]
+    public async Task DynamicPluginProjectionRefresh_RendersOutsidePluginProjectionLock()
+    {
+        var session = CreateSession();
+        var tab = CreateOpenSessionState(session);
+        var dynamicContent = new RecordingDynamicProjectionContent(tab);
+        var observer = new DerivedProjectionObserver(
+            () => new PluginDerivedSessionEvent
+            {
+                EventId = "stats",
+                DynamicContent = dynamicContent,
+            });
+        var coordinator = CreateCoordinator(session, tab, pluginAgentEventObserver: observer);
+
+        coordinator.HandleAgentEvent(
+            session,
+            tab,
+            new AgentContentCompletedEvent(
+                ModelProviderIds.Copilot,
+                session.SessionId,
+                DateTimeOffset.UtcNow,
+                null,
+                AgentContentKind.Assistant,
+                "assistant-1",
+                null,
+                "Done"));
+        await dynamicContent.WaitForRenderAsync().ConfigureAwait(false);
+
+        dynamicContent.ResetRenderSignal();
+        dynamicContent.NotifyChangedForTest();
+
+        var renderedWhileLockHeld = await dynamicContent.WaitForRenderAsync().ConfigureAwait(false);
+
+        Assert.IsFalse(renderedWhileLockHeld, "Dynamic plugin projection refreshes must not render while the projection lock is held because UI dispatch can re-enter session reset.");
+    }
+
     private static SessionRuntimeEventCoordinator CreateCoordinator(
         SessionViewDescriptor session,
         OpenSessionState? tab,
@@ -715,6 +789,46 @@ public sealed class SessionRuntimeEventCoordinatorTests
 
         public Task WaitForProjectionAsync()
             => _projectionCompletion.Task.WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
+    private sealed class DerivedProjectionObserver(Func<PluginDerivedSessionEvent> createEvent) : IPluginAgentEventObserver
+    {
+        public Task ObserveAgentEventAsync(SessionViewDescriptor session, AgentEvent agentEvent, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task<SessionViewPluginDerivedEventProjectionResult> ProjectSessionEventsAsync(
+            SessionViewDescriptor session,
+            OpenSessionState tab,
+            IReadOnlyList<AgentEvent> events,
+            bool isReplay,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(new SessionViewPluginDerivedEventProjectionResult([createEvent()], []));
+    }
+
+    private sealed class RecordingDynamicProjectionContent(OpenSessionState tab) : PluginDynamicDerivedSessionEventContent
+    {
+        private TaskCompletionSource<bool> _renderCompleted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _version;
+
+        public override string Markdown => $"statistics {_version}";
+
+        public override PluginSessionEventVisualFactory? VisualFactory => _ =>
+        {
+            _renderCompleted.TrySetResult(Monitor.IsEntered(tab.Session.PluginProjectionSyncRoot));
+            return new TextBlock($"statistics {_version}");
+        };
+
+        public Task<bool> WaitForRenderAsync()
+            => _renderCompleted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        public void ResetRenderSignal()
+            => _renderCompleted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public void NotifyChangedForTest()
+        {
+            _version++;
+            NotifyChanged();
+        }
     }
 
     private sealed class TestShellStatusPort : IShellStatusPort

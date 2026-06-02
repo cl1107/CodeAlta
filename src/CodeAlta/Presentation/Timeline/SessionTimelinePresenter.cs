@@ -362,24 +362,45 @@ internal sealed class SessionTimelinePresenter
         string markdown,
         string? headerSecondary = null,
         IReadOnlyList<ChatCollapsibleMarkdownSection>? detailSections = null,
-        Func<Visual>? visualFactory = null)
+        Func<Visual>? visualFactory = null,
+        Func<bool>? shouldApply = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
         ArgumentNullException.ThrowIfNull(markdown);
 
+        if (shouldApply is not null && !shouldApply())
+        {
+            return;
+        }
+
         detailSections ??= [];
         if (!_pluginProjectionStates.TryGetValue(key, out var stateEntry))
         {
-            stateEntry = CreateChatStatusState(markdown, ChatTimelineTone.Notice, timestamp, "Plugin", headerSecondary, detailSections, visualFactory);
+            stateEntry = CreateChatStatusStateOnUi(markdown, ChatTimelineTone.Notice, timestamp, "Plugin", headerSecondary, detailSections, visualFactory, shouldApply);
+            if (stateEntry is null)
+            {
+                return;
+            }
+
             _pluginProjectionStates[key] = stateEntry;
-            AppendTimelineItem(stateEntry.Item);
+            AppendTimelineItem(stateEntry.Item, shouldApply: shouldApply);
         }
         else if (RequiresPluginProjectionRecreate(stateEntry, detailSections, visualFactory))
         {
             var previousItem = stateEntry.Item;
-            stateEntry = CreateChatStatusState(markdown, ChatTimelineTone.Notice, timestamp, "Plugin", headerSecondary, detailSections, visualFactory);
+            stateEntry = CreateChatStatusStateOnUi(markdown, ChatTimelineTone.Notice, timestamp, "Plugin", headerSecondary, detailSections, visualFactory, shouldApply);
+            if (stateEntry is null)
+            {
+                return;
+            }
+
             _pluginProjectionStates[key] = stateEntry;
-            ReplaceTimelineItem(previousItem, stateEntry.Item);
+            ReplaceTimelineItem(previousItem, stateEntry.Item, shouldApply);
+        }
+
+        if (shouldApply is not null && !shouldApply())
+        {
+            return;
         }
 
         stateEntry.BaseMarkdown = markdown;
@@ -387,6 +408,11 @@ internal sealed class SessionTimelinePresenter
         stateEntry.CopyState.DetailSections = detailSections;
         UiDispatch.Post(_uiDispatcher, () =>
         {
+            if (shouldApply is not null && !shouldApply())
+            {
+                return;
+            }
+
             ChatTimelineVisualFactory.ApplyTimestamp(stateEntry.TimestampText, timestamp);
             stateEntry.Markdown.Markdown = stateEntry.MarkdownValue;
             for (var index = 0; index < stateEntry.DetailMarkdownControls.Count && index < stateEntry.DetailMarkdownSectionIndexes.Count; index++)
@@ -400,9 +426,14 @@ internal sealed class SessionTimelinePresenter
         });
     }
 
-    public void RemovePluginProjection(string key)
+    public void RemovePluginProjection(string key, Func<bool>? shouldApply = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        if (shouldApply is not null && !shouldApply())
+        {
+            return;
+        }
+
         if (!_pluginProjectionStates.Remove(key, out var state))
         {
             return;
@@ -862,6 +893,27 @@ internal sealed class SessionTimelinePresenter
         };
     }
 
+    private ChatStatusState? CreateChatStatusStateOnUi(
+        string markdown,
+        ChatTimelineTone tone,
+        DateTimeOffset timestamp,
+        string? headerOverride = null,
+        string? headerSecondary = null,
+        IReadOnlyList<ChatCollapsibleMarkdownSection>? detailSections = null,
+        Func<Visual>? visualFactory = null,
+        Func<bool>? shouldApply = null)
+        => UiDispatch.Invoke(
+            _uiDispatcher,
+            () =>
+            {
+                if (shouldApply is not null && !shouldApply())
+                {
+                    return null;
+                }
+
+                return CreateChatStatusState(markdown, tone, timestamp, headerOverride, headerSecondary, detailSections, visualFactory);
+            });
+
     private static bool RequiresPluginProjectionRecreate(
         ChatStatusState existingState,
         IReadOnlyList<ChatCollapsibleMarkdownSection> updated,
@@ -897,12 +949,22 @@ internal sealed class SessionTimelinePresenter
         return false;
     }
 
-    private void ReplaceTimelineItem(DocumentFlowItem oldItem, DocumentFlowItem newItem)
+    private void ReplaceTimelineItem(DocumentFlowItem oldItem, DocumentFlowItem newItem, Func<bool>? shouldApply = null)
     {
+        if (shouldApply is not null && !shouldApply())
+        {
+            return;
+        }
+
         RemoveMessageNavigationAnchors([oldItem]);
         ToolCalls.OnNonToolTimelineItemAppended();
         if (_bufferedHistoryItems is not null)
         {
+            if (shouldApply is not null && !shouldApply())
+            {
+                return;
+            }
+
             var index = _bufferedHistoryItems.IndexOf(oldItem);
             if (index >= 0)
             {
@@ -918,6 +980,11 @@ internal sealed class SessionTimelinePresenter
 
         UiDispatch.Post(_uiDispatcher, () =>
         {
+            if (shouldApply is not null && !shouldApply())
+            {
+                return;
+            }
+
             var index = Flow.Items.IndexOf(oldItem);
             if (index >= 0)
             {
@@ -930,8 +997,13 @@ internal sealed class SessionTimelinePresenter
         });
     }
 
-    private void AppendTimelineItem(DocumentFlowItem item, bool resetActiveToolCallGroup = true)
+    private void AppendTimelineItem(DocumentFlowItem item, bool resetActiveToolCallGroup = true, Func<bool>? shouldApply = null)
     {
+        if (shouldApply is not null && !shouldApply())
+        {
+            return;
+        }
+
         if (resetActiveToolCallGroup)
         {
             ToolCalls.OnNonToolTimelineItemAppended();
@@ -939,6 +1011,11 @@ internal sealed class SessionTimelinePresenter
 
         if (_bufferedHistoryItems is not null)
         {
+            if (shouldApply is not null && !shouldApply())
+            {
+                return;
+            }
+
             if (ContainsItemByContent(_bufferedHistoryItems, item))
             {
                 return;
@@ -950,6 +1027,11 @@ internal sealed class SessionTimelinePresenter
 
         UiDispatch.Post(_uiDispatcher, () =>
         {
+            if (shouldApply is not null && !shouldApply())
+            {
+                return;
+            }
+
             AddFlowItemIfAbsent(Flow, item);
         });
     }

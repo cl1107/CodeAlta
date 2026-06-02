@@ -32,22 +32,25 @@ internal sealed class OpenSessionStateStore
     public void ResetSessionTab(OpenSessionState tab)
     {
         ArgumentNullException.ThrowIfNull(tab);
+        PluginDynamicProjectionSubscription[] pluginSubscriptions;
+        lock (tab.Session.PluginProjectionSyncRoot)
+        {
+            tab.PluginTransientEvents.Clear();
+            Interlocked.Increment(ref tab.Session.PluginProjectionVersion);
+            pluginSubscriptions = tab.Session.PluginDynamicProjectionSubscriptions.Values.ToArray();
+            tab.Session.PluginDynamicProjectionSubscriptions.Clear();
+        }
+
+        foreach (var subscription in pluginSubscriptions)
+        {
+            subscription.Dispose();
+        }
+
         tab.Timeline.Reset();
         tab.PermissionRequests.Clear();
         tab.UserInputRequests.Clear();
         tab.Session.LastRenderedSystemPromptEvent = null;
         tab.RenderedHistoryEvents.Clear();
-        lock (tab.Session.PluginProjectionSyncRoot)
-        {
-            tab.PluginTransientEvents.Clear();
-            Interlocked.Increment(ref tab.Session.PluginProjectionVersion);
-            foreach (var subscription in tab.Session.PluginDynamicProjectionSubscriptions.Values)
-            {
-                subscription.Dispose();
-            }
-
-            tab.Session.PluginDynamicProjectionSubscriptions.Clear();
-        }
     }
 
     public OpenSessionState? FindOpenSession(string sessionId)

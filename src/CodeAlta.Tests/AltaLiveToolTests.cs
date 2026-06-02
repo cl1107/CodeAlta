@@ -2531,7 +2531,20 @@ public sealed class AltaLiveToolTests
         Assert.AreEqual(0, providerRuntime.SteeredOptions.Count);
         StringAssert.Contains(ExtractText(providerRuntime.SentOptions[1].Input), "Kind: answer");
         StringAssert.Contains(ExtractText(providerRuntime.SentOptions[1].Input), "queued final result");
-        var queuedState = await ReadJournalStateAsync(sessionCatalog, parent.SessionId).ConfigureAwait(false);
+        SessionViewLocalState? queuedState = null;
+        await WaitUntilAsync(() =>
+        {
+            try
+            {
+                queuedState = ReadJournalStateAsync(sessionCatalog, parent.SessionId).ConfigureAwait(false).GetAwaiter().GetResult();
+                return queuedState.QueuedPrompts.SingleOrDefault()?.State == "submitted";
+            }
+            catch (IOException)
+            {
+                return false;
+            }
+        }).ConfigureAwait(false);
+        Assert.IsNotNull(queuedState);
         var queued = queuedState.QueuedPrompts.Single();
         Assert.AreEqual("parent-notify", queued.Kind);
         Assert.AreEqual("submitted", queued.State);

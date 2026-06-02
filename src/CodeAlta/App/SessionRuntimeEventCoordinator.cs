@@ -283,6 +283,8 @@ internal sealed class SessionRuntimeEventCoordinator
             return;
         }
 
+        var projectionsToRender = new List<PluginTransientEventProjection>();
+        var projectionIdsToRemove = new List<string>();
         foreach (var derivedEvent in result.Events)
         {
             lock (tab.Session.PluginProjectionSyncRoot)
@@ -305,7 +307,7 @@ internal sealed class SessionRuntimeEventCoordinator
                 if (derivedEvent.Remove)
                 {
                     RemoveDynamicProjectionSubscription(tab, derivedEvent.EventId);
-                    TryRenderInteraction(tab, () => tab.Timeline.RemovePluginProjection(derivedEvent.EventId), "plugin projection");
+                    projectionIdsToRemove.Add(derivedEvent.EventId);
                     continue;
                 }
 
@@ -316,30 +318,66 @@ internal sealed class SessionRuntimeEventCoordinator
                 }
 
                 UpdateDynamicProjectionSubscription(session, tab, projection);
-                RenderPluginProjection(tab, projection);
+                projectionsToRender.Add(projection);
             }
+        }
+
+        foreach (var eventId in projectionIdsToRemove)
+        {
+            RemovePluginProjection(tab, eventId, version);
+        }
+
+        foreach (var projection in projectionsToRender)
+        {
+            RenderPluginProjection(tab, projection, version);
         }
 
         _frontendEvents?.Publish(new RuntimeTimelineChangedEvent(session.SessionId));
     }
 
-    private void RenderPluginProjection(OpenSessionState tab, PluginTransientEventProjection projection)
+    private void RemovePluginProjection(OpenSessionState tab, string eventId, long expectedVersion)
         => TryRenderInteraction(
             tab,
-            () => tab.Timeline.UpsertPluginProjection(
-                projection.EventId,
-                projection.Timestamp ?? DateTimeOffset.UtcNow,
-                projection.Markdown,
-                projection.RenderTarget,
-                projection.DetailSections
-                    .Select(section => new ChatCollapsibleMarkdownSection(
-                        section.Header,
-                        section.Markdown,
-                        CreatePluginDetailVisualFactory(projection, section),
-                        CreatePluginDetailHeaderVisualFactory(projection, section)))
-                    .ToArray(),
-                CreatePluginVisualFactory(projection)),
+            () =>
+            {
+                if (!IsPluginProjectionVersionCurrent(tab, expectedVersion))
+                {
+                    return;
+                }
+
+                tab.Timeline.RemovePluginProjection(eventId, () => IsPluginProjectionVersionCurrent(tab, expectedVersion));
+            },
             "plugin projection");
+
+    private void RenderPluginProjection(OpenSessionState tab, PluginTransientEventProjection projection, long expectedVersion)
+        => TryRenderInteraction(
+            tab,
+            () =>
+            {
+                if (!IsPluginProjectionVersionCurrent(tab, expectedVersion))
+                {
+                    return;
+                }
+
+                tab.Timeline.UpsertPluginProjection(
+                    projection.EventId,
+                    projection.Timestamp ?? DateTimeOffset.UtcNow,
+                    projection.Markdown,
+                    projection.RenderTarget,
+                    projection.DetailSections
+                        .Select(section => new ChatCollapsibleMarkdownSection(
+                            section.Header,
+                            section.Markdown,
+                            CreatePluginDetailVisualFactory(projection, section),
+                            CreatePluginDetailHeaderVisualFactory(projection, section)))
+                        .ToArray(),
+                    CreatePluginVisualFactory(projection),
+                    () => IsPluginProjectionVersionCurrent(tab, expectedVersion));
+            },
+            "plugin projection");
+
+    private static bool IsPluginProjectionVersionCurrent(OpenSessionState tab, long expectedVersion)
+        => Volatile.Read(ref tab.Session.PluginProjectionVersion) == expectedVersion;
 
     private static Func<Visual>? CreatePluginVisualFactory(PluginTransientEventProjection projection)
         => projection.VisualFactory is null
@@ -414,6 +452,8 @@ internal sealed class SessionRuntimeEventCoordinator
 
     private Task RefreshDynamicPluginProjectionAsync(SessionViewDescriptor session, OpenSessionState tab, string eventId)
     {
+        PluginTransientEventProjection? projection = null;
+        long expectedVersion;
         lock (tab.Session.PluginProjectionSyncRoot)
         {
             if (!tab.PluginTransientEvents.RefreshDynamic(eventId))
@@ -421,12 +461,14 @@ internal sealed class SessionRuntimeEventCoordinator
                 return Task.CompletedTask;
             }
 
-            var projection = tab.PluginTransientEvents.Get(eventId);
-            if (projection is not null)
-            {
-                RenderPluginProjection(tab, projection);
-                _frontendEvents?.Publish(new RuntimeTimelineChangedEvent(session.SessionId));
-            }
+            expectedVersion = Volatile.Read(ref tab.Session.PluginProjectionVersion);
+            projection = tab.PluginTransientEvents.Get(eventId);
+        }
+
+        if (projection is not null)
+        {
+            RenderPluginProjection(tab, projection, expectedVersion);
+            _frontendEvents?.Publish(new RuntimeTimelineChangedEvent(session.SessionId));
         }
 
         return Task.CompletedTask;
