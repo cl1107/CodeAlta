@@ -181,6 +181,8 @@ public sealed class AgentRuntime : IAsyncDisposable
             ProtocolFamily = registration.Provider.ProtocolFamily,
             ProviderKey = registration.Provider.ProviderKey,
             ModelId = options.Model,
+            ReasoningEffort = options.ReasoningEffort,
+            AgentPromptId = NormalizeOptionalText(options.AgentPromptId),
             WorkingDirectory = options.WorkingDirectory,
             Title = NormalizeOptionalText(options.Title),
             Summary = null,
@@ -333,6 +335,8 @@ public sealed class AgentRuntime : IAsyncDisposable
             ProtocolFamily = provider.ProtocolFamily,
             ProviderKey = provider.ProviderKey,
             ModelId = NormalizeOptionalText(options.Model),
+            ReasoningEffort = options.ReasoningEffort,
+            AgentPromptId = NormalizeOptionalText(options.AgentPromptId) ?? summary.AgentPromptId,
             WorkingDirectory = string.IsNullOrWhiteSpace(options.WorkingDirectory) ? summary.WorkingDirectory : options.WorkingDirectory,
             Title = string.IsNullOrWhiteSpace(options.Title) ? summary.Title : options.Title.Trim(),
             UpdatedAt = updatedAt,
@@ -358,6 +362,8 @@ public sealed class AgentRuntime : IAsyncDisposable
         return summary with
         {
             ModelId = string.IsNullOrWhiteSpace(options.Model) ? summary.ModelId : options.Model,
+            ReasoningEffort = options.ReasoningEffort ?? summary.ReasoningEffort,
+            AgentPromptId = NormalizeOptionalText(options.AgentPromptId) ?? summary.AgentPromptId,
             WorkingDirectory = string.IsNullOrWhiteSpace(options.WorkingDirectory) ? summary.WorkingDirectory : options.WorkingDirectory,
             Title = string.IsNullOrWhiteSpace(options.Title) ? summary.Title : options.Title.Trim(),
         };

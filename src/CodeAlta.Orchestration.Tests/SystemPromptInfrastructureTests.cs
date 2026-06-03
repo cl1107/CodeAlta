@@ -7,7 +7,7 @@ namespace CodeAlta.Orchestration.Tests;
 public sealed class SystemPromptInfrastructureTests
 {
     [TestMethod]
-    public void UserPromptCatalog_ListsBuiltInGlobalProjectAndMarksOverrides()
+    public void AgentPromptCatalog_ListsBuiltInGlobalProjectAndMarksOverrides()
     {
         using var temp = TempDirectory.Create();
         var appBase = Path.Combine(temp.Path, "app");
@@ -18,8 +18,8 @@ public sealed class SystemPromptInfrastructureTests
         WritePrompt(globalRoot, "global-extra", "Global Extra", "default", "Global extra body.");
         WritePrompt(projectRoot, "default", "Default Project", "project-system", "Project body.");
 
-        var catalog = new UserPromptCatalog(new FileSystemPromptContentLocator(appBase));
-        var allPrompts = catalog.ListPrompts(new UserPromptCatalogQuery
+        var catalog = new AgentPromptCatalog(new FileSystemPromptContentLocator(appBase));
+        var allPrompts = catalog.ListPrompts(new AgentPromptCatalogQuery
         {
             UserCodeAltaRoot = globalRoot,
             ProjectRoot = projectRoot,
@@ -29,17 +29,17 @@ public sealed class SystemPromptInfrastructureTests
         CollectionAssert.AreEqual(
             new[]
             {
-                UserPromptSourceKind.BuiltIn,
-                UserPromptSourceKind.UserGlobal,
-                UserPromptSourceKind.UserGlobal,
-                UserPromptSourceKind.Project,
+                AgentPromptSourceKind.BuiltIn,
+                AgentPromptSourceKind.UserGlobal,
+                AgentPromptSourceKind.UserGlobal,
+                AgentPromptSourceKind.Project,
             },
             allPrompts.Select(static prompt => prompt.SourceKind).ToArray());
-        Assert.IsTrue(allPrompts.Single(prompt => prompt.SourceKind == UserPromptSourceKind.BuiltIn).IsShadowed);
-        Assert.IsTrue(allPrompts.Single(prompt => prompt.SourceKind == UserPromptSourceKind.UserGlobal && prompt.PromptName == "default").IsShadowed);
+        Assert.IsTrue(allPrompts.Single(prompt => prompt.SourceKind == AgentPromptSourceKind.BuiltIn).IsShadowed);
+        Assert.IsTrue(allPrompts.Single(prompt => prompt.SourceKind == AgentPromptSourceKind.UserGlobal && prompt.PromptName == "default").IsShadowed);
 
         var effectiveDefault = catalog.ResolvePrompt(
-            new UserPromptCatalogQuery
+            new AgentPromptCatalogQuery
             {
                 UserCodeAltaRoot = globalRoot,
                 ProjectRoot = projectRoot,
@@ -48,13 +48,13 @@ public sealed class SystemPromptInfrastructureTests
             "default");
 
         Assert.IsNotNull(effectiveDefault);
-        Assert.AreEqual(UserPromptSourceKind.Project, effectiveDefault.SourceKind);
+        Assert.AreEqual(AgentPromptSourceKind.Project, effectiveDefault.SourceKind);
         Assert.AreEqual("Default Project", effectiveDefault.DisplayName);
         Assert.AreEqual("project-system", effectiveDefault.SystemPromptName);
     }
 
     [TestMethod]
-    public void SystemPromptBuilder_UsesSelectedUserPromptBodyAndSystemProperty()
+    public void SystemPromptBuilder_UsesSelectedAgentPromptBodyAndSystemProperty()
     {
         using var temp = TempDirectory.Create();
         var appBase = Path.Combine(temp.Path, "app");
@@ -97,11 +97,11 @@ public sealed class SystemPromptInfrastructureTests
         });
 
         Assert.AreEqual("Project custom system.", bundle.SystemMessage);
-        StringAssert.Contains(bundle.DeveloperInstructions!, "# User Prompt");
+        StringAssert.Contains(bundle.DeveloperInstructions!, "# Agent Prompt");
         StringAssert.Contains(bundle.DeveloperInstructions!, "Review the current change set.");
         Assert.AreEqual("custom-system", bundle.Manifest.Template.BaseName);
         Assert.AreEqual("review", bundle.Manifest.Template.InstructionName);
-        Assert.IsTrue(bundle.Manifest.Parts.Any(static part => part.Key == "developer/review" && part.Status == "selected"));
+        Assert.IsTrue(bundle.Manifest.Parts.Any(static part => part.Key == "agents/review" && part.Status == "selected"));
     }
 
     private static void WriteSystem(string root, string id, string body)
@@ -121,29 +121,29 @@ public sealed class SystemPromptInfrastructureTests
     private static void WritePrompt(string root, string id, string name, string system, string body)
     {
         var directory = root.EndsWith("app", StringComparison.OrdinalIgnoreCase)
-            ? Path.Combine(root, "content", "prompts", "developer")
+            ? Path.Combine(root, "content", "prompts", "agents")
             : root.EndsWith("project", StringComparison.OrdinalIgnoreCase)
-                ? Path.Combine(root, ".alta", "prompts", "developer")
-                : Path.Combine(root, "prompts", "developer");
+                ? Path.Combine(root, ".alta", "prompts", "agents")
+                : Path.Combine(root, "prompts", "agents");
         Directory.CreateDirectory(directory);
         File.WriteAllText(Path.Combine(directory, id + ".prompt.md"), $"""
             ---
             name: {name}
             system: {system}
-            description: Test user prompt.
+            description: Test agent prompt.
             ---
             {body}
             """);
     }
 
-    private static void WriteTemplate(string root, string system, string developer)
+    private static void WriteTemplate(string root, string system, string agent)
     {
         var directory = Path.Combine(root, ".alta", "prompts");
         Directory.CreateDirectory(directory);
         File.WriteAllText(Path.Combine(directory, "template.yml"), $"""
             version: 1
             system: {system}
-            developer: {developer}
+            agent: {agent}
             """);
     }
 

@@ -63,7 +63,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
     private readonly SidebarCoordinator _sidebarCoordinator;
     private readonly NavigatorActionCoordinator _navigatorActionCoordinator;
     private readonly ModelProviderSelectorCoordinator _modelProviderSelectorCoordinator;
-    private readonly UserPromptSelectorCoordinator _userPromptSelectorCoordinator;
+    private readonly AgentPromptSelectorCoordinator _agentPromptSelector;
     private readonly SessionTabStripCoordinator _sessionTabStripCoordinator;
     private readonly InMemoryShellTabService _shellTabService = new();
     private readonly ShellAnimationRuntime _shellAnimationRuntime = new();
@@ -196,7 +196,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
         _sidebarCoordinator = composition.SidebarCoordinator;
         _navigatorActionCoordinator = composition.NavigatorActionCoordinator;
         _modelProviderSelectorCoordinator = composition.ModelProviderSelectorCoordinator;
-        _userPromptSelectorCoordinator = composition.UserPromptSelectorCoordinator;
+        _agentPromptSelector = composition.AgentPromptSelectorCoordinator;
         _openModels = composition.ModelCatalogCoordinator.Open;
         _reminderUiCoordinator = composition.ReminderUiCoordinator;
         _projectionCoordinator = new ShellProjectionCoordinator(
@@ -222,7 +222,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
             _catalogOptions,
             GetSelectedProject,
             GetDialogAnchor,
-            () => { _userPromptSelectorCoordinator.RefreshPrompts(); _sessionWorkspaceView?.SyncActivePromptPanelProjection(); },
+            () => { _agentPromptSelector.RefreshPrompts(); _sessionWorkspaceView?.SyncActivePromptPanelProjection(); },
             (message, tone) => SetStatus(message, tone: tone));
         _fileEditorWorkspaceCoordinator = new FileEditorWorkspaceCoordinator(
             projectFileSearchService,
@@ -461,19 +461,19 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
 
     internal void RefreshModelProviderSelectorsForDraftScope(ModelProviderId? id = null)
     {
-        _userPromptSelectorCoordinator.RefreshForDraftScope();
+        _agentPromptSelector.RefreshForDraftScope();
         _modelProviderSelectorCoordinator.RefreshForDraftScope(id);
     }
 
     internal void RefreshModelProviderSelectorsForSession(OpenSessionState tab)
     {
-        _userPromptSelectorCoordinator.RefreshForSession(tab);
+        _agentPromptSelector.RefreshForSession(tab);
         _modelProviderSelectorCoordinator.RefreshForSession(tab);
     }
 
     internal void SyncModelProviderSelectorItems() => _sessionWorkspaceView?.SyncModelProviderSelectorItems(_sessionWorkspaceViewModel);
-    internal void SyncUserPromptSelectorItems() => _sessionWorkspaceView?.SyncUserPromptSelectorItems(_sessionWorkspaceViewModel);
-    private void OnUserPromptSelectionChanged(int newIndex) => _userPromptSelectorCoordinator.OnPromptSelectionChanged(newIndex);
+    internal void SyncAgentPromptSelectorItems() => _sessionWorkspaceView?.SyncAgentPromptSelectorItems(_sessionWorkspaceViewModel);
+    private void OnAgentPromptSelectionChanged(int newIndex) => _agentPromptSelector.OnAgentPromptSelectionChanged(newIndex);
     private void OnModelProviderSelectionChanged(int newIndex) => ObserveUiTask(() => _modelProviderSelectorCoordinator.OnModelProviderSelectionChangedAsync(newIndex), "change the selected provider");
     private void OnModelSelectionChanged(int newIndex) => _modelProviderSelectorCoordinator.OnModelSelectionChanged(newIndex);
     private void OnReasoningSelectionChanged(int newIndex) => _modelProviderSelectorCoordinator.OnReasoningSelectionChanged(newIndex);
@@ -513,7 +513,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
             WorkspaceChromeController = SessionWorkspaceChromeController.Create(() => CreateUsageComputedVisual(EnsureSessionUsagePresenter().BuildIndicatorVisual), () => ShellPluginFooterComposer.ComposeRegion(pb, PluginUiRegion.SessionStatus, GetSelectedSession()?.SessionId), anchor => EnsureSessionInfoPresenter().TogglePopup(anchor), () => ObserveUiTask(OpenModelProvidersAsync, "open model providers"), _reminderUiCoordinator.GetSelectedSessionReminderCount, _reminderUiCoordinator.Open),
             PromptComposerController = PromptComposerViewController.Create(acceptedPrompt => ObserveUiTask(() => _shellCommandSurfaceCoordinator.HandleAcceptedPromptAsync(acceptedPrompt), "submit the current prompt"), () => ObserveUiTask(() => _shellCommandSurfaceCoordinator.SubmitCurrentPromptAsync(steer: false), "submit the current prompt"), () => ObserveUiTask(() => _shellCommandSurfaceCoordinator.AbortSelectedSessionAsync(), "abort the selected session"), openHelp, showPalette),
             QueuedPromptController = QueuedPromptStripController.Create(markdown => (_sessionWorkspaceView?.SessionPaneLayout.App)?.Terminal.Clipboard.TrySetText(markdown), queuedPromptId => ObserveUiTask(() => _sessionCommandCoordinator.ConvertSelectedSessionQueuedPromptToSteerAsync(queuedPromptId), "convert the queued prompt to steer"), pendingSteerId => _sessionCommandCoordinator.DeleteSelectedSessionPendingSteer(pendingSteerId), queuedPromptId => _sessionCommandCoordinator.DeleteSelectedSessionQueuedPrompt(queuedPromptId), (queuedPromptId, remainingCount) => _sessionCommandCoordinator.UpdateSelectedSessionQueuedPromptCount(queuedPromptId, remainingCount), (queuedPromptId, text) => _sessionCommandCoordinator.UpdateSelectedSessionQueuedPromptText(queuedPromptId, text), (onAccepted, placeholder) => SessionWorkspaceView.CreateStyledPromptEditor(onAccepted, openHelp, showPalette, pfs, promptRoot, pec, placeholder)),
-            UserPromptSelectorController = UserPromptSelectorController.Create(OnUserPromptSelectionChanged, () => ObserveUiTask(OpenPromptsAsync, "open prompts")),
+            AgentPromptSelectorController = AgentPromptSelectorController.Create(OnAgentPromptSelectionChanged, () => ObserveUiTask(OpenPromptsAsync, "open prompts")),
             ModelProviderSelectorController = ModelProviderSelectorController.Create(OnModelProviderSelectionChanged, OnModelSelectionChanged, OnReasoningSelectionChanged, () => ObserveUiTask(() => _shellCommandSurfaceCoordinator.CompactSelectedSessionAsync(), "compact the selected session"), _openModels),
             SessionTabHostController = SessionTabHostController.Create(selectedIndex => _sessionTabStripCoordinator.ObserveBoundSelection(selectedIndex)),
             ProjectFileSearchService = pfs,

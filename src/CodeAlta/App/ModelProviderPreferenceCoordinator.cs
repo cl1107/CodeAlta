@@ -140,7 +140,7 @@ internal sealed class ModelProviderPreferenceCoordinator
             {
                 ProviderKey = providerId.Value,
                 ModelId = normalizedModelId,
-                UserPromptName = existingPreference?.UserPromptName,
+                AgentPromptId = existingPreference?.AgentPromptId,
                 ReasoningEffort = reasoningEffort,
             };
             viewState.UpdatedAt = DateTimeOffset.UtcNow;
@@ -158,7 +158,7 @@ internal sealed class ModelProviderPreferenceCoordinator
 
         var normalizedModel = string.IsNullOrWhiteSpace(modelId) ? null : modelId.Trim();
         viewState.SessionPreferences.TryGetValue(sessionId, out var existingPreference);
-        if (normalizedModel is null && reasoningEffort is null && string.IsNullOrWhiteSpace(existingPreference?.UserPromptName))
+        if (normalizedModel is null && reasoningEffort is null && string.IsNullOrWhiteSpace(existingPreference?.AgentPromptId))
         {
             viewState.SessionPreferences.Remove(sessionId);
         }
@@ -167,7 +167,7 @@ internal sealed class ModelProviderPreferenceCoordinator
             viewState.SessionPreferences[sessionId] = new SessionViewPreference
             {
                 ModelId = normalizedModel,
-                UserPromptName = existingPreference?.UserPromptName,
+                AgentPromptId = existingPreference?.AgentPromptId,
                 ReasoningEffort = reasoningEffort,
             };
         }

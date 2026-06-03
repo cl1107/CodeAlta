@@ -7,7 +7,7 @@ namespace CodeAlta.ViewModels;
 
 public sealed partial class SessionWorkspaceViewModel
 {
-    private Action<int>? _userPromptSelectionChanged;
+    private Action<int>? _agentPromptSelectionChanged;
     private Action<int>? _modelProviderSelectionChanged;
     private Action<int>? _modelSelectionChanged;
     private Action<int>? _reasoningSelectionChanged;
@@ -21,11 +21,11 @@ public sealed partial class SessionWorkspaceViewModel
     {
         ModelProviderStatusMarkup = string.Empty;
         ProviderSummaryMarkup = string.Empty;
-        SelectedUserPromptIndex = -1;
+        SelectedAgentPromptIndex = -1;
         SelectedModelProviderIndex = -1;
         SelectedModelIndex = -1;
         SelectedReasoningIndex = -1;
-        UserPromptOptions = [];
+        AgentPromptOptions = [];
         ModelProviderOptions = [];
         ModelOptions = [];
         ReasoningOptions = [];
@@ -39,7 +39,7 @@ public sealed partial class SessionWorkspaceViewModel
     public partial string ProviderSummaryMarkup { get; set; }
 
     [Bindable]
-    public partial bool CanSelectUserPrompt { get; set; }
+    public partial bool CanSelectAgentPrompt { get; set; }
 
     [Bindable]
     public partial bool CanSelectModelProvider { get; set; }
@@ -51,10 +51,10 @@ public sealed partial class SessionWorkspaceViewModel
     public partial bool CanSelectReasoning { get; set; }
 
     [Bindable]
-    public partial IReadOnlyList<UserPromptOption> UserPromptOptions { get; set; }
+    public partial IReadOnlyList<AgentPromptOption> AgentPromptOptions { get; set; }
 
     [Bindable]
-    public partial int SelectedUserPromptIndex { get; set; }
+    public partial int SelectedAgentPromptIndex { get; set; }
 
     [Bindable]
     public partial IReadOnlyList<ModelProviderOption> ModelProviderOptions { get; set; }
@@ -101,9 +101,9 @@ public sealed partial class SessionWorkspaceViewModel
         _reasoningSelectionChanged = reasoningSelectionChanged;
     }
 
-    internal void SetUserPromptSelectionChangedHandler(Action<int>? userPromptSelectionChanged)
+    internal void SetAgentPromptSelectionChangedHandler(Action<int>? agentPromptSelectionChanged)
     {
-        _userPromptSelectionChanged = userPromptSelectionChanged;
+        _agentPromptSelectionChanged = agentPromptSelectionChanged;
     }
 
     internal void SetAskModeHandlers(
@@ -141,8 +141,8 @@ public sealed partial class SessionWorkspaceViewModel
         return new SelectionChangedNotificationSuppression(this);
     }
 
-    partial void OnSelectedUserPromptIndexChanged(int value)
-        => NotifySelectionChanged(_userPromptSelectionChanged, value);
+    partial void OnSelectedAgentPromptIndexChanged(int value)
+        => NotifySelectionChanged(_agentPromptSelectionChanged, value);
 
     partial void OnSelectedModelProviderIndexChanged(int value)
         => NotifySelectionChanged(_modelProviderSelectionChanged, value);

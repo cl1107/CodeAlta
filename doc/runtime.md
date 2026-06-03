@@ -129,7 +129,7 @@ The `alta` live tool is injected for configured provider ids that support host t
 
 MCP uses progressive, policy-controlled `AgentToolDefinition` registration for session-activated MCP servers, with `alta mcp tool search|describe|call` remaining available for discovery, diagnostics, and manual invocation. The compact MCP prompt inventory is built from configuration without connecting; activated servers are connected lazily on agent runs, apply TOML policy (`enabled`, `allowed_tools`, `disabled_tools`, timeouts, output caps), and redact diagnostics/results. Timeline refinements for friendly direct-tool labels and automatic refresh on `tool-list-changed` notifications are follow-up work. See [MCP support](mcp.md).
 
-## System prompts, user prompts, and instruction composition
+## System prompts, agent prompts, and instruction composition
 
 Prompt resources are file-backed under `prompts/` roots:
 
@@ -137,14 +137,14 @@ Prompt resources are file-backed under `prompts/` roots:
 - user-global content: `~/.alta/prompts/`;
 - project-local content: `<project>/.alta/prompts/`.
 
-Each root can contain `system/<id>.system-prompt.md`, `developer/<id>.prompt.md`, and an optional `template.yml`. Source precedence is deterministic: built-in < global < project. A later source with the same id overrides the earlier source.
+Each root can contain `system/<id>.system-prompt.md`, `agents/<id>.prompt.md`, and an optional `template.yml`. Source precedence is deterministic: built-in < global < project. A later source with the same id overrides the earlier source.
 
-System prompts carry the invariant host/agent behavior. User prompts are selectable session profiles with required `name` frontmatter for UI display, optional `description`, optional `system` (default `default`), and a Markdown body that is included in the composed developer instructions. Built-in resources are read-only; global and project prompt/system-prompt files can be edited through the prompt manager or `alta prompt` live-tool commands. The selected user prompt determines the system prompt id unless a runtime/template system override is supplied.
+System prompts carry the invariant host/agent behavior. Agent prompts are selectable session profiles with required `name` frontmatter for UI display, optional `description`, optional `system` (default `default`), and a Markdown body that is included in the composed developer instructions. Built-in resources are read-only; global and project prompt/system-prompt files can be edited through the prompt manager or `alta prompt` live-tool commands. The selected agent prompt determines the system prompt id unless a runtime/template system override is supplied.
 
 `SystemPromptBuilder` composes:
 
 - native system prompt content selected from `prompts/system`;
-- the selected user prompt body from `prompts/developer`;
+- the selected agent prompt body from `prompts/agents`;
 - generated runtime/tool guidance;
 - skills metadata when CodeAlta can manage skill activation for the selected session;
 - project-context sections and file/reference context;
@@ -188,7 +188,7 @@ Agent-runtime session journals contain replayable normalized history plus raw st
 - `local.compactionCheckpoint` for compaction outcomes;
 - `codealta.sessionHeader` and `codealta.sessionState` for legacy session-view/session-view metadata.
 
-The runtime reads journals to restore recoverable sessions, session history, usage, modified-file summaries, activated-skill state, parent/sub-session lineage, and provider/model selections. The frontend stores only view/prompt state outside the journal.
+The runtime reads journals to restore recoverable sessions, session history, usage, modified-file summaries, activated-skill state, parent/sub-session lineage, provider/model/reasoning selections, and the selected agent prompt id. Unknown recovered agent prompt ids fall back to the default agent prompt. The frontend stores only view/prompt state outside the journal.
 
 ## Runtime events and plugins
 

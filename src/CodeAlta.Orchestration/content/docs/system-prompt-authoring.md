@@ -17,7 +17,7 @@ prompts/
   system/
     default.system-prompt.md
     my-custom-system.system-prompt.md
-  developer/
+  agents/
     default.prompt.md
     reviewer.prompt.md
   template.yml
@@ -35,9 +35,9 @@ version: 1
 You are CodeAlta, helping this team complete software tasks safely and efficiently.
 ```
 
-## User prompts
+## Agent prompts
 
-User prompts are selectable session profiles and use the suffix `.prompt.md`. The `name` frontmatter field is required for UI display. `description` is optional. `system` is optional and defaults to `default`.
+Agent prompts are selectable session profiles and use the suffix `.prompt.md`. The `name` frontmatter field is required for UI display. `description` is optional. `system` is optional and defaults to `default`.
 
 ```markdown
 ---
@@ -57,11 +57,11 @@ The file name supplies the prompt id. For example, `team-reviewer.prompt.md` cre
 ```yaml
 version: 1
 system: team-default
-developer: team-reviewer
+agent: team-reviewer
 skills: true
 project_context: true
 runtime_context: true
 tool_guidance: true
 ```
 
-The template accepts `system` for the system prompt id and `developer` for the selectable developer prompt id.
+The template accepts `system` for the system prompt id and `agent` for the selectable agent prompt id. The older `developer` key is still accepted for compatibility.

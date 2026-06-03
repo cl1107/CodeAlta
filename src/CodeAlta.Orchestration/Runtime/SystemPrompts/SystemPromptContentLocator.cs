@@ -66,13 +66,13 @@ public sealed class SystemPromptDiscoveryContext
 /// </summary>
 /// <param name="ShippedPromptRoot">Built-in prompt resource root.</param>
 /// <param name="ShippedDocsRoot">Built-in documentation root.</param>
-/// <param name="UserPromptRoot">User-global prompt resource root.</param>
+/// <param name="GlobalPromptRoot">User-global prompt resource root.</param>
 /// <param name="ProjectPromptRoot">Project-local prompt resource root, when available.</param>
 /// <param name="ProjectPromptResourcesTrusted">Whether the project-local prompt root is trusted for prompt composition.</param>
 public sealed record SystemPromptContentRoots(
     string ShippedPromptRoot,
     string ShippedDocsRoot,
-    string UserPromptRoot,
+    string GlobalPromptRoot,
     string? ProjectPromptRoot,
     bool ProjectPromptResourcesTrusted);
 
@@ -105,7 +105,7 @@ public sealed class FileSystemPromptContentLocator : ISystemPromptContentLocator
         return new SystemPromptContentRoots(
             ShippedPromptRoot: Path.Combine(appBaseDirectory, "content", "prompts"),
             ShippedDocsRoot: Path.Combine(appBaseDirectory, "content", "docs"),
-            UserPromptRoot: Path.Combine(userCodeAltaRoot, "prompts"),
+            GlobalPromptRoot: Path.Combine(userCodeAltaRoot, "prompts"),
             ProjectPromptRoot: projectRoot is null ? null : Path.Combine(projectRoot, ".alta", "prompts"),
             ProjectPromptResourcesTrusted: context.ProjectPromptResourcesTrusted);
     }

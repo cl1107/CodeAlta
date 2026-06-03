@@ -106,7 +106,7 @@ public sealed class PluginOrchestrationBridgeTests
         Assert.IsNotNull(result.AdditionalSystemMessage);
         Assert.IsNotNull(result.AdditionalDeveloperInstructions);
         StringAssert.Contains(result.AdditionalSystemMessage!, "fixture system prompt");
-        StringAssert.Contains(result.AdditionalDeveloperInstructions!, "fixture developer prompt");
+        StringAssert.Contains(result.AdditionalDeveloperInstructions!, "fixture agent prompt");
         CollectionAssert.Contains(result.PreferredToolNames.ToArray(), "mcp__fixture__read");
         StringAssert.Contains(string.Join("\n", result.Input!.Items.OfType<AgentInputItem.Text>().Select(static item => item.Value)), "fixture per-turn context");
 
@@ -149,7 +149,7 @@ public sealed class PluginOrchestrationBridgeTests
             {
                 Title = "Fixture Developer",
                 Channel = PluginPromptChannel.Developer,
-                Content = static (_, _) => ValueTask.FromResult<string?>("fixture developer prompt"),
+                Content = static (_, _) => ValueTask.FromResult<string?>("fixture agent prompt"),
             };
         }
 

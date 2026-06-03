@@ -9,33 +9,33 @@ using CodeAlta.ViewModels;
 
 namespace CodeAlta.Presentation.Workspace;
 
-internal sealed class UserPromptSelectorCoordinator
+internal sealed class AgentPromptSelectorCoordinator
 {
     private readonly SessionWorkspaceViewModel _workspaceViewModel;
     private readonly CatalogOptions _catalogOptions;
     private readonly SessionSelectionContext _sessionSelection;
-    private readonly UserPromptPreferenceCoordinator _preferences;
+    private readonly AgentPromptPreferenceCoordinator _preferences;
     private readonly WorkspaceRefreshContext _workspaceRefresh;
-    private readonly UserPromptCatalog _promptCatalog;
+    private readonly AgentPromptCatalog _promptCatalog;
     private readonly Func<SessionViewViewState> _getViewState;
     private readonly Action _persistViewState;
     private readonly Action<SessionViewDescriptor> _persistSessionLocalState;
-    private readonly Action _syncUserPromptSelectorItems;
+    private readonly Action _syncAgentPromptSelectorItems;
     private readonly Action<string, bool, StatusTone> _setStatus;
     private bool _selectorsRefreshing;
 
-    public UserPromptSelectorCoordinator(
+    public AgentPromptSelectorCoordinator(
         SessionWorkspaceViewModel workspaceViewModel,
         CatalogOptions catalogOptions,
         SessionSelectionContext sessionSelection,
-        UserPromptPreferenceCoordinator preferences,
+        AgentPromptPreferenceCoordinator preferences,
         WorkspaceRefreshContext workspaceRefresh,
         Func<SessionViewViewState> getViewState,
         Action persistViewState,
         Action<SessionViewDescriptor> persistSessionLocalState,
-        Action syncUserPromptSelectorItems,
+        Action syncAgentPromptSelectorItems,
         Action<string, bool, StatusTone> setStatus,
-        UserPromptCatalog? promptCatalog = null)
+        AgentPromptCatalog? promptCatalog = null)
     {
         ArgumentNullException.ThrowIfNull(workspaceViewModel);
         ArgumentNullException.ThrowIfNull(catalogOptions);
@@ -45,7 +45,7 @@ internal sealed class UserPromptSelectorCoordinator
         ArgumentNullException.ThrowIfNull(getViewState);
         ArgumentNullException.ThrowIfNull(persistViewState);
         ArgumentNullException.ThrowIfNull(persistSessionLocalState);
-        ArgumentNullException.ThrowIfNull(syncUserPromptSelectorItems);
+        ArgumentNullException.ThrowIfNull(syncAgentPromptSelectorItems);
         ArgumentNullException.ThrowIfNull(setStatus);
 
         _workspaceViewModel = workspaceViewModel;
@@ -56,9 +56,9 @@ internal sealed class UserPromptSelectorCoordinator
         _getViewState = getViewState;
         _persistViewState = persistViewState;
         _persistSessionLocalState = persistSessionLocalState;
-        _syncUserPromptSelectorItems = syncUserPromptSelectorItems;
+        _syncAgentPromptSelectorItems = syncAgentPromptSelectorItems;
         _setStatus = setStatus;
-        _promptCatalog = promptCatalog ?? new UserPromptCatalog();
+        _promptCatalog = promptCatalog ?? new AgentPromptCatalog();
     }
 
     public void RefreshForDraftScope(string? preferredPromptName = null)
@@ -76,13 +76,13 @@ internal sealed class UserPromptSelectorCoordinator
 
             var viewState = _getViewState();
             var preferred = NormalizeOptionalText(preferredPromptName)
-                ?? _preferences.GetDraftUserPromptName(viewState, project?.ProjectPath, project?.Id)
-                ?? UserPromptCatalog.DefaultPromptName;
+                ?? _preferences.GetDraftAgentPromptId(viewState, project?.ProjectPath, project?.Id)
+                ?? AgentPromptCatalog.DefaultPromptName;
             var selectedIndex = FindPromptIndex(prompts, preferred);
             SetPromptSelection(prompts, selectedIndex, canSelect: true);
             if (preferredPromptName is not null)
             {
-                _preferences.RememberDraftUserPromptName(viewState, prompts[selectedIndex].PromptName, project?.ProjectPath, project?.Id);
+                _preferences.RememberDraftAgentPromptId(viewState, prompts[selectedIndex].PromptName, project?.ProjectPath, project?.Id);
                 _persistViewState();
             }
         }
@@ -98,7 +98,7 @@ internal sealed class UserPromptSelectorCoordinator
         _selectorsRefreshing = true;
         try
         {
-            _preferences.ApplySessionUserPromptName(tab, _getViewState());
+            _preferences.ApplySessionAgentPromptId(tab, _getViewState());
             var project = _sessionSelection.GetProjectById(tab.SessionView.ProjectRef);
             var prompts = LoadPromptOptions(project);
             if (prompts.Count == 0)
@@ -107,10 +107,10 @@ internal sealed class UserPromptSelectorCoordinator
                 return;
             }
 
-            var selectedIndex = FindPromptIndex(prompts, tab.UserPromptName ?? UserPromptCatalog.DefaultPromptName);
+            var selectedIndex = FindPromptIndex(prompts, tab.AgentPromptId ?? AgentPromptCatalog.DefaultPromptName);
             var selectedPromptName = prompts[selectedIndex].PromptName;
-            tab.UserPromptName = selectedPromptName;
-            tab.SessionView.UserPromptName = selectedPromptName;
+            tab.AgentPromptId = selectedPromptName;
+            tab.SessionView.AgentPromptId = selectedPromptName;
             SetPromptSelection(prompts, selectedIndex, canSelect: true);
         }
         finally
@@ -119,26 +119,26 @@ internal sealed class UserPromptSelectorCoordinator
         }
     }
 
-    public void OnPromptSelectionChanged(int newIndex)
+    public void OnAgentPromptSelectionChanged(int newIndex)
     {
         if (_selectorsRefreshing)
         {
             return;
         }
 
-        var options = _workspaceViewModel.UserPromptOptions;
+        var options = _workspaceViewModel.AgentPromptOptions;
         if ((uint)newIndex >= (uint)options.Count)
         {
             return;
         }
 
         var selectedPrompt = options[newIndex];
-        _workspaceViewModel.SelectedUserPromptIndex = newIndex;
+        _workspaceViewModel.SelectedAgentPromptIndex = newIndex;
         var session = _sessionSelection.GetSelectedSession();
         if (session is null)
         {
             var project = _sessionSelection.GetSelectedProject();
-            _preferences.RememberDraftUserPromptName(_getViewState(), selectedPrompt.PromptName, project?.ProjectPath, project?.Id);
+            _preferences.RememberDraftAgentPromptId(_getViewState(), selectedPrompt.PromptName, project?.ProjectPath, project?.Id);
             _persistViewState();
             _workspaceRefresh.ApplySessionUsageProjection();
             _setStatus($"Selected prompt '{selectedPrompt.Label}'.", false, StatusTone.Ready);
@@ -146,29 +146,29 @@ internal sealed class UserPromptSelectorCoordinator
         }
 
         var tab = _sessionSelection.EnsureSessionTab(session);
-        _preferences.RememberSessionUserPromptName(_getViewState(), tab, selectedPrompt.PromptName);
+        _preferences.RememberSessionAgentPromptId(_getViewState(), tab, selectedPrompt.PromptName);
         _persistViewState();
         _persistSessionLocalState(tab.SessionView);
         _workspaceRefresh.ApplyHeaderProjection();
         _setStatus($"Selected prompt '{selectedPrompt.Label}'.", false, StatusTone.Ready);
     }
 
-    public string? GetPreferredUserPromptName()
+    public string? GetPreferredAgentPromptId()
     {
-        if (_workspaceViewModel.SelectedUserPromptIndex is var index &&
-            (uint)index < (uint)_workspaceViewModel.UserPromptOptions.Count)
+        if (_workspaceViewModel.SelectedAgentPromptIndex is var index &&
+            (uint)index < (uint)_workspaceViewModel.AgentPromptOptions.Count)
         {
-            return _workspaceViewModel.UserPromptOptions[index].PromptName;
+            return _workspaceViewModel.AgentPromptOptions[index].PromptName;
         }
 
         var session = _sessionSelection.GetSelectedSession();
         if (session is not null)
         {
-            return _sessionSelection.FindOpenSession(session.SessionId)?.UserPromptName ?? session.UserPromptName;
+            return _sessionSelection.FindOpenSession(session.SessionId)?.AgentPromptId ?? session.AgentPromptId;
         }
 
         var project = _sessionSelection.GetSelectedProject();
-        return _preferences.GetDraftUserPromptName(_getViewState(), project?.ProjectPath, project?.Id);
+        return _preferences.GetDraftAgentPromptId(_getViewState(), project?.ProjectPath, project?.Id);
     }
 
     public void RefreshPrompts()
@@ -183,41 +183,41 @@ internal sealed class UserPromptSelectorCoordinator
         }
     }
 
-    private IReadOnlyList<UserPromptOption> LoadPromptOptions(ProjectDescriptor? project)
+    private IReadOnlyList<AgentPromptOption> LoadPromptOptions(ProjectDescriptor? project)
     {
-        var prompts = _promptCatalog.ListEffectivePrompts(new UserPromptCatalogQuery
+        var prompts = _promptCatalog.ListEffectivePrompts(new AgentPromptCatalogQuery
         {
             UserProfileRoot = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             UserCodeAltaRoot = _catalogOptions.GlobalRoot,
             ProjectRoot = project?.ProjectPath,
             ProjectPromptResourcesTrusted = project is not null,
         });
-        return UserPromptPresentation.BuildPromptOptions(prompts);
+        return AgentPromptPresentation.BuildPromptOptions(prompts);
     }
 
-    private void SetPromptSelection(IReadOnlyList<UserPromptOption> prompts, int selectedIndex, bool canSelect)
+    private void SetPromptSelection(IReadOnlyList<AgentPromptOption> prompts, int selectedIndex, bool canSelect)
     {
-        _workspaceViewModel.UserPromptOptions = prompts;
-        _workspaceViewModel.SelectedUserPromptIndex = selectedIndex;
-        _workspaceViewModel.CanSelectUserPrompt = canSelect;
-        _syncUserPromptSelectorItems();
+        _workspaceViewModel.AgentPromptOptions = prompts;
+        _workspaceViewModel.SelectedAgentPromptIndex = selectedIndex;
+        _workspaceViewModel.CanSelectAgentPrompt = canSelect;
+        _syncAgentPromptSelectorItems();
     }
 
-    private static int FindPromptIndex(IReadOnlyList<UserPromptOption> prompts, string? preferredPromptName)
+    private static int FindPromptIndex(IReadOnlyList<AgentPromptOption> prompts, string? preferredPromptName)
     {
         if (prompts.Count == 0)
         {
             return -1;
         }
 
-        var preferred = NormalizeOptionalText(preferredPromptName) ?? UserPromptCatalog.DefaultPromptName;
+        var preferred = NormalizeOptionalText(preferredPromptName) ?? AgentPromptCatalog.DefaultPromptName;
         var index = prompts.ToList().FindIndex(prompt => string.Equals(prompt.PromptName, preferred, StringComparison.OrdinalIgnoreCase));
         if (index >= 0)
         {
             return index;
         }
 
-        index = prompts.ToList().FindIndex(static prompt => string.Equals(prompt.PromptName, UserPromptCatalog.DefaultPromptName, StringComparison.OrdinalIgnoreCase));
+        index = prompts.ToList().FindIndex(static prompt => string.Equals(prompt.PromptName, AgentPromptCatalog.DefaultPromptName, StringComparison.OrdinalIgnoreCase));
         return index >= 0 ? index : 0;
     }
 

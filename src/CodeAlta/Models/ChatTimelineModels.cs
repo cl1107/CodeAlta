@@ -37,7 +37,7 @@ namespace CodeAlta.Models
         public override string ToString() => Label;
     }
 
-    public sealed record UserPromptOption(string PromptName, string Label, string SourceLabel, string SystemPromptName, string? Description, bool IsBuiltIn)
+    public sealed record AgentPromptOption(string PromptName, string Label, string SourceLabel, string SystemPromptName, string? Description, bool IsBuiltIn)
     {
         public override string ToString() => Label;
     }

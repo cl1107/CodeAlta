@@ -35,6 +35,16 @@ public sealed record AgentSessionSummary
     public string? ModelId { get; init; }
 
     /// <summary>
+    /// Gets or initializes the last-used reasoning effort.
+    /// </summary>
+    public AgentReasoningEffort? ReasoningEffort { get; init; }
+
+    /// <summary>
+    /// Gets or initializes the last-used agent prompt identifier.
+    /// </summary>
+    public string? AgentPromptId { get; init; }
+
+    /// <summary>
     /// Gets or initializes the working directory.
     /// </summary>
     public string? WorkingDirectory { get; init; }

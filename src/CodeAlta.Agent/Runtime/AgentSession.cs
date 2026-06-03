@@ -938,6 +938,8 @@ public sealed class AgentSession : IAgentSession, IAgentCompactionOutcomeProvide
         _summary = _summary with
         {
             ModelId = _summary.ModelId ?? _options.Model,
+            ReasoningEffort = _options.ReasoningEffort ?? _summary.ReasoningEffort,
+            AgentPromptId = NormalizeOptionalText(_options.AgentPromptId) ?? _summary.AgentPromptId,
             Title = response.Title ?? _summary.Title,
             Summary = response.Summary ?? ExtractAssistantSummary(response.AssistantMessage) ?? _summary.Summary,
             Usage = effectiveUsage ?? _summary.Usage,
@@ -1187,17 +1189,19 @@ public sealed class AgentSession : IAgentSession, IAgentCompactionOutcomeProvide
             runId,
             AgentSessionUpdateKind.ModelChanged,
             null,
-            CreateModelSelectionDetails(modelId, _options.ReasoningEffort));
+            CreateModelSelectionDetails(modelId, _options.ReasoningEffort, NormalizeOptionalText(_options.AgentPromptId)));
         await AppendEventsAsync([update], cancellationToken).ConfigureAwait(false);
     }
 
-    private JsonElement CreateModelSelectionDetails(string? modelId, AgentReasoningEffort? reasoningEffort)
+    private JsonElement CreateModelSelectionDetails(string? modelId, AgentReasoningEffort? reasoningEffort, string? agentPromptId)
     {
         using var stream = new MemoryStream();
         using (var writer = new Utf8JsonWriter(stream))
         {
             writer.WriteStartObject();
             writer.WriteString("providerKey", _providerKey);
+            writer.WriteString("agentPromptId", string.IsNullOrWhiteSpace(agentPromptId) ? "default" : agentPromptId);
+            writer.WriteString("promptId", string.IsNullOrWhiteSpace(agentPromptId) ? "default" : agentPromptId);
             if (string.IsNullOrWhiteSpace(modelId))
             {
                 writer.WriteNull("modelId");
@@ -1242,10 +1246,11 @@ public sealed class AgentSession : IAgentSession, IAgentCompactionOutcomeProvide
             runId,
             previousHash is null ? "session_start" : "changed",
             effectivePromptHash,
+            NormalizeOptionalText(_options.AgentPromptId),
             systemMessage,
             developerInstructions,
             new AgentSystemPromptProviderPayloadSummary("native-system-and-developer", AppliedToProvider: true, Lossy: false),
-            CreateSystemPromptManifest(effectivePromptHash, statistics),
+            CreateSystemPromptManifest(effectivePromptHash, NormalizeOptionalText(_options.AgentPromptId), statistics),
             statistics,
             new AgentSystemPromptChangeSummary(
                 previousHash is null ? "initial" : "changed",
@@ -1267,7 +1272,7 @@ public sealed class AgentSession : IAgentSession, IAgentCompactionOutcomeProvide
     private static int EstimatePromptTokens(string? text)
         => checked((int)TokenEstimator.Estimate(text));
 
-    private static JsonElement CreateSystemPromptManifest(string effectivePromptHash, AgentSystemPromptStatistics statistics)
+    private static JsonElement CreateSystemPromptManifest(string effectivePromptHash, string? agentPromptId, AgentSystemPromptStatistics statistics)
     {
         using var stream = new MemoryStream();
         using (var writer = new Utf8JsonWriter(stream))
@@ -1275,6 +1280,15 @@ public sealed class AgentSession : IAgentSession, IAgentCompactionOutcomeProvide
             writer.WriteStartObject();
             writer.WriteNumber("version", 1);
             writer.WriteString("effectivePromptHash", effectivePromptHash);
+            if (string.IsNullOrWhiteSpace(agentPromptId))
+            {
+                writer.WriteNull("agentPromptId");
+            }
+            else
+            {
+                writer.WriteString("agentPromptId", agentPromptId);
+            }
+
             writer.WriteStartObject("provider");
             writer.WriteString("channelMapping", "native-system-and-developer");
             writer.WriteBoolean("appliedToProvider", true);

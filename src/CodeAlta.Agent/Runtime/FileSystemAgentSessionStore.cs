@@ -929,6 +929,7 @@ public sealed class FileSystemAgentSessionStore : IAgentSessionJournalStore
             summary.ProtocolFamily,
             summary.ProviderKey,
             summary.ModelId,
+            summary.AgentPromptId,
             summary.ParentSessionId,
             summary.CreatedBySessionId,
             summary.CreatedByRunId);

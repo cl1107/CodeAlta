@@ -4,31 +4,31 @@ using System.Text;
 namespace CodeAlta.Orchestration.Runtime.SystemPrompts;
 
 /// <summary>
-/// Discovers file-backed CodeAlta user prompts from built-in, user-global, and project-local prompt roots.
+/// Discovers file-backed CodeAlta agent prompts from built-in, user-global, and project-local prompt roots.
 /// </summary>
-public sealed class UserPromptCatalog
+public sealed class AgentPromptCatalog
 {
-    /// <summary>The default user prompt identifier.</summary>
+    /// <summary>The default agent prompt identifier.</summary>
     public const string DefaultPromptName = "default";
 
     private readonly ISystemPromptContentLocator _contentLocator;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="UserPromptCatalog"/> class.
+    /// Initializes a new instance of the <see cref="AgentPromptCatalog"/> class.
     /// </summary>
     /// <param name="contentLocator">Optional content locator used to resolve prompt roots.</param>
-    public UserPromptCatalog(ISystemPromptContentLocator? contentLocator = null)
+    public AgentPromptCatalog(ISystemPromptContentLocator? contentLocator = null)
     {
         _contentLocator = contentLocator ?? new FileSystemPromptContentLocator();
     }
 
     /// <summary>
-    /// Lists every valid user prompt file in display/source order.
+    /// Lists every valid agent prompt file in display/source order.
     /// </summary>
     /// <param name="query">Discovery inputs.</param>
     /// <returns>All valid prompt descriptors, including shadowed lower-precedence prompts.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="query"/> is <see langword="null"/>.</exception>
-    public IReadOnlyList<UserPromptDescriptor> ListPrompts(UserPromptCatalogQuery query)
+    public IReadOnlyList<AgentPromptDescriptor> ListPrompts(AgentPromptCatalogQuery query)
     {
         ArgumentNullException.ThrowIfNull(query);
         var roots = ResolveRoots(query);
@@ -68,7 +68,7 @@ public sealed class UserPromptCatalog
     /// <param name="query">Discovery inputs.</param>
     /// <returns>All valid system prompt descriptors, including shadowed lower-precedence prompts.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="query"/> is <see langword="null"/>.</exception>
-    public IReadOnlyList<SystemPromptDescriptor> ListSystemPrompts(UserPromptCatalogQuery query)
+    public IReadOnlyList<SystemPromptDescriptor> ListSystemPrompts(AgentPromptCatalogQuery query)
     {
         ArgumentNullException.ThrowIfNull(query);
         var roots = ResolveRoots(query);
@@ -103,12 +103,12 @@ public sealed class UserPromptCatalog
     }
 
     /// <summary>
-    /// Lists effective user prompts after applying source precedence.
+    /// Lists effective agent prompts after applying source precedence.
     /// </summary>
     /// <param name="query">Discovery inputs.</param>
     /// <returns>The effective prompts, one per prompt identifier.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="query"/> is <see langword="null"/>.</exception>
-    public IReadOnlyList<UserPromptDescriptor> ListEffectivePrompts(UserPromptCatalogQuery query)
+    public IReadOnlyList<AgentPromptDescriptor> ListEffectivePrompts(AgentPromptCatalogQuery query)
     {
         ArgumentNullException.ThrowIfNull(query);
         return ListPrompts(query)
@@ -126,7 +126,7 @@ public sealed class UserPromptCatalog
     /// <param name="promptName">Optional prompt identifier.</param>
     /// <returns>The resolved prompt descriptor, or <see langword="null"/> when no default prompt exists.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="query"/> is <see langword="null"/>.</exception>
-    public UserPromptDescriptor? ResolvePrompt(UserPromptCatalogQuery query, string? promptName)
+    public AgentPromptDescriptor? ResolvePrompt(AgentPromptCatalogQuery query, string? promptName)
     {
         ArgumentNullException.ThrowIfNull(query);
         var effectivePrompts = ListEffectivePrompts(query);
@@ -141,15 +141,15 @@ public sealed class UserPromptCatalog
     }
 
     /// <summary>
-    /// Resolves the global user prompt directory for the query.
+    /// Resolves the global agent prompt directory for the query.
     /// </summary>
     /// <param name="query">Discovery inputs.</param>
     /// <returns>The absolute global prompt directory path.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="query"/> is <see langword="null"/>.</exception>
-    public string ResolveUserPromptDirectory(UserPromptCatalogQuery query)
+    public string ResolveGlobalPromptDirectory(AgentPromptCatalogQuery query)
     {
         ArgumentNullException.ThrowIfNull(query);
-        return ResolveRoots(query).UserPromptRoot;
+        return ResolveRoots(query).GlobalPromptRoot;
     }
 
     /// <summary>
@@ -158,7 +158,7 @@ public sealed class UserPromptCatalog
     /// <param name="query">Discovery inputs.</param>
     /// <returns>The project prompt directory path, or <see langword="null"/> when no project root is available.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="query"/> is <see langword="null"/>.</exception>
-    public string? ResolveProjectPromptDirectory(UserPromptCatalogQuery query)
+    public string? ResolveProjectPromptDirectory(AgentPromptCatalogQuery query)
     {
         ArgumentNullException.ThrowIfNull(query);
         return ResolveRoots(query).ProjectPromptRoot;
@@ -170,10 +170,10 @@ public sealed class UserPromptCatalog
     /// <param name="query">Discovery inputs.</param>
     /// <returns>The absolute global system prompt directory path.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="query"/> is <see langword="null"/>.</exception>
-    public string ResolveUserSystemPromptDirectory(UserPromptCatalogQuery query)
+    public string ResolveGlobalSystemPromptDirectory(AgentPromptCatalogQuery query)
     {
         ArgumentNullException.ThrowIfNull(query);
-        return Path.Combine(ResolveRoots(query).UserPromptRoot, "system");
+        return Path.Combine(ResolveRoots(query).GlobalPromptRoot, "system");
     }
 
     /// <summary>
@@ -182,14 +182,14 @@ public sealed class UserPromptCatalog
     /// <param name="query">Discovery inputs.</param>
     /// <returns>The project system prompt directory path, or <see langword="null"/> when no project root is available.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="query"/> is <see langword="null"/>.</exception>
-    public string? ResolveProjectSystemPromptDirectory(UserPromptCatalogQuery query)
+    public string? ResolveProjectSystemPromptDirectory(AgentPromptCatalogQuery query)
     {
         ArgumentNullException.ThrowIfNull(query);
         var root = ResolveRoots(query).ProjectPromptRoot;
         return root is null ? null : Path.Combine(root, "system");
     }
 
-    private SystemPromptContentRoots ResolveRoots(UserPromptCatalogQuery query)
+    private SystemPromptContentRoots ResolveRoots(AgentPromptCatalogQuery query)
         => _contentLocator.GetRoots(new SystemPromptDiscoveryContext
         {
             AppBaseDirectory = query.AppBaseDirectory,
@@ -199,43 +199,43 @@ public sealed class UserPromptCatalog
             ProjectPromptResourcesTrusted = query.ProjectPromptResourcesTrusted || !string.IsNullOrWhiteSpace(query.ProjectRoot),
         });
 
-    private static IEnumerable<UserPromptRoot> EnumeratePromptRoots(SystemPromptContentRoots roots)
+    private static IEnumerable<GlobalPromptRoot> EnumeratePromptRoots(SystemPromptContentRoots roots)
     {
-        if (Directory.Exists(Path.Combine(roots.ShippedPromptRoot, "developer")))
+        if (Directory.Exists(Path.Combine(roots.ShippedPromptRoot, "agents")))
         {
-            yield return new UserPromptRoot(UserPromptSourceKind.BuiltIn, 0, Path.Combine(roots.ShippedPromptRoot, "developer"));
+            yield return new GlobalPromptRoot(AgentPromptSourceKind.BuiltIn, 0, Path.Combine(roots.ShippedPromptRoot, "agents"));
         }
 
-        if (Directory.Exists(Path.Combine(roots.UserPromptRoot, "developer")))
+        if (Directory.Exists(Path.Combine(roots.GlobalPromptRoot, "agents")))
         {
-            yield return new UserPromptRoot(UserPromptSourceKind.UserGlobal, 1, Path.Combine(roots.UserPromptRoot, "developer"));
+            yield return new GlobalPromptRoot(AgentPromptSourceKind.UserGlobal, 1, Path.Combine(roots.GlobalPromptRoot, "agents"));
         }
 
-        if (roots.ProjectPromptResourcesTrusted && roots.ProjectPromptRoot is not null && Directory.Exists(Path.Combine(roots.ProjectPromptRoot, "developer")))
+        if (roots.ProjectPromptResourcesTrusted && roots.ProjectPromptRoot is not null && Directory.Exists(Path.Combine(roots.ProjectPromptRoot, "agents")))
         {
-            yield return new UserPromptRoot(UserPromptSourceKind.Project, 2, Path.Combine(roots.ProjectPromptRoot, "developer"));
+            yield return new GlobalPromptRoot(AgentPromptSourceKind.Project, 2, Path.Combine(roots.ProjectPromptRoot, "agents"));
         }
     }
 
-    private static IEnumerable<UserPromptRoot> EnumerateSystemPromptRoots(SystemPromptContentRoots roots)
+    private static IEnumerable<GlobalPromptRoot> EnumerateSystemPromptRoots(SystemPromptContentRoots roots)
     {
         if (Directory.Exists(Path.Combine(roots.ShippedPromptRoot, "system")))
         {
-            yield return new UserPromptRoot(UserPromptSourceKind.BuiltIn, 0, Path.Combine(roots.ShippedPromptRoot, "system"));
+            yield return new GlobalPromptRoot(AgentPromptSourceKind.BuiltIn, 0, Path.Combine(roots.ShippedPromptRoot, "system"));
         }
 
-        if (Directory.Exists(Path.Combine(roots.UserPromptRoot, "system")))
+        if (Directory.Exists(Path.Combine(roots.GlobalPromptRoot, "system")))
         {
-            yield return new UserPromptRoot(UserPromptSourceKind.UserGlobal, 1, Path.Combine(roots.UserPromptRoot, "system"));
+            yield return new GlobalPromptRoot(AgentPromptSourceKind.UserGlobal, 1, Path.Combine(roots.GlobalPromptRoot, "system"));
         }
 
         if (roots.ProjectPromptResourcesTrusted && roots.ProjectPromptRoot is not null && Directory.Exists(Path.Combine(roots.ProjectPromptRoot, "system")))
         {
-            yield return new UserPromptRoot(UserPromptSourceKind.Project, 2, Path.Combine(roots.ProjectPromptRoot, "system"));
+            yield return new GlobalPromptRoot(AgentPromptSourceKind.Project, 2, Path.Combine(roots.ProjectPromptRoot, "system"));
         }
     }
 
-    private static IEnumerable<UserPromptDescriptor> LoadPrompts(UserPromptRoot root)
+    private static IEnumerable<AgentPromptDescriptor> LoadPrompts(GlobalPromptRoot root)
     {
         foreach (var path in Directory.EnumerateFiles(root.Path, "*.prompt.md", SearchOption.TopDirectoryOnly))
         {
@@ -246,7 +246,7 @@ public sealed class UserPromptCatalog
         }
     }
 
-    private static IEnumerable<SystemPromptDescriptor> LoadSystemPrompts(UserPromptRoot root)
+    private static IEnumerable<SystemPromptDescriptor> LoadSystemPrompts(GlobalPromptRoot root)
     {
         foreach (var path in Directory.EnumerateFiles(root.Path, "*.system-prompt.md", SearchOption.TopDirectoryOnly))
         {
@@ -257,7 +257,7 @@ public sealed class UserPromptCatalog
         }
     }
 
-    private static bool TryLoadPrompt(UserPromptRoot root, string path, out UserPromptDescriptor descriptor)
+    private static bool TryLoadPrompt(GlobalPromptRoot root, string path, out AgentPromptDescriptor descriptor)
     {
         descriptor = null!;
         string text;
@@ -289,7 +289,7 @@ public sealed class UserPromptCatalog
 
         var systemPromptName = NormalizePromptName(frontmatter.GetValueOrDefault("system")) ?? DefaultPromptName;
         var trimmedBody = body.Trim();
-        descriptor = new UserPromptDescriptor(
+        descriptor = new AgentPromptDescriptor(
             PromptName: normalizedPromptName,
             DisplayName: displayName,
             Description: NormalizeOptionalText(frontmatter.GetValueOrDefault("description")),
@@ -304,7 +304,7 @@ public sealed class UserPromptCatalog
         return true;
     }
 
-    private static bool TryLoadSystemPrompt(UserPromptRoot root, string path, out SystemPromptDescriptor descriptor)
+    private static bool TryLoadSystemPrompt(GlobalPromptRoot root, string path, out SystemPromptDescriptor descriptor)
     {
         descriptor = null!;
         string text;
@@ -400,13 +400,13 @@ public sealed class UserPromptCatalog
     private static string? NormalizeOptionalText(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
-    private sealed record UserPromptRoot(UserPromptSourceKind SourceKind, int Precedence, string Path);
+    private sealed record GlobalPromptRoot(AgentPromptSourceKind SourceKind, int Precedence, string Path);
 }
 
 /// <summary>
-/// Inputs used when discovering user prompts.
+/// Inputs used when discovering agent prompts.
 /// </summary>
-public sealed class UserPromptCatalogQuery
+public sealed class AgentPromptCatalogQuery
 {
     /// <summary>Gets or initializes the application base directory. Defaults to <see cref="AppContext.BaseDirectory"/>.</summary>
     public string? AppBaseDirectory { get; init; }
@@ -425,27 +425,27 @@ public sealed class UserPromptCatalogQuery
 }
 
 /// <summary>
-/// Identifies the source location for a discovered user prompt.
+/// Identifies the source location for a discovered agent prompt.
 /// </summary>
-public enum UserPromptSourceKind
+public enum AgentPromptSourceKind
 {
     /// <summary>The prompt is shipped with CodeAlta.</summary>
     BuiltIn,
 
-    /// <summary>The prompt comes from the user-global <c>~/.alta/prompts/developer</c> root.</summary>
+    /// <summary>The prompt comes from the user-global <c>~/.alta/prompts/agents</c> root.</summary>
     UserGlobal,
 
-    /// <summary>The prompt comes from the project-local <c>.alta/prompts/developer</c> root.</summary>
+    /// <summary>The prompt comes from the project-local <c>.alta/prompts/agents</c> root.</summary>
     Project,
 }
 
 /// <summary>
-/// Describes a discovered user prompt resource.
+/// Describes a discovered agent prompt resource.
 /// </summary>
 /// <param name="PromptName">The file-derived prompt identifier.</param>
 /// <param name="DisplayName">The required display name from frontmatter.</param>
 /// <param name="Description">The optional prompt description.</param>
-/// <param name="SystemPromptName">The system prompt selected by this user prompt.</param>
+/// <param name="SystemPromptName">The system prompt selected by this agent prompt.</param>
 /// <param name="Body">The prompt body.</param>
 /// <param name="SourceKind">The prompt source kind.</param>
 /// <param name="Precedence">The source precedence where larger values override smaller values.</param>
@@ -453,13 +453,13 @@ public enum UserPromptSourceKind
 /// <param name="ContentHash">The SHA-256 content hash.</param>
 /// <param name="IsShadowed">Whether a higher-precedence prompt with the same name overrides this prompt.</param>
 /// <param name="ShadowedByPath">The overriding prompt path, when shadowed.</param>
-public sealed record UserPromptDescriptor(
+public sealed record AgentPromptDescriptor(
     string PromptName,
     string DisplayName,
     string? Description,
     string SystemPromptName,
     string Body,
-    UserPromptSourceKind SourceKind,
+    AgentPromptSourceKind SourceKind,
     int Precedence,
     string SourcePath,
     string ContentHash,
@@ -467,7 +467,7 @@ public sealed record UserPromptDescriptor(
     string? ShadowedByPath)
 {
     /// <summary>Gets a value indicating whether the prompt is built into CodeAlta.</summary>
-    public bool IsBuiltIn => SourceKind == UserPromptSourceKind.BuiltIn;
+    public bool IsBuiltIn => SourceKind == AgentPromptSourceKind.BuiltIn;
 }
 
 /// <summary>
@@ -484,7 +484,7 @@ public sealed record UserPromptDescriptor(
 public sealed record SystemPromptDescriptor(
     string PromptName,
     string Body,
-    UserPromptSourceKind SourceKind,
+    AgentPromptSourceKind SourceKind,
     int Precedence,
     string SourcePath,
     string ContentHash,
@@ -492,5 +492,5 @@ public sealed record SystemPromptDescriptor(
     string? ShadowedByPath)
 {
     /// <summary>Gets a value indicating whether the prompt is built into CodeAlta.</summary>
-    public bool IsBuiltIn => SourceKind == UserPromptSourceKind.BuiltIn;
+    public bool IsBuiltIn => SourceKind == AgentPromptSourceKind.BuiltIn;
 }

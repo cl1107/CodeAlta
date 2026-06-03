@@ -54,10 +54,10 @@ internal sealed class OpenSessionState
         set => Session.ReasoningEffort = value;
     }
 
-    public string? UserPromptName
+    public string? AgentPromptId
     {
-        get => Session.UserPromptName;
-        set => Session.UserPromptName = value;
+        get => Session.AgentPromptId;
+        set => Session.AgentPromptId = value;
     }
 
     public bool HistoryLoaded

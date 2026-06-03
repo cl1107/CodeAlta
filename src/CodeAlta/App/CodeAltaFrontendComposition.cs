@@ -18,7 +18,7 @@ namespace CodeAlta.App;
 internal sealed class CodeAltaFrontendComposition
 {
     public required ModelProviderPreferenceCoordinator ModelProviderPreferences { get; init; }
-    public required UserPromptPreferenceCoordinator UserPromptPreferences { get; init; }
+    public required AgentPromptPreferenceCoordinator AgentPromptPreferences { get; init; }
     public required CodeAltaShellController ShellController { get; init; }
     public required RuntimeEventPump RuntimeEventPump { get; init; }
     public required TerminalLoopCoordinator TerminalLoopCoordinator { get; init; }
@@ -40,7 +40,7 @@ internal sealed class CodeAltaFrontendComposition
     public required SidebarCoordinator SidebarCoordinator { get; init; }
     public required NavigatorActionCoordinator NavigatorActionCoordinator { get; init; }
     public required ModelProviderSelectorCoordinator ModelProviderSelectorCoordinator { get; init; }
-    public required UserPromptSelectorCoordinator UserPromptSelectorCoordinator { get; init; }
+    public required AgentPromptSelectorCoordinator AgentPromptSelectorCoordinator { get; init; }
     public required ModelCatalogCoordinator ModelCatalogCoordinator { get; init; }
     public required IModelProviderPreferencePort ModelProviderPreferencePort { get; init; }
     public required ModelProviderSelectorStateStore ModelProviderSelectorStateStore { get; init; }
@@ -105,7 +105,7 @@ internal sealed class CodeAltaFrontendComposition
             frontend.UpdatePromptImageAttachmentsUi);
         var configStore = new CodeAltaConfigStore(catalogOptions);
         var modelProviderPreferences = new ModelProviderPreferenceCoordinator(configStore, CodeAlta.Views.CodeAltaApp.UiLogger);
-        var userPromptPreferences = new UserPromptPreferenceCoordinator();
+        var agentPromptPreferences = new AgentPromptPreferenceCoordinator();
         var altaToolProviderIds = ResolveAltaToolProviderIds(configStore);
         ShellSessionStateCoordinator? sessionStateCoordinator = null;
         var askService = new AltaAskService();
@@ -283,16 +283,16 @@ internal sealed class CodeAltaFrontendComposition
                     ? null
                     : sessionStateCoordinator.GetSelectedProject()?.Id),
             pluginHostBridge is null ? null : pluginHostBridge.GetPromptPlaceholderContributions);
-        var userPromptSelectorCoordinator = new UserPromptSelectorCoordinator(
+        var agentPromptSelectorCoordinator = new AgentPromptSelectorCoordinator(
             sessionWorkspaceViewModel,
             catalogOptions,
             sessionSelectionContext,
-            userPromptPreferences,
+            agentPromptPreferences,
             workspaceRefreshContext,
             () => sessionStateCoordinator.ViewState,
             () => _ = frontend.PersistViewStateAsync(),
             session => _ = sessionStateCoordinator.PersistSessionLocalStateAsync(session),
-            frontend.SyncUserPromptSelectorItems,
+            frontend.SyncAgentPromptSelectorItems,
             frontend.SetStatus);
         var modelCatalogCoordinator = new ModelCatalogCoordinator(
             modelProviderStates,
@@ -422,7 +422,7 @@ internal sealed class CodeAltaFrontendComposition
             altaServices,
             altaToolProviderIds,
             frontend.GetAlwaysEnqueue,
-            userPromptSelectorCoordinator.GetPreferredUserPromptName);
+            agentPromptSelectorCoordinator.GetPreferredAgentPromptId);
         var askModeCoordinator = new AskModeCoordinator(
             askService,
             sessionStateCoordinator,
@@ -434,7 +434,7 @@ internal sealed class CodeAltaFrontendComposition
         return new CodeAltaFrontendComposition
         {
             ModelProviderPreferences = modelProviderPreferences,
-            UserPromptPreferences = userPromptPreferences,
+            AgentPromptPreferences = agentPromptPreferences,
             ShellController = shellController,
             RuntimeEventPump = runtimeEventPump,
             TerminalLoopCoordinator = terminalLoopCoordinator,
@@ -456,7 +456,7 @@ internal sealed class CodeAltaFrontendComposition
             SidebarCoordinator = sidebarCoordinator,
             NavigatorActionCoordinator = navigatorActionCoordinator,
             ModelProviderSelectorCoordinator = modelProviderSelectorCoordinator,
-            UserPromptSelectorCoordinator = userPromptSelectorCoordinator,
+            AgentPromptSelectorCoordinator = agentPromptSelectorCoordinator,
             ModelCatalogCoordinator = modelCatalogCoordinator,
             ModelProviderPreferencePort = modelProviderPreferencePort,
             ModelProviderSelectorStateStore = modelProviderSelectorStateContext,

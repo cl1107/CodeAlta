@@ -895,6 +895,7 @@ public sealed class SessionRuntimeEventCoordinatorTests
             null,
             "session_start",
             hash,
+            "default",
             systemMessage,
             developerInstructions,
             new AgentSystemPromptProviderPayloadSummary("native-system-and-developer", true, false),

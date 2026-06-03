@@ -29,7 +29,7 @@ Then launch the terminal UI:
 alta
 ```
 
-CodeAlta stores user state under `~/.alta/`, including configuration, logs, cached provider state, session journals, user prompts under `~/.alta/prompts/developer`, plugins, and skills.
+CodeAlta stores user state under `~/.alta/`, including configuration, logs, cached provider state, session journals, agent prompts under `~/.alta/prompts/agents`, plugins, and skills.
 
 ## Terminal font requirement
 
@@ -109,12 +109,12 @@ Other API-key providers use the same pattern with their own environment variable
 ## Send a first prompt
 
 1. Open a project with `Ctrl+O`, `/open`, or the `+` button in the Projects sidebar row.
-2. Select the **Prompt:** profile and provider/model/reasoning combination in the footer if needed. The built-in **Default** prompt is a good starting point.
+2. Select the **Agent:** profile and provider/model/reasoning combination in the footer if needed. The built-in **Default** agent prompt is a good starting point.
 3. Type a prompt in the prompt editor.
 4. Press `Enter` to send. Use `Shift+Enter` for a new line.
 5. Watch the timeline for reasoning/status messages, assistant messages, tool calls, tool results, statistics, and modified-file summaries.
 
-User prompts are selectable session profiles. Open the prompt manager with `Ctrl+G Ctrl+H` or `/prompt` to inspect the built-in prompt or create global/project prompt overrides. See [Prompts and Instructions]({{site.basepath}}/docs/prompts/) for the file layout and override rules.
+Agent prompts are selectable session profiles. Open the prompt manager with `Ctrl+G Ctrl+H` or `/prompt` to inspect the built-in prompt or create global/project prompt overrides. See [Prompts and Instructions]({{site.basepath}}/docs/prompts/) for the file layout and override rules.
 
 Useful first prompts:
 

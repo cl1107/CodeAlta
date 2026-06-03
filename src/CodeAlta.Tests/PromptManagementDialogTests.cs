@@ -148,16 +148,16 @@ public sealed class PromptManagementDialogTests
         var appBase = Path.Combine(tempDirectory.Path, "app");
         var builtInPath = WriteSystemPromptRoot(Path.Combine(appBase, "content", "prompts"), "default", "built-in body");
         var overridePath = WriteSystemPromptRoot(Path.Combine(tempDirectory.Path, "global", "prompts"), "default", "override body");
-        var catalog = new UserPromptCatalog(new FileSystemPromptContentLocator(appBase));
+        var catalog = new AgentPromptCatalog(new FileSystemPromptContentLocator(appBase));
 
-        var prompts = catalog.ListSystemPrompts(new UserPromptCatalogQuery
+        var prompts = catalog.ListSystemPrompts(new AgentPromptCatalogQuery
         {
             UserCodeAltaRoot = Path.Combine(tempDirectory.Path, "global"),
         });
 
         Assert.AreEqual(2, prompts.Count);
         var builtIn = prompts.Single(prompt => prompt.IsBuiltIn);
-        var userGlobal = prompts.Single(prompt => prompt.SourceKind == UserPromptSourceKind.UserGlobal);
+        var userGlobal = prompts.Single(prompt => prompt.SourceKind == AgentPromptSourceKind.UserGlobal);
         Assert.AreEqual(Path.GetFullPath(builtInPath), builtIn.SourcePath);
         Assert.AreEqual(Path.GetFullPath(overridePath), userGlobal.SourcePath);
         Assert.IsTrue(builtIn.IsShadowed);
@@ -170,7 +170,7 @@ public sealed class PromptManagementDialogTests
     {
         var globalRoot = Path.Combine(root, "global");
         var appBase = Path.Combine(root, "app");
-        var catalog = new UserPromptCatalog(new FileSystemPromptContentLocator(appBase));
+        var catalog = new AgentPromptCatalog(new FileSystemPromptContentLocator(appBase));
         return new PromptManagementDialog(
             new CatalogOptions { GlobalRoot = globalRoot },
             static () => null,
@@ -183,7 +183,7 @@ public sealed class PromptManagementDialogTests
 
     private static string WritePrompt(string root, string body)
     {
-        var promptDirectory = Path.Combine(root, "global", "prompts", "developer");
+        var promptDirectory = Path.Combine(root, "global", "prompts", "agents");
         Directory.CreateDirectory(promptDirectory);
         var promptPath = Path.Combine(promptDirectory, "custom.prompt.md");
         File.WriteAllText(promptPath, $"---\nname: Custom Prompt\n---\n{body}\n");

@@ -16,7 +16,7 @@ internal sealed class SessionExecutionOptionsFactory
     private readonly SessionSelectionContext _sessionSelection;
     private readonly SessionPermissionRequestCoordinator _permissionRequests;
     private readonly SessionUserInputRequestCoordinator _userInputRequests;
-    private readonly Func<string?>? _preferredUserPromptProvider;
+    private readonly Func<string?>? _preferredAgentPromptProvider;
     private readonly IServiceProvider? _altaServices;
     private readonly IReadOnlySet<string> _altaToolProviderIds;
 
@@ -26,7 +26,7 @@ internal sealed class SessionExecutionOptionsFactory
         SessionSelectionContext sessionSelection,
         SessionPermissionRequestCoordinator permissionRequests,
         SessionUserInputRequestCoordinator userInputRequests,
-        Func<string?>? preferredUserPromptProvider = null,
+        Func<string?>? preferredAgentPromptProvider = null,
         IServiceProvider? altaServices = null,
         IReadOnlySet<string>? altaToolProviderIds = null)
     {
@@ -41,7 +41,7 @@ internal sealed class SessionExecutionOptionsFactory
         _sessionSelection = sessionSelection;
         _permissionRequests = permissionRequests;
         _userInputRequests = userInputRequests;
-        _preferredUserPromptProvider = preferredUserPromptProvider;
+        _preferredAgentPromptProvider = preferredAgentPromptProvider;
         _altaServices = altaServices;
         _altaToolProviderIds = altaToolProviderIds ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     }
@@ -69,7 +69,7 @@ internal sealed class SessionExecutionOptionsFactory
             ProjectRoots = projectRoots,
             Model = model,
             ReasoningEffort = reasoning,
-            UserPromptName = NormalizeOptionalText(_preferredUserPromptProvider?.Invoke()),
+            AgentPromptId = NormalizeOptionalText(_preferredAgentPromptProvider?.Invoke()),
             Tools = CreateAltaTools(
                 providerId,
                 sourceSessionIdProvider: sourceSessionIdProvider,
@@ -96,7 +96,7 @@ internal sealed class SessionExecutionOptionsFactory
             ProjectRoots = projectRoots,
             Model = tab.ModelId,
             ReasoningEffort = tab.ReasoningEffort,
-            UserPromptName = NormalizeOptionalText(tab.UserPromptName ?? session.UserPromptName),
+            AgentPromptId = NormalizeOptionalText(tab.AgentPromptId ?? session.AgentPromptId),
             Tools = CreateAltaTools(
                 providerId,
                 sourceSessionIdProvider: () => session.SessionId,

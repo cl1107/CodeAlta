@@ -13,7 +13,7 @@ namespace CodeAlta.Orchestration.Runtime.SystemPrompts;
 public sealed class SystemPromptBuilder
 {
     private const string DefaultName = "default";
-    private static readonly string[] KnownTopLevelEntries = ["system", "developer", "template.yml"];
+    private static readonly string[] KnownTopLevelEntries = ["system", "agents", "template.yml"];
     private readonly ISystemPromptContentLocator _contentLocator;
 
     /// <summary>
@@ -52,11 +52,17 @@ public sealed class SystemPromptBuilder
         WarnForIgnoredFiles(roots, diagnostics);
 
         var template = ResolveTemplate(roots, request, diagnostics);
-        var promptResolution = ResolveResource(roots, "developer", ".prompt.md", template.InstructionName, diagnostics, SystemPromptResourceKind.UserPrompt);
+        var promptResolution = ResolveResource(roots, "agents", ".prompt.md", template.InstructionName, diagnostics, SystemPromptResourceKind.AgentPrompt);
+        if (promptResolution.Selected is null && !string.Equals(template.InstructionName, DefaultName, StringComparison.OrdinalIgnoreCase))
+        {
+            diagnostics.Add(SystemPromptDiagnostic.Warning("agent_prompt_fallback_default", $"Agent prompt 'agents/{template.InstructionName}.prompt.md' was not found; using the default agent prompt.", null));
+            promptResolution = ResolveResource(roots, "agents", ".prompt.md", DefaultName, diagnostics, SystemPromptResourceKind.AgentPrompt);
+            template = template with { InstructionName = DefaultName, InstructionReason = "fallback-default" };
+        }
 
         if (promptResolution.Selected is null)
         {
-            throw new InvalidOperationException($"Missing required developer prompt 'developer/{template.InstructionName}.prompt.md'.");
+            throw new InvalidOperationException($"Missing required agent prompt 'agents/{template.InstructionName}.prompt.md'.");
         }
 
         var selectedSystemOverride = NormalizeName(request.SelectedBaseName);
@@ -64,7 +70,7 @@ public sealed class SystemPromptBuilder
         var selectedSystemReason = selectedSystemOverride is not null
             ? "runtime"
             : promptResolution.Selected.SystemPromptName is not null
-                ? $"developer:{template.InstructionName}"
+                ? $"agent:{template.InstructionName}"
                 : template.BaseReason;
         var systemResolution = ResolveResource(roots, "system", ".system-prompt.md", selectedSystemName, diagnostics, SystemPromptResourceKind.SystemPrompt);
 
@@ -82,10 +88,10 @@ public sealed class SystemPromptBuilder
         }
 
         var developerParts = new List<RenderedPromptPart>();
-        AddDeveloperPart(developerParts, parts, CreateResourcePart(promptResolution.Selected, "developer", template.InstructionName, "developer", 300, "selected", promptResolution.ReplacedPath), "User Prompt", promptResolution.Selected.Body);
+        AddDeveloperPart(developerParts, parts, CreateResourcePart(promptResolution.Selected, "agent_prompt", template.InstructionName, "developer", 300, "selected", promptResolution.ReplacedPath), "Agent Prompt", promptResolution.Selected.Body);
         foreach (var skipped in promptResolution.Skipped)
         {
-            parts.Add(CreateResourcePart(skipped.Resource, "developer", template.InstructionName, "developer", 300, skipped.Status, null));
+            parts.Add(CreateResourcePart(skipped.Resource, "agent_prompt", template.InstructionName, "developer", 300, skipped.Status, null));
         }
 
         template = template with { BaseName = selectedSystemName, BaseReason = selectedSystemReason };
@@ -171,11 +177,11 @@ public sealed class SystemPromptBuilder
             throw new InvalidOperationException($"Required shipped system prompt '{systemPath}' was not found.");
         }
 
-        var promptPath = Path.Combine(roots.ShippedPromptRoot, "developer", "default.prompt.md");
+        var promptPath = Path.Combine(roots.ShippedPromptRoot, "agents", "default.prompt.md");
         if (!File.Exists(promptPath))
         {
-            diagnostics.Add(SystemPromptDiagnostic.Error("missing_shipped_prompt", $"Required shipped default user prompt '{promptPath}' was not found.", promptPath));
-            throw new InvalidOperationException($"Required shipped default user prompt '{promptPath}' was not found.");
+            diagnostics.Add(SystemPromptDiagnostic.Error("missing_shipped_prompt", $"Required shipped default agent prompt '{promptPath}' was not found.", promptPath));
+            throw new InvalidOperationException($"Required shipped default agent prompt '{promptPath}' was not found.");
         }
     }
 
@@ -186,7 +192,7 @@ public sealed class SystemPromptBuilder
             foreach (var directory in Directory.EnumerateDirectories(root.Path))
             {
                 var name = Path.GetFileName(directory);
-                if (!string.Equals(name, "system", StringComparison.OrdinalIgnoreCase) && !string.Equals(name, "developer", StringComparison.OrdinalIgnoreCase))
+                if (!string.Equals(name, "system", StringComparison.OrdinalIgnoreCase) && !string.Equals(name, "agents", StringComparison.OrdinalIgnoreCase))
                 {
                     diagnostics.Add(SystemPromptDiagnostic.Warning("ignored_unknown_prompt_folder", $"Ignoring unknown prompt resource folder '{directory}'.", directory));
                 }
@@ -206,7 +212,7 @@ public sealed class SystemPromptBuilder
             }
 
             WarnWrongSuffix(root.Path, "system", ".system-prompt.md", diagnostics);
-            WarnWrongSuffix(root.Path, "developer", ".prompt.md", diagnostics);
+            WarnWrongSuffix(root.Path, "agents", ".prompt.md", diagnostics);
         }
     }
 
@@ -298,6 +304,7 @@ public sealed class SystemPromptBuilder
 
                     break;
                 case "system":
+                case "agent":
                 case "developer":
                     break;
                 case "skills":
@@ -320,7 +327,7 @@ public sealed class SystemPromptBuilder
 
         return new ParsedTemplate(
             NormalizeName(values.GetValueOrDefault("system")),
-            NormalizeName(values.GetValueOrDefault("developer")),
+            NormalizeName(values.GetValueOrDefault("agent")) ?? NormalizeName(values.GetValueOrDefault("developer")),
             options,
             hasErrors);
     }
@@ -384,7 +391,7 @@ public sealed class SystemPromptBuilder
         }
 
         var (frontmatter, body) = SplitFrontmatter(text, path, diagnostics);
-        var allowedFields = resourceKind == SystemPromptResourceKind.UserPrompt
+        var allowedFields = resourceKind == SystemPromptResourceKind.AgentPrompt
             ? new HashSet<string>(["name", "description", "system", "version", "max_tokens", "id", "kind", "path"], StringComparer.OrdinalIgnoreCase)
             : new HashSet<string>(["description", "version", "max_tokens", "id", "kind", "path"], StringComparer.OrdinalIgnoreCase);
         foreach (var key in frontmatter.Keys)
@@ -406,13 +413,13 @@ public sealed class SystemPromptBuilder
         }
 
         var displayName = NormalizeName(frontmatter.GetValueOrDefault("name"));
-        if (resourceKind == SystemPromptResourceKind.UserPrompt && displayName is null)
+        if (resourceKind == SystemPromptResourceKind.AgentPrompt && displayName is null)
         {
-            diagnostics.Add(SystemPromptDiagnostic.Error("missing_prompt_name", $"User prompt '{path}' is missing required frontmatter field 'name'.", path));
+            diagnostics.Add(SystemPromptDiagnostic.Error("missing_prompt_name", $"Agent prompt '{path}' is missing required frontmatter field 'name'.", path));
             return null;
         }
 
-        var systemPromptName = resourceKind == SystemPromptResourceKind.UserPrompt
+        var systemPromptName = resourceKind == SystemPromptResourceKind.AgentPrompt
             ? NormalizeName(frontmatter.GetValueOrDefault("system")) ?? DefaultName
             : null;
         var trimmed = body.Trim();
@@ -474,7 +481,7 @@ public sealed class SystemPromptBuilder
 
     private static SystemPromptManifestPart CreateResourcePart(PromptResource resource, string kind, string name, string target, int order, string status, string? replaces)
         => new(
-            Key: kind == "system" ? $"system/{name}" : $"developer/{name}",
+            Key: kind == "system" ? $"system/{name}" : $"agents/{name}",
             Kind: kind,
             Name: name,
             Target: target,
@@ -666,9 +673,9 @@ public sealed class SystemPromptBuilder
             yield return new PromptRoot("built-in", 0, roots.ShippedPromptRoot);
         }
 
-        if (Directory.Exists(roots.UserPromptRoot))
+        if (Directory.Exists(roots.GlobalPromptRoot))
         {
-            yield return new PromptRoot("user-global", 1, roots.UserPromptRoot);
+            yield return new PromptRoot("user-global", 1, roots.GlobalPromptRoot);
         }
 
         if (roots.ProjectPromptResourcesTrusted && roots.ProjectPromptRoot is not null && Directory.Exists(roots.ProjectPromptRoot))
@@ -679,9 +686,9 @@ public sealed class SystemPromptBuilder
 
     private static IEnumerable<TemplateSource> EnumerateTemplateSources(SystemPromptContentRoots roots)
     {
-        if (File.Exists(Path.Combine(roots.UserPromptRoot, "template.yml")))
+        if (File.Exists(Path.Combine(roots.GlobalPromptRoot, "template.yml")))
         {
-            yield return new TemplateSource("user-global", Path.Combine(roots.UserPromptRoot, "template.yml"));
+            yield return new TemplateSource("user-global", Path.Combine(roots.GlobalPromptRoot, "template.yml"));
         }
 
         if (roots.ProjectPromptResourcesTrusted && roots.ProjectPromptRoot is not null && File.Exists(Path.Combine(roots.ProjectPromptRoot, "template.yml")))
@@ -759,7 +766,7 @@ public sealed class SystemPromptBuilder
     private sealed record ResourceResolution(PromptResource? Selected, string? ReplacedPath, IReadOnlyList<SkippedResource> Skipped);
     private sealed record SkippedResource(PromptResource Resource, string Status);
     private sealed record RenderedPromptPart(string Key, string Markdown);
-    private enum SystemPromptResourceKind { SystemPrompt, UserPrompt }
+    private enum SystemPromptResourceKind { SystemPrompt, AgentPrompt }
     private sealed record ParsedTemplate(string? BaseName, string? InstructionName, PartialSystemPromptPartOptions Options, bool HasErrors)
     {
         public static ParsedTemplate Error { get; } = new(null, null, PartialSystemPromptPartOptions.Empty, true);
@@ -801,7 +808,7 @@ public sealed class SystemPromptBuildRequest
     /// <summary>Gets an optional selected session instruction name override.</summary>
     public string? SelectedInstructionName { get; init; }
 
-    /// <summary>Gets an optional selected user prompt name override.</summary>
+    /// <summary>Gets an optional selected agent prompt name override.</summary>
     public string? SelectedPromptName { get; init; }
 
     /// <summary>Gets the optional user profile root used to resolve <c>~/.alta</c>.</summary>

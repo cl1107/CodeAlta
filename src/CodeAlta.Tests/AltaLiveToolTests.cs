@@ -57,7 +57,7 @@ public sealed class AltaLiveToolTests
         [
             (["session", "list", "--stat", "all"], "usage.invalid", "--stat"),
             (["session", "list", "--state", "sleeping"], "usage.invalid", "State must be running"),
-            (["session", "show"], "usage.invalid", "Missing required argument"),
+            (["session", "info"], "usage.missingSession", "Session id is required"),
             (["session", "create", "--global", "--project", "sample"], "usage.projectAndGlobal", "Use either --project or --global"),
         ];
 
@@ -165,7 +165,7 @@ public sealed class AltaLiveToolTests
     public async Task PromptListAndShow_EmitProgressivePromptRecordsForUserAndSystemScopes()
     {
         using var root = TempDirectory.Create();
-        var globalPromptDirectory = Path.Combine(root.Path, "prompts", "developer");
+        var globalPromptDirectory = Path.Combine(root.Path, "prompts", "agents");
         var globalSystemDirectory = Path.Combine(root.Path, "prompts", "system");
         Directory.CreateDirectory(globalPromptDirectory);
         Directory.CreateDirectory(globalSystemDirectory);
@@ -212,7 +212,7 @@ public sealed class AltaLiveToolTests
     }
 
     [TestMethod]
-    public async Task PromptEdit_WritesGlobalUserPromptFromStdin()
+    public async Task PromptEdit_WritesGlobalAgentPromptFromStdin()
     {
         using var root = TempDirectory.Create();
         var dispatcher = CreateDispatcher(new AltaServiceCollection().Add(new CatalogOptions { GlobalRoot = root.Path }));
@@ -1496,7 +1496,7 @@ public sealed class AltaLiveToolTests
             .Add(sessionCatalog));
 
         var list = await dispatcher.InvokeAsync(["session", "list", "--project", project.Id, "--state", "all", "--limit", "10"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
-        var show = await dispatcher.InvokeAsync(["session", "show", parent.SessionId], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var show = await dispatcher.InvokeAsync(["session", "info", parent.SessionId], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
         var status = await dispatcher.InvokeAsync(["session", "status", parent.SessionId], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
         var children = await dispatcher.InvokeAsync(["session", "children", parent.SessionId, "--recursive"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
         var model = await dispatcher.InvokeAsync(["session", "model", parent.SessionId], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
@@ -1515,7 +1515,7 @@ public sealed class AltaLiveToolTests
             line.GetProperty("sessionId").GetString() == archived.SessionId &&
             line.GetProperty("state").GetString() == "archived"));
 
-        var detail = ReadJsonLines(show.Stdout).Single(line => line.GetProperty("type").GetString() == "alta.session.detail");
+        var detail = ReadJsonLines(show.Stdout).Single(line => line.GetProperty("type").GetString() == "alta.session.info");
         Assert.AreEqual(2, detail.GetProperty("childCount").GetInt32());
         CollectionAssert.AreEquivalent(
             new[] { child.SessionId, crossProjectChild.SessionId },
@@ -1744,7 +1744,7 @@ public sealed class AltaLiveToolTests
             ["session", "report", "--stdin", "--include=result,metrics"],
             stdin: $"{secondSessionId}{Environment.NewLine}missing-session{Environment.NewLine}{sessionId}{Environment.NewLine}",
             caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
-        var show = await dispatcher.InvokeAsync(["session", "show", sessionId], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var show = await dispatcher.InvokeAsync(["session", "info", sessionId], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
         var list = await dispatcher.InvokeAsync(["session", "list", "--metrics"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
 
         Assert.AreEqual(AltaExitCodes.Success, filteredEvents.ExitCode);
@@ -1800,7 +1800,7 @@ public sealed class AltaLiveToolTests
         Assert.AreEqual(1, stdinReportSummary.GetProperty("diagnosticCount").GetInt32());
 
         Assert.AreEqual(AltaExitCodes.Success, show.ExitCode);
-        Assert.IsTrue(ReadJsonLines(show.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.session.detail").TryGetProperty("metrics", out var showMetrics));
+        Assert.IsTrue(ReadJsonLines(show.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.session.info").TryGetProperty("metrics", out var showMetrics));
         Assert.AreEqual(1, showMetrics.GetProperty("toolCallCount").GetInt32());
 
         Assert.AreEqual(AltaExitCodes.Success, list.ExitCode);
@@ -2273,10 +2273,10 @@ public sealed class AltaLiveToolTests
     }
 
     [TestMethod]
-    public async Task SessionSend_PromptIdSelectsUserPromptForThatSend()
+    public async Task SessionSend_PromptIdSelectsAgentPromptForThatSend()
     {
         using var root = TempDirectory.Create();
-        var globalPromptDirectory = Path.Combine(root.Path, "prompts", "developer");
+        var globalPromptDirectory = Path.Combine(root.Path, "prompts", "agents");
         Directory.CreateDirectory(globalPromptDirectory);
         await File.WriteAllTextAsync(
             Path.Combine(globalPromptDirectory, "custom.prompt.md"),
@@ -2457,7 +2457,7 @@ public sealed class AltaLiveToolTests
         Assert.IsNotNull(refreshedCreate.SystemMessage);
         Assert.IsNotNull(refreshedCreate.DeveloperInstructions);
         StringAssert.Contains(refreshedCreate.SystemMessage!, "headless fixture system prompt");
-        StringAssert.Contains(refreshedCreate.DeveloperInstructions!, "headless fixture developer prompt");
+        StringAssert.Contains(refreshedCreate.DeveloperInstructions!, "headless fixture agent prompt");
 
         await active.DeactivateAsync(TimeSpan.FromSeconds(5));
     }
@@ -2722,7 +2722,7 @@ public sealed class AltaLiveToolTests
 
         var first = await dispatcher.InvokeAsync(["session", "send", sessionId, "--message", "first prompt"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
         var queued = await dispatcher.InvokeAsync(["session", "send", sessionId, "--message", "queued prompt", "--queue-if-busy"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
-        var show = await dispatcher.InvokeAsync(["session", "show", sessionId], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var show = await dispatcher.InvokeAsync(["session", "info", sessionId], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
 
         Assert.AreEqual(AltaExitCodes.Success, first.ExitCode);
         Assert.AreEqual(AltaExitCodes.Success, queued.ExitCode);
@@ -2732,7 +2732,7 @@ public sealed class AltaLiveToolTests
         Assert.IsTrue(queuedRecord.GetProperty("queued").GetBoolean());
         Assert.IsTrue(queuedRecord.TryGetProperty("queueItemId", out var queueItemId));
         Assert.IsFalse(string.IsNullOrWhiteSpace(queueItemId.GetString()));
-        Assert.AreEqual(1, ReadJsonLines(show.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.session.detail").GetProperty("queuedPromptCount").GetInt32());
+        Assert.AreEqual(1, ReadJsonLines(show.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.session.info").GetProperty("queuedPromptCount").GetInt32());
         var state = await ReadJournalStateAsync(sessionCatalog, sessionId).ConfigureAwait(false);
         var item = state.QueuedPrompts.Single();
         Assert.AreEqual(queueItemId.GetString(), item.QueueItemId);
@@ -3119,7 +3119,7 @@ public sealed class AltaLiveToolTests
         var sessionId = ReadJsonLines(created.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.session.created").GetProperty("sessionId").GetString()!;
         var caller = new AltaCallerIdentity { Kind = "agent", SourceProjectId = projectB.Id, SourceSessionId = "other-session" };
 
-        var show = await dispatcher.InvokeAsync(["session", "show", sessionId], caller: caller).ConfigureAwait(false);
+        var show = await dispatcher.InvokeAsync(["session", "info", sessionId], caller: caller).ConfigureAwait(false);
         var listOtherProject = await dispatcher.InvokeAsync(["session", "list", "--project", projectA.Id], caller: caller).ConfigureAwait(false);
         var send = await dispatcher.InvokeAsync(["session", "send", sessionId, "--message", "cross-project"], caller: caller).ConfigureAwait(false);
         var createOtherProject = await dispatcher.InvokeAsync(["session", "create", "--project", projectA.Id, "--provider", ProviderId.Value], caller: caller).ConfigureAwait(false);
@@ -3242,9 +3242,9 @@ public sealed class AltaLiveToolTests
         var coordinatorCaller = new AltaCallerIdentity { Kind = "agent", SourceSessionId = globalSessionId, SourceAgentId = "global-coordinator" };
         var projectCaller = new AltaCallerIdentity { Kind = "agent", SourceProjectId = project.Id, SourceSessionId = projectSessionId, SourceAgentId = "project-agent" };
 
-        var coordinatorShow = await dispatcher.InvokeAsync(["session", "show", projectSessionId], caller: coordinatorCaller).ConfigureAwait(false);
+        var coordinatorShow = await dispatcher.InvokeAsync(["session", "info", projectSessionId], caller: coordinatorCaller).ConfigureAwait(false);
         var coordinatorRequest = await dispatcher.InvokeAsync(["session", "request", projectSessionId, "--message", "please inspect"], caller: coordinatorCaller).ConfigureAwait(false);
-        var projectShowGlobal = await dispatcher.InvokeAsync(["session", "show", globalSessionId], caller: projectCaller).ConfigureAwait(false);
+        var projectShowGlobal = await dispatcher.InvokeAsync(["session", "info", globalSessionId], caller: projectCaller).ConfigureAwait(false);
         var projectReply = await dispatcher.InvokeAsync(["session", "message", globalSessionId, "--kind", "answer", "--message", "project reply"], caller: projectCaller).ConfigureAwait(false);
 
         Assert.AreEqual(AltaExitCodes.Success, coordinatorShow.ExitCode);
@@ -3681,7 +3681,7 @@ public sealed class AltaLiveToolTests
             {
                 Title = "Headless Fixture Developer",
                 Channel = PluginPromptChannel.Developer,
-                Content = static (_, _) => ValueTask.FromResult<string?>("headless fixture developer prompt"),
+                Content = static (_, _) => ValueTask.FromResult<string?>("headless fixture agent prompt"),
             };
         }
 

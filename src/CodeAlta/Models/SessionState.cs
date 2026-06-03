@@ -18,7 +18,7 @@ internal sealed partial class SessionState
 
     public AgentReasoningEffort? ReasoningEffort { get; set; }
 
-    public string? UserPromptName { get; set; }
+    public string? AgentPromptId { get; set; }
 
     public string PromptDraftText { get; set; } = string.Empty;
 

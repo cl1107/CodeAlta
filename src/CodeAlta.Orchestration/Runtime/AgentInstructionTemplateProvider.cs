@@ -36,7 +36,7 @@ public sealed class AgentInstructionTemplateProvider
     /// <param name="session">The active session view.</param>
     /// <param name="project">The owning project, if any.</param>
     /// <param name="model">The selected model id, if known.</param>
-    /// <param name="selectedPromptName">The selected user prompt name, if any.</param>
+    /// <param name="selectedPromptName">The selected agent prompt name, if any.</param>
     /// <returns>The file-backed instruction bundle selected for the session.</returns>
     public AgentInstructionBundle BuildCoordinatorInstructions(
         SessionViewDescriptor session,
@@ -46,6 +46,7 @@ public sealed class AgentInstructionTemplateProvider
     {
         ArgumentNullException.ThrowIfNull(session);
         var bundle = BuildPromptBundle(session, project, model, selectedPromptName);
+        session.AgentPromptId = bundle.Manifest.Template.InstructionName;
         return new AgentInstructionBundle
         {
             SystemMessage = bundle.SystemMessage,
@@ -60,7 +61,7 @@ public sealed class AgentInstructionTemplateProvider
     /// <param name="session">The active session view.</param>
     /// <param name="project">The owning project, if any.</param>
     /// <param name="model">The selected model id, if known.</param>
-    /// <param name="selectedPromptName">The selected user prompt name, if any.</param>
+    /// <param name="selectedPromptName">The selected agent prompt name, if any.</param>
     /// <returns>The file-backed instruction bundle selected for the session.</returns>
     public AgentInstructionBundle BuildGeneralInstructions(
         SessionViewDescriptor session,
@@ -70,6 +71,7 @@ public sealed class AgentInstructionTemplateProvider
     {
         ArgumentNullException.ThrowIfNull(session);
         var bundle = BuildPromptBundle(session, project, model, selectedPromptName);
+        session.AgentPromptId = bundle.Manifest.Template.InstructionName;
         return new AgentInstructionBundle
         {
             SystemMessage = bundle.SystemMessage,
@@ -97,7 +99,7 @@ public sealed class AgentInstructionTemplateProvider
             Project = project,
             WorkingDirectory = session.WorkingDirectory,
             ProjectRoots = projectRoots,
-            SelectedPromptName = selectedPromptName ?? session.UserPromptName,
+            SelectedPromptName = selectedPromptName ?? session.AgentPromptId,
             UserProfileRoot = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             UserCodeAltaRoot = _catalogOptions?.GlobalRoot,
             AvailableSkillsMarkdown = BuildSkillsDeveloperInstructions(session, project),

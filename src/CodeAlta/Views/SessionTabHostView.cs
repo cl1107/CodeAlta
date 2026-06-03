@@ -321,7 +321,7 @@ internal sealed class SessionPromptPanel
         Visual sendPromptButton,
         Visual expandPromptButton,
         PromptComposerView composer,
-        UserPromptSelectorView userPromptSelectorView,
+        AgentPromptSelectorView agentPromptSelectorView,
         ModelProviderSelectorView modelProviderSelectorView,
         SessionPromptChromeState chromeState)
     {
@@ -331,7 +331,7 @@ internal sealed class SessionPromptPanel
         ArgumentNullException.ThrowIfNull(sendPromptButton);
         ArgumentNullException.ThrowIfNull(expandPromptButton);
         ArgumentNullException.ThrowIfNull(composer);
-        ArgumentNullException.ThrowIfNull(userPromptSelectorView);
+        ArgumentNullException.ThrowIfNull(agentPromptSelectorView);
         ArgumentNullException.ThrowIfNull(modelProviderSelectorView);
         ArgumentNullException.ThrowIfNull(chromeState);
 
@@ -341,7 +341,7 @@ internal sealed class SessionPromptPanel
         SendPromptButton = sendPromptButton;
         ExpandPromptButton = expandPromptButton;
         Composer = composer;
-        UserPromptSelectorView = userPromptSelectorView;
+        AgentPromptSelectorView = agentPromptSelectorView;
         ModelProviderSelectorView = modelProviderSelectorView;
         ChromeState = chromeState;
     }
@@ -360,7 +360,7 @@ internal sealed class SessionPromptPanel
 
     public PromptComposerView Composer { get; }
 
-    public UserPromptSelectorView UserPromptSelectorView { get; }
+    public AgentPromptSelectorView AgentPromptSelectorView { get; }
 
     public ModelProviderSelectorView ModelProviderSelectorView { get; }
 

@@ -3279,6 +3279,7 @@ public sealed class CodeAltaAppTests
             null,
             "session_start",
             hash,
+            "default",
             systemMessage,
             developerInstructions,
             new AgentSystemPromptProviderPayloadSummary("native-system-and-developer", true, false),

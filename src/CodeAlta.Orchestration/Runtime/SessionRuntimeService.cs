@@ -7,6 +7,7 @@ using CodeAlta.Agent.Runtime;
 using CodeAlta.Catalog;
 using CodeAlta.Catalog.Skills;
 using CodeAlta.Orchestration.Runtime.Actors;
+using CodeAlta.Orchestration.Runtime.SystemPrompts;
 
 namespace CodeAlta.Orchestration.Runtime;
 
@@ -209,7 +210,7 @@ public sealed class SessionRuntimeService : IAsyncDisposable
         ApplyPersistedSessionLocalState(session, localState);
     }
 
-    private static void ApplyPersistedSessionLocalState(SessionViewDescriptor session, SessionViewLocalState localState)
+    private void ApplyPersistedSessionLocalState(SessionViewDescriptor session, SessionViewLocalState localState)
     {
         if (localState.Archived)
         {
@@ -233,9 +234,9 @@ public sealed class SessionRuntimeService : IAsyncDisposable
             session.ReasoningEffort = reasoningEffort;
         }
 
-        if (!string.IsNullOrWhiteSpace(localState.UserPromptName))
+        if (!string.IsNullOrWhiteSpace(localState.AgentPromptId))
         {
-            session.UserPromptName = localState.UserPromptName.Trim();
+            session.AgentPromptId = ResolveKnownAgentPromptId(localState.AgentPromptId, session.WorkingDirectory);
         }
 
         if (localState.MessageCount is { } messageCount)
@@ -382,7 +383,7 @@ public sealed class SessionRuntimeService : IAsyncDisposable
             LatestSummary = "Global overview and coordination session.",
             ModelId = options.Model,
             ReasoningEffort = options.ReasoningEffort,
-            UserPromptName = NormalizeOptionalText(options.UserPromptName),
+            AgentPromptId = NormalizeOptionalText(options.AgentPromptId),
         };
 
         try
@@ -448,7 +449,7 @@ public sealed class SessionRuntimeService : IAsyncDisposable
             LatestSummary = $"Project session for {project.DisplayName}.",
             ModelId = options.Model,
             ReasoningEffort = options.ReasoningEffort,
-            UserPromptName = NormalizeOptionalText(options.UserPromptName),
+            AgentPromptId = NormalizeOptionalText(options.AgentPromptId),
         };
 
         try
@@ -526,8 +527,8 @@ public sealed class SessionRuntimeService : IAsyncDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(options.WorkingDirectory);
 
         var project = await ResolveProjectAsync(session, cancellationToken).ConfigureAwait(false);
-        session.UserPromptName = NormalizeOptionalText(options.UserPromptName) ?? session.UserPromptName;
-        var instructions = _instructionTemplateProvider.BuildCoordinatorInstructions(session, project, options.Model, session.UserPromptName);
+        session.AgentPromptId = NormalizeOptionalText(options.AgentPromptId) ?? session.AgentPromptId;
+        var instructions = _instructionTemplateProvider.BuildCoordinatorInstructions(session, project, options.Model, session.AgentPromptId);
         var providerProviderId = new ModelProviderId(options.ProviderId.Value);
         var developerInstructions = UsesProviderManagedSkills(providerProviderId) ? null : instructions.DeveloperInstructions;
         var additionalDeveloperInstructions = AppendPromptPart(BuildParentNotificationGuidance(session), options.AdditionalDeveloperInstructions);
@@ -538,7 +539,7 @@ public sealed class SessionRuntimeService : IAsyncDisposable
 
         if (!string.IsNullOrWhiteSpace(session.SessionId) &&
             _entries.TryGetValue(session.SessionId, out var existing) &&
-            existing.Matches(options, session.UserPromptName))
+            existing.Matches(options, session.AgentPromptId))
         {
             return existing.SessionHandleId;
         }
@@ -575,6 +576,7 @@ public sealed class SessionRuntimeService : IAsyncDisposable
             ProjectRoots = options.ProjectRoots,
             SystemMessage = AppendPromptPart(instructions.SystemMessage, options.AdditionalSystemMessage),
             DeveloperInstructions = AppendPromptPart(developerInstructions, additionalDeveloperInstructions),
+             AgentPromptId = NormalizeOptionalText(session.AgentPromptId) ?? AgentPromptCatalog.DefaultPromptName,
             Tools = tools,
             OnPermissionRequest = options.OnPermissionRequest,
             OnUserInputRequest = options.OnUserInputRequest,
@@ -607,7 +609,7 @@ public sealed class SessionRuntimeService : IAsyncDisposable
         session.WorkingDirectory = options.WorkingDirectory;
         session.ModelId = options.Model;
         session.ReasoningEffort = options.ReasoningEffort;
-        session.UserPromptName = NormalizeOptionalText(options.UserPromptName) ?? session.UserPromptName;
+        session.AgentPromptId = NormalizeOptionalText(options.AgentPromptId) ?? session.AgentPromptId;
         await UpsertSessionMetadataAsync(session, options, cancellationToken).ConfigureAwait(false);
         await UpdateSessionLocalStateAsync(session, cancellationToken).ConfigureAwait(false);
         if (startNewSession)
@@ -649,7 +651,7 @@ public sealed class SessionRuntimeService : IAsyncDisposable
             options.WorkingDirectory,
             options.Model,
             options.ReasoningEffort,
-            session.UserPromptName,
+            session.AgentPromptId,
             options.AdditionalSystemMessage,
             options.AdditionalDeveloperInstructions,
             CreateToolSignatures(options.Tools),
@@ -1003,7 +1005,7 @@ public sealed class SessionRuntimeService : IAsyncDisposable
         localState.ProviderKey = session.ResolvedProviderKey;
         localState.ModelId = session.ModelId;
         localState.ReasoningEffort = session.ReasoningEffort;
-        localState.UserPromptName = NormalizeOptionalText(session.UserPromptName);
+        localState.AgentPromptId = NormalizeOptionalText(session.AgentPromptId);
         localState.Archived = session.Status == SessionViewStatus.Archived;
         localState.MessageCount = session.MessageCount;
         localState.ParentSessionId = session.ParentSessionId;
@@ -1729,9 +1731,9 @@ public sealed class SessionRuntimeService : IAsyncDisposable
                 session.MessageCount = localState.MessageCount;
             }
 
-            if (!string.IsNullOrWhiteSpace(localState.UserPromptName))
+            if (!string.IsNullOrWhiteSpace(localState.AgentPromptId))
             {
-                session.UserPromptName = localState.UserPromptName.Trim();
+                session.AgentPromptId = ResolveKnownAgentPromptId(localState.AgentPromptId, session.WorkingDirectory);
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or System.Text.Json.JsonException)
@@ -1758,6 +1760,8 @@ public sealed class SessionRuntimeService : IAsyncDisposable
                     ProtocolFamily = options.ProviderId.Value,
                     ProviderKey = session.ResolvedProviderKey,
                     ModelId = options.Model,
+                    ReasoningEffort = options.ReasoningEffort,
+                    AgentPromptId = NormalizeOptionalText(session.AgentPromptId) ?? AgentPromptCatalog.DefaultPromptName,
                     WorkingDirectory = session.WorkingDirectory,
                     Title = session.Title,
                     Summary = session.LatestSummary,
@@ -1992,6 +1996,7 @@ public sealed class SessionRuntimeService : IAsyncDisposable
                 LastActiveAt = session.UpdatedAt,
                 StartedAt = session.CreatedAt,
                 LatestSummary = session.Summary,
+                AgentPromptId = ResolveKnownAgentPromptId(session.AgentPromptId, projectRoot: null),
             };
         }
 
@@ -2018,7 +2023,29 @@ public sealed class SessionRuntimeService : IAsyncDisposable
             LastActiveAt = session.UpdatedAt,
             StartedAt = session.CreatedAt,
             LatestSummary = session.Summary,
+            AgentPromptId = ResolveKnownAgentPromptId(session.AgentPromptId, project.ProjectPath),
         };
+    }
+
+    private string? ResolveKnownAgentPromptId(string? promptId, string? projectRoot)
+    {
+        var normalized = NormalizeOptionalText(promptId);
+        if (normalized is null)
+        {
+            return null;
+        }
+
+        var query = new AgentPromptCatalogQuery
+        {
+            ProjectRoot = projectRoot,
+            ProjectPromptResourcesTrusted = !string.IsNullOrWhiteSpace(projectRoot),
+            UserCodeAltaRoot = _catalogOptions.GlobalRoot,
+            UserProfileRoot = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        };
+        return new AgentPromptCatalog().ListEffectivePrompts(query)
+            .Any(prompt => string.Equals(prompt.PromptName, normalized, StringComparison.OrdinalIgnoreCase))
+            ? normalized
+            : AgentPromptCatalog.DefaultPromptName;
     }
 
     private static string BuildSessionTitle(AgentSessionMetadata session, string fallback)
@@ -2093,7 +2120,7 @@ public sealed class SessionRuntimeService : IAsyncDisposable
         localState.ProviderKey = session.ResolvedProviderKey;
         localState.ModelId = session.ModelId;
         localState.ReasoningEffort = session.ReasoningEffort;
-        localState.UserPromptName = NormalizeOptionalText(session.UserPromptName);
+        localState.AgentPromptId = NormalizeOptionalText(session.AgentPromptId);
         localState.Archived = session.Status == SessionViewStatus.Archived;
         localState.MessageCount = session.MessageCount;
         localState.ParentSessionId = session.ParentSessionId;
@@ -2118,7 +2145,7 @@ public sealed class SessionRuntimeService : IAsyncDisposable
             string workingDirectory,
             string? model,
             AgentReasoningEffort? reasoningEffort,
-            string? userPromptName,
+            string? agentPromptId,
             string? additionalSystemMessage,
             string? additionalDeveloperInstructions,
             IReadOnlyList<string> toolSignatures,
@@ -2139,7 +2166,7 @@ public sealed class SessionRuntimeService : IAsyncDisposable
             WorkingDirectory = workingDirectory;
             Model = model;
             ReasoningEffort = reasoningEffort;
-            UserPromptName = NormalizeOptionalText(userPromptName);
+            AgentPromptId = NormalizeOptionalText(agentPromptId);
             AdditionalSystemMessage = additionalSystemMessage;
             AdditionalDeveloperInstructions = additionalDeveloperInstructions;
             ToolSignatures = toolSignatures;
@@ -2175,7 +2202,7 @@ public sealed class SessionRuntimeService : IAsyncDisposable
 
         public AgentReasoningEffort? ReasoningEffort { get; }
 
-        public string? UserPromptName { get; }
+        public string? AgentPromptId { get; }
 
         public string? AdditionalSystemMessage { get; }
 
@@ -2221,19 +2248,19 @@ public sealed class SessionRuntimeService : IAsyncDisposable
                 LastActiveAt = LastTerminalEventAt == DateTimeOffset.MinValue ? CreatedAt : LastTerminalEventAt,
                 ModelId = Model,
                 ReasoningEffort = ReasoningEffort,
-                UserPromptName = UserPromptName,
+                AgentPromptId = AgentPromptId,
             };
 
-        public bool Matches(SessionExecutionOptions options, string? userPromptName)
+        public bool Matches(SessionExecutionOptions options, string? agentPromptId)
         {
-            var resolvedUserPromptName = NormalizeOptionalText(options.UserPromptName) ?? NormalizeOptionalText(userPromptName);
+            var resolvedAgentPromptId = NormalizeOptionalText(options.AgentPromptId) ?? NormalizeOptionalText(agentPromptId);
             return !IsTerminated
                 && string.Equals(ProviderId.Value, options.ProviderId.Value, StringComparison.OrdinalIgnoreCase)
                 && string.Equals(ProviderKey, options.ProviderKey ?? options.ProviderId.Value, StringComparison.OrdinalIgnoreCase)
                 && string.Equals(WorkingDirectory, options.WorkingDirectory, StringComparison.Ordinal)
                 && string.Equals(Model, options.Model, StringComparison.Ordinal)
                 && ReasoningEffort == options.ReasoningEffort
-                && string.Equals(UserPromptName, resolvedUserPromptName, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(AgentPromptId, resolvedAgentPromptId, StringComparison.OrdinalIgnoreCase)
                 && string.Equals(AdditionalSystemMessage, options.AdditionalSystemMessage, StringComparison.Ordinal)
                 && string.Equals(AdditionalDeveloperInstructions, options.AdditionalDeveloperInstructions, StringComparison.Ordinal)
                 && ToolSignatures.SequenceEqual(CreateToolSignatures(options.Tools), StringComparer.Ordinal);

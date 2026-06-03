@@ -15,6 +15,7 @@ namespace CodeAlta.Agent;
 /// <param name="ProtocolFamily">Optional last-used protocol family.</param>
 /// <param name="ProviderKey">Optional last-used configured provider key.</param>
 /// <param name="ModelId">Optional last-used model identifier.</param>
+/// <param name="AgentPromptId">Optional last-used agent prompt identifier.</param>
 /// <param name="ParentSessionId">Optional parent session identifier used only for lineage/orchestration metadata.</param>
 /// <param name="CreatedBySessionId">Optional session identifier that created this session.</param>
 /// <param name="CreatedByRunId">Optional run identifier that created this session.</param>
@@ -29,6 +30,7 @@ public sealed record AgentSessionMetadata(
     string? ProtocolFamily = null,
     string? ProviderKey = null,
     string? ModelId = null,
+    string? AgentPromptId = null,
     string? ParentSessionId = null,
     string? CreatedBySessionId = null,
     AgentRunId? CreatedByRunId = null);

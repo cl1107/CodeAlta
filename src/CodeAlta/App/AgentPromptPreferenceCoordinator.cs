@@ -4,11 +4,11 @@ using CodeAlta.Orchestration.Runtime.SystemPrompts;
 
 namespace CodeAlta.App;
 
-internal sealed class UserPromptPreferenceCoordinator
+internal sealed class AgentPromptPreferenceCoordinator
 {
     private readonly Dictionary<string, string> _draftPromptNamesByScope = new(StringComparer.OrdinalIgnoreCase);
 
-    public string? GetDraftUserPromptName(SessionViewViewState viewState, string? draftProjectRoot, string? draftProjectId)
+    public string? GetDraftAgentPromptId(SessionViewViewState viewState, string? draftProjectRoot, string? draftProjectId)
     {
         ArgumentNullException.ThrowIfNull(viewState);
         if (_draftPromptNamesByScope.TryGetValue(BuildDraftScopeKey(draftProjectRoot), out var draftPromptName))
@@ -17,11 +17,11 @@ internal sealed class UserPromptPreferenceCoordinator
         }
 
         return viewState.ProjectPreferences.TryGetValue(BuildProjectPreferenceKey(draftProjectId), out var preference)
-            ? NormalizeOptionalText(preference.UserPromptName)
+            ? NormalizeOptionalText(preference.AgentPromptId)
             : null;
     }
 
-    public void RememberDraftUserPromptName(SessionViewViewState viewState, string promptName, string? draftProjectRoot, string? draftProjectId)
+    public void RememberDraftAgentPromptId(SessionViewViewState viewState, string promptName, string? draftProjectRoot, string? draftProjectId)
     {
         ArgumentNullException.ThrowIfNull(viewState);
         ArgumentException.ThrowIfNullOrWhiteSpace(promptName);
@@ -33,25 +33,25 @@ internal sealed class UserPromptPreferenceCoordinator
         {
             ProviderKey = existingPreference?.ProviderKey,
             ModelId = existingPreference?.ModelId,
-            UserPromptName = normalizedPromptName,
+            AgentPromptId = normalizedPromptName,
             ReasoningEffort = existingPreference?.ReasoningEffort,
         };
         viewState.UpdatedAt = DateTimeOffset.UtcNow;
     }
 
-    public void ApplySessionUserPromptName(OpenSessionState tab, SessionViewViewState viewState)
+    public void ApplySessionAgentPromptId(OpenSessionState tab, SessionViewViewState viewState)
     {
         ArgumentNullException.ThrowIfNull(tab);
         ArgumentNullException.ThrowIfNull(viewState);
         viewState.SessionPreferences.TryGetValue(tab.SessionView.SessionId, out var persistedPreference);
-        tab.UserPromptName = NormalizeOptionalText(tab.UserPromptName)
-            ?? NormalizeOptionalText(tab.SessionView.UserPromptName)
-            ?? NormalizeOptionalText(persistedPreference?.UserPromptName)
-            ?? UserPromptCatalog.DefaultPromptName;
-        tab.SessionView.UserPromptName = tab.UserPromptName;
+        tab.AgentPromptId = NormalizeOptionalText(tab.AgentPromptId)
+            ?? NormalizeOptionalText(tab.SessionView.AgentPromptId)
+            ?? NormalizeOptionalText(persistedPreference?.AgentPromptId)
+            ?? AgentPromptCatalog.DefaultPromptName;
+        tab.SessionView.AgentPromptId = tab.AgentPromptId;
     }
 
-    public void RememberSessionUserPromptName(SessionViewViewState viewState, OpenSessionState tab, string promptName)
+    public void RememberSessionAgentPromptId(SessionViewViewState viewState, OpenSessionState tab, string promptName)
     {
         ArgumentNullException.ThrowIfNull(viewState);
         ArgumentNullException.ThrowIfNull(tab);
@@ -62,11 +62,11 @@ internal sealed class UserPromptPreferenceCoordinator
         {
             ProviderKey = existingPreference?.ProviderKey,
             ModelId = existingPreference?.ModelId ?? tab.ModelId,
-            UserPromptName = normalizedPromptName,
+            AgentPromptId = normalizedPromptName,
             ReasoningEffort = existingPreference?.ReasoningEffort ?? tab.ReasoningEffort,
         };
-        tab.UserPromptName = normalizedPromptName;
-        tab.SessionView.UserPromptName = normalizedPromptName;
+        tab.AgentPromptId = normalizedPromptName;
+        tab.SessionView.AgentPromptId = normalizedPromptName;
         viewState.UpdatedAt = DateTimeOffset.UtcNow;
     }
 

@@ -111,10 +111,10 @@ public sealed class SessionViewDescriptor
     public CodeAlta.Agent.AgentReasoningEffort? ReasoningEffort { get; set; }
 
     /// <summary>
-    /// Gets or sets the selected user prompt identifier when known.
+    /// Gets or sets the selected agent prompt identifier when known.
     /// </summary>
-    [JsonPropertyName("user_prompt")]
-    public string? UserPromptName { get; set; }
+    [JsonPropertyName("agent_prompt_id")]
+    public string? AgentPromptId { get; set; }
 
     /// <summary>
     /// Gets or sets the cached number of displayable messages when known.
@@ -208,9 +208,9 @@ public sealed class SessionViewDescriptor
             throw new ArgumentOutOfRangeException(nameof(MessageCount), MessageCount, "MessageCount cannot be negative.");
         }
 
-        if (UserPromptName is not null && string.IsNullOrWhiteSpace(UserPromptName))
+        if (AgentPromptId is not null && string.IsNullOrWhiteSpace(AgentPromptId))
         {
-            throw new ArgumentException("User prompt name must be non-empty when present.", nameof(UserPromptName));
+            throw new ArgumentException("Agent prompt id must be non-empty when present.", nameof(AgentPromptId));
         }
 
         switch (Kind)

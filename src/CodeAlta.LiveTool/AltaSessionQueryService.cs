@@ -1,5 +1,6 @@
 using CodeAlta.Catalog;
 using CodeAlta.Orchestration.Runtime;
+using CodeAlta.Orchestration.Runtime.SystemPrompts;
 
 namespace CodeAlta.LiveTool;
 
@@ -47,7 +48,7 @@ internal sealed class AltaSessionQueryService : IAltaSessionQueryService
         {
             await foreach (var session in runtime.ListRecoverableSessionsAsync(cancellationToken: cancellationToken).ConfigureAwait(false))
             {
-                yield return await BuildSessionInfoAsync(runtime, sessionCatalog, viewState, session, cancellationToken).ConfigureAwait(false);
+                yield return await BuildSessionInfoAsync(context, runtime, sessionCatalog, viewState, session, cancellationToken).ConfigureAwait(false);
             }
 
             yield break;
@@ -55,7 +56,7 @@ internal sealed class AltaSessionQueryService : IAltaSessionQueryService
 
         foreach (var session in await sessionCatalog!.LoadInternalAsync(cancellationToken).ConfigureAwait(false))
         {
-            yield return await BuildSessionInfoAsync(runtime, sessionCatalog, viewState, session, cancellationToken).ConfigureAwait(false);
+            yield return await BuildSessionInfoAsync(context, runtime, sessionCatalog, viewState, session, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -63,6 +64,7 @@ internal sealed class AltaSessionQueryService : IAltaSessionQueryService
         => LoadAsync(context);
 
     private static async Task<AltaSessionInfo> BuildSessionInfoAsync(
+        AltaCommandContext context,
         SessionRuntimeService? runtime,
         SessionViewCatalog? sessionCatalog,
         SessionViewViewState? viewState,
@@ -108,6 +110,15 @@ internal sealed class AltaSessionQueryService : IAltaSessionQueryService
             session.ReasoningEffort = localState.ReasoningEffort;
         }
 
+        if (!string.IsNullOrWhiteSpace(localState?.AgentPromptId))
+        {
+            session.AgentPromptId = ResolveKnownAgentPromptId(context, session, localState.AgentPromptId);
+        }
+        else if (!string.IsNullOrWhiteSpace(preference?.AgentPromptId))
+        {
+            session.AgentPromptId = ResolveKnownAgentPromptId(context, session, preference.AgentPromptId);
+        }
+
         return new AltaSessionInfo(session, localState, preference, isRunning, hasActiveSession, ResolveState(session, isRunning, hasActiveSession));
     }
 
@@ -139,6 +150,27 @@ internal sealed class AltaSessionQueryService : IAltaSessionQueryService
 
     private static SessionViewPreference? TryGetPreference(SessionViewViewState? viewState, string sessionId)
         => viewState is not null && viewState.SessionPreferences.TryGetValue(sessionId, out var preference) ? preference : null;
+
+    private static string ResolveKnownAgentPromptId(AltaCommandContext context, SessionViewDescriptor session, string promptId)
+    {
+        var normalized = string.IsNullOrWhiteSpace(promptId) ? null : promptId.Trim();
+        if (normalized is null)
+        {
+            return AgentPromptCatalog.DefaultPromptName;
+        }
+
+        var query = new AgentPromptCatalogQuery
+        {
+            ProjectRoot = session.WorkingDirectory,
+            ProjectPromptResourcesTrusted = !string.IsNullOrWhiteSpace(session.ProjectRef),
+            UserCodeAltaRoot = context.Services.Get<CatalogOptions>()?.GlobalRoot ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".alta"),
+            UserProfileRoot = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        };
+        return new AgentPromptCatalog().ListEffectivePrompts(query)
+            .Any(prompt => string.Equals(prompt.PromptName, normalized, StringComparison.OrdinalIgnoreCase))
+            ? normalized
+            : AgentPromptCatalog.DefaultPromptName;
+    }
 
     private static string ResolveState(SessionViewDescriptor session, bool isRunning, bool hasActiveSession)
     {

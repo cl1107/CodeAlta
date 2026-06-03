@@ -480,6 +480,7 @@ public sealed record AgentActivityEvent(
 /// <param name="RunId">Optional run identifier.</param>
 /// <param name="Reason">Reason the prompt event was emitted.</param>
 /// <param name="EffectivePromptHash">Stable effective prompt hash.</param>
+/// <param name="AgentPromptId">Agent prompt identifier used to compose the developer instructions.</param>
 /// <param name="SystemMessage">Logical system message.</param>
 /// <param name="DeveloperInstructions">Logical developer instructions.</param>
 /// <param name="ProviderPayloadSummary">Provider payload summary.</param>
@@ -493,6 +494,7 @@ public sealed record AgentSystemPromptEvent(
     AgentRunId? RunId,
     string Reason,
     string EffectivePromptHash,
+    string? AgentPromptId,
     string? SystemMessage,
     string? DeveloperInstructions,
     AgentSystemPromptProviderPayloadSummary ProviderPayloadSummary,

@@ -280,9 +280,9 @@ public sealed class SessionWorkspaceViewTests
         var modelOpenCount = 0;
         var workspaceViewModel = new SessionWorkspaceViewModel();
         var promptComposerViewModel = new PromptComposerViewModel();
-        var userPromptSelectorView = new UserPromptSelectorView(
+        var agentPromptSelectorView = new AgentPromptSelectorView(
             workspaceViewModel,
-            UserPromptSelectorController.Create(static _ => { }, () => promptOpenCount++));
+            AgentPromptSelectorController.Create(static _ => { }, () => promptOpenCount++));
         var modelProviderSelectorView = new ModelProviderSelectorView(
             workspaceViewModel,
             promptComposerViewModel,
@@ -292,15 +292,15 @@ public sealed class SessionWorkspaceViewTests
                 static _ => { },
                 static () => { },
                 () => modelOpenCount++));
-        var promptButton = userPromptSelectorView.PromptDialogButton;
+        var promptButton = agentPromptSelectorView.PromptDialogButton;
         var modelButton = modelProviderSelectorView.ModelsDialogButton;
 
-        Assert.AreEqual("Prompt->", GetButtonText(promptButton));
+        Assert.AreEqual("Agent->", GetButtonText(promptButton));
         Assert.AreEqual("Model->", GetButtonText(modelButton));
         Assert.AreEqual(ControlTone.Default, promptButton.Tone);
         Assert.AreEqual(ControlTone.Default, modelButton.Tone);
 
-        var root = new HStack(userPromptSelectorView.Root, modelProviderSelectorView.Root);
+        var root = new HStack(agentPromptSelectorView.Root, modelProviderSelectorView.Root);
         using var terminalSession = Terminal.Open(new InMemoryTerminalBackend(new TerminalSize(120, 40)), new TerminalOptions { ImplicitStartInput = true }, force: true);
         var app = new TerminalApp(
             root,
@@ -571,7 +571,7 @@ public sealed class SessionWorkspaceViewTests
                 static (_, _) => { },
                 static (_, _) => { },
                 static (onAccepted, placeholder) => SessionWorkspaceView.CreateStyledPromptEditor(onAccepted, null, null, placeholder)),
-            UserPromptSelectorController.Create(static _ => { }),
+            AgentPromptSelectorController.Create(static _ => { }),
             modelProviderSelectorController ?? ModelProviderSelectorController.Create(static _ => { }, static _ => { }, static _ => { }, static () => { }),
             sessionTabHostController ?? SessionTabHostController.Create(static _ => { }),
             projectFileSearchService ?? NullProjectFileSearchService.Instance,

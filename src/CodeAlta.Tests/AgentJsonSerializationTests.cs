@@ -46,6 +46,7 @@ public sealed class AgentJsonSerializationTests
             new AgentRunId("run-1"),
             "session_start",
             "sha256:abc",
+            "default",
             "System text",
             "Developer text",
             new AgentSystemPromptProviderPayloadSummary("native-system-and-developer", true, false),
@@ -58,6 +59,7 @@ public sealed class AgentJsonSerializationTests
 
         Assert.AreEqual("system_prompt", root.GetProperty("$type").GetString());
         Assert.AreEqual("sha256:abc", root.GetProperty("effectivePromptHash").GetString());
+        Assert.AreEqual("default", root.GetProperty("agentPromptId").GetString());
         Assert.AreEqual("System text", root.GetProperty("systemMessage").GetString());
         Assert.AreEqual("native-system-and-developer", root.GetProperty("providerPayloadSummary").GetProperty("channelMapping").GetString());
         Assert.AreEqual(7, root.GetProperty("statistics").GetProperty("totalApproxTokens").GetInt32());

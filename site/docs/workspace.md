@@ -18,7 +18,7 @@ The main screen has four important areas:
 - **Navigator/sidebar**: projects, open sessions, running work, and navigator actions.
 - **Workspace tabs**: session tabs and editor tabs share the same tab strip.
 - **Timeline**: user messages, assistant messages, reasoning/status updates, tool-call chips, results, statistics cards, compaction notices, and modified-file summaries.
-- **Prompt/footer**: prompt editor, queue strip, **Prompt:** profile selector, provider/model/reasoning selectors, context usage, compact button, and status text.
+- **Prompt/footer**: prompt editor, queue strip, **Agent:** profile selector, provider/model/reasoning selectors, context usage, compact button, and status text.
 
 > [!TIP]
 > Press `F1`, type `/help`, or type `?` when you are unsure where an action lives. Help and command discovery are designed to return you to the prompt quickly.
@@ -81,14 +81,14 @@ Use `F3` / `F4` to jump between previous and next user or assistant messages. Us
 
 Press `Enter` to send and `Shift+Enter` for a new line. If the selected session is busy, `Enter` adds the prompt to the waiting list instead of dropping it. Queued prompts can be edited, repeated, steered immediately when supported, deleted, or cleared with `F10`.
 
-The footer **Prompt:** selector chooses the user prompt profile for the current draft/session. Built-in prompts appear first, followed by global `~/.alta/prompts/developer` prompts and project `.alta/prompts/developer` prompts. Global/project prompts with the same file id override lower-precedence prompts; see [Prompts and Instructions]({{site.basepath}}/docs/prompts/).
+The footer **Agent:** selector chooses the agent prompt profile for the current draft/session. Built-in prompts appear first, followed by global `~/.alta/prompts/agents` prompts and project `.alta/prompts/agents` prompts. Global/project prompts with the same file id override lower-precedence prompts; see [Prompts and Instructions]({{site.basepath}}/docs/prompts/).
 
 `Ctrl+Enter` steers a running provider session. If the provider cannot steer live, CodeAlta re-queues the prompt for the next normal turn.
 
 Use `F6` or the **Full Prompt** action to open a larger prompt editor. `Enter`, `Esc`, or `Ctrl+Enter` closes it and keeps your draft.
 
 <figure class="my-4">
-  <img class="img-fluid rounded-4 shadow" src="{{site.basepath}}/img/alta-system-prompt-and-user-prompt.png" alt="CodeAlta timeline showing system prompt details and a user prompt" loading="lazy">
+  <img class="img-fluid rounded-4 shadow" src="{{site.basepath}}/img/alta-system-prompt-and-user-prompt.png" alt="CodeAlta timeline showing system prompt details and an agent prompt" loading="lazy">
   <figcaption class="small text-secondary mt-2">Prompt and system-prompt details are visible in the timeline so you can review what context was sent.</figcaption>
 </figure>
 
@@ -137,7 +137,7 @@ Open it with `Ctrl+G Ctrl+R` or the provider summary. Use it to enable providers
 
 ## Prompt manager
 
-Open it with `Ctrl+G Ctrl+H` or `/prompt`. The dialog opens on the **Prompt** tab, which lists built-in, global, and project user prompts, shows which prompts are shadowed by overrides, and edits the selected prompt on the right. User prompt properties are `name`, `description`, `system`, and the Markdown body. The **System Prompt** tab lists system prompt files with the same override rules and lets you edit only global/project override bodies. Built-in prompts are displayed for inspection but are read-only; create a global or project prompt/system prompt with the same id to override one.
+Open it with `Ctrl+G Ctrl+H` or `/prompt`. The dialog opens on **Agent Prompts**, which lists built-in, global, and project agent prompts, shows which prompts are shadowed by overrides, and edits the selected prompt on the right. Agent prompt properties are `name`, `description`, `system`, and the Markdown body. The **System Prompt** tab lists system prompt files with the same override rules and lets you edit only global/project override bodies. Built-in prompts are displayed for inspection but are read-only; create a global or project prompt/system prompt with the same id to override one.
 
 ## Model browser
 

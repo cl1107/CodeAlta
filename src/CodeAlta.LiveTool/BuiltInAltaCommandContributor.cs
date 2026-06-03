@@ -51,7 +51,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         Mutating("project upsert", requiresRuntime: false, supportsCatalogOnlyContext: true),
         Read("session current", supportsCatalogOnlyContext: true),
         Read("session list"),
-        Read("session show"),
+        Read("session info"),
         Read("session status"),
         Read("session result"),
         Read("session report"),
@@ -64,6 +64,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         Mutating("session send"),
         Mutating("session steer"),
         Mutating("session queue"),
+        Mutating("session set_agent"),
         Disruptive("session abort"),
         Mutating("session compact"),
         Read("session join"),
@@ -305,7 +306,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         var group = Group("session", "Inspect, create, and control CodeAlta work sessions.");
         group.Add(CreateSessionCurrentCommand(context));
         group.Add(CreateSessionListCommand(context));
-        group.Add(CreateSessionShowCommand(context));
+        group.Add(CreateSessionInfoCommand(context));
         group.Add(CreateSessionStatusCommand(context));
         group.Add(CreateSessionResultCommand(context));
         group.Add(CreateSessionReportCommand(context));
@@ -318,6 +319,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         group.Add(CreateSessionSendCommand(context));
         group.Add(CreateSessionSteerCommand(context));
         group.Add(CreateSessionQueueCommand(context));
+        group.Add(CreateSessionSetAgentCommand(context));
         group.Add(CreateSessionAbortCommand(context));
         group.Add(CreateSessionCompactCommand(context));
         group.Add(CreateSessionJoinCommand(context));
@@ -363,12 +365,13 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         return command;
     }
 
-    private static Command CreateSessionShowCommand(AltaCommandContext context)
+    private static Command CreateSessionInfoCommand(AltaCommandContext context)
     {
         string? sessionId = null;
-        var command = Leaf("show", "Show one session descriptor and live status.");
-        command.Add("<session-id>", "CodeAlta session id.", value => sessionId = value);
-        command.Add(async (_, _) => await HandleSessionShowAsync(context, sessionId, "alta.session.detail").ConfigureAwait(false));
+        var command = Leaf("info", "Show one session's agent prompt, model selection, status, and timestamps.");
+        command.Add("<session-id>?", "CodeAlta session id. Defaults to the calling agent session when omitted.", value => sessionId = value);
+        command.Add(async (_, _) => await HandleSessionShowAsync(context, FirstNonEmpty(sessionId, context.Caller.SourceSessionId), "alta.session.info").ConfigureAwait(false));
+        AddHelpText(command, "Examples: `alta session info`; `alta session info <session-id>`.");
         return command;
     }
 
@@ -500,7 +503,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         AddHelpText(
             command,
             "Examples:",
-            "  `alta session create --project CodeAlta --reasoning low`",
+            "  `alta session create --project CodeAlta --prompt-id default --reasoning low`",
             "  `alta session create --project CodeAlta --same-model-as <session-id>`",
             "  `alta session create --global --model-ref codex:gpt-5.5@high`");
         return command;
@@ -513,10 +516,10 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         var command = Leaf("send", "Submit a normal prompt to a session and return run metadata.");
         command.Add("<session-id>", "CodeAlta session id.", value => sessionId = value);
         AddMessageOptions(command, options);
-        command.Add("prompt-id=", "User prompt id for this send/session, as shown by `alta prompt list`. Defaults unchanged when omitted.", value => options.PromptId = value);
+        command.Add("prompt-id=", "Agent prompt id for this send/session, as shown by `alta prompt list`. Defaults unchanged when omitted.", value => options.PromptId = value);
         command.Add("queue-if-busy", "Queue instead of failing when the target is busy, if a queue service is available.", value => options.QueueIfBusy = value is not null);
         command.Add(async (_, _) => await HandleSessionSendAsync(context, sessionId, options, PromptDispatchKind.Send).ConfigureAwait(false));
-        AddHelpText(command, "Examples: `alta session send <session-id> --message \"Summarize status\"`; prefer `--stdin` for multi-line prompts.", "Use `--prompt-id <id>` to select a user prompt from `alta prompt list`; omit it to keep the current/default prompt selection.");
+        AddHelpText(command, "Examples: `alta session send <session-id> --message \"Summarize status\"`; prefer `--stdin` for multi-line prompts.", "Use `--prompt-id <id>` to select an agent prompt from `alta prompt list`; omit it to keep the current/default prompt selection.");
         return command;
     }
 
@@ -540,6 +543,18 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         command.Add("<session-id>", "CodeAlta session id.", value => sessionId = value);
         AddMessageOptions(command, options);
         command.Add(async (_, _) => await HandleSessionSendAsync(context, sessionId, options, PromptDispatchKind.Queue).ConfigureAwait(false));
+        return command;
+    }
+
+    private static Command CreateSessionSetAgentCommand(AltaCommandContext context)
+    {
+        string? sessionId = null;
+        string? promptId = null;
+        var command = Leaf("set_agent", "Set the agent prompt-id used by a session for subsequent runs.");
+        command.Add("<session-id>?", "CodeAlta session id. Defaults to the calling agent session when omitted.", value => sessionId = value);
+        command.Add("prompt-id=", "Agent prompt id from `alta prompt list`. Use `default` to restore the default agent prompt.", value => promptId = value);
+        command.Add(async (_, _) => await HandleSessionSetAgentAsync(context, FirstNonEmpty(sessionId, context.Caller.SourceSessionId), promptId).ConfigureAwait(false));
+        AddHelpText(command, "Examples: `alta session set_agent --prompt-id reviewer`; `alta session set_agent <session-id> --prompt-id default`.");
         return command;
     }
 
@@ -969,16 +984,16 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
     private static Command CreatePromptCommand(AltaCommandContext context)
     {
-        var group = Group("prompt", "List, inspect, and manage file-backed user or system prompts.");
+        var group = Group("prompt", "List, inspect, and manage file-backed agent or system prompts.");
         group.Add(CreatePromptListCommand(context));
         group.Add(CreatePromptShowCommand(context));
         group.Add(CreatePromptCreateCommand(context));
         group.Add(CreatePromptEditCommand(context));
         AddHelpText(
             group,
-            "User prompts live under prompts/developer/*.prompt.md and can choose a system prompt. System prompts live under prompts/system/*.system-prompt.md.",
-            "Default target is user prompts; add `--system` for system prompts. `--scope` accepts global, project, builtin, or all and defaults to all.",
-            "LLM workflow: run `alta prompt list` to find a prompt-id, optionally `alta prompt show <prompt-id>`, then pass it to `alta session send <session-id> --prompt-id <prompt-id> ...`.",
+            "Agent prompts live under prompts/agents/*.prompt.md and can choose a system prompt. System prompts live under prompts/system/*.system-prompt.md.",
+            "Default target is agent prompts; add `--system` for system prompts. `--scope` accepts global, project, builtin, or all and defaults to all.",
+            "LLM workflow: run `alta prompt list` to find an agent prompt-id, optionally `alta prompt show <prompt-id>`, then use it with `alta session set_agent --prompt-id <prompt-id>` or one send via `alta session send <session-id> --prompt-id <prompt-id> ...`.",
             "Examples:",
             "  `alta prompt list --scope all`",
             "  `alta prompt list --system --verbose --scope project`",
@@ -1013,14 +1028,14 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
     {
         string? promptId = null;
         var options = new PromptManagementOptions { Scope = "global" };
-        var command = Leaf("create", "Create a complete global/project user or system prompt file without overwriting an existing file.");
+        var command = Leaf("create", "Create a complete global/project agent or system prompt file without overwriting an existing file.");
         command.Add("<prompt-id>", "Prompt id/file stem to create. Do not include directory separators or file suffixes.", value => promptId = value);
         AddPromptManagementOptions(command, options, includeVerbose: false, includeContentInput: true);
-        command.Add("name=", "Display name for a user prompt; defaults to the prompt id. For --system, optional metadata name.", value => options.Name = value);
+        command.Add("name=", "Display name for an agent prompt; defaults to the prompt id. For --system, optional metadata name.", value => options.Name = value);
         command.Add("description=", "Optional prompt description metadata.", value => options.Description = value);
-        command.Add("system-prompt-id=", "System prompt id selected by a user prompt. Defaults to `default`. Ignored with --system.", value => options.SystemPromptId = value);
+        command.Add("system-prompt-id=", "System prompt id selected by an agent prompt. Defaults to `default`. Ignored with --system.", value => options.SystemPromptId = value);
         command.Add(async (_, _) => await HandlePromptCreateAsync(context, promptId, options).ConfigureAwait(false));
-        AddHelpText(command, "Create requires --content or --stdin for the prompt body. User prompts write required frontmatter automatically; system prompts write optional name/description frontmatter when provided. Use `alta prompt edit` to replace an existing file.");
+        AddHelpText(command, "Create requires --content or --stdin for the prompt body. Agent prompts write required frontmatter automatically; system prompts write optional name/description frontmatter when provided. Use `alta prompt edit` to replace an existing file.");
         return command;
     }
 
@@ -1040,7 +1055,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
     {
         command.Add("scope=", "Prompt source scope: global, project, builtin, or all. List/show default all; edit default global and only allows global/project.", value => options.Scope = ValidatePromptScope(value));
         command.Add("project=", "Project id, slug, or path for project-local prompts. Defaults to caller project, matching cwd catalog project, or cwd.", value => options.Project = value);
-        command.Add("system", "Target system prompts under system/*.system-prompt.md. Omit for user prompts under developer/*.prompt.md.", value => options.System = value is not null);
+        command.Add("system", "Target system prompts under system/*.system-prompt.md. Omit for agent prompts under agents/*.prompt.md.", value => options.System = value is not null);
         if (includeVerbose)
         {
             command.Add("verbose", "Include full prompt content/body in prompt records.", value => options.Verbose = value is not null);
@@ -1124,6 +1139,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         command.Add("provider=", "Provider id.", value => options.ProviderKey = value);
         command.Add("model=", "Model id.", value => options.ModelId = value);
         command.Add("reasoning=", "Reasoning effort: minimal, low, medium, high, xhigh, or none.", value => options.ReasoningEffort = ParseReasoningOption(value));
+        command.Add("prompt-id=", "Agent prompt id from `alta prompt list`. Defaults to `default` for new sessions.", value => options.PromptId = value);
     }
 
     private static AgentReasoningEffort? ParseReasoningOption(string? value)
@@ -1412,10 +1428,10 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
     {
         if (string.IsNullOrWhiteSpace(sessionId))
         {
-            return UsageError(context, "usage.missingSession", "Session id is required.", "alta session show");
+            return UsageError(context, "usage.missingSession", "Session id is required.", "alta session info");
         }
 
-        var infoResult = await ResolveSessionInfoAsync(context, sessionId, includeLocalState: recordType == "alta.session.detail").ConfigureAwait(false);
+        var infoResult = await ResolveSessionInfoAsync(context, sessionId, includeLocalState: recordType is "alta.session.info" or "alta.session.detail").ConfigureAwait(false);
         if (infoResult.ExitCode != AltaExitCodes.Success)
         {
             return infoResult.ExitCode;
@@ -1423,7 +1439,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
         var info = infoResult.Info!;
 
-        var metrics = recordType == "alta.session.detail"
+        var metrics = recordType is "alta.session.info" or "alta.session.detail"
             ? await BuildCompactMetricsAsync(context, info).ConfigureAwait(false)
             : null;
         WriteSession(context, recordType, info, includeChildren: true, infoResult.Infos, metrics);
@@ -1648,7 +1664,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         }
 
         var info = infoResult.Info!;
-        WriteModelSelection(context, "alta.model.selection", CreateModelSelection(info.Session, info.Preference), info.Session.SessionId);
+        WriteModelSelection(context, "alta.model.selection", CreateModelSelection(info.Session, info.Preference), info.Session.SessionId, info.Session.AgentPromptId);
         return AltaExitCodes.Success;
     }
 
@@ -1887,7 +1903,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             providerTotals,
             StatusWire(status),
             status is SessionResultStatus.Failed or SessionResultStatus.Cancelled ? CreateFinalError(finalError!) : null,
-            ToModelSelectionPayload(CreateModelSelection(info.Session, info.Preference)));
+            ToModelSelectionPayload(CreateModelSelection(info.Session, info.Preference), info.Session.AgentPromptId));
     }
 
     private static SessionResultStatus DetermineResultStatus(AltaSessionInfo info, AgentContentCompletedEvent? finalAssistant, AgentErrorEvent? finalError)
@@ -2059,6 +2075,13 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return modelSelection.ExitCode;
         }
 
+        var promptId = NormalizeOptionalText(options.Model.PromptId) ?? AgentPromptCatalog.DefaultPromptName;
+        var promptValidationExitCode = await ValidateAgentPromptIdAsync(context, project, promptId).ConfigureAwait(false);
+        if (promptValidationExitCode != AltaExitCodes.Success)
+        {
+            return promptValidationExitCode;
+        }
+
         var workingDirectory = project?.ProjectPath ?? GetGlobalRootOrCwd(context);
         string? createdSessionId = null;
         var createdBy = CreateProvenance(context);
@@ -2068,7 +2091,8 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             workingDirectory,
             project is null ? [] : [project.ProjectPath],
             () => createdSessionId,
-            project?.Id);
+            project?.Id,
+            promptId);
 
         SessionViewDescriptor session;
         if (project is null)
@@ -2083,8 +2107,9 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         createdSessionId = session.SessionId;
         session.ParentSessionId = parentResolution.ParentSessionId;
         session.CreatedBy = createdBy;
+        session.AgentPromptId = promptId;
         await runtime.PersistSessionLocalStateAsync(session, context.CancellationToken).ConfigureAwait(false);
-        await PersistSessionPreferenceAsync(context, session, modelSelection.Selection!).ConfigureAwait(false);
+        await PersistSessionPreferenceAsync(context, session, modelSelection.Selection!, promptId).ConfigureAwait(false);
 
         AltaJsonlWriter.WriteRecord(context.Stdout, new
         {
@@ -2098,7 +2123,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             title = session.Title,
             parentSessionId = session.ParentSessionId,
             createdBy = session.CreatedBy,
-            modelSelection = ToModelSelectionPayload(modelSelection.Selection!),
+            modelSelection = ToModelSelectionPayload(modelSelection.Selection!, promptId),
         });
         return AltaExitCodes.Success;
     }
@@ -2137,7 +2162,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             : promptResult.Prompt!;
         if (!string.IsNullOrWhiteSpace(options.PromptId))
         {
-            var validationExitCode = await ValidateSessionUserPromptIdAsync(context, info, options.PromptId).ConfigureAwait(false);
+            var validationExitCode = await ValidateSessionAgentPromptIdAsync(context, info, options.PromptId).ConfigureAwait(false);
             if (validationExitCode != AltaExitCodes.Success)
             {
                 return validationExitCode;
@@ -2219,6 +2244,54 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         {
             return Unsupported(context, "session.steerUnsupported", ex.Message);
         }
+    }
+
+    private static async ValueTask<int> HandleSessionSetAgentAsync(AltaCommandContext context, string? sessionId, string? promptId)
+    {
+        if (string.IsNullOrWhiteSpace(sessionId))
+        {
+            return UsageError(context, "usage.missingSession", "Session id is required outside a session caller.", "alta session set_agent");
+        }
+
+        if (string.IsNullOrWhiteSpace(promptId))
+        {
+            return UsageError(context, "usage.missingPrompt", "--prompt-id is required.", "alta session set_agent");
+        }
+
+        if (!context.TryGetRequired<SessionRuntimeService>(nameof(SessionRuntimeService), out var runtime))
+        {
+            return AltaExitCodes.ServiceUnavailable;
+        }
+
+        var infoResult = await ResolveSessionInfoAsync(context, sessionId).ConfigureAwait(false);
+        if (infoResult.ExitCode != AltaExitCodes.Success)
+        {
+            return infoResult.ExitCode;
+        }
+
+        var info = infoResult.Info!;
+        var normalizedPromptId = NormalizeOptionalText(promptId) ?? AgentPromptCatalog.DefaultPromptName;
+        var validationExitCode = await ValidateSessionAgentPromptIdAsync(context, info, normalizedPromptId).ConfigureAwait(false);
+        if (validationExitCode != AltaExitCodes.Success)
+        {
+            return validationExitCode;
+        }
+
+        info.Session.AgentPromptId = normalizedPromptId;
+        await runtime.PersistSessionLocalStateAsync(info.Session, context.CancellationToken).ConfigureAwait(false);
+        await PersistSessionPreferenceAsync(context, info.Session, CreateModelSelection(info.Session, info.Preference), normalizedPromptId).ConfigureAwait(false);
+
+        AltaJsonlWriter.WriteRecord(context.Stdout, new
+        {
+            type = "alta.session.agent_set",
+            version = 1,
+            correlationId = context.CorrelationId,
+            sessionId = info.Session.SessionId,
+            promptId = normalizedPromptId,
+            agentPromptId = normalizedPromptId,
+            modelSelection = ToModelSelectionPayload(CreateModelSelection(info.Session, info.Preference), normalizedPromptId),
+        });
+        return AltaExitCodes.Success;
     }
 
     private static async ValueTask<int> HandleSessionAbortAsync(AltaCommandContext context, string? sessionId, string? reason)
@@ -2412,10 +2485,10 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return queryResult.ExitCode;
         }
 
-        var catalog = new UserPromptCatalog();
+        var catalog = new AgentPromptCatalog();
         var records = options.System
             ? catalog.ListSystemPrompts(queryResult.Query!).Where(prompt => ScopeMatches(options.Scope, prompt.SourceKind)).Select(prompt => CreateSystemPromptRecord(context, prompt, options.Verbose))
-            : catalog.ListPrompts(queryResult.Query!).Where(prompt => ScopeMatches(options.Scope, prompt.SourceKind)).Select(prompt => CreateUserPromptRecord(context, prompt, options.Verbose));
+            : catalog.ListPrompts(queryResult.Query!).Where(prompt => ScopeMatches(options.Scope, prompt.SourceKind)).Select(prompt => CreateAgentPromptRecord(context, prompt, options.Verbose));
         var count = 0;
         foreach (var record in records)
         {
@@ -2440,7 +2513,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return queryResult.ExitCode;
         }
 
-        var catalog = new UserPromptCatalog();
+        var catalog = new AgentPromptCatalog();
         if (options.System)
         {
             var prompt = SelectPromptForShow(catalog.ListSystemPrompts(queryResult.Query!), promptId.Trim(), options.Scope);
@@ -2453,13 +2526,13 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return AltaExitCodes.Success;
         }
 
-        var userPrompt = SelectPromptForShow(catalog.ListPrompts(queryResult.Query!), promptId.Trim(), options.Scope);
-        if (userPrompt is null)
+        var agentPrompt = SelectPromptForShow(catalog.ListPrompts(queryResult.Query!), promptId.Trim(), options.Scope);
+        if (agentPrompt is null)
         {
-            return NotFound(context, "prompt.notFound", $"User prompt '{promptId}' was not found in scope '{options.Scope}'.");
+            return NotFound(context, "prompt.notFound", $"Agent prompt '{promptId}' was not found in scope '{options.Scope}'.");
         }
 
-        AltaJsonlWriter.WriteRecord(context.Stdout, CreateUserPromptRecord(context, userPrompt, includeContent: true));
+        AltaJsonlWriter.WriteRecord(context.Stdout, CreateAgentPromptRecord(context, agentPrompt, includeContent: true));
         return AltaExitCodes.Success;
     }
 
@@ -2508,10 +2581,10 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return queryResult.ExitCode;
         }
 
-        var catalog = new UserPromptCatalog();
+        var catalog = new AgentPromptCatalog();
         var directory = options.Scope == "project"
-            ? options.System ? catalog.ResolveProjectSystemPromptDirectory(queryResult.Query!) : AppendPromptSubdirectory(catalog.ResolveProjectPromptDirectory(queryResult.Query!), "developer")
-            : options.System ? catalog.ResolveUserSystemPromptDirectory(queryResult.Query!) : Path.Combine(catalog.ResolveUserPromptDirectory(queryResult.Query!), "developer");
+            ? options.System ? catalog.ResolveProjectSystemPromptDirectory(queryResult.Query!) : AppendPromptSubdirectory(catalog.ResolveProjectPromptDirectory(queryResult.Query!), "agents")
+            : options.System ? catalog.ResolveGlobalSystemPromptDirectory(queryResult.Query!) : Path.Combine(catalog.ResolveGlobalPromptDirectory(queryResult.Query!), "agents");
         if (string.IsNullOrWhiteSpace(directory))
         {
             return UsageError(context, "usage.missingProject", "Project prompt creation requires a project root. Provide --project or invoke from a project directory.", CommandPath);
@@ -2527,10 +2600,10 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
         var name = NormalizeOptionalText(options.Name) ?? normalizedPromptId;
         var description = NormalizeOptionalText(options.Description);
-        var systemPromptId = NormalizeOptionalText(options.SystemPromptId) ?? UserPromptCatalog.DefaultPromptName;
+        var systemPromptId = NormalizeOptionalText(options.SystemPromptId) ?? AgentPromptCatalog.DefaultPromptName;
         var content = options.System
             ? BuildSystemPromptCreateFile(body, NormalizeOptionalText(options.Name), description)
-            : BuildUserPromptCreateFile(name, description, systemPromptId, body);
+            : BuildAgentPromptCreateFile(name, description, systemPromptId, body);
         Directory.CreateDirectory(directory);
         await File.WriteAllTextAsync(path, content, context.CancellationToken).ConfigureAwait(false);
 
@@ -2586,10 +2659,10 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return queryResult.ExitCode;
         }
 
-        var catalog = new UserPromptCatalog();
+        var catalog = new AgentPromptCatalog();
         var directory = options.Scope == "project"
-            ? options.System ? catalog.ResolveProjectSystemPromptDirectory(queryResult.Query!) : AppendPromptSubdirectory(catalog.ResolveProjectPromptDirectory(queryResult.Query!), "developer")
-            : options.System ? catalog.ResolveUserSystemPromptDirectory(queryResult.Query!) : Path.Combine(catalog.ResolveUserPromptDirectory(queryResult.Query!), "developer");
+            ? options.System ? catalog.ResolveProjectSystemPromptDirectory(queryResult.Query!) : AppendPromptSubdirectory(catalog.ResolveProjectPromptDirectory(queryResult.Query!), "agents")
+            : options.System ? catalog.ResolveGlobalSystemPromptDirectory(queryResult.Query!) : Path.Combine(catalog.ResolveGlobalPromptDirectory(queryResult.Query!), "agents");
         if (string.IsNullOrWhiteSpace(directory))
         {
             return UsageError(context, "usage.missingProject", "Project prompt editing requires a project root. Provide --project or invoke from a project directory.", "alta prompt edit");
@@ -2877,7 +2950,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return result.ExitCode;
         }
 
-        WriteModelSelection(context, "alta.model.selection", result.Selection!, sessionId: null);
+        WriteModelSelection(context, "alta.model.selection", result.Selection!, sessionId: null, options.PromptId);
         return AltaExitCodes.Success;
     }
 
@@ -3182,7 +3255,8 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         string workingDirectory,
         IReadOnlyList<string> projectRoots,
         Func<string?>? sourceSessionIdProvider,
-        string? sourceProjectId)
+        string? sourceProjectId,
+        string? promptId = null)
         => new()
         {
             ProviderId = new ModelProviderId(selection.ProviderKey),
@@ -3191,6 +3265,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             ProjectRoots = projectRoots,
             Model = selection.ModelId,
             ReasoningEffort = selection.ReasoningEffort,
+            AgentPromptId = NormalizeOptionalText(promptId),
             Tools = CreateAltaSessionTools(context, selection.ProviderKey, sourceSessionIdProvider, sourceProjectId, workingDirectory),
             OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
             OnUserInputRequest = static (_, _) => Task.FromResult(new AgentUserInputResponse(new Dictionary<string, string>(StringComparer.Ordinal))),
@@ -3218,7 +3293,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             ProjectRoots = projectRoots,
             Model = info.Preference?.ModelId ?? info.Session.ModelId,
             ReasoningEffort = info.Preference?.ReasoningEffort ?? info.Session.ReasoningEffort,
-            UserPromptName = NormalizeOptionalText(promptId),
+            AgentPromptId = NormalizeOptionalText(promptId),
             Tools = CreateAltaSessionTools(context, info.Session.ProviderId, () => info.Session.SessionId, info.Session.ProjectRef, workingDirectory),
             OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
             OnUserInputRequest = static (_, _) => Task.FromResult(new AgentUserInputResponse(new Dictionary<string, string>(StringComparer.Ordinal))),
@@ -3266,6 +3341,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             ProjectRoots = source.ProjectRoots,
             Model = source.Model,
             ReasoningEffort = source.ReasoningEffort,
+            AgentPromptId = source.AgentPromptId,
             Tools = augmentation.Tools ?? source.Tools,
             AdditionalSystemMessage = AppendPromptText(source.AdditionalSystemMessage, augmentation.AdditionalSystemMessage),
             AdditionalDeveloperInstructions = AppendPromptText(source.AdditionalDeveloperInstructions, augmentation.AdditionalDeveloperInstructions),
@@ -3561,7 +3637,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return PromptQueryResult.Fail(projectRoot.ExitCode);
         }
 
-        return PromptQueryResult.Success(new UserPromptCatalogQuery
+        return PromptQueryResult.Success(new AgentPromptCatalogQuery
         {
             ProjectRoot = projectRoot.ProjectRoot,
             ProjectPromptResourcesTrusted = !string.IsNullOrWhiteSpace(projectRoot.ProjectRoot),
@@ -3627,7 +3703,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         return path.StartsWith(rooted, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static async Task<int> ValidateSessionUserPromptIdAsync(AltaCommandContext context, AltaSessionInfo info, string? promptId)
+    private static async Task<int> ValidateSessionAgentPromptIdAsync(AltaCommandContext context, AltaSessionInfo info, string? promptId)
     {
         var queryResult = await BuildPromptQueryAsync(context, info.Session.ProjectRef).ConfigureAwait(false);
         if (queryResult.ExitCode != AltaExitCodes.Success)
@@ -3641,17 +3717,38 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return AltaExitCodes.Success;
         }
 
-        var exists = new UserPromptCatalog()
+        var exists = new AgentPromptCatalog()
             .ListEffectivePrompts(queryResult.Query!)
             .Any(prompt => string.Equals(prompt.PromptName, normalized, StringComparison.OrdinalIgnoreCase));
         return exists
             ? AltaExitCodes.Success
-            : NotFound(context, "prompt.notFound", $"User prompt '{normalized}' was not found. Use `alta prompt list` to discover prompt ids.");
+            : NotFound(context, "prompt.notFound", $"Agent prompt '{normalized}' was not found. Use `alta prompt list` to discover prompt ids.");
     }
 
-    private static Dictionary<string, object?> CreateUserPromptRecord(AltaCommandContext context, UserPromptDescriptor prompt, bool includeContent)
+    private static Task<int> ValidateAgentPromptIdAsync(AltaCommandContext context, ProjectDescriptor? project, string? promptId)
+        => ValidateAgentPromptIdAsync(context, project?.ProjectPath, promptId);
+
+    private static async Task<int> ValidateAgentPromptIdAsync(AltaCommandContext context, string? projectRoot, string? promptId)
     {
-        var record = CreatePromptRecord(context, prompt.PromptName, prompt.DisplayName, prompt.Description, "user", prompt.SourceKind, prompt.SourcePath, prompt.ContentHash, prompt.IsShadowed, prompt.ShadowedByPath);
+        var normalized = NormalizeOptionalText(promptId) ?? AgentPromptCatalog.DefaultPromptName;
+        var query = new AgentPromptCatalogQuery
+        {
+            ProjectRoot = projectRoot,
+            ProjectPromptResourcesTrusted = !string.IsNullOrWhiteSpace(projectRoot),
+            UserCodeAltaRoot = context.Services.Get<CatalogOptions>()?.GlobalRoot ?? GetGlobalRootOrCwd(context),
+            UserProfileRoot = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        };
+        var exists = new AgentPromptCatalog()
+            .ListEffectivePrompts(query)
+            .Any(prompt => string.Equals(prompt.PromptName, normalized, StringComparison.OrdinalIgnoreCase));
+        return exists
+            ? AltaExitCodes.Success
+            : NotFound(context, "prompt.notFound", $"Agent prompt '{normalized}' was not found. Use `alta prompt list` to discover prompt ids.");
+    }
+
+    private static Dictionary<string, object?> CreateAgentPromptRecord(AltaCommandContext context, AgentPromptDescriptor prompt, bool includeContent)
+    {
+        var record = CreatePromptRecord(context, prompt.PromptName, prompt.DisplayName, prompt.Description, "agent", prompt.SourceKind, prompt.SourcePath, prompt.ContentHash, prompt.IsShadowed, prompt.ShadowedByPath);
         record["systemPromptId"] = prompt.SystemPromptName;
         if (includeContent)
         {
@@ -3673,7 +3770,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         return record;
     }
 
-    private static Dictionary<string, object?> CreatePromptRecord(AltaCommandContext context, string promptId, string name, string? description, string promptKind, UserPromptSourceKind sourceKind, string sourcePath, string contentHash, bool isShadowed, string? shadowedByPath)
+    private static Dictionary<string, object?> CreatePromptRecord(AltaCommandContext context, string promptId, string name, string? description, string promptKind, AgentPromptSourceKind sourceKind, string sourcePath, string contentHash, bool isShadowed, string? shadowedByPath)
         => new(StringComparer.Ordinal)
         {
             ["type"] = "alta.prompt",
@@ -3740,7 +3837,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         }
     }
 
-    private static string BuildUserPromptCreateFile(string name, string? description, string systemPromptId, string body)
+    private static string BuildAgentPromptCreateFile(string name, string? description, string systemPromptId, string body)
     {
         var lines = new List<string>
         {
@@ -3752,7 +3849,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             lines.Add("description: " + ToYamlScalar(description!));
         }
 
-        if (!string.Equals(systemPromptId, UserPromptCatalog.DefaultPromptName, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(systemPromptId, AgentPromptCatalog.DefaultPromptName, StringComparison.OrdinalIgnoreCase))
         {
             lines.Add("system: " + ToYamlScalar(systemPromptId));
         }
@@ -3796,13 +3893,13 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             : value;
     }
 
-    private static bool ScopeMatches(string? scope, UserPromptSourceKind sourceKind)
+    private static bool ScopeMatches(string? scope, AgentPromptSourceKind sourceKind)
         => (scope ?? "all") switch
         {
             "all" => true,
-            "builtin" => sourceKind == UserPromptSourceKind.BuiltIn,
-            "global" => sourceKind == UserPromptSourceKind.UserGlobal,
-            "project" => sourceKind == UserPromptSourceKind.Project,
+            "builtin" => sourceKind == AgentPromptSourceKind.BuiltIn,
+            "global" => sourceKind == AgentPromptSourceKind.UserGlobal,
+            "project" => sourceKind == AgentPromptSourceKind.Project,
             _ => true,
         };
 
@@ -3821,23 +3918,23 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
     private static string GetPromptName<TPrompt>(TPrompt prompt)
         => prompt switch
         {
-            UserPromptDescriptor userPrompt => userPrompt.PromptName,
+            AgentPromptDescriptor agentPrompt => agentPrompt.PromptName,
             SystemPromptDescriptor systemPrompt => systemPrompt.PromptName,
             _ => string.Empty,
         };
 
-    private static UserPromptSourceKind GetPromptSourceKind<TPrompt>(TPrompt prompt)
+    private static AgentPromptSourceKind GetPromptSourceKind<TPrompt>(TPrompt prompt)
         => prompt switch
         {
-            UserPromptDescriptor userPrompt => userPrompt.SourceKind,
+            AgentPromptDescriptor agentPrompt => agentPrompt.SourceKind,
             SystemPromptDescriptor systemPrompt => systemPrompt.SourceKind,
-            _ => UserPromptSourceKind.BuiltIn,
+            _ => AgentPromptSourceKind.BuiltIn,
         };
 
     private static int GetPromptPrecedence<TPrompt>(TPrompt prompt)
         => prompt switch
         {
-            UserPromptDescriptor userPrompt => userPrompt.Precedence,
+            AgentPromptDescriptor agentPrompt => agentPrompt.Precedence,
             SystemPromptDescriptor systemPrompt => systemPrompt.Precedence,
             _ => 0,
         };
@@ -3845,26 +3942,26 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
     private static bool GetPromptIsShadowed<TPrompt>(TPrompt prompt)
         => prompt switch
         {
-            UserPromptDescriptor userPrompt => userPrompt.IsShadowed,
+            AgentPromptDescriptor agentPrompt => agentPrompt.IsShadowed,
             SystemPromptDescriptor systemPrompt => systemPrompt.IsShadowed,
             _ => false,
         };
 
-    private static string ToPromptSourceLabel(UserPromptSourceKind sourceKind)
+    private static string ToPromptSourceLabel(AgentPromptSourceKind sourceKind)
         => sourceKind switch
         {
-            UserPromptSourceKind.BuiltIn => "built-in",
-            UserPromptSourceKind.UserGlobal => "user-global",
-            UserPromptSourceKind.Project => "project",
+            AgentPromptSourceKind.BuiltIn => "built-in",
+            AgentPromptSourceKind.UserGlobal => "user-global",
+            AgentPromptSourceKind.Project => "project",
             _ => sourceKind.ToString(),
         };
 
-    private static string ToPromptScopeLabel(UserPromptSourceKind sourceKind)
+    private static string ToPromptScopeLabel(AgentPromptSourceKind sourceKind)
         => sourceKind switch
         {
-            UserPromptSourceKind.BuiltIn => "builtin",
-            UserPromptSourceKind.UserGlobal => "global",
-            UserPromptSourceKind.Project => "project",
+            AgentPromptSourceKind.BuiltIn => "builtin",
+            AgentPromptSourceKind.UserGlobal => "global",
+            AgentPromptSourceKind.Project => "project",
             _ => sourceKind.ToString().ToLowerInvariant(),
         };
 
@@ -4068,7 +4165,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             _ => "alta session send",
         };
 
-    private static async Task PersistSessionPreferenceAsync(AltaCommandContext context, SessionViewDescriptor session, AltaModelSelection selection)
+    private static async Task PersistSessionPreferenceAsync(AltaCommandContext context, SessionViewDescriptor session, AltaModelSelection selection, string? promptId)
     {
         if (context.Services.Get<SessionViewCatalog>() is not { } sessionCatalog)
         {
@@ -4081,6 +4178,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         state.ProviderKey = selection.ProviderKey;
         state.ModelId = selection.ModelId;
         state.ReasoningEffort = selection.ReasoningEffort;
+        state.AgentPromptId = NormalizeOptionalText(promptId) ?? NormalizeOptionalText(session.AgentPromptId) ?? AgentPromptCatalog.DefaultPromptName;
         await sessionCatalog.JournalStore.AppendStateAsync(session, state, context.CancellationToken).ConfigureAwait(false);
     }
 
@@ -4308,7 +4406,9 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             messageCount = info.Session.MessageCount,
             isRunning = info.IsRunning,
             queuedPromptCount = info.LocalState?.QueuedPrompts.Count(static prompt => IsPendingQueuedPromptState(prompt.State)) ?? 0,
-            modelSelection = ToModelSelectionPayload(CreateModelSelection(info.Session, info.Preference)),
+            agentPromptId = NormalizeOptionalText(info.Session.AgentPromptId) ?? AgentPromptCatalog.DefaultPromptName,
+            promptId = NormalizeOptionalText(info.Session.AgentPromptId) ?? AgentPromptCatalog.DefaultPromptName,
+            modelSelection = ToModelSelectionPayload(CreateModelSelection(info.Session, info.Preference), info.Session.AgentPromptId),
             createdAt = info.Session.CreatedAt,
             updatedAt = info.Session.UpdatedAt,
             lastActiveAt = info.Session.LastActiveAt,
@@ -4499,7 +4599,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         => string.Equals(state, "queued", StringComparison.OrdinalIgnoreCase) ||
            string.Equals(state, "submitting", StringComparison.OrdinalIgnoreCase);
 
-    private static void WriteModelSelection(AltaCommandContext context, string type, AltaModelSelection selection, string? sessionId)
+    private static void WriteModelSelection(AltaCommandContext context, string type, AltaModelSelection selection, string? sessionId, string? promptId = null)
     {
         AltaJsonlWriter.WriteRecord(context.Stdout, new
         {
@@ -4511,16 +4611,20 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             selection.ModelId,
             reasoningEffort = selection.ReasoningEffort is null ? null : AltaModelRef.ToWireName(selection.ReasoningEffort.Value),
             selection.ModelRef,
+            promptId = NormalizeOptionalText(promptId) ?? AgentPromptCatalog.DefaultPromptName,
+            agentPromptId = NormalizeOptionalText(promptId) ?? AgentPromptCatalog.DefaultPromptName,
         });
     }
 
-    private static object ToModelSelectionPayload(AltaModelSelection selection)
+    private static object ToModelSelectionPayload(AltaModelSelection selection, string? promptId = null)
         => new
         {
             selection.ProviderKey,
             selection.ModelId,
             reasoningEffort = selection.ReasoningEffort is null ? null : AltaModelRef.ToWireName(selection.ReasoningEffort.Value),
             selection.ModelRef,
+            promptId = NormalizeOptionalText(promptId) ?? AgentPromptCatalog.DefaultPromptName,
+            agentPromptId = NormalizeOptionalText(promptId) ?? AgentPromptCatalog.DefaultPromptName,
         };
 
     private static void WriteAgentEvent(AltaCommandContext context, SessionViewDescriptor session, AgentEvent agentEvent, long sequenceNumber, IReadOnlySet<string>? fields = null)
@@ -5089,6 +5193,8 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         public string? ModelId { get; set; }
 
         public AgentReasoningEffort? ReasoningEffort { get; set; }
+
+        public string? PromptId { get; set; }
     }
 
     private sealed class SessionCreateOptions
@@ -5313,9 +5419,9 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         public static SkillQueryResult Fail(int exitCode) => new(exitCode, null);
     }
 
-    private sealed record PromptQueryResult(int ExitCode, UserPromptCatalogQuery? Query)
+    private sealed record PromptQueryResult(int ExitCode, AgentPromptCatalogQuery? Query)
     {
-        public static PromptQueryResult Success(UserPromptCatalogQuery query) => new(AltaExitCodes.Success, query);
+        public static PromptQueryResult Success(AgentPromptCatalogQuery query) => new(AltaExitCodes.Success, query);
 
         public static PromptQueryResult Fail(int exitCode) => new(exitCode, null);
     }

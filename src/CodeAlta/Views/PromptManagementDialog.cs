@@ -29,7 +29,7 @@ internal sealed class PromptManagementDialog
     private readonly Func<Visual?> _getFocusTarget;
     private readonly Action _onPromptsChanged;
     private readonly Action<string, StatusTone> _setStatus;
-    private readonly UserPromptCatalog _promptCatalog;
+    private readonly AgentPromptCatalog _promptCatalog;
     private readonly OptionList<PromptRow> _promptList;
     private readonly OptionList<SystemPromptRow> _systemPromptList;
     private readonly TextBox _nameBox;
@@ -44,13 +44,13 @@ internal sealed class PromptManagementDialog
     private IReadOnlyList<SystemPromptRow> _systemRows = [];
     private PromptRow? _selectedRow;
     private SystemPromptRow? _selectedSystemRow;
-    private PromptResourceTab _activeTab = PromptResourceTab.UserPrompt;
+    private PromptResourceTab _activeTab = PromptResourceTab.AgentPrompt;
     private bool _loadingSelection;
     private bool _suppressTabSelectionChanged;
     private bool _suppressEditorChanged;
     private string _loadedName = string.Empty;
     private string? _loadedDescription;
-    private string _loadedSystem = UserPromptCatalog.DefaultPromptName;
+    private string _loadedSystem = AgentPromptCatalog.DefaultPromptName;
     private string _loadedBody = string.Empty;
 
     public PromptManagementDialog(
@@ -60,7 +60,7 @@ internal sealed class PromptManagementDialog
         Func<Visual?> getFocusTarget,
         Action onPromptsChanged,
         Action<string, StatusTone> setStatus,
-        UserPromptCatalog? promptCatalog = null)
+        AgentPromptCatalog? promptCatalog = null)
     {
         ArgumentNullException.ThrowIfNull(catalogOptions);
         ArgumentNullException.ThrowIfNull(getSelectedProject);
@@ -75,7 +75,7 @@ internal sealed class PromptManagementDialog
         _getFocusTarget = getFocusTarget;
         _onPromptsChanged = onPromptsChanged;
         _setStatus = setStatus;
-        _promptCatalog = promptCatalog ?? new UserPromptCatalog();
+        _promptCatalog = promptCatalog ?? new AgentPromptCatalog();
 
         _promptList = new OptionList<PromptRow>()
             .ActivateOnClick(false)
@@ -84,7 +84,7 @@ internal sealed class PromptManagementDialog
         _promptList.ItemTemplate = new DataTemplate<PromptRow>(
             static (DataTemplateValue<PromptRow> value, in DataTemplateContext _) => BuildPromptRowVisual(value.GetValue()),
             null);
-        _promptList.SelectionChanged((_, e) => OnPromptSelectionChanged(e.OldIndex, e.NewIndex));
+        _promptList.SelectionChanged((_, e) => OnAgentPromptSelectionChanged(e.OldIndex, e.NewIndex));
         _promptList.AddCommand(new Command
         {
             Id = "CodeAlta.Prompts.Delete",
@@ -116,15 +116,15 @@ internal sealed class PromptManagementDialog
         _nameBox = new TextBox()
             .Placeholder("Display name")
             .HorizontalAlignment(Align.Stretch)
-            .IsEnabled(() => _activeTab == PromptResourceTab.UserPrompt && !IsSelectedReadOnly());
+            .IsEnabled(() => _activeTab == PromptResourceTab.AgentPrompt && !IsSelectedReadOnly());
         _descriptionBox = new TextBox()
             .Placeholder("Optional description")
             .HorizontalAlignment(Align.Stretch)
-            .IsEnabled(() => _activeTab == PromptResourceTab.UserPrompt && !IsSelectedReadOnly());
+            .IsEnabled(() => _activeTab == PromptResourceTab.AgentPrompt && !IsSelectedReadOnly());
         _systemBox = new TextBox()
-            .Placeholder(UserPromptCatalog.DefaultPromptName)
+            .Placeholder(AgentPromptCatalog.DefaultPromptName)
             .HorizontalAlignment(Align.Stretch)
-            .IsEnabled(() => _activeTab == PromptResourceTab.UserPrompt && !IsSelectedReadOnly());
+            .IsEnabled(() => _activeTab == PromptResourceTab.AgentPrompt && !IsSelectedReadOnly());
         _nameBox.TextDocument.Changed += OnEditorChanged;
         _descriptionBox.TextDocument.Changed += OnEditorChanged;
         _systemBox.TextDocument.Changed += OnEditorChanged;
@@ -182,13 +182,13 @@ internal sealed class PromptManagementDialog
             HorizontalAlignment = Align.Stretch,
         };
 
-        var intro = new Markup("[dim]Prompts are Markdown files under built-in content, ~/.alta/prompts, or project .alta/prompts. Later sources override earlier ids; built-ins are read-only. Use the System Prompt tab to edit only global/project system prompt overrides.[/]")
+        var intro = new Markup("[dim]Agent prompts are Markdown files under built-in content, ~/.alta/prompts/agents, or project .alta/prompts/agents. Later sources override earlier ids; built-ins are read-only. Use the System Prompt tab to edit only global/project system prompt overrides.[/]")
         {
             Wrap = true,
         };
 
         var leftPane = new VStack(
-            new TextBlock("Prompts"),
+            new TextBlock("Agent Prompts"),
             new Border(new ScrollViewer(_promptList, focusable: false).Stretch())
                 .Style(BorderStyle.Rounded)
                 .Padding(new Thickness(1, 0, 1, 0))
@@ -269,7 +269,7 @@ internal sealed class PromptManagementDialog
         rightPane.Cell(status, 4, 0);
 
         var tabs = new TabControl(
-            new TabPage("Prompt", leftPane),
+            new TabPage("Agent Prompt", leftPane),
             new TabPage("System Prompt", systemLeftPane));
         tabs.SelectionChanged((sender, e) =>
         {
@@ -297,7 +297,7 @@ internal sealed class PromptManagementDialog
             .VerticalAlignment(Align.Stretch);
 
         var dialog = new Dialog()
-            .Title("Prompts")
+            .Title("Agent Prompts")
             .TopRightText(closeButton)
             .BottomLeftText(new Markup("[dim]Ctrl+S Save · Ctrl+N New global · Ctrl+P New project · Delete Remove · Esc Close[/]"))
             .IsModal(true)
@@ -345,7 +345,7 @@ internal sealed class PromptManagementDialog
 
     private void ReloadPrompts(string? selectPath)
     {
-        ReloadUserPrompts(selectPath);
+        ReloadAgentPrompts(selectPath);
         ReloadSystemPrompts(selectPath: null);
     }
 
@@ -357,11 +357,11 @@ internal sealed class PromptManagementDialog
         }
         else
         {
-            ReloadUserPrompts(selectPath);
+            ReloadAgentPrompts(selectPath);
         }
     }
 
-    private void ReloadUserPrompts(string? selectPath)
+    private void ReloadAgentPrompts(string? selectPath)
     {
         var prompts = _promptCatalog.ListPrompts(CreateQuery());
         _rows = prompts
@@ -382,7 +382,7 @@ internal sealed class PromptManagementDialog
 
             var selectedIndex = FindPromptIndex(selectPath);
             _promptList.SelectedIndex = selectedIndex;
-            LoadSelectedPrompt(selectedIndex);
+            LoadSelectedAgentPrompt(selectedIndex);
         }
         finally
         {
@@ -422,10 +422,10 @@ internal sealed class PromptManagementDialog
         }
     }
 
-    private UserPromptCatalogQuery CreateQuery()
+    private AgentPromptCatalogQuery CreateQuery()
     {
         var project = _getSelectedProject();
-        return new UserPromptCatalogQuery
+        return new AgentPromptCatalogQuery
         {
             UserProfileRoot = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             UserCodeAltaRoot = _catalogOptions.GlobalRoot,
@@ -452,7 +452,7 @@ internal sealed class PromptManagementDialog
 
         var defaultIndex = _rows.ToList().FindIndex(static row =>
             !row.Descriptor.IsShadowed &&
-            string.Equals(row.Descriptor.PromptName, UserPromptCatalog.DefaultPromptName, StringComparison.OrdinalIgnoreCase));
+            string.Equals(row.Descriptor.PromptName, AgentPromptCatalog.DefaultPromptName, StringComparison.OrdinalIgnoreCase));
         return defaultIndex >= 0 ? defaultIndex : 0;
     }
 
@@ -474,11 +474,11 @@ internal sealed class PromptManagementDialog
 
         var defaultIndex = _systemRows.ToList().FindIndex(static row =>
             !row.Descriptor.IsShadowed &&
-            string.Equals(row.Descriptor.PromptName, UserPromptCatalog.DefaultPromptName, StringComparison.OrdinalIgnoreCase));
+            string.Equals(row.Descriptor.PromptName, AgentPromptCatalog.DefaultPromptName, StringComparison.OrdinalIgnoreCase));
         return defaultIndex >= 0 ? defaultIndex : 0;
     }
 
-    private void OnPromptSelectionChanged(int oldIndex, int newIndex)
+    private void OnAgentPromptSelectionChanged(int oldIndex, int newIndex)
     {
         if (_loadingSelection)
         {
@@ -508,7 +508,7 @@ internal sealed class PromptManagementDialog
                     try
                     {
                         _promptList.SelectedIndex = newIndex;
-                        LoadSelectedPrompt(newIndex);
+                        LoadSelectedAgentPrompt(newIndex);
                     }
                     finally
                     {
@@ -523,7 +523,7 @@ internal sealed class PromptManagementDialog
             return;
         }
 
-        LoadSelectedPrompt(newIndex);
+        LoadSelectedAgentPrompt(newIndex);
     }
 
     private void OnSystemPromptSelectionChanged(int oldIndex, int newIndex)
@@ -583,7 +583,7 @@ internal sealed class PromptManagementDialog
 
         var nextTab = newIndex == (int)PromptResourceTab.SystemPrompt
             ? PromptResourceTab.SystemPrompt
-            : PromptResourceTab.UserPrompt;
+            : PromptResourceTab.AgentPrompt;
         if (_activeTab == nextTab)
         {
             return;
@@ -614,7 +614,7 @@ internal sealed class PromptManagementDialog
                     {
                         tabControl.SelectedIndex = newIndex;
                         _activeTab = nextTab;
-                        LoadSelectedPromptForActiveTab();
+                        LoadSelectedAgentPromptForActiveTab();
                     }
                     finally
                     {
@@ -630,10 +630,10 @@ internal sealed class PromptManagementDialog
         }
 
         _activeTab = nextTab;
-        LoadSelectedPromptForActiveTab();
+        LoadSelectedAgentPromptForActiveTab();
     }
 
-    private void LoadSelectedPromptForActiveTab()
+    private void LoadSelectedAgentPromptForActiveTab()
     {
         if (_activeTab == PromptResourceTab.SystemPrompt)
         {
@@ -642,12 +642,12 @@ internal sealed class PromptManagementDialog
         }
         else
         {
-            LoadSelectedPrompt(_promptList.SelectedIndex);
+            LoadSelectedAgentPrompt(_promptList.SelectedIndex);
             _dialog?.App?.Focus(_promptList);
         }
     }
 
-    private void LoadSelectedPrompt(int index)
+    private void LoadSelectedAgentPrompt(int index)
     {
         _selectedRow = (uint)index < (uint)_rows.Count ? _rows[index] : null;
         _suppressEditorChanged = true;
@@ -657,11 +657,11 @@ internal sealed class PromptManagementDialog
             {
                 _loadedName = string.Empty;
                 _loadedDescription = null;
-                _loadedSystem = UserPromptCatalog.DefaultPromptName;
+                _loadedSystem = AgentPromptCatalog.DefaultPromptName;
                 _loadedBody = string.Empty;
                 _nameBox.Text = string.Empty;
                 _descriptionBox.Text = string.Empty;
-                _systemBox.Text = UserPromptCatalog.DefaultPromptName;
+                _systemBox.Text = AgentPromptCatalog.DefaultPromptName;
                 SetBodyText(string.Empty);
                 _statusMessage.Value = "No prompts were discovered.";
                 return;
@@ -695,7 +695,7 @@ internal sealed class PromptManagementDialog
         try
         {
             _loadedDescription = null;
-            _loadedSystem = UserPromptCatalog.DefaultPromptName;
+            _loadedSystem = AgentPromptCatalog.DefaultPromptName;
             if (_selectedSystemRow is null)
             {
                 _loadedName = string.Empty;
@@ -789,7 +789,7 @@ internal sealed class PromptManagementDialog
             SetDialogStatus($"Saved prompt '{values.Name}'.", StatusTone.Ready);
             _setStatus($"Saved prompt '{values.Name}'.", StatusTone.Ready);
             _onPromptsChanged();
-            ReloadUserPrompts(row.Descriptor.SourcePath);
+            ReloadAgentPrompts(row.Descriptor.SourcePath);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -859,7 +859,7 @@ internal sealed class PromptManagementDialog
                     SetDialogStatus($"Deleted prompt '{row.Descriptor.DisplayName}'.", StatusTone.Ready);
                     _setStatus($"Deleted prompt '{row.Descriptor.DisplayName}'.", StatusTone.Ready);
                     _onPromptsChanged();
-                    ReloadUserPrompts(selectPath: null);
+                    ReloadAgentPrompts(selectPath: null);
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
@@ -925,7 +925,7 @@ internal sealed class PromptManagementDialog
         var idBox = new TextBox().Placeholder(resourceTab == PromptResourceTab.SystemPrompt ? "system-prompt-id" : "prompt-id").HorizontalAlignment(Align.Stretch);
         var nameBox = new TextBox().Placeholder("Display name").HorizontalAlignment(Align.Stretch);
         var descriptionBox = new TextBox().Placeholder("Optional description").HorizontalAlignment(Align.Stretch);
-        var systemBox = new TextBox(UserPromptCatalog.DefaultPromptName).Placeholder(UserPromptCatalog.DefaultPromptName).HorizontalAlignment(Align.Stretch);
+        var systemBox = new TextBox(AgentPromptCatalog.DefaultPromptName).Placeholder(AgentPromptCatalog.DefaultPromptName).HorizontalAlignment(Align.Stretch);
         TextBlock? validationText = null;
         validationText = new TextBlock(string.Empty)
         {
@@ -948,7 +948,7 @@ internal sealed class PromptManagementDialog
                 new ColumnDefinition { Width = GridLength.Star(1) });
         form.Cell(new TextBlock("File id"), 0, 0);
         form.Cell(idBox, 0, 1);
-        if (resourceTab == PromptResourceTab.UserPrompt)
+        if (resourceTab == PromptResourceTab.AgentPrompt)
         {
             form.Cell(new TextBlock("Name"), 1, 0);
             form.Cell(nameBox, 1, 1);
@@ -1021,8 +1021,8 @@ internal sealed class PromptManagementDialog
             return;
         }
 
-        var name = resourceTab == PromptResourceTab.UserPrompt ? NormalizeRequiredText(nameBox.Text) : promptId;
-        if (resourceTab == PromptResourceTab.UserPrompt && name is null)
+        var name = resourceTab == PromptResourceTab.AgentPrompt ? NormalizeRequiredText(nameBox.Text) : promptId;
+        if (resourceTab == PromptResourceTab.AgentPrompt && name is null)
         {
             validationText.Text = "Enter the required prompt display name.";
             return;
@@ -1064,22 +1064,22 @@ internal sealed class PromptManagementDialog
     {
         var query = CreateQuery();
         var promptsRoot = scope == PromptStorageScope.Project
-            ? _promptCatalog.ResolveProjectPromptDirectory(query) ?? _promptCatalog.ResolveUserPromptDirectory(query)
-            : _promptCatalog.ResolveUserPromptDirectory(query);
-        return Path.Combine(promptsRoot, "developer");
+            ? _promptCatalog.ResolveProjectPromptDirectory(query) ?? _promptCatalog.ResolveGlobalPromptDirectory(query)
+            : _promptCatalog.ResolveGlobalPromptDirectory(query);
+        return Path.Combine(promptsRoot, "agents");
     }
 
     private string ResolveResourceDirectory(PromptStorageScope scope, PromptResourceTab resourceTab)
     {
-        if (resourceTab == PromptResourceTab.UserPrompt)
+        if (resourceTab == PromptResourceTab.AgentPrompt)
         {
             return ResolvePromptDirectory(scope);
         }
 
         var query = CreateQuery();
         return scope == PromptStorageScope.Project
-            ? _promptCatalog.ResolveProjectSystemPromptDirectory(query) ?? _promptCatalog.ResolveUserSystemPromptDirectory(query)
-            : _promptCatalog.ResolveUserSystemPromptDirectory(query);
+            ? _promptCatalog.ResolveProjectSystemPromptDirectory(query) ?? _promptCatalog.ResolveGlobalSystemPromptDirectory(query)
+            : _promptCatalog.ResolveGlobalSystemPromptDirectory(query);
     }
 
     private bool ValidateEditor(out string validationMessage, out PromptEditorValues values)
@@ -1094,7 +1094,7 @@ internal sealed class PromptManagementDialog
                 return false;
             }
 
-            values = new PromptEditorValues(_loadedName, null, UserPromptCatalog.DefaultPromptName, systemBody);
+            values = new PromptEditorValues(_loadedName, null, AgentPromptCatalog.DefaultPromptName, systemBody);
             validationMessage = string.Empty;
             return true;
         }
@@ -1137,7 +1137,7 @@ internal sealed class PromptManagementDialog
             var systemShadowed = systemDescriptor.IsShadowed && systemDescriptor.ShadowedByPath is not null
                 ? $" [warning]shadowed by {AnsiMarkup.Escape(systemDescriptor.ShadowedByPath)}[/]"
                 : string.Empty;
-            return $"[dim]id:[/] {AnsiMarkup.Escape(systemDescriptor.PromptName)}  [dim]source:[/] {AnsiMarkup.Escape(UserPromptPresentation.ToSourceLabel(systemDescriptor.SourceKind))}{systemReadOnly}{systemShadowed}\n[dim]path:[/] {AnsiMarkup.Escape(systemDescriptor.SourcePath)}";
+            return $"[dim]id:[/] {AnsiMarkup.Escape(systemDescriptor.PromptName)}  [dim]source:[/] {AnsiMarkup.Escape(AgentPromptPresentation.ToSourceLabel(systemDescriptor.SourceKind))}{systemReadOnly}{systemShadowed}\n[dim]path:[/] {AnsiMarkup.Escape(systemDescriptor.SourcePath)}";
         }
 
         if (_selectedRow is not { } row)
@@ -1150,7 +1150,7 @@ internal sealed class PromptManagementDialog
         var shadowed = descriptor.IsShadowed && descriptor.ShadowedByPath is not null
             ? $" [warning]shadowed by {AnsiMarkup.Escape(descriptor.ShadowedByPath)}[/]"
             : string.Empty;
-        return $"[dim]id:[/] {AnsiMarkup.Escape(descriptor.PromptName)}  [dim]source:[/] {AnsiMarkup.Escape(UserPromptPresentation.ToSourceLabel(descriptor.SourceKind))}{readOnly}{shadowed}\n[dim]path:[/] {AnsiMarkup.Escape(descriptor.SourcePath)}";
+        return $"[dim]id:[/] {AnsiMarkup.Escape(descriptor.PromptName)}  [dim]source:[/] {AnsiMarkup.Escape(AgentPromptPresentation.ToSourceLabel(descriptor.SourceKind))}{readOnly}{shadowed}\n[dim]path:[/] {AnsiMarkup.Escape(descriptor.SourcePath)}";
     }
 
     private string BuildStatusMarkup()
@@ -1267,7 +1267,7 @@ internal sealed class PromptManagementDialog
     private static Visual BuildPromptRowVisual(PromptRow row)
     {
         var descriptor = row.Descriptor;
-        var source = UserPromptPresentation.ToSourceLabel(descriptor.SourceKind);
+        var source = AgentPromptPresentation.ToSourceLabel(descriptor.SourceKind);
         var title = descriptor.IsShadowed
             ? $"[dim]{AnsiMarkup.Escape(descriptor.DisplayName)}[/]"
             : AnsiMarkup.Escape(descriptor.DisplayName);
@@ -1285,7 +1285,7 @@ internal sealed class PromptManagementDialog
     private static Visual BuildSystemPromptRowVisual(SystemPromptRow row)
     {
         var descriptor = row.Descriptor;
-        var source = UserPromptPresentation.ToSourceLabel(descriptor.SourceKind);
+        var source = AgentPromptPresentation.ToSourceLabel(descriptor.SourceKind);
         var title = descriptor.IsShadowed
             ? $"[dim]{AnsiMarkup.Escape(descriptor.PromptName)}[/]"
             : AnsiMarkup.Escape(descriptor.PromptName);
@@ -1350,7 +1350,7 @@ internal sealed class PromptManagementDialog
             builder.Append("description: ").AppendLine(ToYamlScalar(values.Description!));
         }
 
-        if (!string.Equals(values.SystemPromptName, UserPromptCatalog.DefaultPromptName, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(values.SystemPromptName, AgentPromptCatalog.DefaultPromptName, StringComparison.OrdinalIgnoreCase))
         {
             builder.Append("system: ").AppendLine(ToYamlScalar(values.SystemPromptName));
         }
@@ -1382,7 +1382,7 @@ internal sealed class PromptManagementDialog
             ? _selectedSystemRow?.Descriptor.SourcePath
             : _selectedRow?.Descriptor.SourcePath;
 
-    private static string? NormalizePromptId(string? value, PromptResourceTab resourceTab = PromptResourceTab.UserPrompt)
+    private static string? NormalizePromptId(string? value, PromptResourceTab resourceTab = PromptResourceTab.AgentPrompt)
     {
         var id = NormalizeRequiredText(value);
         if (id is null)
@@ -1422,7 +1422,7 @@ internal sealed class PromptManagementDialog
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static string NormalizeSystemName(string? value)
-        => NormalizeRequiredText(value) ?? UserPromptCatalog.DefaultPromptName;
+        => NormalizeRequiredText(value) ?? AgentPromptCatalog.DefaultPromptName;
 
     private static string ScopeLabel(PromptStorageScope scope)
         => scope == PromptStorageScope.Project ? "project" : "global";
@@ -1439,7 +1439,7 @@ internal sealed class PromptManagementDialog
     private static string ResourceSuffix(PromptResourceTab resourceTab)
         => resourceTab == PromptResourceTab.SystemPrompt ? ".system-prompt.md" : ".prompt.md";
 
-    private sealed record PromptRow(UserPromptDescriptor Descriptor);
+    private sealed record PromptRow(AgentPromptDescriptor Descriptor);
 
     private sealed record SystemPromptRow(SystemPromptDescriptor Descriptor);
 
@@ -1453,7 +1453,7 @@ internal sealed class PromptManagementDialog
 
     private enum PromptResourceTab
     {
-        UserPrompt = 0,
+        AgentPrompt = 0,
         SystemPrompt = 1,
     }
 }

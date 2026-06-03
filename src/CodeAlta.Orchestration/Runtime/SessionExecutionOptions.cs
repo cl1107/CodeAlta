@@ -38,9 +38,9 @@ public sealed class SessionExecutionOptions
     public AgentReasoningEffort? ReasoningEffort { get; init; }
 
     /// <summary>
-    /// Gets or initializes the selected user prompt identifier.
+    /// Gets or initializes the selected agent prompt identifier.
     /// </summary>
-    public string? UserPromptName { get; init; }
+    public string? AgentPromptId { get; init; }
 
     /// <summary>
     /// Gets or initializes custom tools available to the coordinator session.

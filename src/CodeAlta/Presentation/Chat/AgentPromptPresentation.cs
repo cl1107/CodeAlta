@@ -5,16 +5,16 @@ using XenoAtom.Terminal.UI.Controls;
 
 namespace CodeAlta.Presentation.Chat;
 
-internal static class UserPromptPresentation
+internal static class AgentPromptPresentation
 {
-    public static IReadOnlyList<UserPromptOption> BuildPromptOptions(IReadOnlyList<UserPromptDescriptor> prompts)
+    public static IReadOnlyList<AgentPromptOption> BuildPromptOptions(IReadOnlyList<AgentPromptDescriptor> prompts)
     {
         ArgumentNullException.ThrowIfNull(prompts);
         return prompts
             .OrderBy(static prompt => prompt.Precedence)
             .ThenBy(static prompt => prompt.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(static prompt => prompt.PromptName, StringComparer.OrdinalIgnoreCase)
-            .Select(static prompt => new UserPromptOption(
+            .Select(static prompt => new AgentPromptOption(
                 prompt.PromptName,
                 BuildPromptLabel(prompt),
                 ToSourceLabel(prompt.SourceKind),
@@ -24,7 +24,7 @@ internal static class UserPromptPresentation
             .ToArray();
     }
 
-    public static string BuildPromptLabel(UserPromptDescriptor prompt)
+    public static string BuildPromptLabel(AgentPromptDescriptor prompt)
     {
         ArgumentNullException.ThrowIfNull(prompt);
         return string.Equals(prompt.DisplayName, prompt.PromptName, StringComparison.OrdinalIgnoreCase)
@@ -32,7 +32,7 @@ internal static class UserPromptPresentation
             : $"{prompt.DisplayName} ({prompt.PromptName})";
     }
 
-    public static string BuildPromptOptionMarkup(UserPromptOption? option)
+    public static string BuildPromptOptionMarkup(AgentPromptOption? option)
     {
         if (option is null)
         {
@@ -54,12 +54,12 @@ internal static class UserPromptPresentation
         }
     }
 
-    public static string ToSourceLabel(UserPromptSourceKind sourceKind)
+    public static string ToSourceLabel(AgentPromptSourceKind sourceKind)
         => sourceKind switch
         {
-            UserPromptSourceKind.BuiltIn => "built-in",
-            UserPromptSourceKind.UserGlobal => "global",
-            UserPromptSourceKind.Project => "project",
+            AgentPromptSourceKind.BuiltIn => "built-in",
+            AgentPromptSourceKind.UserGlobal => "global",
+            AgentPromptSourceKind.Project => "project",
             _ => "unknown",
         };
 }

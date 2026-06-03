@@ -71,6 +71,11 @@ public class AgentSessionCreateOptions
     public string? DeveloperInstructions { get; init; }
 
     /// <summary>
+    /// Gets or initializes the agent prompt identifier used to compose the developer instructions.
+    /// </summary>
+    public string? AgentPromptId { get; init; }
+
+    /// <summary>
     /// Gets or initializes custom tools available to this session.
     /// </summary>
     public IReadOnlyList<AgentToolDefinition>? Tools { get; init; }
