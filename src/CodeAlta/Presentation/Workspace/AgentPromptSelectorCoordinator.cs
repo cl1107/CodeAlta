@@ -20,6 +20,7 @@ internal sealed class AgentPromptSelectorCoordinator
     private readonly Func<SessionViewViewState> _getViewState;
     private readonly Action _persistViewState;
     private readonly Action<SessionViewDescriptor> _persistSessionLocalState;
+    private readonly Func<string, string, CancellationToken, Task>? _setActiveSessionAgentPromptId;
     private readonly Action _syncAgentPromptSelectorItems;
     private readonly Action<string, bool, StatusTone> _setStatus;
     private bool _selectorsRefreshing;
@@ -33,6 +34,7 @@ internal sealed class AgentPromptSelectorCoordinator
         Func<SessionViewViewState> getViewState,
         Action persistViewState,
         Action<SessionViewDescriptor> persistSessionLocalState,
+        Func<string, string, CancellationToken, Task>? setActiveSessionAgentPromptId,
         Action syncAgentPromptSelectorItems,
         Action<string, bool, StatusTone> setStatus,
         AgentPromptCatalog? promptCatalog = null)
@@ -56,6 +58,7 @@ internal sealed class AgentPromptSelectorCoordinator
         _getViewState = getViewState;
         _persistViewState = persistViewState;
         _persistSessionLocalState = persistSessionLocalState;
+        _setActiveSessionAgentPromptId = setActiveSessionAgentPromptId;
         _syncAgentPromptSelectorItems = syncAgentPromptSelectorItems;
         _setStatus = setStatus;
         _promptCatalog = promptCatalog ?? new AgentPromptCatalog();
@@ -149,6 +152,13 @@ internal sealed class AgentPromptSelectorCoordinator
         _preferences.RememberSessionAgentPromptId(_getViewState(), tab, selectedPrompt.PromptName);
         _persistViewState();
         _persistSessionLocalState(tab.SessionView);
+        if (_setActiveSessionAgentPromptId is not null)
+        {
+            global::CodeAlta.CodeAltaTaskMonitor.Observe(
+                _setActiveSessionAgentPromptId(session.SessionId, selectedPrompt.PromptName, CancellationToken.None),
+                $"Set active agent prompt for session {session.SessionId}");
+        }
+
         _workspaceRefresh.ApplyHeaderProjection();
         _setStatus($"Selected prompt '{selectedPrompt.Label}'.", false, StatusTone.Ready);
     }

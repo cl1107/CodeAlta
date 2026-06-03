@@ -292,6 +292,7 @@ internal sealed class CodeAltaFrontendComposition
             () => sessionStateCoordinator.ViewState,
             () => _ = frontend.PersistViewStateAsync(),
             session => _ = sessionStateCoordinator.PersistSessionLocalStateAsync(session),
+            (sessionId, agentPromptId, cancellationToken) => runtimeService.SetActiveSessionAgentPromptIdAsync(sessionId, agentPromptId, cancellationToken),
             frontend.SyncAgentPromptSelectorItems,
             frontend.SetStatus);
         var modelCatalogCoordinator = new ModelCatalogCoordinator(

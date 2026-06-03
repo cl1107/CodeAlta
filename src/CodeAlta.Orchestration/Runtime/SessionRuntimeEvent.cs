@@ -59,6 +59,26 @@ public sealed record SessionCatalogRuntimeEvent(
     : SessionRuntimeEvent(SessionId, Timestamp);
 
 /// <summary>
+/// Announces that a session's agent configuration changed without requiring a catalog refresh.
+/// </summary>
+/// <param name="SessionId">The owning session id.</param>
+/// <param name="Timestamp">The event timestamp.</param>
+/// <param name="ProviderId">The selected provider identifier, when known.</param>
+/// <param name="ProviderKey">The selected provider key, when known.</param>
+/// <param name="ModelId">The selected model identifier, when known.</param>
+/// <param name="ReasoningEffort">The selected reasoning effort, when known.</param>
+/// <param name="AgentPromptId">The selected agent prompt identifier, when known.</param>
+public sealed record SessionAgentConfigurationRuntimeEvent(
+    string SessionId,
+    DateTimeOffset Timestamp,
+    string? ProviderId,
+    string? ProviderKey,
+    string? ModelId,
+    AgentReasoningEffort? ReasoningEffort,
+    string? AgentPromptId)
+    : SessionRuntimeEvent(SessionId, Timestamp);
+
+/// <summary>
 /// Wraps a host queue change event for a specific session.
 /// </summary>
 /// <param name="SessionId">The owning session id.</param>

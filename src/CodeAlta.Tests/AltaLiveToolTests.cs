@@ -2313,6 +2313,94 @@ public sealed class AltaLiveToolTests
     }
 
     [TestMethod]
+    public async Task SessionSetAgent_RefreshesActiveSessionPromptForSubsequentSends()
+    {
+        using var root = TempDirectory.Create();
+        var globalPromptDirectory = Path.Combine(root.Path, "prompts", "agents");
+        Directory.CreateDirectory(globalPromptDirectory);
+        await File.WriteAllTextAsync(
+            Path.Combine(globalPromptDirectory, "custom.prompt.md"),
+            """
+            ---
+            name: Custom Prompt
+            description: Used by session set-agent.
+            system: default
+            ---
+            Custom prompt body selected by set-agent.
+            """).ConfigureAwait(false);
+        var options = new CatalogOptions { GlobalRoot = root.Path };
+        var providerId = new ModelProviderId("prompt-id-set-agent");
+        var providerRuntime = new StatefulProviderRuntime(providerId);
+        var runtime = CreateRuntime(options, providerRuntime);
+        await using var _ = runtime.ConfigureAwait(false);
+        var dispatcher = CreateDispatcher(new AltaServiceCollection()
+            .Add(options)
+            .Add(new ProjectCatalog(options))
+            .Add(new SessionViewCatalog(options))
+            .Add(runtime));
+        var created = await dispatcher.InvokeAsync(["session", "create", "--global", "--provider", providerId.Value], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var sessionId = ReadJsonLines(created.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.session.created").GetProperty("sessionId").GetString()!;
+
+        var configurationEventTask = ReadRuntimeEventAsync<SessionAgentConfigurationRuntimeEvent>(
+            runtime,
+            runtimeEvent => runtimeEvent.SessionId == sessionId && string.Equals(runtimeEvent.AgentPromptId, "custom", StringComparison.OrdinalIgnoreCase));
+        var setAgent = await dispatcher.InvokeAsync(["session", "set_agent", sessionId, "--prompt-id", "custom"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var configurationEvent = await configurationEventTask.ConfigureAwait(false);
+        var info = await dispatcher.InvokeAsync(["session", "info", sessionId], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var send = await dispatcher.InvokeAsync(["session", "send", sessionId, "--message", "hello"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+
+        Assert.AreEqual(AltaExitCodes.Success, setAgent.ExitCode, setAgent.Stderr);
+        Assert.AreEqual("custom", configurationEvent.AgentPromptId);
+        Assert.AreEqual("custom", ReadJsonLines(setAgent.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.session.agent_set").GetProperty("promptId").GetString());
+        Assert.AreEqual(AltaExitCodes.Success, info.ExitCode, info.Stderr);
+        Assert.AreEqual("custom", ReadJsonLines(info.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.session.info").GetProperty("agentPromptId").GetString());
+        Assert.AreEqual(AltaExitCodes.Success, send.ExitCode, send.Stderr);
+        Assert.AreEqual("hello", ExtractText(providerRuntime.SentOptions.Single().Input));
+        var refreshedDeveloperInstructions = providerRuntime.ResumedOptions.LastOrDefault()?.DeveloperInstructions
+            ?? providerRuntime.CreatedOptions.Skip(1).LastOrDefault()?.DeveloperInstructions;
+        Assert.IsNotNull(refreshedDeveloperInstructions, $"Expected the active session to be recreated after set_agent. Created={providerRuntime.CreatedOptions.Count}; Resumed={providerRuntime.ResumedOptions.Count}.");
+        StringAssert.Contains(refreshedDeveloperInstructions, "Custom prompt body selected by set-agent.");
+    }
+
+    [TestMethod]
+    public async Task SessionSetAgent_InjectsAgentPromptForProviderManagedSkillProviders()
+    {
+        using var root = TempDirectory.Create();
+        var globalPromptDirectory = Path.Combine(root.Path, "prompts", "agents");
+        Directory.CreateDirectory(globalPromptDirectory);
+        await File.WriteAllTextAsync(
+            Path.Combine(globalPromptDirectory, "custom.prompt.md"),
+            """
+            ---
+            name: Custom Prompt
+            description: Used by session set-agent for native providers.
+            system: default
+            ---
+            Custom native-provider prompt body selected by set-agent.
+            """).ConfigureAwait(false);
+        var options = new CatalogOptions { GlobalRoot = root.Path };
+        var providerRuntime = new StatefulProviderRuntime(ModelProviderIds.Codex);
+        var runtime = CreateRuntime(options, providerRuntime);
+        await using var _ = runtime.ConfigureAwait(false);
+        var dispatcher = CreateDispatcher(new AltaServiceCollection()
+            .Add(options)
+            .Add(new ProjectCatalog(options))
+            .Add(new SessionViewCatalog(options))
+            .Add(runtime));
+        var created = await dispatcher.InvokeAsync(["session", "create", "--global", "--provider", ModelProviderIds.Codex.Value], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var sessionId = ReadJsonLines(created.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.session.created").GetProperty("sessionId").GetString()!;
+
+        var setAgent = await dispatcher.InvokeAsync(["session", "set_agent", sessionId, "--prompt-id", "custom"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var send = await dispatcher.InvokeAsync(["session", "send", sessionId, "--message", "hello"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+
+        Assert.AreEqual(AltaExitCodes.Success, setAgent.ExitCode, setAgent.Stderr);
+        Assert.AreEqual(AltaExitCodes.Success, send.ExitCode, send.Stderr);
+        Assert.AreEqual(1, providerRuntime.ResumedOptions.Count, "Switching a native provider session prompt must recreate the provider session with refreshed instructions.");
+        Assert.IsNotNull(providerRuntime.ResumedOptions.Last().DeveloperInstructions);
+        StringAssert.Contains(providerRuntime.ResumedOptions.Last().DeveloperInstructions!, "Custom native-provider prompt body selected by set-agent.");
+    }
+
+    [TestMethod]
     public async Task ReminderCreate_DefaultsToCallerSessionAndDispatchesContentLater()
     {
         using var root = TempDirectory.Create();

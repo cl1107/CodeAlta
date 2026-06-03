@@ -563,6 +563,37 @@ public sealed class SessionRuntimeEventCoordinatorTests
     }
 
     [TestMethod]
+    public void ApplyRuntimeEvent_AgentConfigurationEventUpdatesOpenSessionAndHeaderOnly()
+    {
+        var session = CreateSession();
+        session.AgentPromptId = "default";
+        var tab = CreateOpenSessionState(session);
+        tab.AgentPromptId = "default";
+        var publisher = new FrontendEventPublisher(new InlineUiDispatcher());
+        var events = new List<ShellFrontendEvent>();
+        publisher.Subscribe(events.Add);
+        var coordinator = CreateCoordinator(session, tab, frontendEvents: publisher);
+
+        coordinator.ApplyRuntimeEvent(new SessionAgentConfigurationRuntimeEvent(
+            session.SessionId,
+            DateTimeOffset.UtcNow,
+            ProviderId: "codex",
+            ProviderKey: "codex",
+            ModelId: "gpt-5.5",
+            ReasoningEffort: AgentReasoningEffort.Low,
+            AgentPromptId: "plan"));
+
+        Assert.AreEqual("plan", session.AgentPromptId);
+        Assert.AreEqual("plan", tab.AgentPromptId);
+        Assert.AreEqual("plan", tab.SessionView.AgentPromptId);
+        Assert.AreEqual("codex", tab.ProviderId.Value);
+        Assert.AreEqual("gpt-5.5", tab.ModelId);
+        Assert.AreEqual(AgentReasoningEffort.Low, tab.ReasoningEffort);
+        Assert.IsTrue(events.OfType<HeaderChangedEvent>().Any());
+        Assert.IsFalse(events.OfType<CatalogChangedEvent>().Any());
+    }
+
+    [TestMethod]
     public void ApplyRuntimeEvent_TracksRunningStateForNonOpenRuntimeSession()
     {
         var session = CreateSession();

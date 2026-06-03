@@ -37,15 +37,17 @@ public sealed class AgentInstructionTemplateProvider
     /// <param name="project">The owning project, if any.</param>
     /// <param name="model">The selected model id, if known.</param>
     /// <param name="selectedPromptName">The selected agent prompt name, if any.</param>
+    /// <param name="includeAvailableSkills">A value indicating whether CodeAlta-managed available-skill guidance should be included.</param>
     /// <returns>The file-backed instruction bundle selected for the session.</returns>
     public AgentInstructionBundle BuildCoordinatorInstructions(
         SessionViewDescriptor session,
         ProjectDescriptor? project,
         string? model = null,
-        string? selectedPromptName = null)
+        string? selectedPromptName = null,
+        bool includeAvailableSkills = true)
     {
         ArgumentNullException.ThrowIfNull(session);
-        var bundle = BuildPromptBundle(session, project, model, selectedPromptName);
+        var bundle = BuildPromptBundle(session, project, model, selectedPromptName, includeAvailableSkills);
         session.AgentPromptId = bundle.Manifest.Template.InstructionName;
         return new AgentInstructionBundle
         {
@@ -62,15 +64,17 @@ public sealed class AgentInstructionTemplateProvider
     /// <param name="project">The owning project, if any.</param>
     /// <param name="model">The selected model id, if known.</param>
     /// <param name="selectedPromptName">The selected agent prompt name, if any.</param>
+    /// <param name="includeAvailableSkills">A value indicating whether CodeAlta-managed available-skill guidance should be included.</param>
     /// <returns>The file-backed instruction bundle selected for the session.</returns>
     public AgentInstructionBundle BuildGeneralInstructions(
         SessionViewDescriptor session,
         ProjectDescriptor? project,
         string? model = null,
-        string? selectedPromptName = null)
+        string? selectedPromptName = null,
+        bool includeAvailableSkills = true)
     {
         ArgumentNullException.ThrowIfNull(session);
-        var bundle = BuildPromptBundle(session, project, model, selectedPromptName);
+        var bundle = BuildPromptBundle(session, project, model, selectedPromptName, includeAvailableSkills);
         session.AgentPromptId = bundle.Manifest.Template.InstructionName;
         return new AgentInstructionBundle
         {
@@ -84,7 +88,8 @@ public sealed class AgentInstructionTemplateProvider
         SessionViewDescriptor session,
         ProjectDescriptor? project,
         string? model = null,
-        string? selectedPromptName = null)
+        string? selectedPromptName = null,
+        bool includeAvailableSkills = true)
     {
         var projectRoots = string.IsNullOrWhiteSpace(project?.ProjectPath)
             ? Array.Empty<string>()
@@ -102,7 +107,7 @@ public sealed class AgentInstructionTemplateProvider
             SelectedPromptName = selectedPromptName ?? session.AgentPromptId,
             UserProfileRoot = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             UserCodeAltaRoot = _catalogOptions?.GlobalRoot,
-            AvailableSkillsMarkdown = BuildSkillsDeveloperInstructions(session, project),
+            AvailableSkillsMarkdown = includeAvailableSkills ? BuildSkillsDeveloperInstructions(session, project) : null,
         });
     }
 

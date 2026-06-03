@@ -129,10 +129,42 @@ public sealed class SessionRuntimeService : IAsyncDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
 
         cancellationToken.ThrowIfCancellationRequested();
-        await Task.CompletedTask.ConfigureAwait(false);
-        return _entries.TryGetValue(sessionId, out var entry) && !entry.IsTerminated
-            ? entry.ToDescriptor()
-            : null;
+        if (!_entries.TryGetValue(sessionId, out var entry) || entry.IsTerminated)
+        {
+            return null;
+        }
+
+        var descriptor = entry.ToDescriptor();
+        var localState = await ReadLatestLocalStateAsync(sessionId, entry.CreatedAt, cancellationToken).ConfigureAwait(false);
+        if (localState is not null)
+        {
+            var activeProviderId = descriptor.ProviderId;
+            var activeProviderKey = descriptor.ProviderKey;
+            var activeModelId = descriptor.ModelId;
+            var activeReasoningEffort = descriptor.ReasoningEffort;
+            var activeAgentPromptId = descriptor.AgentPromptId;
+
+            ApplyPersistedSessionLocalState(descriptor, localState);
+
+            descriptor.ProviderId = activeProviderId;
+            descriptor.ProviderKey = activeProviderKey;
+            if (!string.IsNullOrWhiteSpace(activeModelId))
+            {
+                descriptor.ModelId = activeModelId;
+            }
+
+            if (activeReasoningEffort is not null)
+            {
+                descriptor.ReasoningEffort = activeReasoningEffort;
+            }
+
+            if (!string.IsNullOrWhiteSpace(activeAgentPromptId))
+            {
+                descriptor.AgentPromptId = activeAgentPromptId;
+            }
+        }
+
+        return descriptor;
     }
 
     /// <summary>
@@ -295,6 +327,41 @@ public sealed class SessionRuntimeService : IAsyncDisposable
         }
 
         await UpdateSessionLocalStateAsync(session, cancellationToken).ConfigureAwait(false);
+        PublishSessionAgentConfigurationEvent(session);
+    }
+
+    /// <summary>
+    /// Records a pending agent prompt selection for an active coordinator session.
+    /// </summary>
+    /// <param name="sessionId">The session identifier.</param>
+    /// <param name="agentPromptId">The selected agent prompt identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="sessionId" /> or <paramref name="agentPromptId" /> is empty.</exception>
+    public async Task SetActiveSessionAgentPromptIdAsync(
+        string sessionId,
+        string agentPromptId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(agentPromptId);
+        if (!_sessionActors.TryGet(sessionId, out var actor))
+        {
+            return;
+        }
+
+        await actor.QueryAsync(
+                actorCancellationToken =>
+                {
+                    actorCancellationToken.ThrowIfCancellationRequested();
+                    if (_entries.TryGetValue(sessionId, out var entry) && !entry.IsTerminated)
+                    {
+                        entry.PendingAgentPromptId = agentPromptId.Trim();
+                    }
+
+                    return ValueTask.FromResult(true);
+                },
+                cancellationToken)
+            .ConfigureAwait(false);
     }
 
     /// <summary>
@@ -527,20 +594,36 @@ public sealed class SessionRuntimeService : IAsyncDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(options.WorkingDirectory);
 
         var project = await ResolveProjectAsync(session, cancellationToken).ConfigureAwait(false);
-        session.AgentPromptId = NormalizeOptionalText(options.AgentPromptId) ?? session.AgentPromptId;
-        var instructions = _instructionTemplateProvider.BuildCoordinatorInstructions(session, project, options.Model, session.AgentPromptId);
+        RuntimeSessionEntry? existing = null;
+        var pendingAgentPromptId = default(string?);
+        if (!string.IsNullOrWhiteSpace(session.SessionId) &&
+            _entries.TryGetValue(session.SessionId, out existing) &&
+            !existing.IsTerminated)
+        {
+            pendingAgentPromptId = NormalizeOptionalText(existing.PendingAgentPromptId);
+        }
+
+        var effectiveAgentPromptId = pendingAgentPromptId
+            ?? NormalizeOptionalText(options.AgentPromptId)
+            ?? NormalizeOptionalText(session.AgentPromptId);
         var providerProviderId = new ModelProviderId(options.ProviderId.Value);
-        var developerInstructions = UsesProviderManagedSkills(providerProviderId) ? null : instructions.DeveloperInstructions;
+        session.AgentPromptId = effectiveAgentPromptId;
+        var instructions = _instructionTemplateProvider.BuildCoordinatorInstructions(
+            session,
+            project,
+            options.Model,
+            session.AgentPromptId,
+            includeAvailableSkills: !UsesProviderManagedSkills(providerProviderId));
+        var developerInstructions = instructions.DeveloperInstructions;
         var additionalDeveloperInstructions = AppendPromptPart(BuildParentNotificationGuidance(session), options.AdditionalDeveloperInstructions);
         var tools = options.Tools;
 
         RuntimeSessionEntry? previousEntry = null;
         AgentSessionHandleId sessionHandleId;
 
-        if (!string.IsNullOrWhiteSpace(session.SessionId) &&
-            _entries.TryGetValue(session.SessionId, out var existing) &&
-            existing.Matches(options, session.AgentPromptId))
+        if (existing is not null && existing.Matches(options, session.AgentPromptId))
         {
+            existing.PendingAgentPromptId = null;
             return existing.SessionHandleId;
         }
 
@@ -576,7 +659,7 @@ public sealed class SessionRuntimeService : IAsyncDisposable
             ProjectRoots = options.ProjectRoots,
             SystemMessage = AppendPromptPart(instructions.SystemMessage, options.AdditionalSystemMessage),
             DeveloperInstructions = AppendPromptPart(developerInstructions, additionalDeveloperInstructions),
-             AgentPromptId = NormalizeOptionalText(session.AgentPromptId) ?? AgentPromptCatalog.DefaultPromptName,
+            AgentPromptId = NormalizeOptionalText(session.AgentPromptId) ?? AgentPromptCatalog.DefaultPromptName,
             Tools = tools,
             OnPermissionRequest = options.OnPermissionRequest,
             OnUserInputRequest = options.OnUserInputRequest,
@@ -609,7 +692,7 @@ public sealed class SessionRuntimeService : IAsyncDisposable
         session.WorkingDirectory = options.WorkingDirectory;
         session.ModelId = options.Model;
         session.ReasoningEffort = options.ReasoningEffort;
-        session.AgentPromptId = NormalizeOptionalText(options.AgentPromptId) ?? session.AgentPromptId;
+        session.AgentPromptId = effectiveAgentPromptId ?? session.AgentPromptId;
         await UpsertSessionMetadataAsync(session, options, cancellationToken).ConfigureAwait(false);
         await UpdateSessionLocalStateAsync(session, cancellationToken).ConfigureAwait(false);
         if (startNewSession)
@@ -1856,6 +1939,21 @@ public sealed class SessionRuntimeService : IAsyncDisposable
         }
     }
 
+    private void PublishSessionAgentConfigurationEvent(SessionViewDescriptor session)
+    {
+        if (!_disposed && !string.IsNullOrWhiteSpace(session.SessionId))
+        {
+            _events.TryPublish(new SessionAgentConfigurationRuntimeEvent(
+                session.SessionId,
+                DateTimeOffset.UtcNow,
+                session.ProviderId,
+                session.ProviderKey,
+                session.ModelId,
+                session.ReasoningEffort,
+                NormalizeOptionalText(session.AgentPromptId)));
+        }
+    }
+
     private void PublishRunSubmittedEvent(string sessionId, AgentRunId runId, DateTimeOffset timestamp)
     {
         if (!_disposed)
@@ -1956,6 +2054,9 @@ public sealed class SessionRuntimeService : IAsyncDisposable
             LastActiveAt = session.LastActiveAt,
             StartedAt = session.StartedAt,
             LatestSummary = session.LatestSummary,
+            ModelId = session.ModelId,
+            ReasoningEffort = session.ReasoningEffort,
+            AgentPromptId = session.AgentPromptId,
             MessageCount = session.MessageCount,
             SourcePath = session.SourcePath,
             MarkdownBody = session.MarkdownBody,
@@ -2204,6 +2305,8 @@ public sealed class SessionRuntimeService : IAsyncDisposable
 
         public string? AgentPromptId { get; }
 
+        public string? PendingAgentPromptId { get; set; }
+
         public string? AdditionalSystemMessage { get; }
 
         public string? AdditionalDeveloperInstructions { get; }
@@ -2248,12 +2351,12 @@ public sealed class SessionRuntimeService : IAsyncDisposable
                 LastActiveAt = LastTerminalEventAt == DateTimeOffset.MinValue ? CreatedAt : LastTerminalEventAt,
                 ModelId = Model,
                 ReasoningEffort = ReasoningEffort,
-                AgentPromptId = AgentPromptId,
+                AgentPromptId = PendingAgentPromptId ?? AgentPromptId,
             };
 
         public bool Matches(SessionExecutionOptions options, string? agentPromptId)
         {
-            var resolvedAgentPromptId = NormalizeOptionalText(options.AgentPromptId) ?? NormalizeOptionalText(agentPromptId);
+            var resolvedAgentPromptId = NormalizeOptionalText(agentPromptId) ?? NormalizeOptionalText(options.AgentPromptId);
             return !IsTerminated
                 && string.Equals(ProviderId.Value, options.ProviderId.Value, StringComparison.OrdinalIgnoreCase)
                 && string.Equals(ProviderKey, options.ProviderKey ?? options.ProviderId.Value, StringComparison.OrdinalIgnoreCase)

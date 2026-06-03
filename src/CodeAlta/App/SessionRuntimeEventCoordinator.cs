@@ -76,6 +76,12 @@ internal sealed class SessionRuntimeEventCoordinator
             return;
         }
 
+        if (runtimeEvent is SessionAgentConfigurationRuntimeEvent configurationEvent)
+        {
+            ApplySessionAgentConfiguration(configurationEvent);
+            return;
+        }
+
         var runtimeRunStateChanged = ObserveRuntimeRunState(runtimeEvent);
 
         var session = FindSession(runtimeEvent.SessionId);
@@ -526,6 +532,78 @@ internal sealed class SessionRuntimeEventCoordinator
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
         return _stateStore.Snapshot.Sessions.FirstOrDefault(session => string.Equals(session.SessionId, sessionId, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void ApplySessionAgentConfiguration(SessionAgentConfigurationRuntimeEvent configurationEvent)
+    {
+        var session = FindSession(configurationEvent.SessionId);
+        if (session is not null)
+        {
+            ApplySessionAgentConfiguration(session, configurationEvent);
+        }
+
+        var tab = _findOpenSession(configurationEvent.SessionId);
+        if (tab is not null)
+        {
+            ApplySessionAgentConfiguration(tab.SessionView, configurationEvent);
+            if (!string.IsNullOrWhiteSpace(configurationEvent.ProviderKey ?? configurationEvent.ProviderId))
+            {
+                tab.ProviderId = new ModelProviderId((configurationEvent.ProviderKey ?? configurationEvent.ProviderId)!.Trim());
+            }
+
+            if (!string.IsNullOrWhiteSpace(configurationEvent.ModelId))
+            {
+                tab.ModelId = configurationEvent.ModelId.Trim();
+            }
+
+            if (configurationEvent.ReasoningEffort is { } reasoningEffort)
+            {
+                tab.ReasoningEffort = reasoningEffort;
+            }
+
+            if (!string.IsNullOrWhiteSpace(configurationEvent.AgentPromptId))
+            {
+                tab.AgentPromptId = configurationEvent.AgentPromptId.Trim();
+            }
+        }
+
+        if (session is not null || tab is not null)
+        {
+            _stateStore.Mutate(snapshot => snapshot with { Sessions = snapshot.Sessions.ToArray() });
+        }
+
+        if ((session is not null || tab is not null) && _isSelectedSession(configurationEvent.SessionId))
+        {
+            _frontendEvents?.Publish(new HeaderChangedEvent());
+        }
+    }
+
+    private static void ApplySessionAgentConfiguration(SessionViewDescriptor session, SessionAgentConfigurationRuntimeEvent configurationEvent)
+    {
+        if (!string.IsNullOrWhiteSpace(configurationEvent.ProviderId))
+        {
+            session.ProviderId = configurationEvent.ProviderId.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(configurationEvent.ProviderKey))
+        {
+            session.ProviderKey = configurationEvent.ProviderKey.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(configurationEvent.ModelId))
+        {
+            session.ModelId = configurationEvent.ModelId.Trim();
+        }
+
+        if (configurationEvent.ReasoningEffort is { } reasoningEffort)
+        {
+            session.ReasoningEffort = reasoningEffort;
+        }
+
+        if (!string.IsNullOrWhiteSpace(configurationEvent.AgentPromptId))
+        {
+            session.AgentPromptId = configurationEvent.AgentPromptId.Trim();
+        }
     }
 
     private void InvalidateProjectFileSearchIfNeeded(SessionViewDescriptor session, AgentEvent @event)

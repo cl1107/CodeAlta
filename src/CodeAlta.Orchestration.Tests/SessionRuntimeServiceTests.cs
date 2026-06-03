@@ -119,6 +119,55 @@ public sealed class SessionRuntimeServiceTests
     }
 
     [TestMethod]
+    public async Task EnsureCoordinatorSessionAsync_UsesPendingAgentPromptFromLiveToolForStaleSessionState()
+    {
+        using var temp = new TempDirectory();
+        var providerId = new ModelProviderId("prompt-refresh");
+        var recorder = new ToolSchemaRecordingProviderRuntime.Recorder();
+        var registry = new ModelProviderRegistry();
+        registry.RegisterOrReplace(
+            new ModelProviderDescriptor(new ModelProviderId(providerId.Value), "Prompt Refresh") { DefaultModelId = "test-model" },
+            () => new ToolSchemaRecordingProviderRuntime(providerId, recorder));
+        await using var hub = new AgentHub(registry, temp.Path);
+        await using var runtime = CreateRuntime(temp.Path, hub);
+        var session = CreateSession("session-1", providerId, temp.Path);
+
+        var firstHandle = await runtime.EnsureCoordinatorSessionAsync(session, CreateOptions(providerId, temp.Path)).ConfigureAwait(false);
+        session.AgentPromptId = "default";
+        await runtime.SetActiveSessionAgentPromptIdAsync(session.SessionId, "plan").ConfigureAwait(false);
+        var secondHandle = await runtime.EnsureCoordinatorSessionAsync(session, CreateOptions(providerId, temp.Path, agentPromptId: "default")).ConfigureAwait(false);
+
+        Assert.AreNotEqual(firstHandle, secondHandle);
+        Assert.AreEqual("plan", session.AgentPromptId);
+        Assert.AreEqual(2, recorder.ResumeAgentPromptIds.Count);
+        Assert.AreEqual("default", recorder.ResumeAgentPromptIds[0]);
+        Assert.AreEqual("plan", recorder.ResumeAgentPromptIds[1]);
+    }
+
+    [TestMethod]
+    public async Task TryGetActiveSessionDescriptorAsync_PreservesPendingAgentPromptOverPersistedLocalState()
+    {
+        using var temp = new TempDirectory();
+        var providerId = new ModelProviderId("prompt-descriptor");
+        var recorder = new ToolSchemaRecordingProviderRuntime.Recorder();
+        var registry = new ModelProviderRegistry();
+        registry.RegisterOrReplace(
+            new ModelProviderDescriptor(new ModelProviderId(providerId.Value), "Prompt Descriptor") { DefaultModelId = "test-model" },
+            () => new ToolSchemaRecordingProviderRuntime(providerId, recorder));
+        await using var hub = new AgentHub(registry, temp.Path);
+        await using var runtime = CreateRuntime(temp.Path, hub);
+        var session = CreateSession("session-1", providerId, temp.Path);
+
+        _ = await runtime.EnsureCoordinatorSessionAsync(session, CreateOptions(providerId, temp.Path, agentPromptId: "default")).ConfigureAwait(false);
+        await runtime.SetActiveSessionAgentPromptIdAsync(session.SessionId, "plan").ConfigureAwait(false);
+
+        var descriptor = await runtime.TryGetActiveSessionDescriptorAsync(session.SessionId).ConfigureAwait(false);
+
+        Assert.IsNotNull(descriptor);
+        Assert.AreEqual("plan", descriptor.AgentPromptId);
+    }
+
+    [TestMethod]
     public async Task CreateGlobalSessionAsync_PersistsParentSessionIdForRecoverableSessionListing()
     {
         using var temp = new TempDirectory();
@@ -225,13 +274,15 @@ public sealed class SessionRuntimeServiceTests
     private static SessionExecutionOptions CreateOptions(
         ModelProviderId ProviderId,
         string root,
-        IReadOnlyList<AgentToolDefinition>? tools = null)
+        IReadOnlyList<AgentToolDefinition>? tools = null,
+        string? agentPromptId = null)
         => new()
         {
             ProviderId = ProviderId,
             ProviderKey = ProviderId.Value,
             WorkingDirectory = root,
             ProjectRoots = [root],
+            AgentPromptId = agentPromptId,
             Tools = tools,
             OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
         };
@@ -318,12 +369,14 @@ public sealed class SessionRuntimeServiceTests
         public Task<IAgentSession> CreateSessionAsync(AgentSessionCreateOptions options, CancellationToken cancellationToken = default)
         {
             recorder.CreateToolNames.Add(options.Tools?.Select(static tool => tool.Spec.Name).ToArray() ?? []);
+            recorder.CreateAgentPromptIds.Add(options.AgentPromptId);
             return Task.FromResult<IAgentSession>(new EmptyAgentSession(providerId, options.SessionId ?? Guid.CreateVersion7().ToString()));
         }
 
         public Task<IAgentSession> ResumeSessionAsync(string sessionId, AgentSessionResumeOptions options, CancellationToken cancellationToken = default)
         {
             recorder.ResumeToolNames.Add(options.Tools?.Select(static tool => tool.Spec.Name).ToArray() ?? []);
+            recorder.ResumeAgentPromptIds.Add(options.AgentPromptId);
             return Task.FromResult<IAgentSession>(new EmptyAgentSession(providerId, sessionId));
         }
 
@@ -343,6 +396,10 @@ public sealed class SessionRuntimeServiceTests
             public List<IReadOnlyList<string>> CreateToolNames { get; } = [];
 
             public List<IReadOnlyList<string>> ResumeToolNames { get; } = [];
+
+            public List<string?> CreateAgentPromptIds { get; } = [];
+
+            public List<string?> ResumeAgentPromptIds { get; } = [];
         }
     }
 

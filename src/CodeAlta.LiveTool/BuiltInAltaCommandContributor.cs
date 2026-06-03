@@ -2279,6 +2279,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
         info.Session.AgentPromptId = normalizedPromptId;
         await runtime.PersistSessionLocalStateAsync(info.Session, context.CancellationToken).ConfigureAwait(false);
+        await runtime.SetActiveSessionAgentPromptIdAsync(info.Session.SessionId, normalizedPromptId, context.CancellationToken).ConfigureAwait(false);
         await PersistSessionPreferenceAsync(context, info.Session, CreateModelSelection(info.Session, info.Preference), normalizedPromptId).ConfigureAwait(false);
 
         AltaJsonlWriter.WriteRecord(context.Stdout, new
@@ -3293,7 +3294,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             ProjectRoots = projectRoots,
             Model = info.Preference?.ModelId ?? info.Session.ModelId,
             ReasoningEffort = info.Preference?.ReasoningEffort ?? info.Session.ReasoningEffort,
-            AgentPromptId = NormalizeOptionalText(promptId),
+            AgentPromptId = NormalizeOptionalText(promptId) ?? NormalizeOptionalText(info.Session.AgentPromptId),
             Tools = CreateAltaSessionTools(context, info.Session.ProviderId, () => info.Session.SessionId, info.Session.ProjectRef, workingDirectory),
             OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
             OnUserInputRequest = static (_, _) => Task.FromResult(new AgentUserInputResponse(new Dictionary<string, string>(StringComparer.Ordinal))),

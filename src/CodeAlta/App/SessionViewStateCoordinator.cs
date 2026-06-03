@@ -174,6 +174,7 @@ internal sealed class SessionViewStateCoordinator
             ProviderKey = session.ResolvedProviderKey,
             ModelId = session.ModelId,
             ReasoningEffort = session.ReasoningEffort,
+            AgentPromptId = string.IsNullOrWhiteSpace(session.AgentPromptId) ? null : session.AgentPromptId.Trim(),
             Archived = session.Status == SessionViewStatus.Archived,
             MessageCount = session.MessageCount,
             ParentSessionId = session.ParentSessionId,
@@ -205,6 +206,11 @@ internal sealed class SessionViewStateCoordinator
         if (localState.ReasoningEffort is { } reasoningEffort)
         {
             session.ReasoningEffort = reasoningEffort;
+        }
+
+        if (!string.IsNullOrWhiteSpace(localState.AgentPromptId))
+        {
+            session.AgentPromptId = localState.AgentPromptId.Trim();
         }
 
         if (localState.MessageCount is { } messageCount)

@@ -72,6 +72,7 @@ public sealed class ShellSessionStateCoordinatorTests
                     ProviderKey = "zai",
                     ModelId = "glm-5.1",
                     ReasoningEffort = AgentReasoningEffort.High,
+                    AgentPromptId = "plan",
                     Archived = true,
                     MessageCount = 12,
                 },
@@ -85,6 +86,7 @@ public sealed class ShellSessionStateCoordinatorTests
         Assert.AreEqual("zai", session.ProviderKey);
         Assert.AreEqual("glm-5.1", session.ModelId);
         Assert.AreEqual(AgentReasoningEffort.High, session.ReasoningEffort);
+        Assert.AreEqual("plan", session.AgentPromptId);
         Assert.AreEqual(SessionViewStatus.Archived, session.Status);
         Assert.AreEqual(12, session.MessageCount);
     }
@@ -103,6 +105,7 @@ public sealed class ShellSessionStateCoordinatorTests
         session.ProviderId = "zai";
         session.ModelId = "glm-5.1";
         session.ReasoningEffort = AgentReasoningEffort.High;
+        session.AgentPromptId = "plan";
         session.Status = SessionViewStatus.Archived;
         session.MessageCount = 6;
         await coordinator.PersistSessionLocalStateAsync(session).ConfigureAwait(false);
@@ -112,6 +115,7 @@ public sealed class ShellSessionStateCoordinatorTests
         Assert.AreEqual("zai", reloaded.ProviderKey);
         Assert.AreEqual("glm-5.1", reloaded.ModelId);
         Assert.AreEqual(AgentReasoningEffort.High, reloaded.ReasoningEffort);
+        Assert.AreEqual("plan", reloaded.AgentPromptId);
         Assert.IsTrue(reloaded.Archived);
         Assert.AreEqual(6, reloaded.MessageCount);
     }
