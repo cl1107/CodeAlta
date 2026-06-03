@@ -2846,6 +2846,54 @@ public sealed class AltaLiveToolTests
     }
 
     [TestMethod]
+    public async Task SessionSend_QueuedPromptAfterSetAgentRefreshesInstructionsBeforeDrain()
+    {
+        using var root = TempDirectory.Create();
+        var globalPromptDirectory = Path.Combine(root.Path, "prompts", "agents");
+        Directory.CreateDirectory(globalPromptDirectory);
+        await File.WriteAllTextAsync(
+            Path.Combine(globalPromptDirectory, "custom.prompt.md"),
+            """
+            ---
+            name: Custom Prompt
+            description: Used by queued set-agent drain.
+            system: default
+            ---
+            Custom prompt body selected before queued prompt drain.
+            """).ConfigureAwait(false);
+        var options = new CatalogOptions { GlobalRoot = root.Path };
+        var sessionCatalog = new SessionViewCatalog(options);
+        var ProviderId = new ModelProviderId("queue-set-agent");
+        var providerRuntime = new StatefulProviderRuntime(ProviderId);
+        var runtime = CreateRuntime(options, providerRuntime);
+        await using var _ = runtime.ConfigureAwait(false);
+        var dispatcher = CreateDispatcher(new AltaServiceCollection()
+            .Add(options)
+            .Add(new ProjectCatalog(options))
+            .Add(sessionCatalog)
+            .Add(runtime));
+        var created = await dispatcher.InvokeAsync(["session", "create", "--global", "--provider", ProviderId.Value], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var sessionId = ReadJsonLines(created.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.session.created").GetProperty("sessionId").GetString()!;
+
+        var first = await dispatcher.InvokeAsync(["session", "send", sessionId, "--message", "first prompt"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var setAgent = await dispatcher.InvokeAsync(["session", "set_agent", sessionId, "--prompt-id", "custom"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var queued = await dispatcher.InvokeAsync(["session", "send", sessionId, "--message", "queued prompt", "--queue-if-busy"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+
+        Assert.AreEqual(AltaExitCodes.Success, first.ExitCode, first.Stderr);
+        Assert.AreEqual(AltaExitCodes.Success, setAgent.ExitCode, setAgent.Stderr);
+        Assert.AreEqual(AltaExitCodes.Success, queued.ExitCode, queued.Stderr);
+        Assert.AreEqual(1, providerRuntime.SentOptions.Count);
+        Assert.AreEqual(0, providerRuntime.ResumedOptions.Count, "set_agent records the next-turn prompt selection without rewriting the active turn.");
+
+        providerRuntime.PublishIdle(sessionId, new AgentRunId("run-1"));
+        await WaitUntilAsync(() => providerRuntime.SentOptions.Count == 2 && providerRuntime.ResumedOptions.Count >= 1).ConfigureAwait(false);
+        Assert.AreEqual("queued prompt", ExtractText(providerRuntime.SentOptions[1].Input));
+        StringAssert.Contains(providerRuntime.ResumedOptions.Last().DeveloperInstructions!, "Custom prompt body selected before queued prompt drain.");
+        Assert.AreEqual("custom", providerRuntime.ResumedOptions.Last().AgentPromptId);
+        Assert.AreEqual("custom", (await ReadJournalStateAsync(sessionCatalog, sessionId).ConfigureAwait(false)).AgentPromptId);
+    }
+
+    [TestMethod]
     public async Task SessionSend_PublishesStartedCatalogEventSoLiveCreatedSessionsCanLoadHistory()
     {
         using var root = TempDirectory.Create();

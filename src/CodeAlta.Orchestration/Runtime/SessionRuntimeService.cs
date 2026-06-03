@@ -732,7 +732,11 @@ public sealed class SessionRuntimeService : IAsyncDisposable
             session.AgentPromptId,
             options.AdditionalSystemMessage,
             options.AdditionalDeveloperInstructions,
+            options.ProjectRoots,
+            tools,
             CreateToolSignatures(options.Tools),
+            options.OnPermissionRequest,
+            options.OnUserInputRequest,
             projector,
             subscription);
 
@@ -1486,14 +1490,26 @@ public sealed class SessionRuntimeService : IAsyncDisposable
                         return null;
                     }
 
+                    var sessionHandleId = entry.SessionHandleId;
+                    if (!string.IsNullOrWhiteSpace(entry.PendingAgentPromptId))
+                    {
+                        var session = entry.ToDescriptor();
+                        sessionHandleId = await EnsureCoordinatorSessionCoreAsync(session, entry.ToExecutionOptions(), actorCancellationToken).ConfigureAwait(false);
+                        if (!_entries.TryGetValue(sessionId, out entry) || entry.IsTerminated || entry.HasActiveRun || entry.QueueDrainInProgress)
+                        {
+                            return null;
+                        }
+                    }
+
                     var timestamp = DateTimeOffset.UtcNow;
                     item.State = "submitting";
                     item.DrainedAt = timestamp;
                     item.LastError = null;
+                    CopySessionMetadata(entry.ToDescriptor(), localState);
                     await _sessionViewCatalog.JournalStore.AppendStateAsync(entry.ToDescriptor(), localState, actorCancellationToken).ConfigureAwait(false);
                     entry.BeginQueueDrain();
                     PublishQueueChanged(sessionId, localState, item, timestamp, isEnqueued: false);
-                    return new QueuedPromptDrainWork(entry.SessionHandleId, CloneQueuedPrompt(item));
+                    return new QueuedPromptDrainWork(sessionHandleId, CloneQueuedPrompt(item));
                 },
                 CancellationToken.None)
             .ConfigureAwait(false);
@@ -2234,7 +2250,11 @@ public sealed class SessionRuntimeService : IAsyncDisposable
             string? agentPromptId,
             string? additionalSystemMessage,
             string? additionalDeveloperInstructions,
+            IReadOnlyList<string> projectRoots,
+            IReadOnlyList<AgentToolDefinition>? tools,
             IReadOnlyList<string> toolSignatures,
+            AgentPermissionRequestHandler onPermissionRequest,
+            AgentUserInputRequestHandler? onUserInputRequest,
             EventProjector projector,
             IDisposable subscription)
         {
@@ -2255,7 +2275,11 @@ public sealed class SessionRuntimeService : IAsyncDisposable
             AgentPromptId = NormalizeOptionalText(agentPromptId);
             AdditionalSystemMessage = additionalSystemMessage;
             AdditionalDeveloperInstructions = additionalDeveloperInstructions;
+            ProjectRoots = projectRoots.ToArray();
+            Tools = tools?.ToArray() ?? [];
             ToolSignatures = toolSignatures;
+            OnPermissionRequest = onPermissionRequest;
+            OnUserInputRequest = onUserInputRequest;
             Projector = projector;
             Subscription = subscription;
         }
@@ -2296,7 +2320,15 @@ public sealed class SessionRuntimeService : IAsyncDisposable
 
         public string? AdditionalDeveloperInstructions { get; }
 
+        public IReadOnlyList<string> ProjectRoots { get; }
+
+        public IReadOnlyList<AgentToolDefinition> Tools { get; }
+
         public IReadOnlyList<string> ToolSignatures { get; }
+
+        public AgentPermissionRequestHandler OnPermissionRequest { get; }
+
+        public AgentUserInputRequestHandler? OnUserInputRequest { get; }
 
         public IDisposable Subscription { get; }
 
@@ -2337,6 +2369,23 @@ public sealed class SessionRuntimeService : IAsyncDisposable
                 ModelId = Model,
                 ReasoningEffort = ReasoningEffort,
                 AgentPromptId = PendingAgentPromptId ?? AgentPromptId,
+            };
+
+        public SessionExecutionOptions ToExecutionOptions()
+            => new()
+            {
+                ProviderId = ProviderId,
+                ProviderKey = ProviderKey,
+                WorkingDirectory = WorkingDirectory,
+                ProjectRoots = ProjectRoots,
+                Model = Model,
+                ReasoningEffort = ReasoningEffort,
+                AgentPromptId = PendingAgentPromptId ?? AgentPromptId,
+                Tools = Tools,
+                AdditionalSystemMessage = AdditionalSystemMessage,
+                AdditionalDeveloperInstructions = AdditionalDeveloperInstructions,
+                OnPermissionRequest = OnPermissionRequest,
+                OnUserInputRequest = OnUserInputRequest,
             };
 
         public bool Matches(SessionExecutionOptions options, string? agentPromptId)
