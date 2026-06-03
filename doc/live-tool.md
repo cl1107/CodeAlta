@@ -88,6 +88,7 @@ Use `--detailed` only when per-item metadata is needed. Discovery commands defau
 | `tool` | Inspect live-tool status and command capabilities. |
 | `provider` | List configured providers and provider model refs. |
 | `model` | List, show, and resolve model refs. |
+| `prompt` | List, inspect, create, edit, and select file-backed agent or system prompts. |
 | `plugin` | Inspect active plugin runtime state. |
 
 `note` is a compatibility alias for `notes`. Prefer the plural `notes` group because it names the sidebar panel and the single sticky notes document. `skills activate` and `skills_activate` are compatibility aliases for `skill activate`. Prefer the singular `skill` group in new prompts and docs.
@@ -104,6 +105,7 @@ alta session current
 alta project list
 alta provider list
 alta model list --provider <provider-key>
+alta prompt list --scope all
 alta skill list --project <project>
 alta plugin list
 alta mcp status
@@ -119,7 +121,7 @@ Useful read commands:
 ```text
 alta session current
 alta session list --project <project> --state all --limit 20
-alta session show <session-id>
+alta session info <session-id>
 alta session status <session-id>
 alta session children <session-id> --recursive
 alta session model <session-id>
@@ -136,6 +138,7 @@ Useful control commands:
 ```text
 alta session create --project <project> --title "Investigate parser"
 alta session create --project <project> --same-model-as <session-id>
+alta session set_agent <session-id> --prompt-id <prompt-id>
 alta session send <session-id> --message "Summarize the latest failure."
 alta session send <session-id> --stdin --queue-if-busy
 alta session queue <session-id> --message "Run this after the current turn."
@@ -225,6 +228,8 @@ alta session request <session-id> --reply-requested --stdin
 ```
 
 Polling commands such as `status`, `tail`, and `events` are for diagnostics, explicit observation, or cases where no parent notification is expected.
+
+Delegated child sessions normally inherit the driving session's provider/model/reasoning with `--same-model-as <session-id>`. When the user requests a specific sub-session agent, provider, model, or reasoning effort, use `--prompt-id`, `--model-ref provider:model@reasoning`, or the separate `--provider`, `--model`, and `--reasoning` flags when available; otherwise state the limitation instead of silently substituting. For implementation delegation, schedule writing children sequentially and have the parent inspect/verify each result before starting the next writing step.
 
 ## Provider and model discovery
 
