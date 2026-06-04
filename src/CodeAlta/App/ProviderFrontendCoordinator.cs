@@ -161,6 +161,41 @@ internal sealed class ProviderFrontendCoordinator
         return new ProviderTestResult(true, $"Connected successfully · {models.Count} model(s) discovered.", models.Count);
     }
 
+    public IReadOnlyDictionary<string, ProviderRuntimeStatus> GetProviderRuntimeStatuses()
+    {
+        return _modelProviderStates.Values.ToDictionary(
+            static state => state.ProviderId.Value,
+            static state => new ProviderRuntimeStatus(
+                state.ProviderId.Value,
+                state.Availability,
+                state.StatusMessage,
+                state.Models.Count),
+            StringComparer.OrdinalIgnoreCase);
+    }
+
+    public async Task<ProviderTestResult> RefreshProviderAsync(
+        CodeAltaProviderDocument definition,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+
+        if (definition.Enabled == false)
+        {
+            return new ProviderTestResult(false, "Enable and save this provider before refreshing it.", 0);
+        }
+
+        if (string.IsNullOrWhiteSpace(definition.ProviderKey))
+        {
+            return new ProviderTestResult(false, "Provider key is required before refreshing.", 0);
+        }
+
+        await _modelProviderInitializationCoordinator.RefreshProviderAsync(new ModelProviderId(definition.ProviderKey), cancellationToken);
+
+        return TryBuildActiveProviderTestResult(definition, _modelProviderStates, out var activeResult)
+            ? activeResult
+            : new ProviderTestResult(false, "Provider refresh completed, but no runtime status was published.", 0);
+    }
+
     public async Task<ProviderModelListResult> ListProviderModelsAsync(
         CodeAltaProviderDocument definition,
         CancellationToken cancellationToken = default)

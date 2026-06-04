@@ -164,6 +164,131 @@ public sealed class ModelProvidersDialogInteractionTests
     }
 
     [TestMethod]
+    public void ModelProvidersDialog_FocusesProviderListAfterInitialLoad()
+    {
+        using var session = Terminal.Open(new InMemoryTerminalBackend(new TerminalSize(120, 40)), new TerminalOptions { ImplicitStartInput = true }, force: true);
+        var root = new TextBlock("Root");
+        var app = new TerminalApp(
+            root,
+            session.Instance,
+            new TerminalAppOptions
+            {
+                HostKind = TerminalHostKind.Fullscreen,
+            });
+
+        var definitions = new[]
+        {
+            new CodeAltaProviderDocument
+            {
+                ProviderKey = "provider-1",
+                Enabled = true,
+                ProviderType = "openai-chat",
+                ApiKey = "key-1",
+            },
+        };
+        var dialog = CreateDialog(() => definitions, getFocusTarget: () => root);
+
+        InvokeTerminalApp(app, "BeginRun");
+        try
+        {
+            dialog.Show();
+            WaitUntil(() => GetProviderCount(dialog) == 1, app);
+
+            Assert.AreEqual(0, GetSelectedProviderIndex(dialog));
+            Assert.AreSame(GetProviderList(dialog), app.FocusedElement);
+        }
+        finally
+        {
+            InvokeTerminalApp(app, "EndRun");
+        }
+    }
+
+    [TestMethod]
+    public void ModelProvidersDialog_ProviderListShowsFailedRuntimeStatusInsteadOfOn()
+    {
+        var definitions = new[]
+        {
+            new CodeAltaProviderDocument
+            {
+                ProviderKey = "provider-1",
+                Enabled = true,
+                ProviderType = "openai-chat",
+                ApiKey = "key-1",
+            },
+        };
+        var runtimeStatuses = new Dictionary<string, ProviderRuntimeStatus>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["provider-1"] = new("provider-1", ModelProviderAvailability.Failed, "Model discovery failed.", 0),
+        };
+        var dialog = CreateDialog(() => definitions, getRuntimeStatuses: () => runtimeStatuses);
+
+        InvokeLoadDefinitionsIntoDialog(
+            dialog,
+            definitions,
+            "[warning]No providers are configured yet.[/]",
+            "[dim]Provider configuration loaded from disk.[/]");
+
+        var provider = GetProviders(dialog)[0];
+        Assert.AreEqual(ViewModels.ModelProviderLastTestState.Failed, provider.LastTestState);
+
+        var markup = BuildProviderListItemMarkup(dialog, provider);
+        StringAssert.Contains(markup, "ERR");
+        Assert.IsFalse(markup.Contains(" ON", StringComparison.Ordinal), markup);
+    }
+
+    [TestMethod]
+    public void ModelProvidersDialog_TestProviderShowsInProgressStateImmediately()
+    {
+        using var session = Terminal.Open(new InMemoryTerminalBackend(new TerminalSize(120, 40)), new TerminalOptions { ImplicitStartInput = true }, force: true);
+        var root = new TextBlock("Root");
+        var app = new TerminalApp(
+            root,
+            session.Instance,
+            new TerminalAppOptions
+            {
+                HostKind = TerminalHostKind.Fullscreen,
+            });
+
+        var definitions = new[]
+        {
+            new CodeAltaProviderDocument
+            {
+                ProviderKey = "provider-1",
+                Enabled = true,
+                ProviderType = "openai-chat",
+                ApiKey = "key-1",
+            },
+        };
+        var testCompletion = new TaskCompletionSource<ProviderTestResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var dialog = CreateDialog(
+            () => definitions,
+            testProviderAsync: _ => testCompletion.Task,
+            getFocusTarget: () => root);
+
+        InvokeTerminalApp(app, "BeginRun");
+        try
+        {
+            dialog.Show();
+            WaitUntil(() => GetProviderCount(dialog) == 1, app);
+
+            var provider = GetProviders(dialog)[0];
+            InvokeStartTest(dialog, provider);
+            TickTerminalApp(app);
+
+            Assert.AreEqual(ViewModels.ModelProviderLastTestState.Testing, provider.LastTestState);
+            StringAssert.Contains(BuildProviderListItemMarkup(dialog, provider), "TEST");
+            StringAssert.Contains(BuildProviderListItemMarkup(dialog, provider), "Testing...");
+
+            testCompletion.SetResult(new ProviderTestResult(true, "Connected successfully.", 1));
+            WaitUntil(() => provider.LastTestState == ViewModels.ModelProviderLastTestState.Success, app);
+        }
+        finally
+        {
+            InvokeTerminalApp(app, "EndRun");
+        }
+    }
+
+    [TestMethod]
     public void ModelProvidersDialog_SaveIgnoresTransientFailedTestResult()
     {
         using var session = Terminal.Open(new InMemoryTerminalBackend(new TerminalSize(120, 40)), new TerminalOptions { ImplicitStartInput = true }, force: true);
@@ -661,15 +786,77 @@ public sealed class ModelProvidersDialogInteractionTests
         }
     }
 
+    [TestMethod]
+    public void ModelProvidersDialog_RefreshProviderUpdatesFailedProviderStatus()
+    {
+        using var session = Terminal.Open(new InMemoryTerminalBackend(new TerminalSize(120, 40)), new TerminalOptions { ImplicitStartInput = true }, force: true);
+        var root = new TextBlock("Root");
+        var app = new TerminalApp(
+            root,
+            session.Instance,
+            new TerminalAppOptions
+            {
+                HostKind = TerminalHostKind.Fullscreen,
+            });
+
+        var definitions = new[]
+        {
+            new CodeAltaProviderDocument
+            {
+                ProviderKey = "provider-1",
+                Enabled = true,
+                ProviderType = "openai-chat",
+                ApiKey = "key-1",
+            },
+        };
+        var runtimeStatuses = new Dictionary<string, ProviderRuntimeStatus>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["provider-1"] = new("provider-1", ModelProviderAvailability.Failed, "Initial model discovery failed.", 0),
+        };
+        var refreshCount = 0;
+        var dialog = CreateDialog(
+            () => definitions,
+            getFocusTarget: () => root,
+            getRuntimeStatuses: () => runtimeStatuses,
+            refreshProviderAsync: definition =>
+            {
+                refreshCount++;
+                runtimeStatuses[definition.ProviderKey] = new ProviderRuntimeStatus(definition.ProviderKey, ModelProviderAvailability.Ready, "Connected.", 2);
+                return Task.FromResult(new ProviderTestResult(true, "Using active model provider · 2 model(s) discovered.", 2));
+            });
+
+        InvokeTerminalApp(app, "BeginRun");
+        try
+        {
+            dialog.Show();
+            WaitUntil(() => GetProviderCount(dialog) == 1, app);
+
+            var provider = GetProviders(dialog)[0];
+            Assert.AreEqual(ViewModels.ModelProviderLastTestState.Failed, provider.LastTestState);
+
+            InvokeStartRefreshProvider(dialog, provider);
+            WaitUntil(() => provider.LastTestState == ViewModels.ModelProviderLastTestState.Success, app);
+
+            Assert.AreEqual(1, refreshCount);
+            StringAssert.Contains(BuildProviderListItemMarkup(dialog, provider), "ON");
+        }
+        finally
+        {
+            InvokeTerminalApp(app, "EndRun");
+        }
+    }
+
     private static ModelProvidersDialog CreateDialog(
         Func<IReadOnlyList<CodeAltaProviderDocument>> loadDefinitions,
         Func<IReadOnlyList<CodeAltaProviderDocument>, Task<ProviderConfigurationSaveResult>>? saveDefinitionsAsync = null,
         Func<CodeAltaProviderDocument, Task<ProviderTestResult>>? testProviderAsync = null,
         Func<Visual?>? getFocusTarget = null,
-        Func<CodeAltaProviderDocument, Task<ProviderModelListResult>>? listSelectableModelsAsync = null)
+        Func<CodeAltaProviderDocument, Task<ProviderModelListResult>>? listSelectableModelsAsync = null,
+        Func<IReadOnlyDictionary<string, ProviderRuntimeStatus>>? getRuntimeStatuses = null,
+        Func<CodeAltaProviderDocument, Task<ProviderTestResult>>? refreshProviderAsync = null)
     {
         return new ModelProvidersDialog(
-            new TestModelProviderDialogService(loadDefinitions, saveDefinitionsAsync, testProviderAsync, listSelectableModelsAsync),
+            new TestModelProviderDialogService(loadDefinitions, saveDefinitionsAsync, testProviderAsync, listSelectableModelsAsync, getRuntimeStatuses, refreshProviderAsync),
             () => new Rectangle(0, 0, 120, 40),
             getFocusTarget ?? (() => null));
     }
@@ -696,6 +883,19 @@ public sealed class ModelProvidersDialogInteractionTests
             .GetValue(dialog)!;
 
     private static int GetProviderCount(ModelProvidersDialog dialog) => GetProviders(dialog).Count;
+
+    private static object GetProviderList(ModelProvidersDialog dialog)
+        => typeof(ModelProvidersDialog)
+            .GetField("_providerList", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(dialog)!;
+
+    private static int GetSelectedProviderIndex(ModelProvidersDialog dialog)
+    {
+        var state = typeof(ModelProvidersDialog)
+            .GetField("_selectedProviderIndex", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(dialog)!;
+        return (int)state.GetType().GetProperty("Value")!.GetValue(state)!;
+    }
 
     private static bool IsDialogOpen(ModelProvidersDialog dialog)
         => ((Dialog)typeof(ModelProvidersDialog)
@@ -737,6 +937,11 @@ public sealed class ModelProvidersDialogInteractionTests
     private static void InvokeStartTest(ModelProvidersDialog dialog, ViewModels.ModelProviderEditorItemViewModel item)
         => typeof(ModelProvidersDialog)
             .GetMethod("StartTest", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(dialog, [item]);
+
+    private static void InvokeStartRefreshProvider(ModelProvidersDialog dialog, ViewModels.ModelProviderEditorItemViewModel item)
+        => typeof(ModelProvidersDialog)
+            .GetMethod("StartRefreshProvider", BindingFlags.Instance | BindingFlags.NonPublic)!
             .Invoke(dialog, [item]);
 
     private static void InvokeStartModelSelection(ModelProvidersDialog dialog, ViewModels.ModelProviderEditorItemViewModel item)
@@ -805,6 +1010,11 @@ public sealed class ModelProvidersDialogInteractionTests
             .GetMethod("HasUnsavedChanges", BindingFlags.Instance | BindingFlags.NonPublic)!
             .Invoke(dialog, null)!;
 
+    private static string BuildProviderListItemMarkup(ModelProvidersDialog dialog, ViewModels.ModelProviderEditorItemViewModel item)
+        => (string)typeof(ModelProvidersDialog)
+            .GetMethod("BuildProviderListItemMarkup", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(dialog, [item])!;
+
     private static string BuildStatusMarkup(ModelProvidersDialog dialog)
         => (string)typeof(ModelProvidersDialog)
             .GetMethod("BuildStatusMarkup", BindingFlags.Instance | BindingFlags.NonPublic)!
@@ -842,12 +1052,16 @@ public sealed class ModelProvidersDialogInteractionTests
         private readonly Func<IReadOnlyList<CodeAltaProviderDocument>, Task<ProviderConfigurationSaveResult>> _saveDefinitionsAsync;
         private readonly Func<CodeAltaProviderDocument, Task<ProviderTestResult>> _testProviderAsync;
         private readonly Func<CodeAltaProviderDocument, Task<ProviderModelListResult>> _listSelectableModelsAsync;
+        private readonly Func<IReadOnlyDictionary<string, ProviderRuntimeStatus>> _getRuntimeStatuses;
+        private readonly Func<CodeAltaProviderDocument, Task<ProviderTestResult>> _refreshProviderAsync;
 
         public TestModelProviderDialogService(
             Func<IReadOnlyList<CodeAltaProviderDocument>> loadDefinitions,
             Func<IReadOnlyList<CodeAltaProviderDocument>, Task<ProviderConfigurationSaveResult>>? saveDefinitionsAsync,
             Func<CodeAltaProviderDocument, Task<ProviderTestResult>>? testProviderAsync,
-            Func<CodeAltaProviderDocument, Task<ProviderModelListResult>>? listSelectableModelsAsync)
+            Func<CodeAltaProviderDocument, Task<ProviderModelListResult>>? listSelectableModelsAsync,
+            Func<IReadOnlyDictionary<string, ProviderRuntimeStatus>>? getRuntimeStatuses,
+            Func<CodeAltaProviderDocument, Task<ProviderTestResult>>? refreshProviderAsync)
         {
             _loadDefinitions = loadDefinitions;
             _saveDefinitionsAsync = saveDefinitionsAsync ?? (_ => Task.FromResult(ProviderConfigurationSaveResult.Success));
@@ -856,6 +1070,8 @@ public sealed class ModelProvidersDialogInteractionTests
                 true,
                 $"Model listing completed · {definition.ProviderKey}",
                 [new AgentModelInfo("model-1", "Model 1")])));
+            _getRuntimeStatuses = getRuntimeStatuses ?? (static () => new Dictionary<string, ProviderRuntimeStatus>(StringComparer.OrdinalIgnoreCase));
+            _refreshProviderAsync = refreshProviderAsync ?? _testProviderAsync;
         }
 
         public string ConfigurationPath => Path.Combine(Path.GetTempPath(), "config.toml");
@@ -872,7 +1088,11 @@ public sealed class ModelProvidersDialogInteractionTests
 
         public Task<ProviderConfigurationSaveResult> SaveDefinitionsAsync(IReadOnlyList<CodeAltaProviderDocument> definitions, CancellationToken cancellationToken = default) => _saveDefinitionsAsync(definitions);
 
+        public IReadOnlyDictionary<string, ProviderRuntimeStatus> GetRuntimeStatuses() => _getRuntimeStatuses();
+
         public Task<ProviderTestResult> TestProviderAsync(CodeAltaProviderDocument definition, CancellationToken cancellationToken = default) => _testProviderAsync(definition);
+
+        public Task<ProviderTestResult> RefreshProviderAsync(CodeAltaProviderDocument definition, CancellationToken cancellationToken = default) => _refreshProviderAsync(definition);
 
         public Task<ProviderTestResult> LoginWithBrowserAsync(CodeAltaProviderDocument definition, Action<string> reportStatus, CancellationToken cancellationToken = default)
             => Task.FromResult(new ProviderTestResult(false, "Browser login is unavailable in this host.", 0));

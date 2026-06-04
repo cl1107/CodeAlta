@@ -231,6 +231,12 @@ internal sealed partial class ModelProviderEditorItemViewModel
         return true;
     }
 
+    public void SetTestInProgress(string? message)
+    {
+        LastTestState = ModelProviderLastTestState.Testing;
+        LastTestMessage = NormalizeText(message);
+    }
+
     public void SetTestResult(bool success, string? message)
     {
         LastTestState = success ? ModelProviderLastTestState.Success : ModelProviderLastTestState.Failed;

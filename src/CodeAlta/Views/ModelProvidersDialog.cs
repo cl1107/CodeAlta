@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using CodeAlta.Agent;
 using CodeAlta.App;
 using CodeAlta.Catalog;
 using CodeAlta.ViewModels;
@@ -61,6 +62,7 @@ internal sealed class ModelProvidersDialog
     private readonly State<int> _activeLoginDialogRefreshVersion = new(0);
     private readonly State<bool> _hasLoadedDefinitions = new(false);
     private readonly State<string> _statusText = new("[dim]Configure model providers and save to refresh the runtime.[/]");
+    private IReadOnlyDictionary<string, ProviderRuntimeStatus> _runtimeStatuses = new Dictionary<string, ProviderRuntimeStatus>(StringComparer.OrdinalIgnoreCase);
     private CancellationTokenSource? _activeOperationCancellation;
     private Dialog? _activeLoginDialog;
     private ModelProviderModelSelectionDialog? _activeModelSelectionDialog;
@@ -265,6 +267,7 @@ internal sealed class ModelProvidersDialog
         }
 
         _dialog.Show();
+        FocusProviderList();
         if (!_hasLoadedDefinitions.Value)
         {
             StartReload(confirmWhenDirty: false);
@@ -486,6 +489,7 @@ internal sealed class ModelProvidersDialog
         }
 
         SetStatus($"[primary]Testing {AnsiMarkup.Escape(item.Label)}...[/]");
+        item.SetTestInProgress("Testing provider connectivity and model discovery...");
         QueueBackgroundOperation(
             cancellationToken => _modelProviders.TestProviderAsync(definition, cancellationToken),
             result =>
@@ -516,7 +520,79 @@ internal sealed class ModelProvidersDialog
             {
                 if (ex is OperationCanceledException || ex.GetBaseException() is OperationCanceledException)
                 {
+                    item.ClearTestResult();
                     SetStatus("[warning]Provider test canceled.[/]");
+                    return;
+                }
+
+                var message = ex.GetBaseException().Message;
+                if (_providers.Contains(item))
+                {
+                    item.SetTestResult(success: false, message);
+                }
+
+                SetStatus($"[error]{AnsiMarkup.Escape(message)}[/]");
+            });
+    }
+
+    private void StartRefreshProvider(ModelProviderEditorItemViewModel item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+
+        if (IsDialogOperationActive())
+        {
+            ReportActiveOperationBlock("refresh a provider");
+            return;
+        }
+
+        if (!_providers.Contains(item))
+        {
+            SetStatus("[warning]Select a provider to refresh.[/]");
+            return;
+        }
+
+        if (HasUnsavedChanges())
+        {
+            SetStatus("[warning]Save or Reload provider changes before refreshing runtime provider status.[/]");
+            return;
+        }
+
+        if (!TryBuildDefinition(item, out var definition, out var errorMessage))
+        {
+            SetStatus($"[warning]{AnsiMarkup.Escape(errorMessage)}[/]");
+            return;
+        }
+
+        if (!TryBeginDialogOperation("refresh a provider"))
+        {
+            return;
+        }
+
+        SetStatus($"[primary]Refreshing {AnsiMarkup.Escape(item.Label)} models...[/]");
+        item.SetTestInProgress("Refreshing runtime provider status and model list...");
+        QueueBackgroundOperation(
+            cancellationToken => _modelProviders.RefreshProviderAsync(definition, cancellationToken),
+            result =>
+            {
+                _runtimeStatuses = _modelProviders.GetRuntimeStatuses();
+                var effectiveResult = TryCreateResultFromRuntimeStatus(item, out var runtimeResult)
+                    ? runtimeResult
+                    : result;
+                if (_providers.Contains(item))
+                {
+                    item.SetTestResult(effectiveResult.Success, effectiveResult.Message);
+                }
+
+                SetStatus(effectiveResult.Success
+                    ? $"[success]{AnsiMarkup.Escape(effectiveResult.Message)}[/]"
+                    : $"[warning]{AnsiMarkup.Escape(effectiveResult.Message)}[/]");
+            },
+            ex =>
+            {
+                if (ex is OperationCanceledException || ex.GetBaseException() is OperationCanceledException)
+                {
+                    item.ClearTestResult();
+                    SetStatus("[warning]Provider refresh canceled.[/]");
                     return;
                 }
 
@@ -670,6 +746,9 @@ internal sealed class ModelProvidersDialog
         var testButton = new Button("Test Provider")
             .Tone(ControlTone.Primary)
             .Click(() => StartTest(item));
+        var refreshButton = new Button($"{NerdFont.MdRefresh} Refresh Provider")
+            .Tone(ControlTone.Warning)
+            .Click(() => StartRefreshProvider(item));
         var codexActions = item.ProviderType == "codex"
             ? CreateCodexSubscriptionActions(item)
             : null;
@@ -759,7 +838,10 @@ internal sealed class ModelProvidersDialog
             availability,
             CreateAvailabilityToggleButton(item),
             summary,
-            testButton,
+            new HStack(testButton, refreshButton)
+            {
+                Spacing = 1,
+            },
         };
         if (codexActions is not null)
         {
@@ -1411,13 +1493,78 @@ internal sealed class ModelProvidersDialog
     }
 
     private ModelProviderEditorItemViewModel CreateEditorItem(CodeAltaProviderDocument definition)
-        => CreateEditorItem(ModelProviderEditorItemViewModel.FromDocument(definition));
+    {
+        var item = ModelProviderEditorItemViewModel.FromDocument(definition);
+        ApplyRuntimeStatus(item);
+        return CreateEditorItem(item);
+    }
 
     private ModelProviderEditorItemViewModel CreateEditorItem(ModelProviderEditorItemViewModel item)
     {
         ArgumentNullException.ThrowIfNull(item);
         item.SetEditedCallback(NotifyProviderDraftChanged);
         return item;
+    }
+
+    private void ApplyRuntimeStatus(ModelProviderEditorItemViewModel item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+
+        if (!TryGetRuntimeStatus(item, out var status))
+        {
+            return;
+        }
+
+        switch (status.Availability)
+        {
+            case ModelProviderAvailability.Ready:
+                item.SetTestResult(success: true, FormatRuntimeStatusMessage(status));
+                break;
+            case ModelProviderAvailability.Failed:
+            case ModelProviderAvailability.Unsupported:
+                item.SetTestResult(success: false, status.StatusMessage);
+                break;
+            case ModelProviderAvailability.Probing:
+                item.SetTestInProgress(status.StatusMessage);
+                break;
+        }
+    }
+
+    private bool TryCreateResultFromRuntimeStatus(ModelProviderEditorItemViewModel item, out ProviderTestResult result)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+
+        result = default;
+        if (!TryGetRuntimeStatus(item, out var status))
+        {
+            return false;
+        }
+
+        switch (status.Availability)
+        {
+            case ModelProviderAvailability.Ready:
+                result = new ProviderTestResult(true, FormatRuntimeStatusMessage(status), status.ModelCount);
+                return true;
+            case ModelProviderAvailability.Failed:
+            case ModelProviderAvailability.Unsupported:
+                result = new ProviderTestResult(false, status.StatusMessage, 0);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private bool TryGetRuntimeStatus(ModelProviderEditorItemViewModel item, out ProviderRuntimeStatus status)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+
+        if (item.Enabled && !string.IsNullOrWhiteSpace(item.ProviderKey))
+        {
+            return _runtimeStatuses.TryGetValue(item.ProviderKey, out status);
+        }
+
+        status = default;
+        return false;
     }
 
     private string BuildStatusMarkup()
@@ -1661,6 +1808,35 @@ internal sealed class ModelProvidersDialog
             ? ("success", $"{NerdFont.MdCheckCircleOutline}")
             : ("muted", $"{NerdFont.MdPauseCircleOutline}");
 
+    private static (string Tone, string Icon, string Text) GetProviderListStatus(ModelProviderEditorItemViewModel item, ModelProviderDiagnosticsSnapshot diagnostics)
+    {
+        if (!item.Enabled)
+        {
+            return ("muted", $"{NerdFont.MdPauseCircleOutline}", "OFF");
+        }
+
+        if (item.LastTestState == ModelProviderLastTestState.Testing)
+        {
+            return ("primary", $"{NerdFont.MdTimerOutline}", "TEST");
+        }
+
+        return diagnostics.StatusKind switch
+        {
+            ModelProviderUiStatusKind.Success => ("success", $"{NerdFont.MdCheckCircleOutline}", "ON"),
+            ModelProviderUiStatusKind.Error => ("error", $"{NerdFont.MdCloseCircleOutline}", "ERR"),
+            ModelProviderUiStatusKind.Warning => ("warning", $"{NerdFont.MdAlertOutline}", "WARN"),
+            _ => ("primary", $"{NerdFont.MdHelpBox}", "TEST"),
+        };
+    }
+
+    private static string FormatRuntimeStatusMessage(ProviderRuntimeStatus status)
+        => status.ModelCount switch
+        {
+            0 => "Runtime connected.",
+            1 => "Runtime connected · 1 model discovered.",
+            _ => $"Runtime connected · {status.ModelCount} models discovered.",
+        };
+
     private static ValidationMessage? BuildCustomApiUrlGuidance(ModelProviderEditorItemViewModel item)
         => item.Enabled &&
            !item.UseDefaultApiUrl &&
@@ -1686,6 +1862,7 @@ internal sealed class ModelProvidersDialog
         var selectedProviderKey = GetSelectedItem()?.ProviderKey;
 
         _providers.Clear();
+        _runtimeStatuses = _modelProviders.GetRuntimeStatuses();
         _providers.AddRange(definitions.Select(CreateEditorItem));
         _loadedSnapshot = _providers.Select(CreateSnapshot).ToArray();
         _hasLoadedDefinitions.Value = true;
@@ -1700,7 +1877,11 @@ internal sealed class ModelProvidersDialog
         }
 
         SetSelectedProviderIndex(selectedIndex);
+        FocusProviderList();
     }
+
+    private void FocusProviderList()
+        => _dialog.App?.Focus(_providerList);
 
     private bool TryBeginDialogOperation(
         string operationDescription,
@@ -2253,8 +2434,7 @@ internal sealed class ModelProvidersDialog
     {
         var diagnostics = Analyze(item);
         var (tone, icon) = GetStatusToneAndIcon(diagnostics.StatusKind);
-        var (availabilityTone, availabilityIcon) = GetAvailabilityToneAndIcon(item.Enabled);
-        var availabilityText = item.Enabled ? "ON" : "OFF";
+        var (availabilityTone, availabilityIcon, availabilityText) = GetProviderListStatus(item, diagnostics);
         return $"[{availabilityTone}]{availabilityIcon} {availabilityText}[/] [{tone}]{icon} {AnsiMarkup.Escape(item.Label)}[/] [dim]· {AnsiMarkup.Escape(diagnostics.StatusText)}[/]";
     }
 

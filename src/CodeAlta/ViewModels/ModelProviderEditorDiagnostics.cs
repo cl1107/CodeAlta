@@ -14,6 +14,7 @@ internal enum ModelProviderUiStatusKind
 internal enum ModelProviderLastTestState
 {
     None,
+    Testing,
     Success,
     Failed,
 }
@@ -82,6 +83,14 @@ internal static class ModelProviderEditorDiagnostics
             entries.Insert(0, new ModelProviderDiagnosticEntry(
                 ValidationSeverity.Error,
                 $"Last test failed: {item.LastTestMessage!.Trim()}"));
+        }
+        else if (item.LastTestState == ModelProviderLastTestState.Testing)
+        {
+            entries.Insert(0, new ModelProviderDiagnosticEntry(
+                ValidationSeverity.Info,
+                string.IsNullOrWhiteSpace(item.LastTestMessage)
+                    ? "Provider test is running."
+                    : item.LastTestMessage!.Trim()));
         }
 
         var hasErrors = entries.Any(static entry => entry.Severity == ValidationSeverity.Error);
@@ -274,6 +283,11 @@ internal static class ModelProviderEditorDiagnostics
             return ModelProviderUiStatusKind.Error;
         }
 
+        if (item.LastTestState == ModelProviderLastTestState.Testing)
+        {
+            return ModelProviderUiStatusKind.Warning;
+        }
+
         if (!item.Enabled)
         {
             return ModelProviderUiStatusKind.Disabled;
@@ -303,6 +317,11 @@ internal static class ModelProviderEditorDiagnostics
         if (item.LastTestState == ModelProviderLastTestState.Success)
         {
             return "Tested successfully";
+        }
+
+        if (item.LastTestState == ModelProviderLastTestState.Testing)
+        {
+            return "Testing...";
         }
 
         if (item.ProviderType == "codex" &&
