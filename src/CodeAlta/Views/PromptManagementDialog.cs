@@ -4,12 +4,12 @@ using CodeAlta.Catalog;
 using CodeAlta.Models;
 using CodeAlta.Orchestration.Runtime.SystemPrompts;
 using CodeAlta.Presentation.Chat;
+using CodeAlta.Presentation.Editing;
 using XenoAtom.Ansi;
 using XenoAtom.Terminal;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Commands;
 using XenoAtom.Terminal.UI.Controls;
-using XenoAtom.Terminal.UI.Extensions.CodeEditor.TextMateSharp;
 using XenoAtom.Terminal.UI.Geometry;
 using XenoAtom.Terminal.UI.Input;
 using XenoAtom.Terminal.UI.Styling;
@@ -1227,7 +1227,7 @@ internal sealed class PromptManagementDialog
     {
         _bodyEditor.TextDocument.Changed -= OnEditorChanged;
         _bodyEditor.TextDocument = new TextDocument(text ?? string.Empty);
-        _bodyEditor.SyntaxHighlighter = CreateMarkdownSyntaxHighlighter();
+        _bodyEditor.SyntaxHighlighter = CodeEditorFactory.CreateSyntaxHighlighter(PromptEditorFileName, PromptEditorLanguageId);
         _bodyEditor.TextDocument.Changed += OnEditorChanged;
     }
 
@@ -1302,43 +1302,18 @@ internal sealed class PromptManagementDialog
     }
 
     private static CodeEditor CreateMarkdownEditor(string text)
-    {
-        var editor = new CodeEditor()
-            .WordWrap(true)
-            .ShowLineNumbers(true)
-            .HighlightCurrentLine(true)
-            .MinHeight(10);
-        editor.TextDocument = new TextDocument(text);
-        editor.SyntaxHighlighter = CreateMarkdownSyntaxHighlighter();
-        return editor;
-    }
-
-    private static CodeEditorSyntaxHighlighter? CreateMarkdownSyntaxHighlighter()
-    {
-        try
-        {
-            return new TextMateCodeEditorSyntaxHighlighter(
-                new TextMateCodeEditorOptions
-                {
-                    LanguageId = PromptEditorLanguageId,
-                    FileName = PromptEditorFileName,
-                });
-        }
-        catch (ArgumentException)
-        {
-            return null;
-        }
-    }
+        => CodeEditorFactory.Create(
+            text,
+            new CodeEditorFactoryOptions
+            {
+                FileName = PromptEditorFileName,
+                LanguageId = PromptEditorLanguageId,
+                MinHeight = 10,
+            });
 
     private static string GetEditorText(CodeEditor editor)
     {
-        var snapshot = editor.TextDocument.CurrentSnapshot;
-        if (snapshot.Length == 0)
-        {
-            return string.Empty;
-        }
-
-        return string.Create(snapshot.Length, snapshot, static (span, currentSnapshot) => currentSnapshot.CopyTo(0, span));
+        return CodeEditorFactory.GetText(editor);
     }
 
     private static string BuildPromptFile(PromptEditorValues values)

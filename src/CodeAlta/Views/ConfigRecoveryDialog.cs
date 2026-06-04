@@ -1,5 +1,6 @@
 using System.Text;
 using CodeAlta.Catalog;
+using CodeAlta.Presentation.Editing;
 using XenoAtom.Ansi;
 using XenoAtom.Terminal;
 using XenoAtom.Terminal.UI;
@@ -109,11 +110,7 @@ internal sealed class ConfigRecoveryDialog
             HorizontalAlignment = Align.Stretch,
         };
 
-        var editorFrame = new Border(
-            new ScrollViewer(_editor.Stretch(), focusable: false)
-                .IsTabStop(false)
-                .HorizontalAlignment(Align.Stretch)
-                .VerticalAlignment(Align.Stretch))
+        var editorFrame = new Border(CodeEditorFactory.CreateScrollViewer(_editor))
         {
             HorizontalAlignment = Align.Stretch,
             VerticalAlignment = Align.Stretch,
@@ -231,13 +228,5 @@ internal sealed class ConfigRecoveryDialog
     }
 
     private string GetEditorText()
-    {
-        var snapshot = _editor.TextDocument.CurrentSnapshot;
-        if (snapshot.Length == 0)
-        {
-            return string.Empty;
-        }
-
-        return string.Create(snapshot.Length, snapshot, static (span, currentSnapshot) => currentSnapshot.CopyTo(0, span));
-    }
+        => CodeEditorFactory.GetText(_editor);
 }

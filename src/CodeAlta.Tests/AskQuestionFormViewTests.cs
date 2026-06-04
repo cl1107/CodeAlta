@@ -140,7 +140,8 @@ public sealed class AskQuestionFormViewTests
         StringAssert.Contains(workspaceViewModelSource, "Func<string, Visual, Visual?, bool>? _enterAskMode");
         StringAssert.Contains(tabHostSource, "splitter.First = fileReview");
         Assert.IsFalse(tabHostSource.Contains("AskFileReviewRatio", StringComparison.Ordinal));
-        StringAssert.Contains(fileReviewSource, "new CodeEditor(new CodeEditorConfig");
+        StringAssert.Contains(fileReviewSource, "CodeEditorFactory.Create");
+        StringAssert.Contains(fileReviewSource, "GoToLine = CodeEditorGoToLineConfig.Disabled");
         StringAssert.Contains(fileReviewSource, "CodeAlta.Ask.FileComment.Insert");
         StringAssert.Contains(fileReviewSource, "CodeAlta.Ask.FileComment.Clear");
         StringAssert.Contains(fileReviewSource, "TextEditorAutoSizeMode.Height");
@@ -151,6 +152,29 @@ public sealed class AskQuestionFormViewTests
         StringAssert.Contains(fileReviewSource, "Clear comments");
         StringAssert.Contains(fileReviewSource, "TrySave");
         StringAssert.Contains(fileReviewSource, "CreateReviewSnapshot");
+    }
+
+    [TestMethod]
+    public void FileAsk_CodeEditorWrapsLinesByDefault()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "CodeAlta.Tests." + Guid.NewGuid().ToString("N") + ".txt");
+        try
+        {
+            File.WriteAllText(path, "This is a long attached file line that should wrap in the ask review editor by default.");
+
+            var view = AskFileReviewView.Create(new AltaAskFile { Path = path }, []);
+
+            Assert.IsNotNull(view);
+            Assert.IsNotNull(view.Editor);
+            Assert.IsTrue(view.Editor.WordWrap);
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
     }
 
     [TestMethod]

@@ -2,13 +2,13 @@ using System.Globalization;
 using System.Text;
 using CodeAlta.LiveTool;
 using CodeAlta.Models;
+using CodeAlta.Presentation.Editing;
 using CodeAlta.Presentation.Styling;
 using XenoAtom.Ansi;
 using XenoAtom.Terminal;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Commands;
 using XenoAtom.Terminal.UI.Controls;
-using XenoAtom.Terminal.UI.Extensions.CodeEditor.TextMateSharp;
 using XenoAtom.Terminal.UI.Geometry;
 using XenoAtom.Terminal.UI.Input;
 using XenoAtom.Terminal.UI.Styling;
@@ -55,10 +55,7 @@ internal sealed class AskFileReviewView
             Editor.AddCommand(CreateFocusAdjacentCommentCommand(forward: true));
             Editor.AddCommand(CreateFocusAdjacentCommentCommand(forward: false));
             Editor.AddCommand(CreateSaveCommand());
-            Body = new ScrollViewer(Editor.Stretch(), focusable: false)
-                .IsTabStop(false)
-                .HorizontalAlignment(Align.Stretch)
-                .VerticalAlignment(Align.Stretch);
+            Body = CodeEditorFactory.CreateScrollViewer(Editor);
         }
         else
         {
@@ -252,15 +249,16 @@ internal sealed class AskFileReviewView
 
     private CodeEditor CreateEditor(string text, string fullPath)
     {
-        var editor = new CodeEditor(new CodeEditorConfig { GoToLine = CodeEditorGoToLineConfig.Disabled })
-            .AutoFocus(false)
-            .WordWrap(false)
-            .ShowLineNumbers(true)
-            .HighlightCurrentLine(true)
-            .MinHeight(8);
-        editor.TextDocument = new TextDocument(text);
-        editor.SyntaxHighlighter = CreateSyntaxHighlighter(fullPath);
-        return editor;
+        return CodeEditorFactory.Create(
+            text,
+            new CodeEditorFactoryOptions
+            {
+                Config = new CodeEditorConfig { GoToLine = CodeEditorGoToLineConfig.Disabled },
+                FileName = fullPath,
+                AutoFocus = false,
+                WordWrap = true,
+                MinHeight = 8,
+            });
     }
 
     public Command CreateSaveCommand()
@@ -610,18 +608,10 @@ internal sealed class AskFileReviewView
             : Style.None;
 
     private string GetEditorText()
-        => Editor is null ? string.Empty : GetText(Editor.TextDocument);
+        => Editor is null ? string.Empty : CodeEditorFactory.GetText(Editor);
 
     private static string GetText(ITextDocument document)
-    {
-        var snapshot = document.CurrentSnapshot;
-        if (snapshot.Length == 0)
-        {
-            return string.Empty;
-        }
-
-        return string.Create(snapshot.Length, snapshot, static (span, currentSnapshot) => currentSnapshot.CopyTo(0, span));
-    }
+        => CodeEditorFactory.GetText(document);
 
     private void TouchComments()
         => _commentVersion.Value++;
@@ -690,22 +680,6 @@ internal sealed class AskFileReviewView
         var fallbackRoot = rootCandidates.FirstOrDefault(static root => !string.IsNullOrWhiteSpace(root)) ?? Environment.CurrentDirectory;
         var fallback = Path.GetFullPath(Path.Combine(fallbackRoot, normalizedPath));
         return new AskFileResolution(fallback, path.Replace('\\', '/'));
-    }
-
-    private static CodeEditorSyntaxHighlighter? CreateSyntaxHighlighter(string fullPath)
-    {
-        try
-        {
-            return new TextMateCodeEditorSyntaxHighlighter(
-                new TextMateCodeEditorOptions
-                {
-                    FileName = fullPath,
-                });
-        }
-        catch (ArgumentException)
-        {
-            return null;
-        }
     }
 
     private sealed record AskFileResolution(string FullPath, string DisplayPath);

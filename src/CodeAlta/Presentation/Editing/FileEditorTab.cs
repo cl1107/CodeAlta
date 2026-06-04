@@ -9,7 +9,6 @@ using XenoAtom.Terminal;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Commands;
 using XenoAtom.Terminal.UI.Controls;
-using XenoAtom.Terminal.UI.Extensions.CodeEditor.TextMateSharp;
 using XenoAtom.Terminal.UI.Input;
 using XenoAtom.Terminal.UI.Styling;
 using XenoAtom.Terminal.UI.Text;
@@ -396,10 +395,7 @@ internal sealed partial class FileEditorTab : IAsyncDisposable
             .Center(pathText)
             .Right(actions);
 
-        var scrollableEditor = new ScrollViewer(Editor.Stretch(), focusable: false)
-            .IsTabStop(false)
-            .HorizontalAlignment(Align.Stretch)
-            .VerticalAlignment(Align.Stretch);
+        var scrollableEditor = CodeEditorFactory.CreateScrollViewer(Editor);
 
         return new DockLayout()
             .Content(scrollableEditor)
@@ -410,14 +406,13 @@ internal sealed partial class FileEditorTab : IAsyncDisposable
 
     private CodeEditor CreateEditor(ProjectFileSearchItem item, string text)
     {
-        var editor = new CodeEditor()
-            .AutoFocus(true)
-            .WordWrap(_wordWrap)
-            .ShowLineNumbers(true)
-            .HighlightCurrentLine(true)
-            .MinHeight(12);
-        editor.TextDocument = new TextDocument(text);
-        editor.SyntaxHighlighter = CreateSyntaxHighlighter(item.FullPath);
+        var editor = CodeEditorFactory.Create(
+            text,
+            new CodeEditorFactoryOptions
+            {
+                FileName = item.FullPath,
+                WordWrapState = _wordWrap,
+            });
         editor.AddCommand(
             new Command
             {
@@ -503,15 +498,7 @@ internal sealed partial class FileEditorTab : IAsyncDisposable
         => string.IsNullOrWhiteSpace(Item.RelativePath) ? FullPath : Item.RelativePath;
 
     private string GetEditorText()
-    {
-        var snapshot = Editor.TextDocument.CurrentSnapshot;
-        if (snapshot.Length == 0)
-        {
-            return string.Empty;
-        }
-
-        return string.Create(snapshot.Length, snapshot, static (span, currentSnapshot) => currentSnapshot.CopyTo(0, span));
-    }
+        => CodeEditorFactory.GetText(Editor);
 
     private void ShowActionDialog(string title, IReadOnlyList<string> bodyLines, IReadOnlyList<DialogAction> actions)
     {
@@ -594,22 +581,6 @@ internal sealed partial class FileEditorTab : IAsyncDisposable
         }
 
         return title[..Math.Max(1, maxLength - 1)] + "…";
-    }
-
-    private static CodeEditorSyntaxHighlighter? CreateSyntaxHighlighter(string fullPath)
-    {
-        try
-        {
-            return new TextMateCodeEditorSyntaxHighlighter(
-                new TextMateCodeEditorOptions
-                {
-                    FileName = fullPath,
-                });
-        }
-        catch (ArgumentException)
-        {
-            return null;
-        }
     }
 
     private Task ExecuteDialogActionAsync(Dialog? dialog, Func<Task> execute)
