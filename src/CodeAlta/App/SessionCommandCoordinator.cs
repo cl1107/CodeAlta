@@ -42,7 +42,6 @@ internal sealed class SessionCommandCoordinator
         IProjectFileSearchService? projectFileSearchService = null,
         PluginHostBridge? pluginHostBridge = null,
         IServiceProvider? altaServices = null,
-        IReadOnlySet<string>? altaToolProviderIds = null,
         Func<bool>? getAlwaysEnqueue = null,
         Func<string?>? getPreferredAgentPromptId = null)
         : this(
@@ -60,7 +59,6 @@ internal sealed class SessionCommandCoordinator
             projectFileSearchService,
             pluginHostBridge,
             altaServices,
-            altaToolProviderIds,
             getAlwaysEnqueue,
             getPreferredAgentPromptId)
     {
@@ -79,7 +77,6 @@ internal sealed class SessionCommandCoordinator
         IProjectFileSearchService? projectFileSearchService = null,
         PluginHostBridge? pluginHostBridge = null,
         IServiceProvider? altaServices = null,
-        IReadOnlySet<string>? altaToolProviderIds = null,
         Func<bool>? getAlwaysEnqueue = null,
         Func<string?>? getPreferredAgentPromptId = null)
     {
@@ -104,7 +101,7 @@ internal sealed class SessionCommandCoordinator
         _pluginHostBridge = pluginHostBridge;
         var permissionRequests = new SessionPermissionRequestCoordinator(sessionSelection, commandContext);
         var userInputRequests = new SessionUserInputRequestCoordinator(sessionSelection, commandContext);
-        _executionOptionsFactory = new SessionExecutionOptionsFactory(catalogOptions, modelProviderStates, sessionSelection, permissionRequests, userInputRequests, getPreferredAgentPromptId, altaServices, altaToolProviderIds);
+        _executionOptionsFactory = new SessionExecutionOptionsFactory(catalogOptions, modelProviderStates, sessionSelection, permissionRequests, userInputRequests, getPreferredAgentPromptId, altaServices);
         _promptDispatchCoordinator = new SessionPromptDispatchCoordinator(
             runtimeService,
             _executionOptionsFactory,

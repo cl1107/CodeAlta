@@ -106,7 +106,6 @@ internal sealed class CodeAltaFrontendComposition
         var configStore = new CodeAltaConfigStore(catalogOptions);
         var modelProviderPreferences = new ModelProviderPreferenceCoordinator(configStore, CodeAlta.Views.CodeAltaApp.UiLogger);
         var agentPromptPreferences = new AgentPromptPreferenceCoordinator();
-        var altaToolProviderIds = ResolveAltaToolProviderIds(configStore);
         ShellSessionStateCoordinator? sessionStateCoordinator = null;
         var askService = new AltaAskService();
         askService.QueueChanged += (_, args) => frontendEvents.Publish(new AskQueueChangedEvent(args.SessionId));
@@ -127,7 +126,7 @@ internal sealed class CodeAltaFrontendComposition
             .Add<IAltaAskService>(askService)
             .Add<IAltaNotesService>(notesService)
             .Add<IReadOnlyList<ModelProviderDescriptor>>(providerDescriptors)
-            .Add<IAltaSessionToolProviderPolicy>(new AltaSessionToolProviderPolicy(altaToolProviderIds));
+            .Add<IAltaSessionToolProviderPolicy>(new AltaSessionToolProviderPolicy());
         if (modelProviderRegistry is not null)
         {
             altaServices.Add(modelProviderRegistry);
@@ -421,7 +420,6 @@ internal sealed class CodeAltaFrontendComposition
             projectFileSearchService,
             pluginHostBridge,
             altaServices,
-            altaToolProviderIds,
             frontend.GetAlwaysEnqueue,
             agentPromptSelectorCoordinator.GetPreferredAgentPromptId);
         var askModeCoordinator = new AskModeCoordinator(
@@ -490,34 +488,6 @@ internal sealed class CodeAltaFrontendComposition
         public Task<IReadOnlyList<AgentModelInfo>> GetModelsAsync(ModelProviderId providerId, CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<AgentModelInfo>>([]);
     }
-
-    private static IReadOnlySet<string> ResolveAltaToolProviderIds(CodeAltaConfigStore configStore)
-    {
-        ArgumentNullException.ThrowIfNull(configStore);
-
-        var ProviderIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            ModelProviderIds.OpenAIChat.Value,
-            ModelProviderIds.OpenAIResponses.Value,
-        };
-        foreach (var provider in configStore.LoadGlobalProviderDefinitions())
-        {
-            if (SupportsHostInjectedTools(provider.ProviderType) && !string.IsNullOrWhiteSpace(provider.ProviderKey))
-            {
-                ProviderIds.Add(provider.ProviderKey);
-            }
-        }
-
-        return ProviderIds;
-    }
-
-    private static bool SupportsHostInjectedTools(string? providerType)
-        => string.Equals(providerType, "openai-chat", StringComparison.OrdinalIgnoreCase) ||
-           string.Equals(providerType, "openai-responses", StringComparison.OrdinalIgnoreCase) ||
-           string.Equals(providerType, "azure-openai", StringComparison.OrdinalIgnoreCase) ||
-           string.Equals(providerType, "codex", StringComparison.OrdinalIgnoreCase) ||
-           string.Equals(providerType, "copilot", StringComparison.OrdinalIgnoreCase) ||
-           string.Equals(providerType, "xai", StringComparison.OrdinalIgnoreCase);
 
     private static Func<string?, string> CreateProviderDisplayNameResolver(
         IReadOnlyList<ModelProviderDescriptor> providerDescriptors)

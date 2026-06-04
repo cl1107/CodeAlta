@@ -18,7 +18,6 @@ internal sealed class SessionExecutionOptionsFactory
     private readonly SessionUserInputRequestCoordinator _userInputRequests;
     private readonly Func<string?>? _preferredAgentPromptProvider;
     private readonly IServiceProvider? _altaServices;
-    private readonly IReadOnlySet<string> _altaToolProviderIds;
 
     public SessionExecutionOptionsFactory(
         CatalogOptions catalogOptions,
@@ -27,8 +26,7 @@ internal sealed class SessionExecutionOptionsFactory
         SessionPermissionRequestCoordinator permissionRequests,
         SessionUserInputRequestCoordinator userInputRequests,
         Func<string?>? preferredAgentPromptProvider = null,
-        IServiceProvider? altaServices = null,
-        IReadOnlySet<string>? altaToolProviderIds = null)
+        IServiceProvider? altaServices = null)
     {
         ArgumentNullException.ThrowIfNull(catalogOptions);
         ArgumentNullException.ThrowIfNull(modelProviderStates);
@@ -43,7 +41,6 @@ internal sealed class SessionExecutionOptionsFactory
         _userInputRequests = userInputRequests;
         _preferredAgentPromptProvider = preferredAgentPromptProvider;
         _altaServices = altaServices;
-        _altaToolProviderIds = altaToolProviderIds ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     }
 
     public SessionExecutionOptions BuildPreferredExecutionOptions(
@@ -71,7 +68,6 @@ internal sealed class SessionExecutionOptionsFactory
             ReasoningEffort = reasoning,
             AgentPromptId = NormalizeOptionalText(_preferredAgentPromptProvider?.Invoke()),
             Tools = CreateAltaTools(
-                providerId,
                 sourceSessionIdProvider: sourceSessionIdProvider,
                 sourceProjectIdProvider: () => sourceProjectId,
                 workingDirectoryProvider: () => workingDirectory),
@@ -98,7 +94,6 @@ internal sealed class SessionExecutionOptionsFactory
             ReasoningEffort = tab.ReasoningEffort,
             AgentPromptId = NormalizeOptionalText(tab.AgentPromptId ?? session.AgentPromptId),
             Tools = CreateAltaTools(
-                providerId,
                 sourceSessionIdProvider: () => session.SessionId,
                 sourceProjectIdProvider: () => session.ProjectRef,
                 workingDirectoryProvider: () => ResolveWorkingDirectory(session)),
@@ -120,12 +115,11 @@ internal sealed class SessionExecutionOptionsFactory
     }
 
     private IReadOnlyList<AgentToolDefinition>? CreateAltaTools(
-        ModelProviderId providerId,
         Func<string?>? sourceSessionIdProvider,
         Func<string?>? sourceProjectIdProvider,
         Func<string?>? workingDirectoryProvider)
     {
-        if (_altaServices is null || !_altaToolProviderIds.Contains(providerId.Value))
+        if (_altaServices is null)
         {
             return null;
         }

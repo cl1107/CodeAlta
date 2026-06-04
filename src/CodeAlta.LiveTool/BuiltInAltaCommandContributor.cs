@@ -869,7 +869,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
                 ProviderId.Value,
                 descriptors.Any(descriptor => string.Equals(descriptor.ProviderId.Value, ProviderId.Value, StringComparison.OrdinalIgnoreCase)),
                 descriptors.Any(descriptor => string.Equals(descriptor.ProviderId.Value, ProviderId.Value, StringComparison.OrdinalIgnoreCase)),
-                policy?.SupportsAltaSessionTool(ProviderId.Value) ?? false))
+                policy?.SupportsAltaSessionTool(ProviderId.Value) ?? true))
             .ToArray();
     }
 
@@ -3388,7 +3388,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         string? workingDirectory)
     {
         var policy = context.Services.Get<IAltaSessionToolProviderPolicy>();
-        if (policy is null || !policy.SupportsAltaSessionTool(ProviderId))
+        if (policy is not null && !policy.SupportsAltaSessionTool(ProviderId))
         {
             return null;
         }

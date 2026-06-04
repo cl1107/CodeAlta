@@ -294,4 +294,4 @@ MCP config/list/status commands read fixed JSON config paths and report overlay/
 - requires in-process runtime vs catalog-only context;
 - plugin provenance for plugin-contributed or plugin-invoked commands.
 
-The command gateway is available only to CodeAlta-managed sessions whose configured provider id supports host-injected tools.
+The command gateway is available to CodeAlta-managed sessions for any configured provider when the in-process runtime is available.

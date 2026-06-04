@@ -125,6 +125,22 @@ public sealed class SessionExecutionOptionsFactoryTests
         Assert.IsNull(options.ReasoningEffort);
     }
 
+    [TestMethod]
+    public async Task BuildPreferredExecutionOptions_AddsAltaToolForAnyProviderWhenServicesAreAvailable()
+    {
+        using var temp = TestTempDirectory.Create();
+        var project = CreateProject("project-a", Path.Combine(temp.Path, "project-a"));
+        Directory.CreateDirectory(project.ProjectPath);
+        var factory = CreateFactory(temp.Path, project);
+        var providerId = new ModelProviderId("gemma4-12b");
+
+        var options = factory.BuildPreferredExecutionOptions(providerId, project.ProjectPath, [project.ProjectPath]);
+
+        Assert.AreEqual(providerId.Value, options.ProviderId.Value);
+        var caller = await InvokeToolStatusAsync(options).ConfigureAwait(false);
+        Assert.AreEqual(project.Id, caller.GetProperty("sourceProjectId").GetString());
+    }
+
     private static SessionExecutionOptionsFactory CreateFactory(string globalRoot, ProjectDescriptor selectedProject)
     {
         var catalogOptions = new CatalogOptions { GlobalRoot = globalRoot };
@@ -160,8 +176,7 @@ public sealed class SessionExecutionOptionsFactoryTests
             new SessionPermissionRequestCoordinator(selection, commandContext),
             new SessionUserInputRequestCoordinator(selection, commandContext),
             null,
-            services,
-            new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ModelProviderIds.Codex.Value });
+            services);
     }
 
     private static ShellSessionCommandContext CreateCommandContext(IUiDispatcher uiDispatcher)

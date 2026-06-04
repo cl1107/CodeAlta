@@ -6,7 +6,7 @@ namespace CodeAlta.LiveTool;
 public interface IAltaSessionToolProviderPolicy
 {
     /// <summary>
-    /// Returns <see langword="true"/> when the provider supports host-injected <c>alta</c> tools.
+    /// Returns <see langword="true"/> when the host may expose the <c>alta</c> live tool to the provider.
     /// </summary>
     /// <param name="providerId">The model provider identifier.</param>
     /// <returns><see langword="true"/> when the live tool may be exposed to the provider.</returns>
@@ -15,27 +15,31 @@ public interface IAltaSessionToolProviderPolicy
 }
 
 /// <summary>
-/// Static provider policy for hosts that know their dynamically registered provider capabilities.
+/// Provider-agnostic policy that exposes the <c>alta</c> live tool to every configured provider.
 /// </summary>
 public sealed class AltaSessionToolProviderPolicy : IAltaSessionToolProviderPolicy
 {
-    private readonly HashSet<string> _providerIds;
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AltaSessionToolProviderPolicy"/> class.
+    /// </summary>
+    public AltaSessionToolProviderPolicy()
+    {
+    }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AltaSessionToolProviderPolicy"/> class.
     /// </summary>
-    /// <param name="providerIds">Model provider identifiers that support host-injected <c>alta</c> tools.</param>
+    /// <param name="providerIds">Legacy provider identifiers. The set is accepted for compatibility and no longer restricts tool exposure.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="providerIds"/> is <see langword="null"/>.</exception>
     public AltaSessionToolProviderPolicy(IEnumerable<string> providerIds)
     {
         ArgumentNullException.ThrowIfNull(providerIds);
-        _providerIds = new HashSet<string>(providerIds.Where(static id => !string.IsNullOrWhiteSpace(id)), StringComparer.OrdinalIgnoreCase);
     }
 
     /// <inheritdoc />
     public bool SupportsAltaSessionTool(string providerId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(providerId);
-        return _providerIds.Contains(providerId);
+        return true;
     }
 }

@@ -514,6 +514,7 @@ public sealed class AltaLiveToolTests
         using var root = TempDirectory.Create();
         var options = new CatalogOptions { GlobalRoot = root.Path };
         var ProviderId = new ModelProviderId("openai-responses");
+        var localProviderId = new ModelProviderId("gemma4-12b");
         var pluginCatalog = new FakeAltaPluginCatalog(
             new AltaPluginCommandContribution
             {
@@ -531,8 +532,12 @@ public sealed class AltaLiveToolTests
             .Add(new ProjectCatalog(options))
             .Add(new SessionViewCatalog(options))
             .Add(new SkillCatalog())
-            .Add<IReadOnlyList<ModelProviderDescriptor>>([new ModelProviderDescriptor(ProviderId, "OpenAI Responses")])
-            .Add<IAltaSessionToolProviderPolicy>(new AltaSessionToolProviderPolicy([ProviderId.Value]))
+            .Add<IReadOnlyList<ModelProviderDescriptor>>(
+                [
+                    new ModelProviderDescriptor(ProviderId, "OpenAI Responses"),
+                    new ModelProviderDescriptor(localProviderId, "Gemma4-12B"),
+                ])
+            .Add<IAltaSessionToolProviderPolicy>(new AltaSessionToolProviderPolicy())
             .Add<IAltaPluginCatalog>(pluginCatalog));
 
         var result = await dispatcher.InvokeAsync(["tool", "capability", "list"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
@@ -541,7 +546,9 @@ public sealed class AltaLiveToolTests
         var capability = ReadJsonLines(result.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.tool.capabilities");
         AssertJsonArrayContains(capability.GetProperty("runtime").GetProperty("available"), "catalog.project");
         AssertJsonArrayContains(capability.GetProperty("providers").GetProperty("sessionTool"), "openai-responses");
+        AssertJsonArrayContains(capability.GetProperty("providers").GetProperty("sessionTool"), "gemma4-12b");
         AssertJsonArrayContains(capability.GetProperty("backends").GetProperty("sessionTool"), "openai-responses");
+        AssertJsonArrayContains(capability.GetProperty("backends").GetProperty("sessionTool"), "gemma4-12b");
         Assert.AreEqual(1, capability.GetProperty("plugins").GetProperty("pluginCount").GetInt32());
         Assert.AreEqual(1, capability.GetProperty("plugins").GetProperty("pluginCommandCount").GetInt32());
         Assert.IsFalse(capability.TryGetProperty("correlationId", out _));
@@ -2119,7 +2126,7 @@ public sealed class AltaLiveToolTests
             .Add(projectCatalog)
             .Add(sessionCatalog)
             .Add(runtime)
-            .Add<IAltaSessionToolProviderPolicy>(new AltaSessionToolProviderPolicy([ModelProviderIds.Codex.Value])));
+            .Add<IAltaSessionToolProviderPolicy>(new AltaSessionToolProviderPolicy()));
         var timestamp = DateTimeOffset.UtcNow;
         var parent = new SessionViewDescriptor
         {
