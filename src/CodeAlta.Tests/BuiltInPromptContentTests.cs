@@ -25,10 +25,16 @@ public sealed class BuiltInPromptContentTests
         StringAssert.Contains(plan.Body, "alta ask --stdin");
         StringAssert.Contains(plan.Body, "GitHub-style blockquotes");
         StringAssert.Contains(plan.Body, "use the exact `description` field on questions and choices");
+        StringAssert.Contains(plan.Body, "alta session current");
+        StringAssert.Contains(plan.Body, "alta session send <current-session-id> --queue-if-busy --stdin");
+        StringAssert.Contains(plan.Body, "enqueue the execution turn with `--queue-if-busy`");
         StringAssert.Contains(plan.Body, "--same-model-as <session-id>");
         StringAssert.Contains(plan.Body, "--model-ref");
         StringAssert.Contains(plan.Body, "\"description\": \"Review the attached plan file before CodeAlta starts implementation.\"");
+        StringAssert.Contains(plan.Body, "\"description\": \"Approve the plan and hand off to Default/build mode for execution.\"");
         StringAssert.Contains(plan.Body, "alta session set_agent --prompt-id default");
+        Assert.IsFalse(plan.Body.Contains("Do not call `alta session send` to the current/calling session", StringComparison.Ordinal));
+        Assert.IsFalse(plan.Body.Contains("\"description\": \"Approve the plan; Plan mode must immediately run `alta session set_agent --prompt-id default` and stop.\"", StringComparison.Ordinal));
         StringAssert.Contains(plan.Body, "- [ ] <small, ordered implementation step");
     }
 
@@ -47,6 +53,10 @@ public sealed class BuiltInPromptContentTests
         Assert.IsFalse(defaultPrompt.Body.Contains("prior Plan-mode read-only instructions", StringComparison.Ordinal));
         StringAssert.Contains(defaultPrompt.Body, "Executing plan files (if any)");
         StringAssert.Contains(defaultPrompt.Body, "alta notes clear");
+        StringAssert.Contains(defaultPrompt.Body, "Do not ask questions or use `alta ask --stdin` by default");
+        StringAssert.Contains(defaultPrompt.Body, "explicitly asks for interactive questions/approval");
+        StringAssert.Contains(defaultPrompt.Body, "choose the narrowest safe interpretation and proceed");
+        Assert.IsFalse(defaultPrompt.Body.Contains("ask a concise question in the normal chat and stop", StringComparison.Ordinal));
         StringAssert.Contains(defaultPrompt.Body, "GitHub-style blockquotes");
         StringAssert.Contains(defaultPrompt.Body, "commit the plan update with the implementation step it records");
         StringAssert.Contains(defaultPrompt.Body, "one writing child at a time");

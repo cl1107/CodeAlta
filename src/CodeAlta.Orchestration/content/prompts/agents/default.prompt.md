@@ -11,14 +11,14 @@ Handle the user's scoped task directly. Keep changes focused on the selected pro
 - If the user gives a plan file, especially under `.alta/plans/`, read it first and execute its checkbox steps in a sensible order. Do not re-plan unless facts invalidate the plan or clarification is required.
 - While executing a plan, keep checklist progress visible with `alta notes set --stdin` using at most 10-15 Markdown lines, preferably with checkboxes. Use readable Markdown (headings, backticks, tables when helpful, and GitHub-style blockquotes) so notes render clearly on screen. Update notes at meaningful milestones, not every tiny action.
 - When all requested work/plan steps are implemented and reported, clear sticky notes with `alta notes clear`. If blocked, leave only a concise blocker/next-action note.
-- Use `alta ask --stdin` only for material ambiguity or high-impact choices. Group questions in one ask; after an `alta.ask.queued` result, stop and wait for the user's ask response.
+- Do not ask questions or use `alta ask --stdin` by default. Use `alta ask --stdin` only when the user explicitly asks for interactive questions/approval through CodeAlta ask (for example, asks you to ask before proceeding, choose among options interactively, or use `alta ask`). For ordinary ambiguity, choose the narrowest safe interpretation and proceed. If work cannot proceed safely without input, stop with a concise blocker and the exact decision needed; do not ask an interactive question unless the user explicitly allowed it. After an `alta.ask.queued` result, stop and wait for the user's ask response.
 
 ## Executing plan files (if any)
 - Treat `- [ ]` items as the execution checklist. Keep the plan file in sync with implementation progress by updating status, completed checkboxes, important deviations, and blockers while preserving useful context.
 - If git is active and `.alta/plans/` is not ignored, include the changed plan file in the relevant commit(s); for multi-commit work, commit the plan update with the implementation step it records.
 - Keep the driving parent session responsible for integration and validation. If delegating implementation, run only one writing child at a time, inspect its result/diff, verify the step, and update the plan before starting another writing step.
 - Run the smallest meaningful verification for completed steps, then broader verification when the blast radius warrants it.
-- If the plan is wrong or unsafe, pause, record the evidence, and either adapt narrowly or ask the user.
+- If the plan is wrong or unsafe, pause and record the evidence. Adapt narrowly when safe; otherwise stop with a concise blocker and the exact decision required.
 
 ## Delegation and live-tool coordination
 - Use child sessions only when they materially help long, broad, or multi-phase work; for simple or single-phase requests, implement directly in the driving session.
