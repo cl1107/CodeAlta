@@ -1190,6 +1190,7 @@ public sealed class SessionRuntimeService : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(options);
 
+        AgentSessionHandleId? sessionHandleId = null;
         var result = await _sessionActors.GetOrCreate(session.SessionId).ExecuteAsync(
                 async actorCancellationToken =>
                 {
@@ -1199,16 +1200,7 @@ public sealed class SessionRuntimeService : IAsyncDisposable
                         AgentSessionUpdateKind.CompactionStarted,
                         $"Manual compaction requested for '{session.Title}'."));
 
-                    var sessionHandleId = await EnsureCoordinatorSessionCoreAsync(session, options, actorCancellationToken).ConfigureAwait(false);
-                    var outcome = await _agentHub.CompactAsync(sessionHandleId, actorCancellationToken).ConfigureAwait(false);
-                    if (outcome is not null)
-                    {
-                        _events.TryPublish(new SessionHostEvent(
-                            session.SessionId,
-                            DateTimeOffset.UtcNow,
-                            AgentSessionUpdateKind.CompactionCompleted,
-                            outcome.Message ?? (outcome.Success ? "Manual compaction completed." : "Manual compaction failed.")));
-                    }
+                    sessionHandleId = await EnsureCoordinatorSessionCoreAsync(session, options, actorCancellationToken).ConfigureAwait(false);
                 },
                 cancellationToken)
             .ConfigureAwait(false);
@@ -1218,7 +1210,31 @@ public sealed class SessionRuntimeService : IAsyncDisposable
                 result.Message ?? $"Failed to compact session '{session.SessionId}'.",
                 result.Exception);
         }
+
+        if (sessionHandleId is not { } handleId)
+        {
+            throw new InvalidOperationException($"Failed to resolve coordinator session for '{session.SessionId}'.");
+        }
+
+        var outcome = await _agentHub.CompactAsync(handleId, cancellationToken).ConfigureAwait(false);
+        if (outcome is not null && ShouldPublishHostCompactionOutcome(outcome))
+        {
+            _events.TryPublish(new SessionHostEvent(
+                session.SessionId,
+                DateTimeOffset.UtcNow,
+                AgentSessionUpdateKind.CompactionCompleted,
+                outcome.Message ?? (outcome.Success ? "Manual compaction completed." : "Manual compaction failed.")));
+        }
     }
+
+    private static bool ShouldPublishHostCompactionOutcome(AgentCompactionOutcome outcome)
+        => outcome is
+        {
+            MessagesRemoved: null,
+            TokensRemoved: null,
+            PreCompactionTokens: null,
+            PostCompactionTokens: null,
+        };
 
     /// <summary>
     /// Gets sanitized history for an active session.

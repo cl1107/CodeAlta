@@ -1497,6 +1497,16 @@ public sealed class AgentSession : IAgentSession, IAgentCompactionOutcomeProvide
             throw new InvalidOperationException("The resolved input-context limit is not usable.");
         }
 
+        var started = new AgentSessionUpdateEvent(
+            ProviderId,
+            SessionId,
+            DateTimeOffset.UtcNow,
+            runId,
+            AgentSessionUpdateKind.CompactionStarted,
+            $"{trigger} local compaction started.");
+        await AppendEventsAsync([started], cancellationToken).ConfigureAwait(false);
+        await Task.Yield();
+
         var now = DateTimeOffset.UtcNow;
         var latestUserRequest = GetLatestUserRequest(_conversation);
         var currentPromptEstimate = AgentTokenEstimator.EstimatePromptTokens(
@@ -1530,7 +1540,6 @@ public sealed class AgentSession : IAgentSession, IAgentCompactionOutcomeProvide
         long? checkpointTokenEstimate = null;
         var planningAttemptCount = 0;
         var shrinkAttempted = false;
-        var startedEventEmitted = false;
 
         for (var attempt = 0; attempt < 3; attempt++)
         {
@@ -1584,19 +1593,6 @@ public sealed class AgentSession : IAgentSession, IAgentCompactionOutcomeProvide
                 {
                     return null;
                 }
-            }
-
-            if (!startedEventEmitted)
-            {
-                var started = new AgentSessionUpdateEvent(
-                    ProviderId,
-                    SessionId,
-                    DateTimeOffset.UtcNow,
-                    runId,
-                    AgentSessionUpdateKind.CompactionStarted,
-                    $"{trigger} local compaction started.");
-                await AppendEventsAsync([started], cancellationToken).ConfigureAwait(false);
-                startedEventEmitted = true;
             }
 
             var summaryResult = await _compactionSummarizer.SummarizeAsync(

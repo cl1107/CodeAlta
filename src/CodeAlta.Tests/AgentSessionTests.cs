@@ -1685,6 +1685,38 @@ public sealed class AgentSessionTests
     }
 
     [TestMethod]
+    public async Task AgentSession_CompactWithOutcomeAsync_PublishesStartedBeforeNoOpCompletion()
+    {
+        using var temp = TestTempDirectory.Create();
+        var store = new FileSystemAgentSessionStore(new AgentRuntimePathLayout(Path.Combine(temp.Path, "machine", "agents")));
+        var provider = CreateProvider(AgentCompactionSettings.Default with { Enabled = false });
+        var summary = CreateSummary("session-compact-noop-started");
+        var state = CreateState("session-compact-noop-started");
+        await store.UpsertSessionAsync(summary).ConfigureAwait(false);
+        await store.UpsertStateAsync(state).ConfigureAwait(false);
+
+        var liveEvents = new List<AgentEvent>();
+        await using var session = new AgentSession(
+            ModelProviderIds.OpenAIResponses,
+            provider,
+            summary,
+            state,
+            [],
+            store,
+            new ScriptedTurnExecutor([new AgentModelInfo("gpt-5.4", "GPT-5.4")]),
+            CreateOptions(provider, temp.Path));
+        using var subscription = session.Subscribe(liveEvents.Add);
+
+        var outcome = await ((IAgentCompactionOutcomeProvider)session).CompactWithOutcomeAsync().ConfigureAwait(false);
+
+        Assert.IsNotNull(outcome);
+        Assert.IsTrue(outcome.Success);
+        Assert.AreEqual("Nothing to compact.", outcome.Message);
+        Assert.IsTrue(liveEvents.OfType<AgentSessionUpdateEvent>().Any(static evt => evt.Kind == AgentSessionUpdateKind.CompactionStarted));
+        Assert.IsFalse(liveEvents.OfType<AgentSessionUpdateEvent>().Any(static evt => evt.Kind == AgentSessionUpdateKind.CompactionCompleted));
+    }
+
+    [TestMethod]
     public void AgentCompactionPlanner_ThresholdPreparation_ProtectsLatestUserMessage()
     {
         var instructionBundle = AgentInstructionComposer.Compose(

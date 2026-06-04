@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 
 using CodeAlta.Agent;
@@ -90,6 +91,109 @@ public sealed class SessionRuntimeServiceTests
         Assert.AreNotEqual(Guid.Empty, agentId.Value);
         Assert.AreEqual("session-1", session.SessionId);
         Assert.AreEqual(0, history.Count);
+    }
+
+    [TestMethod]
+    public async Task CompactAsync_PublishesStartButDoesNotMirrorAgentCompletionOutcome()
+    {
+        using var temp = new TempDirectory();
+        var providerId = new ModelProviderId("compaction-provider");
+        const string completionMessage = "Manual local compaction summarized 131 messages.";
+        var registry = new ModelProviderRegistry();
+        registry.RegisterOrReplace(
+            new ModelProviderDescriptor(new ModelProviderId(providerId.Value), "Compaction Provider") { DefaultModelId = "test-model" },
+            () => new CompactionProviderRuntime(providerId, completionMessage));
+        await using var hub = new AgentHub(registry, temp.Path);
+        await using var runtime = CreateRuntime(temp.Path, hub);
+        var session = CreateSession("session-1", providerId, temp.Path);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var eventsTask = CollectUntilAgentCompactionCompletedAsync(runtime, session.SessionId, cts.Token);
+
+        await runtime.CompactAsync(session, CreateOptions(providerId, temp.Path), cts.Token).ConfigureAwait(false);
+        var events = await eventsTask.ConfigureAwait(false);
+
+        var hostCompactionStarted = events.OfType<SessionHostEvent>()
+            .Where(static evt => evt.Kind == AgentSessionUpdateKind.CompactionStarted)
+            .ToArray();
+        var hostCompactionCompleted = events.OfType<SessionHostEvent>()
+            .Where(static evt => evt.Kind == AgentSessionUpdateKind.CompactionCompleted)
+            .ToArray();
+        var agentCompactionCompleted = events.OfType<SessionAgentEvent>()
+            .Where(static evt => evt.Event is AgentSessionUpdateEvent { Kind: AgentSessionUpdateKind.CompactionCompleted })
+            .ToArray();
+
+        Assert.AreEqual(1, hostCompactionStarted.Length);
+        Assert.AreEqual(0, hostCompactionCompleted.Length);
+        Assert.AreEqual(1, agentCompactionCompleted.Length);
+    }
+
+    [TestMethod]
+    public async Task CompactAsync_ProjectsAgentStartBeforeCompactionCompletes()
+    {
+        using var temp = new TempDirectory();
+        var providerId = new ModelProviderId("compaction-blocking-provider");
+        const string completionMessage = "Manual local compaction summarized 131 messages.";
+        var releaseCompaction = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var registry = new ModelProviderRegistry();
+        registry.RegisterOrReplace(
+            new ModelProviderDescriptor(new ModelProviderId(providerId.Value), "Blocking Compaction Provider") { DefaultModelId = "test-model" },
+            () => new CompactionProviderRuntime(
+                providerId,
+                completionMessage,
+                emitAgentCompletion: true,
+                outcome: null,
+                emitAgentStart: true,
+                releaseCompaction: releaseCompaction.Task));
+        await using var hub = new AgentHub(registry, temp.Path);
+        await using var runtime = CreateRuntime(temp.Path, hub);
+        var session = CreateSession("session-1", providerId, temp.Path);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var eventsTask = CollectUntilAgentCompactionStartedAsync(runtime, session.SessionId, cts.Token);
+
+        var compactTask = runtime.CompactAsync(session, CreateOptions(providerId, temp.Path), cts.Token);
+        try
+        {
+            var events = await eventsTask.ConfigureAwait(false);
+            Assert.IsTrue(events.Any(static runtimeEvent => runtimeEvent is SessionAgentEvent { Event: AgentSessionUpdateEvent { Kind: AgentSessionUpdateKind.CompactionStarted } }));
+            Assert.IsFalse(compactTask.IsCompleted, "The agent compaction-started event should be projected while compaction is still running.");
+        }
+        finally
+        {
+            releaseCompaction.TrySetResult();
+        }
+
+        await compactTask.ConfigureAwait(false);
+    }
+
+    [TestMethod]
+    public async Task CompactAsync_PublishesHostCompletionForNoOpOutcome()
+    {
+        using var temp = new TempDirectory();
+        var providerId = new ModelProviderId("compaction-noop-provider");
+        var outcome = new AgentCompactionOutcome(true, "Nothing to compact.");
+        var registry = new ModelProviderRegistry();
+        registry.RegisterOrReplace(
+            new ModelProviderDescriptor(new ModelProviderId(providerId.Value), "Compaction NoOp Provider") { DefaultModelId = "test-model" },
+            () => new CompactionProviderRuntime(providerId, outcome.Message!, emitAgentCompletion: false, outcome));
+        await using var hub = new AgentHub(registry, temp.Path);
+        await using var runtime = CreateRuntime(temp.Path, hub);
+        var session = CreateSession("session-1", providerId, temp.Path);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var eventsTask = CollectUntilHostCompactionCompletedAsync(runtime, session.SessionId, cts.Token);
+
+        await runtime.CompactAsync(session, CreateOptions(providerId, temp.Path), cts.Token).ConfigureAwait(false);
+        var events = await eventsTask.ConfigureAwait(false);
+
+        var hostCompactionCompleted = events.OfType<SessionHostEvent>()
+            .Where(static evt => evt.Kind == AgentSessionUpdateKind.CompactionCompleted)
+            .ToArray();
+        var agentCompactionCompleted = events.OfType<SessionAgentEvent>()
+            .Where(static evt => evt.Event is AgentSessionUpdateEvent { Kind: AgentSessionUpdateKind.CompactionCompleted })
+            .ToArray();
+
+        Assert.AreEqual(1, hostCompactionCompleted.Length);
+        Assert.AreEqual("Nothing to compact.", hostCompactionCompleted[0].Message);
+        Assert.AreEqual(0, agentCompactionCompleted.Length);
     }
 
     [TestMethod]
@@ -237,6 +341,60 @@ public sealed class SessionRuntimeServiceTests
         await foreach (var session in sessions.ConfigureAwait(false))
         {
             results.Add(session);
+        }
+
+        return results;
+    }
+
+    private static Task<IReadOnlyList<SessionRuntimeEvent>> CollectUntilAgentCompactionCompletedAsync(
+        SessionRuntimeService runtime,
+        string sessionId,
+        CancellationToken cancellationToken)
+        => CollectUntilRuntimeEventAsync(
+            runtime,
+            sessionId,
+            static runtimeEvent => runtimeEvent is SessionAgentEvent { Event: AgentSessionUpdateEvent { Kind: AgentSessionUpdateKind.CompactionCompleted } },
+            cancellationToken);
+
+    private static Task<IReadOnlyList<SessionRuntimeEvent>> CollectUntilAgentCompactionStartedAsync(
+        SessionRuntimeService runtime,
+        string sessionId,
+        CancellationToken cancellationToken)
+        => CollectUntilRuntimeEventAsync(
+            runtime,
+            sessionId,
+            static runtimeEvent => runtimeEvent is SessionAgentEvent { Event: AgentSessionUpdateEvent { Kind: AgentSessionUpdateKind.CompactionStarted } },
+            cancellationToken);
+
+    private static Task<IReadOnlyList<SessionRuntimeEvent>> CollectUntilHostCompactionCompletedAsync(
+        SessionRuntimeService runtime,
+        string sessionId,
+        CancellationToken cancellationToken)
+        => CollectUntilRuntimeEventAsync(
+            runtime,
+            sessionId,
+            static runtimeEvent => runtimeEvent is SessionHostEvent { Kind: AgentSessionUpdateKind.CompactionCompleted },
+            cancellationToken);
+
+    private static async Task<IReadOnlyList<SessionRuntimeEvent>> CollectUntilRuntimeEventAsync(
+        SessionRuntimeService runtime,
+        string sessionId,
+        Func<SessionRuntimeEvent, bool> stopWhen,
+        CancellationToken cancellationToken)
+    {
+        var results = new List<SessionRuntimeEvent>();
+        await foreach (var runtimeEvent in runtime.StreamEventsAsync(cancellationToken).ConfigureAwait(false))
+        {
+            if (!string.Equals(runtimeEvent.SessionId, sessionId, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            results.Add(runtimeEvent);
+            if (stopWhen(runtimeEvent))
+            {
+                return results;
+            }
         }
 
         return results;
@@ -403,6 +561,83 @@ public sealed class SessionRuntimeServiceTests
         }
     }
 
+    private sealed class CompactionProviderRuntime(
+        ModelProviderId providerId,
+        string completionMessage,
+        bool emitAgentCompletion = true,
+        AgentCompactionOutcome? outcome = null,
+        bool emitAgentStart = false,
+        Task? releaseCompaction = null) : IModelProviderSessionRuntime
+    {
+        private readonly AgentCompactionOutcome _outcome = outcome ?? new AgentCompactionOutcome(
+            Success: true,
+            Message: completionMessage,
+            MessagesRemoved: 131,
+            TokensRemoved: 600,
+            PreCompactionTokens: 1000,
+            PostCompactionTokens: 400);
+
+        public ModelProviderDescriptor Descriptor { get; } = new(new ModelProviderId(providerId.Value), "Compaction Provider") { DefaultModelId = "test-model" };
+
+        public Task<IAgentSession> CreateSessionAsync(AgentSessionCreateOptions options, CancellationToken cancellationToken = default)
+            => Task.FromResult<IAgentSession>(CreateSession(options.SessionId ?? Guid.CreateVersion7().ToString()));
+
+        public Task<IAgentSession> ResumeSessionAsync(string sessionId, AgentSessionResumeOptions options, CancellationToken cancellationToken = default)
+            => Task.FromResult<IAgentSession>(CreateSession(sessionId));
+
+        public Task StartAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task StopAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task<ModelProviderProbeResult> ProbeAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult(new ModelProviderProbeResult { ProviderId = Descriptor.ProviderId, Availability = ModelProviderAvailability.Ready });
+
+        public IModelProviderTurnExecutor CreateTurnExecutor() => new NoOpTurnExecutor();
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+        private EmptyAgentSession CreateSession(string sessionId)
+        {
+            var compactionStartedEvent = emitAgentStart
+                ? CreateCompactionStartedEvent(providerId, sessionId)
+                : null;
+            var compactionEvent = emitAgentCompletion
+                ? CreateCompactionCompletedEvent(providerId, sessionId, completionMessage)
+                : null;
+            return new EmptyAgentSession(providerId, sessionId, _outcome, compactionEvent, compactionStartedEvent, releaseCompaction);
+        }
+
+        private static AgentSessionUpdateEvent CreateCompactionStartedEvent(ModelProviderId providerId, string sessionId)
+            => new(
+                providerId,
+                sessionId,
+                DateTimeOffset.UtcNow,
+                null,
+                AgentSessionUpdateKind.CompactionStarted,
+                "Manual local compaction started.");
+
+        private static AgentSessionUpdateEvent CreateCompactionCompletedEvent(ModelProviderId providerId, string sessionId, string completionMessage)
+        {
+            using var details = JsonDocument.Parse("""
+                {
+                  "schema": "codealta.localCompaction.v1",
+                  "summaryMarkdown": "## Summary\nContinue.",
+                  "summarizedMessageCount": 131,
+                  "tokensBefore": 1000,
+                  "tokensAfter": 400
+                }
+                """);
+            return new AgentSessionUpdateEvent(
+                providerId,
+                sessionId,
+                DateTimeOffset.UtcNow,
+                null,
+                AgentSessionUpdateKind.CompactionCompleted,
+                completionMessage,
+                Details: details.RootElement.Clone());
+        }
+    }
+
     private sealed class NoOpTurnExecutor : IModelProviderTurnExecutor
     {
         public Task<AgentTurnResponse> ExecuteTurnAsync(
@@ -412,18 +647,57 @@ public sealed class SessionRuntimeServiceTests
             => throw new NotSupportedException();
     }
 
-    private sealed class EmptyAgentSession(ModelProviderId ProviderId, string sessionId) : IAgentSession
+    private sealed class EmptyAgentSession(
+        ModelProviderId ProviderId,
+        string sessionId,
+        AgentCompactionOutcome? compactionOutcome = null,
+        AgentEvent? compactionEvent = null,
+        AgentEvent? compactionStartedEvent = null,
+        Task? releaseCompaction = null) : IAgentSession, IAgentCompactionOutcomeProvider
     {
+        private readonly object _gate = new();
+        private readonly List<Action<AgentEvent>> _handlers = [];
+        private readonly List<AgentEvent> _history = [];
+
         public ModelProviderId ProviderId { get; } = ProviderId;
 
         public string SessionId { get; } = sessionId;
 
         public string? WorkspacePath => null;
 
-        public IAsyncEnumerable<AgentEvent> StreamEventsAsync(CancellationToken cancellationToken = default)
-            => AsyncEnumerable.Empty<AgentEvent>();
+        public async IAsyncEnumerable<AgentEvent> StreamEventsAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            IReadOnlyList<AgentEvent> history;
+            lock (_gate)
+            {
+                history = _history.ToArray();
+            }
 
-        public IDisposable Subscribe(Action<AgentEvent> handler) => new Subscription();
+            foreach (var @event in history)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                yield return @event;
+            }
+
+            await Task.CompletedTask.ConfigureAwait(false);
+        }
+
+        public IDisposable Subscribe(Action<AgentEvent> handler)
+        {
+            ArgumentNullException.ThrowIfNull(handler);
+            lock (_gate)
+            {
+                _handlers.Add(handler);
+            }
+
+            return new Subscription(() =>
+            {
+                lock (_gate)
+                {
+                    _handlers.Remove(handler);
+                }
+            });
+        }
 
         public Task<AgentRunId> SendAsync(AgentSendOptions options, CancellationToken cancellationToken = default)
             => Task.FromResult(new AgentRunId($"run-{Guid.NewGuid():N}"));
@@ -433,18 +707,63 @@ public sealed class SessionRuntimeServiceTests
 
         public Task AbortAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
-        public Task CompactAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task CompactAsync(CancellationToken cancellationToken = default)
+            => CompactWithOutcomeAsync(cancellationToken);
 
         public Task<IReadOnlyList<AgentEvent>> GetHistoryAsync(CancellationToken cancellationToken = default)
-            => Task.FromResult<IReadOnlyList<AgentEvent>>([]);
+        {
+            lock (_gate)
+            {
+                return Task.FromResult<IReadOnlyList<AgentEvent>>(_history.ToArray());
+            }
+        }
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+        public async Task<AgentCompactionOutcome?> CompactWithOutcomeAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (compactionStartedEvent is not null)
+            {
+                Publish(compactionStartedEvent);
+            }
+
+            if (releaseCompaction is not null)
+            {
+                await releaseCompaction.WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            if (compactionEvent is not null)
+            {
+                Publish(compactionEvent);
+            }
+
+            return compactionOutcome;
+        }
+
+        private void Publish(AgentEvent @event)
+        {
+            Action<AgentEvent>[] handlers;
+            lock (_gate)
+            {
+                _history.Add(@event);
+                handlers = _handlers.ToArray();
+            }
+
+            foreach (var handler in handlers)
+            {
+                handler(@event);
+            }
+        }
     }
 
-    private sealed class Subscription : IDisposable
+    private sealed class Subscription(Action? dispose = null) : IDisposable
     {
+        private Action? _dispose = dispose;
+
         public void Dispose()
         {
+            Interlocked.Exchange(ref _dispose, null)?.Invoke();
         }
     }
 
