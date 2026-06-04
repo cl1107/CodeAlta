@@ -89,6 +89,31 @@ public sealed class AskQuestionFormViewTests
     }
 
     [TestMethod]
+    public void QuestionDescription_UsesDimMarkup()
+    {
+        var form = new AskQuestionFormView(CreateQueuedAsk(new AltaAskRequest
+        {
+            Questions =
+            [
+                new AltaAskQuestion
+                {
+                    Title = "Decision",
+                    Question = "Choose one.",
+                    Description = "Extra context.",
+                    Choices = [new AltaAskChoice { Title = "Recommended" }],
+                },
+            ],
+        }));
+
+        var scrollViewer = Assert.IsInstanceOfType<ScrollViewer>(form.Tabs.Tabs[0].Content);
+        var page = Assert.IsInstanceOfType<VStack>(scrollViewer.Content);
+        var description = Assert.IsInstanceOfType<Markup>(page.Children[1]);
+
+        Assert.AreEqual("[dim]Extra context.[/]", description.Text);
+        Assert.IsTrue(description.Wrap);
+    }
+
+    [TestMethod]
     public void Source_UsesNoBorderTabsScrollViewerAndDoesNotUseCheckBoxesForAnswers()
     {
         var source = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "AskQuestionFormView.cs"));
@@ -103,6 +128,9 @@ public sealed class AskQuestionFormViewTests
         StringAssert.Contains(source, "OptionList<AskChoiceOption>");
         StringAssert.Contains(source, "choiceList.KeyDown");
         StringAssert.Contains(source, "new ScrollViewer");
+        StringAssert.Contains(source, "CreateDimMarkup(question.Description)");
+        StringAssert.Contains(source, "CreateDimMarkup(option.Description)");
+        StringAssert.Contains(source, "AnsiMarkup.Escape(text)");
         Assert.IsFalse(source.Contains("CheckBox", StringComparison.Ordinal));
     }
 

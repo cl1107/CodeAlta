@@ -1,4 +1,5 @@
 using CodeAlta.LiveTool;
+using XenoAtom.Ansi;
 using XenoAtom.Terminal;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Commands;
@@ -186,7 +187,7 @@ internal sealed class AskQuestionFormView
         };
         if (!string.IsNullOrWhiteSpace(question.Description))
         {
-            children.Add(new TextBlock(question.Description) { Wrap = true });
+            children.Add(CreateDimMarkup(question.Description));
         }
 
         if (question.Choices.Count > 0)
@@ -207,7 +208,7 @@ internal sealed class AskQuestionFormView
 
                     return new VStack(
                         new TextBlock(option.Title) { Wrap = true },
-                        new TextBlock(option.Description) { Wrap = true })
+                        CreateDimMarkup(option.Description))
                     {
                         Spacing = 0,
                         HorizontalAlignment = Align.Stretch,
@@ -256,6 +257,9 @@ internal sealed class AskQuestionFormView
         visual.AddCommand(new Command { Id = "CodeAlta.Ask.SubmitOrAdvance", LabelMarkup = "Submit", DescriptionMarkup = "Validate/advance or submit ask answers.", Gesture = new KeyGesture(TerminalKey.Enter), Execute = _ => SubmitOrAdvance() });
         visual.AddCommand(new Command { Id = "CodeAlta.Ask.Cancel", LabelMarkup = "Cancel", DescriptionMarkup = "Cancel ask mode.", Gesture = new KeyGesture(TerminalKey.Escape), Execute = _ => CancelRequested?.Invoke(this, EventArgs.Empty) });
     }
+
+    private static Markup CreateDimMarkup(string text)
+        => new($"[dim]{AnsiMarkup.Escape(text)}[/]") { Wrap = true };
 
     private void HandleKeyDown(KeyEventArgs e)
     {
