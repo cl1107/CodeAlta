@@ -81,7 +81,7 @@ Use `F3` / `F4` to jump between previous and next user or assistant messages. Us
 
 Press `Enter` to send and `Shift+Enter` for a new line. If the selected session is busy, `Enter` adds the prompt to the waiting list instead of dropping it. Queued prompts can be edited, repeated, steered immediately when supported, deleted, or cleared with `F10`.
 
-The footer **Agent:** selector chooses the agent prompt profile for the current draft/session. Built-in prompts appear first, followed by global `~/.alta/prompts/agents` prompts and project `.alta/prompts/agents` prompts. Global/project prompts with the same file id override lower-precedence prompts; see [Prompts and Instructions]({{site.basepath}}/docs/prompts/).
+The footer **Agent:** selector chooses the agent prompt profile for the current draft/session. Built-in prompts appear first, followed by global `~/.alta/prompts/agents` prompts and project `.alta/prompts/agents` prompts. Global/project prompts with the same file id override lower-precedence prompts; see [Agent Prompts]({{site.basepath}}/docs/prompts/).
 
 `Ctrl+Enter` steers a running provider session. If the provider cannot steer live, CodeAlta re-queues the prompt for the next normal turn.
 
@@ -137,7 +137,7 @@ Open it with `Ctrl+G Ctrl+R`, `/model_providers`, or the provider summary. Use i
 
 ## Prompt manager
 
-Open it with `Ctrl+G Ctrl+H` or `/prompt`. The dialog opens on **Agent Prompts**, which lists built-in, global, and project agent prompts, shows which prompts are shadowed by overrides, and edits the selected prompt on the right. Agent prompt properties are `name`, `description`, `system`, and the Markdown body. The **System Prompt** tab lists system prompt files with the same override rules and lets you edit only global/project override bodies. Built-in prompts are displayed for inspection but are read-only; create a global or project prompt/system prompt with the same id to override one.
+Open it with `Ctrl+G Ctrl+H` or `/prompt`. The dialog opens on **Agent Prompts**, which lists built-in modes such as Default and Plan plus global/project custom prompts, shows which prompts are shadowed by overrides, and edits the selected prompt on the right. Agent prompt properties are `name`, `description`, `system`, and the Markdown body. The **System Prompt** tab lists system prompt files with the same override rules and lets you edit only global/project override bodies. Built-in prompts are displayed for inspection but are read-only; create a global or project prompt/system prompt with the same id to override one. Advanced prompt workflows can combine prompts with sessions, notes, reminders, asks, MCP, and skills; see [Advanced Agent Workflows]({{site.basepath}}/docs/advanced-agent-workflows/).
 
 ## Model browser
 

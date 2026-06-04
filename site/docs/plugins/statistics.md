@@ -21,13 +21,13 @@ Projection output is not stored as assistant/user conversation content. The sess
 
 ## Estimate text size
 
-Use the live-tool command to estimate UTF-8 bytes and approximate tokens for a text value:
+The statistics plugin contributes a `statistics estimate` live-tool command that agents can use to estimate UTF-8 bytes and approximate tokens for a text value. Ask for the outcome in a prompt:
 
-```sh
-alta statistics estimate "Summarize this change."
+```text
+Estimate the size of this proposed release checklist before I attach it to the next prompt.
 ```
 
-The command returns a JSONL record with byte count, formatted byte count, estimated token count, and character count.
+The command returns a JSONL record to the agent with byte count, formatted byte count, estimated token count, and character count. Users do not invoke the live-tool command directly; for the broader model, see [Advanced Agent Workflows](../advanced-agent-workflows.md).
 
 ## Disable it
 

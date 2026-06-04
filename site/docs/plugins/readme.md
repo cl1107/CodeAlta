@@ -23,6 +23,21 @@ the CodeAlta process.
 > releases; some CodeAlta capabilities may not be exposed yet, and some exposed
 > capabilities may still be incomplete or incorrectly shaped.
 
+## Extensibility layers
+
+Plugins are one part of CodeAlta extensibility, not the first tool for every workflow.
+
+{.table}
+| Need | Prefer |
+|---|---|
+| A repeatable session workflow or mode | [Agent prompts](../prompts.md) |
+| Agent coordination with sessions, asks, notes, reminders, prompts, providers, or skills | [Advanced agent workflows](../advanced-agent-workflows.md) |
+| External tools from a standard protocol | [MCP servers](mcp.md) |
+| Reusable context that does not execute code | Skills from the [workspace skills dialog](../workspace.md#skills-management) |
+| Host UI, runtime, prompt, timeline, resource, or custom live-tool command extension | Trusted source plugins |
+
+Use plugins when you need trusted .NET code loaded into CodeAlta. If a workflow can be expressed as an agent prompt, MCP configuration, or skill package, that path is usually easier to inspect and review.
+
 ## Built-in plugins
 
 CodeAlta ships trusted built-in plugins through the same plugin runtime used

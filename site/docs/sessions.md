@@ -58,6 +58,9 @@ CodeAlta-managed agent-runtime sessions include an in-process `alta` live tool f
 
 Think of it as CodeAlta giving the agent a safe, scoped way to ask the host questions such as:
 
+> [!NOTE]
+> This page covers daily session and delegation workflows. For the full command-group atlas and prompt recipes, see [Advanced Agent Workflows](advanced-agent-workflows.md).
+
 - which projects are known or currently open;
 - what sessions already exist for this project;
 - which model providers and model refs are available;

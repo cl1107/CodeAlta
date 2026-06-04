@@ -15,7 +15,7 @@ og_type: website
 <span class="logo-code"> ░░██████  ░░██████  ░░██████ ░░██████  </span><span class="logo-alta">░██     ░██  ███   ░░██  ░░████████</span>
 <span class="logo-code">  ░░░░░░    ░░░░░░    ░░░░░░   ░░░░░░   </span><span class="logo-alta">░░      ░░  ░░░     ░░    ░░░░░░░░</span></pre>
     <p class="lead mt-4 mb-4">
-      A keyboard-first, terminal AI coding workspace for managing projects, model providers, durable sessions, plugins, and delegated agents.
+      A keyboard-first, terminal AI coding workspace for managing projects, model providers, durable sessions, agent prompts, MCP-backed tools, plugins, and delegated agents.
     </p>
     <div class="d-flex justify-content-center gap-3 mt-4 flex-wrap">
       <a href="{{site.basepath}}/docs/getting-started/" class="btn btn-primary btn-lg"><i class="bi bi-rocket-takeoff"></i> Get started</a>
@@ -46,11 +46,75 @@ alta</code></pre>
   </div>
 </section>
 
+<section class="container my-5 codealta-capabilities">
+  <div class="text-center mx-auto" style="max-width: 58rem;">
+    <p class="text-uppercase text-secondary fw-semibold mb-2">Recent workflow capabilities</p>
+    <h2 class="display-6 mb-3">Compose higher-level coding workflows instead of only sending one prompt at a time.</h2>
+    <p class="lead text-secondary mb-4">Use built-in modes, custom agent prompts, MCP servers, skills, delegated sessions, notes, reminders, and trusted plugins together. You ask for the outcome; CodeAlta-managed agents coordinate the available host capabilities.</p>
+  </div>
+  <div class="row g-4 mt-2">
+    <div class="col-md-6 col-xl-4">
+      <div class="card h-100 shadow-sm">
+        <div class="card-body">
+          <h3 class="h5"><i class="bi bi-signpost-split text-primary"></i> Plan mode and agent prompts</h3>
+          <p>Create selectable workflow profiles such as planning-only, implementation, review, triage, or project-specific release assistance.</p>
+          <a href="{{site.basepath}}/docs/prompts/" class="stretched-link">Learn about agent prompts</a>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6 col-xl-4">
+      <div class="card h-100 shadow-sm">
+        <div class="card-body">
+          <h3 class="h5"><i class="bi bi-hdd-network text-info"></i> MCP server support</h3>
+          <p>Configure stdio or HTTP/SSE Model Context Protocol servers, inspect tools, and activate server tools for future agent turns.</p>
+          <a href="{{site.basepath}}/docs/plugins/mcp/" class="stretched-link">Configure MCP servers</a>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6 col-xl-4">
+      <div class="card h-100 shadow-sm">
+        <div class="card-body">
+          <h3 class="h5"><i class="bi bi-stars text-warning"></i> Advanced agent workflows</h3>
+          <p>Prompts can direct agents to inspect CodeAlta state, ask for structured approval, update notes, set reminders, and coordinate sessions.</p>
+          <a href="{{site.basepath}}/docs/advanced-agent-workflows/" class="stretched-link">Build advanced workflows</a>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6 col-xl-4">
+      <div class="card h-100 shadow-sm">
+        <div class="card-body">
+          <h3 class="h5"><i class="bi bi-diagram-3 text-success"></i> Sessions and delegation</h3>
+          <p>Keep work durable, compare providers or reasoning levels, and let parent sessions synthesize bounded child-session results.</p>
+          <a href="{{site.basepath}}/docs/sessions/" class="stretched-link">Coordinate sessions</a>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6 col-xl-4">
+      <div class="card h-100 shadow-sm">
+        <div class="card-body">
+          <h3 class="h5"><i class="bi bi-journal-check text-secondary"></i> Notes, reminders, and approvals</h3>
+          <p>Ask agents to keep visible Markdown checklists, return later to check delegated work, or request structured user decisions before proceeding.</p>
+          <a href="{{site.basepath}}/docs/advanced-agent-workflows/#workflow-recipes" class="stretched-link">See workflow recipes</a>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6 col-xl-4">
+      <div class="card h-100 shadow-sm">
+        <div class="card-body">
+          <h3 class="h5"><i class="bi bi-puzzle text-danger"></i> Skills and trusted plugins</h3>
+          <p>Add reusable skill context or extend the host with trusted local .NET plugins when prompts and configuration are not enough.</p>
+          <a href="{{site.basepath}}/docs/plugins/" class="stretched-link">Explore extensibility</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section class="container my-5 codealta-principles">
   <div class="principles-intro mx-auto text-center">
     <p class="text-uppercase text-secondary fw-semibold mb-2">CodeAlta principles</p>
-    <h2 class="display-6 mb-3">Efficient. Transparent. Keyboard-first. Session-oriented. Provider-agnostic. Native .NET. Error-aware. Pluggable.</h2>
-    <p class="lead mb-0">A compact design manifesto for a terminal workspace that stays practical while it grows.</p>
+    <h2 class="display-6 mb-3">Efficient. Transparent. Keyboard-first. Session-oriented. Provider-agnostic. Native .NET. Error-aware. Extensible.</h2>
+    <p class="lead mb-0">A compact set of design principles for a terminal workspace that stays practical while it grows.</p>
   </div>
   <div class="principle-flow mt-5">
     <article class="principle-feature" style="--accent: #f472ff; --accent-2: #38bdf8;">
@@ -118,16 +182,16 @@ alta</code></pre>
     </article>
     <article class="principle-feature" style="--accent: #a3e635; --accent-2: #06b6d4;">
       <div class="principle-copy">
-        <span class="principle-kicker">Plugin support</span>
-        <h3><i class="bi bi-puzzle"></i> Adding trusted local plugins</h3>
+        <span class="principle-kicker">Extensible workflows</span>
+        <h3><i class="bi bi-puzzle"></i> Composing prompts, tools, MCP, skills, and trusted plugins</h3>
       </div>
       <div class="principle-shot principle-shot--image">
-        <img src="{{site.basepath}}/img/alta-plugins.png" alt="CodeAlta plugin management dialog with plugin diagnostics and contributions" loading="lazy">
+        <img src="{{site.basepath}}/img/alta-system-prompt-and-user-prompt.png" alt="CodeAlta timeline showing selected agent prompt and system prompt details" loading="lazy">
       </div>
     </article>
   </div>
   <div class="principles-cta text-center mt-5">
-    <a href="{{site.basepath}}/docs/principles/" class="btn btn-outline-primary btn-lg">Read the full principles manifesto</a>
+    <a href="{{site.basepath}}/docs/principles/" class="btn btn-outline-primary btn-lg">Read the full principles</a>
   </div>
 </section>
 <style>

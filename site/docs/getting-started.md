@@ -114,7 +114,9 @@ Other API-key providers use the same pattern with their own environment variable
 4. Press `Enter` to send. Use `Shift+Enter` for a new line.
 5. Watch the timeline for reasoning/status messages, assistant messages, tool calls, tool results, statistics, and modified-file summaries.
 
-Agent prompts are selectable session profiles. Open the prompt manager with `Ctrl+G Ctrl+H` or `/prompt` to inspect the built-in prompt or create global/project prompt overrides. See [Prompts and Instructions]({{site.basepath}}/docs/prompts/) for the file layout and override rules.
+Agent prompts are selectable session profiles. Open the prompt manager with `Ctrl+G Ctrl+H` or `/prompt` to inspect Default, Plan mode, or your own global/project prompts. See [Agent Prompts]({{site.basepath}}/docs/prompts/) for the file layout, override rules, and custom workflow guidance.
+
+Use **Plan** when you want CodeAlta to research and write a reviewable `.alta/plans/` file before implementation. Use **Default** when the task is already scoped enough to inspect, edit, verify, and report directly.
 
 Useful first prompts:
 

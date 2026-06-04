@@ -13,7 +13,7 @@ The built-in MCP plugin connects CodeAlta to configured Model Context Protocol s
 
 ## Typical flow
 
-The `alta mcp ...` surface is an in-session live tool for the agent/LLM. Users do not invoke those live-tool commands directly from the terminal. Instead, edit MCP files yourself, use the MCP Servers dialog, or ask the agent to perform MCP operations in a prompt.
+The `alta mcp ...` surface is an in-session live tool for the agent/LLM. Users cannot invoke those live-tool commands directly from the terminal. Instead, edit MCP files yourself, use the MCP Servers dialog, or ask the agent to perform MCP operations in a prompt. For the broader live-tool workflow model, see [Advanced Agent Workflows](../advanced-agent-workflows.md).
 
 1. Add server connection definitions to `~/.alta/mcp.json` or `<project>/.alta/mcp.json`, or ask the agent to add one:
 
@@ -294,6 +294,8 @@ Activate the memory and docs MCP servers.
 ```
 
 When the agent activates a server, it is only changing the activation state for future runs. The current agent turn started before those tools existed, so it cannot call the newly activated MCP tools until your next prompt. Send a follow-up such as "Now use the memory MCP tools to ..." after activation succeeds.
+
+Custom [agent prompts](../prompts.md) can include MCP activation or discovery habits for workflows that use the same servers repeatedly, but the two-turn activation rule still applies.
 
 > [!TIP]
 > If the agent says it activated a server but cannot call its tools yet, send one

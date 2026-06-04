@@ -6,7 +6,7 @@ title: CodeAlta Principles
 
 CodeAlta is designed around a small set of product and engineering principles. They are meant to keep the terminal workspace efficient, inspectable, and practical for real development work as the feature set grows.
 
-**Efficient. Transparent. Keyboard-first. Session-oriented. Provider-agnostic. Native .NET. Error-aware. Pluggable.**
+**Efficient. Transparent. Keyboard-first. Session-oriented. Provider-agnostic. Native .NET. Error-aware. Extensible.**
 
 ## <span class="principle-doc-icon" style="--accent: #f472ff; --accent-2: #38bdf8;"><i class="bi bi-arrows-collapse"></i></span> Efficient interface
 
@@ -150,23 +150,25 @@ CodeAlta should turn setup and runtime failures into visible repair paths. Error
 - Logs should be available in-app for provider, credential, plugin, and startup troubleshooting.
 - Plugin safe modes and bypasses should exist for startup recovery when extension code breaks.
 
-## <span class="principle-doc-icon" style="--accent: #a3e635; --accent-2: #06b6d4;"><i class="bi bi-puzzle"></i></span> Plugin support
+## <span class="principle-doc-icon" style="--accent: #a3e635; --accent-2: #06b6d4;"><i class="bi bi-puzzle"></i></span> Extensible workflows
 
-CodeAlta should support trusted local plugins that remain visible as source and manageable from the UI. Extension should not make the core workflow opaque.
+CodeAlta should let users compose workflows before they reach for trusted code. Agent prompts define modes, the in-session `alta` live tool lets agents coordinate CodeAlta-managed state, MCP servers and skills add external or reusable context, and plugins remain available when the host itself needs trusted .NET extension code.
 
 <figure class="principle-doc-shot">
-  <a href="{{site.basepath}}/img/alta-plugins.png" target="_blank" rel="noopener">
-    <img src="{{site.basepath}}/img/alta-plugins.png" alt="CodeAlta plugin management dialog with plugin diagnostics and contributions" loading="lazy">
+  <a href="{{site.basepath}}/img/alta-system-prompt-and-user-prompt.png" target="_blank" rel="noopener">
+    <img src="{{site.basepath}}/img/alta-system-prompt-and-user-prompt.png" alt="CodeAlta timeline showing selected agent prompt and system prompt details" loading="lazy">
   </a>
-  <figcaption>Plugin state, diagnostics, contributions, and source actions stay inspectable from the management UI.</figcaption>
+  <figcaption>Agent prompt and system prompt details stay visible in the timeline so workflow behavior can be inspected and reviewed.</figcaption>
 </figure>
 
 **What this means in practice:**
 
-- Plugins should be able to live under `~/.alta/plugins/` or project `.alta/plugins/` folders.
-- Plugins should be able to add commands, prompt processors, UI regions, tools, resource roots, timeline projections, and `alta` live-tool commands.
-- Plugin diagnostics, state, and contributions should be inspectable.
-- Safe-mode and no-plugin startup paths should provide recovery when extension code breaks.
+- Agent prompts should make workflow modes such as Default, Plan, review, triage, and release assistance selectable and project-overridable.
+- The `alta` live tool should let agents inspect projects/sessions, ask structured questions, keep notes, schedule reminders, switch prompts, and coordinate child sessions through prompt-driven workflows.
+- MCP servers should add external tool ecosystems without turning every integration into a CodeAlta plugin.
+- Skills should provide reusable context packages that can be enabled, inspected, and activated without executing source code.
+- Trusted plugins should remain source-visible and manageable for cases that need host UI, runtime, prompt, timeline, resource, tool, or live-tool command extensions.
+- Extension state, diagnostics, and recovery paths should stay inspectable so advanced workflows do not become opaque.
 
 <style>
 .principle-doc-icon {

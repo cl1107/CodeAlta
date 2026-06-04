@@ -272,6 +272,7 @@ The built-in MCP plugin contributes the `mcp` root. Current shipped commands are
 ```text
 alta mcp list
 alta mcp status
+alta mcp activate memory docs
 alta mcp config sources
 alta mcp server add <server> --command <command>
 alta mcp server add <server> --url https://example.test/mcp --header Key=Value
@@ -283,7 +284,15 @@ alta mcp tool describe --server <server> --tool <raw-tool-name>
 alta mcp tool call --server <server> --tool <raw-tool-name> --arguments {"key":"value"}
 ```
 
-MCP config/list/status commands read fixed JSON config paths and report overlay/shadowing without connecting to servers. MCP server add/remove mutates JSON MCP config only; enable/disable mutates TOML policy only. MCP tool commands lazily connect to stdio and HTTP/SSE servers, apply policy filters, emit redacted diagnostics, and return raw server/tool names plus stable aliases such as `mcp__server__tool`. Direct policy-controlled MCP agent tools use those same aliases; agents can use `alta mcp tool ...` commands for discovery, diagnostics, and manual calls. See [MCP support](mcp.md).
+MCP config/list/status commands read fixed JSON config paths and report overlay/shadowing without connecting to servers. MCP server add/remove mutates JSON MCP config only; enable/disable mutates TOML policy only. `alta mcp activate <server>...` records selected servers for the current session and performs bounded tool discovery so tools can be registered on future agent runs. MCP tool commands lazily connect to stdio and HTTP/SSE servers, apply policy filters, emit redacted diagnostics, and return raw server/tool names plus stable aliases such as `mcp__server__tool`. Direct policy-controlled MCP agent tools use those same aliases; agents can use `alta mcp tool ...` commands for discovery, diagnostics, and manual calls. See [MCP support](mcp.md).
+
+The built-in statistics plugin contributes a small `statistics` root:
+
+```text
+alta statistics estimate "Summarize this change."
+```
+
+It returns byte, character, and approximate-token estimates without mutating state.
 
 ## Capability policy
 
