@@ -6,7 +6,6 @@ using CodeAlta.ViewModels;
 using XenoAtom.Ansi;
 using XenoAtom.Terminal;
 using XenoAtom.Terminal.UI;
-using XenoAtom.Terminal.UI.Collections;
 using XenoAtom.Terminal.UI.Commands;
 using XenoAtom.Terminal.UI.Controls;
 using XenoAtom.Terminal.UI.DataGrid;
@@ -48,15 +47,14 @@ internal sealed class SkillsManagementDialog
     private readonly TextBox _filterBox;
     private readonly DataGridListDocument<SkillManagementRowViewModel> _skillDocument;
     private readonly DataGridControl _skillGrid;
-    private readonly ListBox<SkillRelatedFileRow> _relatedFileList;
-    private readonly BindableList<SkillRelatedFileRow> _relatedFileItems;
+    private readonly State<DataGridCell> _currentSkillCell = new(DataGridCell.None);
+    private readonly State<int> _selectedRelatedFileIndex = new(-1);
+    private readonly State<int> _skillDetailsVersion = new(0);
     private readonly Markup _summaryMarkup;
-    private readonly MarkdownControl _detailMarkdown;
     private IReadOnlyList<SkillManagementRowViewModel> _allRows = [];
     private IReadOnlyList<SkillManagementRowViewModel> _rows = [];
     private int _skillDocumentRowCount;
     private string _summaryText = "[dim]Open, activate, and author filesystem skills.[/]";
-    private string _relatedFilesHeaderText = "[dim]Select a skill to inspect related files.[/]";
 
     public SkillsManagementDialog(
         SkillsManagementService service,
@@ -129,32 +127,13 @@ internal sealed class SkillsManagementDialog
             .ShowRowAnchor(false)
             .MinWidth(38)
             .Stretch();
+        _skillGrid.BindCurrentCell(_currentSkillCell);
         ConfigureSkillGridColumns(_skillGrid, _service.HasSelectedProject);
-        BindingManager.Current.ValueChanged += OnBindingValueChanged;
-
-        _relatedFileList = new ListBox<SkillRelatedFileRow>()
-            .MinHeight(4)
-            .Stretch();
-        _relatedFileItems = _relatedFileList.Items;
-        _relatedFileList.SelectedIndex = -1;
 
         _summaryMarkup = new Markup(() => _summaryText)
         {
             Wrap = true,
         };
-
-        _detailMarkdown = new MarkdownControl()
-        {
-            HorizontalAlignment = Align.Stretch,
-            VerticalAlignment = Align.Stretch,
-            Options = MarkdownRenderOptions.Default with
-            {
-                CodeBlockRenderer = new TextMateMarkdownCodeBlockRenderer(),
-                WrapCodeBlocks = true,
-                MaxCodeBlockHeight = 16,
-            },
-        };
-        _detailMarkdown.Markdown = BuildDetailMarkdown(null, relatedFileCount: 0);
 
         var refreshButton = new Button("Refresh")
             .Tone(ControlTone.Primary)
@@ -213,14 +192,14 @@ internal sealed class SkillsManagementDialog
             Wrap = true,
         };
 
-        var detailPane = new Border(_detailMarkdown.Stretch())
+        var detailPane = new Border(new ComputedVisual(BuildSelectedSkillDetailVisual).Stretch())
                 .Style(BorderStyle.Rounded)
                 .Padding(new Thickness(1, 0, 1, 0))
                 .HorizontalAlignment(Align.Stretch)
                 .VerticalAlignment(Align.Stretch);
         var relatedPane = new DockLayout(
-            top: new Markup(() => _relatedFilesHeaderText) { Wrap = false },
-            content: new Border(new ScrollViewer(_relatedFileList).Stretch())
+            top: new ComputedVisual(() => new Markup(BuildSelectedSkillRelatedFilesHeaderMarkup()) { Wrap = false }),
+            content: new Border(new ComputedVisual(BuildSelectedSkillRelatedFilesVisual).Stretch())
                 .Style(BorderStyle.Rounded)
                 .Padding(new Thickness(1, 0, 1, 0))
                 .HorizontalAlignment(Align.Stretch)
@@ -316,14 +295,6 @@ internal sealed class SkillsManagementDialog
     private void StartReload()
         => _ = ReloadAsync(selectFirst: true);
 
-    private void OnBindingValueChanged(Binding binding)
-    {
-        if (ReferenceEquals(binding.Owner, _skillGrid) && string.Equals(binding.Accessor.Name, "CurrentCell", StringComparison.Ordinal))
-        {
-            RefreshSelectedSkillDetails();
-        }
-    }
-
     private async Task ReloadAsync(string? preferredSkillName = null, bool selectFirst = false)
     {
         _summaryText = "[primary]Loading skills...[/]";
@@ -354,7 +325,7 @@ internal sealed class SkillsManagementDialog
                     SyncSkillItems(_rows);
                     SetSelectedSkillIndex(-1);
                     _summaryText = $"[error]Failed to load skills: {AnsiMarkup.Escape(ex.Message)}[/]";
-                    RefreshSelectedSkillDetails();
+                    InvalidateSkillDetails();
                 });
         }
     }
@@ -381,6 +352,7 @@ internal sealed class SkillsManagementDialog
         SetSelectedSkillIndex(selectedIndex);
 
         _summaryText = BuildSummaryMarkup(_allRows.Select(static row => row.Descriptor).ToArray(), _rows.Count, filterText);
+        InvalidateSkillDetails();
     }
 
     private int ResolveSelectedSkillIndex(bool selectFirst, string? selectedName)
@@ -456,37 +428,19 @@ internal sealed class SkillsManagementDialog
 
         if (GetSelectedSkillIndex() == oldIndex)
         {
-            RefreshSelectedSkillDetails();
+            InvalidateSkillDetails();
         }
     }
 
     private int GetSelectedSkillIndex()
     {
-        var index = _skillGrid.CurrentCell.Row;
+        var index = _currentSkillCell.Value.Row;
         return (uint)index < (uint)_rows.Count ? index : -1;
     }
 
-    private void RefreshSelectedSkillDetails()
+    private void InvalidateSkillDetails()
     {
-        var descriptor = GetSelectedDescriptor();
-        _relatedFileItems.Clear();
-        if (descriptor is null)
-        {
-            _relatedFileList.SelectedIndex = -1;
-            _relatedFilesHeaderText = "[dim]Select a skill to inspect related files.[/]";
-            _detailMarkdown.Markdown = BuildDetailMarkdown(null, relatedFileCount: 0);
-            return;
-        }
-
-        var relatedFiles = _service.ListRelatedFiles(descriptor);
-        foreach (var file in relatedFiles)
-        {
-            _relatedFileItems.Add(new SkillRelatedFileRow(file));
-        }
-
-        _relatedFileList.SelectedIndex = _relatedFileItems.Count > 0 ? 0 : -1;
-        _relatedFilesHeaderText = BuildRelatedFilesHeaderMarkup(relatedFiles.Count);
-        _detailMarkdown.Markdown = BuildDetailMarkdown(descriptor, relatedFiles.Count);
+        _skillDetailsVersion.Value++;
     }
 
     private async Task OpenSelectedSkillAsync()
@@ -501,14 +455,17 @@ internal sealed class SkillsManagementDialog
 
     private async Task OpenSelectedRelatedFileAsync()
     {
-        var index = _relatedFileList.SelectedIndex;
-        if ((uint)index >= (uint)_relatedFileItems.Count)
+        var relatedFiles = GetSelectedRelatedFiles();
+        var index = relatedFiles.Count > 0
+            ? Math.Clamp(_selectedRelatedFileIndex.Value, 0, relatedFiles.Count - 1)
+            : -1;
+        if ((uint)index >= (uint)relatedFiles.Count)
         {
             _summaryText = "[warning]Select a related file before opening.[/]";
             return;
         }
 
-        await _openFileAsync(_relatedFileItems[index].File.FullPath, CancellationToken.None);
+        await _openFileAsync(relatedFiles[index].FullPath, CancellationToken.None);
     }
 
     private void ShowNewSkillDialog()
@@ -725,6 +682,58 @@ internal sealed class SkillsManagementDialog
         return (uint)index < (uint)_rows.Count
             ? _rows[index].Descriptor
             : null;
+    }
+
+    private Visual BuildSelectedSkillDetailVisual()
+    {
+        _ = _skillDetailsVersion.Value;
+        var descriptor = GetSelectedDescriptor();
+        var relatedFileCount = descriptor is null ? 0 : GetSelectedRelatedFiles(descriptor).Count;
+        return new MarkdownControl(BuildDetailMarkdown(descriptor, relatedFileCount))
+        {
+            HorizontalAlignment = Align.Stretch,
+            VerticalAlignment = Align.Stretch,
+            Options = MarkdownRenderOptions.Default with
+            {
+                CodeBlockRenderer = new TextMateMarkdownCodeBlockRenderer(),
+                WrapCodeBlocks = true,
+                MaxCodeBlockHeight = 16,
+            },
+        };
+    }
+
+    private Visual BuildSelectedSkillRelatedFilesVisual()
+    {
+        var rows = GetSelectedRelatedFiles()
+            .Select(static file => new SkillRelatedFileRow(file))
+            .ToArray();
+        var list = new ListBox<SkillRelatedFileRow>(rows, rows.Length > 0 ? 0 : -1)
+            .MinHeight(4)
+            .Stretch();
+        list.BindSelectedIndex(_selectedRelatedFileIndex);
+        return new ScrollViewer(list).Stretch();
+    }
+
+    private string BuildSelectedSkillRelatedFilesHeaderMarkup()
+    {
+        _ = _skillDetailsVersion.Value;
+        return GetSelectedDescriptor() is { } descriptor
+            ? BuildRelatedFilesHeaderMarkup(GetSelectedRelatedFiles(descriptor).Count)
+            : "[dim]Select a skill to inspect related files.[/]";
+    }
+
+    private IReadOnlyList<SkillRelatedFile> GetSelectedRelatedFiles()
+    {
+        _ = _skillDetailsVersion.Value;
+        return GetSelectedDescriptor() is { } descriptor
+            ? GetSelectedRelatedFiles(descriptor)
+            : [];
+    }
+
+    private IReadOnlyList<SkillRelatedFile> GetSelectedRelatedFiles(SkillDescriptor descriptor)
+    {
+        _ = _skillDetailsVersion.Value;
+        return _service.ListRelatedFiles(descriptor);
     }
 
     private SkillsManagementScope GetSelectedScope()
@@ -976,7 +985,6 @@ internal sealed class SkillsManagementDialog
     private void Close()
     {
         var app = _dialog.App;
-        BindingManager.Current.ValueChanged -= OnBindingValueChanged;
         _dialog.Close();
         if (_getFocusTarget() is { } focusTarget)
         {
