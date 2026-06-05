@@ -22,6 +22,9 @@ public sealed class CoordinatorAgentsBootstrapperTests
         StringAssert.Contains(content, "alta --help");
         StringAssert.Contains(content, "Delegate project work to project sessions");
         StringAssert.Contains(content, "do not inspect, read, edit, build, test, or otherwise operate directly inside project folders yourself");
+        StringAssert.Contains(content, "alta session create --project <project>");
+        StringAssert.Contains(content, "Use `--global` only");
+        StringAssert.Contains(content, "creation record includes `projectId`");
         StringAssert.Contains(content, generatedHelp);
         Assert.IsFalse(content.Contains("{{ALTA_HELP}}", StringComparison.Ordinal));
         StringAssert.Contains(content, "CodeAlta:local-instructions:begin");

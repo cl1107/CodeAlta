@@ -10,7 +10,7 @@ namespace CodeAlta.Orchestration.Hosting;
 /// </summary>
 public static class CoordinatorAgentsBootstrapper
 {
-    private const string TemplateVersion = "2026-05-10";
+    private const string TemplateVersion = "2026-06-05";
     private const string ManagedBeginPrefix = "<!-- CodeAlta:coordinator-managed:begin";
     private const string ManagedEndMarker = "<!-- CodeAlta:coordinator-managed:end -->";
     private const string LocalBeginMarker = "<!-- CodeAlta:local-instructions:begin -->";
