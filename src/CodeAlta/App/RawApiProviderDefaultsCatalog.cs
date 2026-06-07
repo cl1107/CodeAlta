@@ -84,8 +84,8 @@ internal static class RawApiProviderDefaultsCatalog
         var path = Path.Combine(AppContext.BaseDirectory, ProviderDefaultsRelativePath);
         if (!File.Exists(path))
         {
-            Logger.Warn($"Provider defaults content file '{path}' was not found; using built-in compatibility fallback defaults.");
-            return CreateFallbackRules();
+            Logger.Error($"Provider defaults content file '{path}' was not found; using built-in compatibility fallback defaults.");
+            return [];
         }
 
         try
@@ -98,115 +98,14 @@ internal static class RawApiProviderDefaultsCatalog
                 .ToArray();
             return rules is { Length: > 0 }
                 ? rules
-                : CreateFallbackRules();
+                : [];
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or TomlException or InvalidOperationException or FormatException)
         {
-            Logger.Warn($"Failed to load provider defaults content file '{path}': {ex.Message}; using built-in compatibility fallback defaults.");
-            return CreateFallbackRules();
+            Logger.Error($"Failed to load provider defaults content file '{path}': {ex.Message}; using built-in compatibility fallback defaults.");
+            return [];
         }
     }
-
-    private static IReadOnlyList<RawApiProviderDefaultsRule> CreateFallbackRules()
-        =>
-        [
-            new RawApiProviderDefaultsRule
-            {
-                Id = "alibaba-dashscope-openai-chat",
-                DisplayName = "Alibaba DashScope OpenAI Chat",
-                Types = ["openai-chat"],
-                ProviderKeys = ["alibaba", "dashscope", "aliyun"],
-                HostSuffixes = [
-                    "dashscope.aliyuncs.com",
-                    "dashscope-intl.aliyuncs.com",
-                    "dashscope-us.aliyuncs.com",
-                    "cn-hongkong.dashscope.aliyuncs.com",
-                    "coding-intl.dashscope.aliyuncs.com",
-                    "maas.aliyuncs.com",
-                ],
-                Profile = new RawApiProviderDefaultsProfile
-                {
-                    SupportsDeveloperRole = false,
-                    SupportsStore = false,
-                    SupportsReasoningEffort = false,
-                    MaxTokensFieldName = "max_tokens",
-                },
-                OpenAI = new RawApiProviderDefaultsOpenAI
-                {
-                    ExtraBodyDefaults = new TomlTable(true)
-                    {
-                        ["stream_options"] = new TomlTable(true)
-                        {
-                            ["include_usage"] = true,
-                        },
-                        ["enable_thinking"] = true,
-                        ["preserve_thinking"] = true,
-                    },
-                },
-            },
-            new RawApiProviderDefaultsRule
-            {
-                Id = "minimax-openai-chat",
-                DisplayName = "MiniMax OpenAI Chat",
-                Types = ["openai-chat"],
-                ProviderKeys = ["minimax"],
-                HostSuffixes = ["minimax.io", "minimaxi.com"],
-                Profile = new RawApiProviderDefaultsProfile
-                {
-                    SupportsDeveloperRole = false,
-                    ReasoningFieldNamesPrepend = ["reasoning_details[0].text"],
-                },
-                OpenAI = new RawApiProviderDefaultsOpenAI
-                {
-                    ExtraBodyDefaults = new TomlTable(true)
-                    {
-                        ["reasoning_split"] = true,
-                    },
-                },
-            },
-            new RawApiProviderDefaultsRule
-            {
-                Id = "deepseek-openai-chat",
-                DisplayName = "DeepSeek OpenAI Chat",
-                Types = ["openai-chat"],
-                ProviderKeys = ["deepseek"],
-                HostSuffixes = ["deepseek.com"],
-                Profile = new RawApiProviderDefaultsProfile
-                {
-                    SupportsDeveloperRole = false,
-                    SupportsStore = false,
-                    MaxTokensFieldName = "max_tokens",
-                    ReasoningInputFieldName = "reasoning_content",
-                },
-                OpenAI = new RawApiProviderDefaultsOpenAI
-                {
-                    ExtraBodyDefaults = new TomlTable(true)
-                    {
-                        ["thinking"] = new TomlTable(true)
-                        {
-                            ["type"] = "enabled",
-                        },
-                    },
-                },
-            },
-            new RawApiProviderDefaultsRule
-            {
-                Id = "xiaomi-openai-chat",
-                DisplayName = "Xiaomi OpenAI Chat",
-                Types = ["openai-chat"],
-                ProviderKeys = ["xiaomi"],
-                HostSuffixes = ["xiaomimimo.com"],
-                Profile = new RawApiProviderDefaultsProfile
-                {
-                    SupportsDeveloperRole = false,
-                    SupportsStore = false,
-                    SupportsReasoningEffort = false,
-                    SupportsParallelToolCalls = false,
-                    SupportsStrictTools = false,
-                    MaxTokensFieldName = "max_tokens",
-                },
-            },
-        ];
 
     private static bool IsMatch(RawApiProviderDefaultsRule rule, RawApiProviderDefaultsContext context)
     {
