@@ -13,6 +13,7 @@ using CodeAlta.ViewModels;
 using CodeAlta.Views;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Controls;
+using XenoAtom.Terminal.UI.Layout;
 
 namespace CodeAlta.Tests;
 
@@ -427,6 +428,39 @@ public sealed class CodeAltaAppTabStripTests
     }
 
     [TestMethod]
+    public void SyncControl_UsesRuntimeRunningStateForOpenedSessionTabIndicator()
+    {
+        using var temp = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = temp.Path };
+        var dispatcher = new InlineUiDispatcher();
+        var workspaceView = CreateSessionWorkspaceView();
+        var tabs = new InMemoryShellTabService();
+        var sessionState = TestSessionStateServices.CreateCoordinator(
+            new ProjectCatalog(options),
+            new SessionViewCatalog(options),
+            dispatcher,
+            new ShellStateStore(dispatcher));
+        var project = CreateProject("project-1", "CodeAlta");
+        var session = CreateSession("session-1", project.Id);
+        sessionState.ApplyRecoveredCatalogState([project], [session]);
+        sessionState.OpenSession(session.SessionId);
+        var coordinator = CreateCoordinator(
+            tabs,
+            sessionState,
+            workspaceView,
+            dispatcher,
+            sessionId => string.Equals(sessionId, session.SessionId, StringComparison.OrdinalIgnoreCase));
+
+        coordinator.SyncControl();
+
+        Assert.IsTrue(tabs.TryGetTab(new ShellTabId(session.SessionId), out var shellTab));
+        shellTab.Header.Measure(new LayoutConstraints(0, 80, 0, 1));
+        Assert.IsTrue(
+            shellTab.Header.EnumerateVisualsDepthFirst().OfType<Spinner>().Any(),
+            "A session tab opened while the runtime still reports it running should show the running spinner even before a tab-local status update arrives.");
+    }
+
+    [TestMethod]
     public void SessionTabSelection_KeepsPromptPanelAttachedAfterFileEditorTab()
     {
         using var temp = TempDirectory.Create();
@@ -558,7 +592,8 @@ public sealed class CodeAltaAppTabStripTests
         IShellTabService tabs,
         ShellSessionStateCoordinator sessionState,
         SessionWorkspaceView workspaceView,
-        IUiDispatcher dispatcher)
+        IUiDispatcher dispatcher,
+        Func<string, bool>? isRuntimeSessionRunning = null)
     {
         var selection = new SessionSelectionContext(
             sessionState,
@@ -580,7 +615,7 @@ public sealed class CodeAltaAppTabStripTests
                 static _ => null,
                 static _ => { },
                 static _ => { }));
-        return new SessionTabStripCoordinator(selection, context, tabs, new State<float>(0));
+        return new SessionTabStripCoordinator(selection, context, tabs, new State<float>(0), isRuntimeSessionRunning: isRuntimeSessionRunning);
     }
 
     private static SessionWorkspaceView CreateSessionWorkspaceView(Action<int>? selectTab = null)

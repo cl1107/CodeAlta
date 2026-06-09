@@ -686,9 +686,9 @@ public sealed class ArchitectureGuardrailTests
         {
             "App/CodeAltaShellController.cs:70:_initializationTask = Task.Run(",
             "App/CodeAltaShellController.cs:437:var startupProviderLoadTask = Task.Run(",
-            "App/CodeAltaApp.cs:349:_ = PersistViewStateAsync();",
-            "App/CodeAltaApp.cs:380:_ = PersistViewStateAsync();",
-            "App/CodeAltaApp.cs:453:_ = OpenModelProvidersAsync();",
+            "App/CodeAltaApp.cs:345:_ = PersistViewStateAsync();",
+            "App/CodeAltaApp.cs:376:_ = PersistViewStateAsync();",
+            "App/CodeAltaApp.cs:449:_ = OpenModelProvidersAsync();",
             "App/RuntimeEventPump.cs:34:_pumpTask = Task.Run(",
             "App/ShellSessionStateCoordinator.cs:289:_ = RestoreStartupSessionHistoryAsync(sessionId, cancellationToken);",
             "App/ShellSessionStateCoordinator.cs:300:_ = PersistViewStateAsync();",
@@ -709,10 +709,10 @@ public sealed class ArchitectureGuardrailTests
             "Presentation/Prompting/ProjectFileReferencePopupController.cs:164:_ = sessionCreateTask.ContinueWith(",
             "Presentation/Prompting/ProjectFileReferencePopupController.cs:377:_ = CloseAsync();",
             "Presentation/Prompting/ProjectFileReferencePopupController.cs:378:_ = RecordUsageAsync(selected);",
-            "Presentation/Tabs/SessionTabStripCoordinator.cs:495:_ = CloseTabFromViewAsync(currentSessionId, ShellTabCloseReason.UserDetached);",
-            "Presentation/Tabs/SessionTabStripCoordinator.cs:701:_ = CloseTabFromViewAsync(CodeAltaApp.DraftTabId, ShellTabCloseReason.UserDetached);",
-            "Presentation/Tabs/SessionTabStripCoordinator.cs:736:_ = CloseTabFromViewAsync(currentTabId, ShellTabCloseReason.FileEditorClosed);",
-            "Presentation/Tabs/SessionTabStripCoordinator.cs:777:_ = CloseTabFromViewAsync(currentTabId, ShellTabCloseReason.UserDetached);",
+            "Presentation/Tabs/SessionTabStripCoordinator.cs:498:_ = CloseTabFromViewAsync(currentSessionId, ShellTabCloseReason.UserDetached);",
+            "Presentation/Tabs/SessionTabStripCoordinator.cs:710:_ = CloseTabFromViewAsync(CodeAltaApp.DraftTabId, ShellTabCloseReason.UserDetached);",
+            "Presentation/Tabs/SessionTabStripCoordinator.cs:745:_ = CloseTabFromViewAsync(currentTabId, ShellTabCloseReason.FileEditorClosed);",
+            "Presentation/Tabs/SessionTabStripCoordinator.cs:786:_ = CloseTabFromViewAsync(currentTabId, ShellTabCloseReason.UserDetached);",
             "Presentation/Sessions/SessionInfoPresenter.cs:96:_ = LoadAsync(cancellationTokenSource.Token);",
         };
         var violations = new[]

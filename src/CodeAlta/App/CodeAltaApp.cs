@@ -251,11 +251,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
                 tabId => _fileEditorWorkspaceCoordinator.SelectFileTab(tabId),
                 tabId => ObserveUiTask(() => _fileEditorWorkspaceCoordinator.CloseFileTabAsync(tabId), "close the file tab")));
         _sessionTabStripCoordinator = new SessionTabStripCoordinator(
-            _sessionSelectionContext,
-            _sessionTabContext,
-            _shellTabService,
-            _shellAnimationRuntime.WelcomePhase01,
-            () => _promptDraftUiCoordinator.HasCurrentPromptDraft);
+            _sessionSelectionContext, _sessionTabContext, _shellTabService, _shellAnimationRuntime.WelcomePhase01, () => _promptDraftUiCoordinator.HasCurrentPromptDraft, _sessionRuntimeEventCoordinator.IsSessionRunning);
         composition.DraftTabReplacement.Bind(_sessionTabStripCoordinator.ReplaceDraftTabWithSession);
         var input = new DelegatingShellPromptInputService(() => ReadBindableState(() => _promptDraftUiCoordinator.PromptText), _sessionCommandCoordinator.IsCurrentPromptEmpty);
         var sessionSvc = new DelegatingShellSessionCommandService(GetSelectedSession, EnsureSessionTab);

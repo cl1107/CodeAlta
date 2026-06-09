@@ -16,6 +16,7 @@ internal sealed class SessionTabStripCoordinator
     private readonly SessionTabContext _sessionTabs;
     private readonly IShellTabService _shellTabs;
     private readonly Func<bool> _hasDraftPrompt;
+    private readonly Func<string, bool> _isRuntimeSessionRunning;
     private readonly State<float> _welcomeAnimationPhase01;
     private bool _syncingSelection;
     private bool _syncingPages;
@@ -28,7 +29,8 @@ internal sealed class SessionTabStripCoordinator
         SessionTabContext sessionTabs,
         IShellTabService shellTabs,
         State<float> welcomeAnimationPhase01,
-        Func<bool>? hasDraftPrompt = null)
+        Func<bool>? hasDraftPrompt = null,
+        Func<string, bool>? isRuntimeSessionRunning = null)
     {
         ArgumentNullException.ThrowIfNull(sessionSelection);
         ArgumentNullException.ThrowIfNull(sessionTabs);
@@ -40,6 +42,7 @@ internal sealed class SessionTabStripCoordinator
         _shellTabs = shellTabs;
         _welcomeAnimationPhase01 = welcomeAnimationPhase01;
         _hasDraftPrompt = hasDraftPrompt ?? (static () => false);
+        _isRuntimeSessionRunning = isRuntimeSessionRunning ?? (static _ => false);
     }
 
     public void SyncControl()
@@ -515,7 +518,7 @@ internal sealed class SessionTabStripCoordinator
             {
                 return new HStack(
                 [
-                    SessionTabVisualFactory.CreateIndicator(tab.ViewModel.StatusBusy, tab.HasPromptDraft, tab.ViewModel.StatusTone),
+                    SessionTabVisualFactory.CreateIndicator(IsSessionTabBusy(tab), tab.HasPromptDraft, tab.ViewModel.StatusTone),
                     SessionTabVisualFactory.CreateTitle(SessionTabVisualFactory.CompactTitle(tab.ViewModel.Title)),
                 ])
                 {
@@ -524,6 +527,12 @@ internal sealed class SessionTabStripCoordinator
             });
 
         return OpenSessionShellTab(workspaceView, session, tab, header);
+    }
+
+    private bool IsSessionTabBusy(OpenSessionState tab)
+    {
+        ArgumentNullException.ThrowIfNull(tab);
+        return tab.ViewModel.StatusBusy || _isRuntimeSessionRunning(tab.SessionView.SessionId);
     }
 
     private TabPage EnsureFilePage(string tabId)
