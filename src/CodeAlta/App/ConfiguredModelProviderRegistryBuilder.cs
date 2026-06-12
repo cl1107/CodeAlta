@@ -154,6 +154,7 @@ internal static class ConfiguredModelProviderRegistryBuilder
                     DisplayName = displayName,
                     ApiKey = apiKey,
                     BaseUri = baseUri,
+                    NetworkTimeout = CreateNetworkTimeout(definition),
                     OrganizationId = definition.OrganizationId,
                     ProjectId = definition.ProjectId,
                     IsDefault = true,
@@ -223,6 +224,7 @@ internal static class ConfiguredModelProviderRegistryBuilder
                     DisplayName = displayName,
                     ApiKey = apiKey,
                     BaseUri = baseUri,
+                    NetworkTimeout = CreateNetworkTimeout(definition),
                     OrganizationId = definition.OrganizationId,
                     ProjectId = definition.ProjectId,
                     IsDefault = true,
@@ -294,6 +296,7 @@ internal static class ConfiguredModelProviderRegistryBuilder
                     ApiKey = apiKey,
                     IsAzureOpenAI = true,
                     BaseUri = baseUri,
+                    NetworkTimeout = CreateNetworkTimeout(definition),
                     IsDefault = true,
                     Profile = CreateAzureOpenAIProfile(definition.Profile),
                     Compaction = CreateCompactionSettings(definition.Compaction),
@@ -333,6 +336,7 @@ internal static class ConfiguredModelProviderRegistryBuilder
             ProviderKey = definition.ProviderKey,
             DisplayName = displayName,
             BaseUri = baseUri,
+            NetworkTimeout = CreateNetworkTimeout(definition),
             IsDefault = true,
             Profile = CreateCodexSubscriptionProfile(definition.Profile),
             Compaction = CreateCompactionSettings(definition.Compaction),
@@ -918,6 +922,9 @@ internal static class ConfiguredModelProviderRegistryBuilder
         => Uri.TryCreate(NormalizeText(uriText), UriKind.Absolute, out var uri)
             ? uri
             : null;
+
+    private static TimeSpan? CreateNetworkTimeout(CodeAltaProviderDocument definition)
+        => definition.NetworkTimeoutSeconds is { } seconds ? TimeSpan.FromSeconds(seconds) : null;
 
     private static OpenAIProtocolTraceOptions? CreateOpenAIProtocolTraceOptions(
         CodeAltaProviderDocument definition,

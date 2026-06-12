@@ -4,6 +4,7 @@ using System.ClientModel.Primitives;
 using System.Net;
 using System.Net.WebSockets;
 using System.Reflection;
+using Azure.AI.OpenAI;
 using CodeAlta.Agent;
 using CodeAlta.Agent.Runtime;
 using CodeAlta.Agent.OpenAI;
@@ -185,7 +186,7 @@ public sealed class OpenAICodexSubscriptionPipelineTests
     }
 
     [TestMethod]
-    public void SdkFactory_ConfiguresLongerNetworkTimeoutForCodexSubscription()
+    public void SdkFactory_LeavesDefaultNetworkTimeoutForCodexSubscription()
     {
         var nonCodexOptions = CreateClientOptions(new OpenAIProviderOptions
         {
@@ -201,7 +202,35 @@ public sealed class OpenAICodexSubscriptionPipelineTests
         });
 
         Assert.IsNull(nonCodexOptions.NetworkTimeout);
-        Assert.AreEqual(TimeSpan.FromMinutes(10), codexOptions.NetworkTimeout);
+        Assert.IsNull(codexOptions.NetworkTimeout);
+    }
+
+    [TestMethod]
+    public void SdkFactory_UsesConfiguredNetworkTimeout()
+    {
+        var openAiOptions = CreateClientOptions(new OpenAIProviderOptions
+        {
+            ProviderKey = "openai",
+            NetworkTimeout = TimeSpan.FromMinutes(5),
+        });
+        var azureOptions = CreateAzureClientOptions(new OpenAIProviderOptions
+        {
+            ProviderKey = "azure-openai",
+            NetworkTimeout = TimeSpan.FromMinutes(7),
+        });
+        var codexOptions = CreateClientOptions(new OpenAIProviderOptions
+        {
+            ProviderKey = "codex",
+            NetworkTimeout = TimeSpan.FromMinutes(15),
+            CodexSubscription = new OpenAICodexSubscriptionOptions
+            {
+                Experimental = true,
+            },
+        });
+
+        Assert.AreEqual(TimeSpan.FromMinutes(5), openAiOptions.NetworkTimeout);
+        Assert.AreEqual(TimeSpan.FromMinutes(7), azureOptions.NetworkTimeout);
+        Assert.AreEqual(TimeSpan.FromMinutes(15), codexOptions.NetworkTimeout);
     }
 
     [TestMethod]
@@ -724,6 +753,15 @@ public sealed class OpenAICodexSubscriptionPipelineTests
             BindingFlags.NonPublic | BindingFlags.Static)
             ?? throw new InvalidOperationException("OpenAI client option factory was not found.");
         return (OpenAIClientOptions)method.Invoke(null, [provider])!;
+    }
+
+    private static AzureOpenAIClientOptions CreateAzureClientOptions(OpenAIProviderOptions provider)
+    {
+        var method = typeof(OpenAIProviderSdkFactory).GetMethod(
+            "CreateAzureOpenAIClientOptions",
+            BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new InvalidOperationException("Azure OpenAI client option factory was not found.");
+        return (AzureOpenAIClientOptions)method.Invoke(null, [provider, null])!;
     }
 
     private static bool TryCreateWebSocketResponseUpdateMessage(

@@ -80,6 +80,11 @@ public sealed class OpenAIProviderOptions
     public Uri? BaseUri { get; set; }
 
     /// <summary>
+    /// Gets or sets the optional OpenAI SDK network timeout for HTTP operations.
+    /// </summary>
+    public TimeSpan? NetworkTimeout { get; set; }
+
+    /// <summary>
     /// Gets or sets the optional OpenAI organization header value.
     /// </summary>
     public string? OrganizationId { get; set; }

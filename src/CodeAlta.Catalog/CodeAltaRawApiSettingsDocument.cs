@@ -287,6 +287,12 @@ public sealed class CodeAltaProviderDocument
     public string? ApiUrl { get; set; }
 
     /// <summary>
+    /// Gets or sets the optional OpenAI SDK network timeout, in seconds.
+    /// </summary>
+    [JsonPropertyName("network_timeout_seconds")]
+    public int? NetworkTimeoutSeconds { get; set; }
+
+    /// <summary>
     /// Gets or sets the GitHub Enterprise URL or domain for the GitHub Copilot direct provider.
     /// </summary>
     [JsonPropertyName("github_enterprise_url")]

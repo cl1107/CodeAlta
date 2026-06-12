@@ -78,6 +78,7 @@ Common provider fields are:
 | `reasoning_effort` | Default reasoning effort: `none`, `minimal`, `low`, `medium`, `high`, or `xhigh`. |
 | `api_key` / `api_key_env` | Literal API key or environment variable name for API-key providers. Prefer `api_key_env`. |
 | `api_url` | Absolute endpoint override. Azure OpenAI, Codex, and Copilot require HTTPS except localhost test transports. |
+| `network_timeout_seconds` | Positive OpenAI/Azure SDK network timeout override for `openai-chat`, `openai-responses`, `azure-openai`, and `codex`. Leave unset for the OpenAI SDK default timeout of 100 seconds. |
 | `protocol_trace` | Enables low-level protocol tracing for OpenAI, Codex, and Copilot transports. |
 | `models_dev_provider_id` | Optional models.dev provider id used to enrich model metadata where supported. |
 | `single_model_id` | Fixed model id for endpoints that do not expose a model list. |
@@ -92,12 +93,12 @@ Provider-type-specific fields and restrictions:
 
 | Type | Credential and endpoint fields | Additional fields handled for that type |
 | --- | --- | --- |
-| `openai-chat`, `openai-responses` | `api_key` or `api_key_env`; optional `api_url`, `organization_id`, `project_id` | `models_dev_provider_id`, `single_model_id`, `extra_body`, `request`, `model_request`, `profile`, `compaction`, `model_overrides`, `protocol_trace` |
-| `azure-openai` | `api_key` or `api_key_env`; required Azure OpenAI resource `api_url` | `models_dev_provider_id`, `single_model_id`, `profile`, `compaction`, `model_overrides`, `protocol_trace` |
+| `openai-chat`, `openai-responses` | `api_key` or `api_key_env`; optional `api_url`, `organization_id`, `project_id` | `network_timeout_seconds`, `models_dev_provider_id`, `single_model_id`, `extra_body`, `request`, `model_request`, `profile`, `compaction`, `model_overrides`, `protocol_trace` |
+| `azure-openai` | `api_key` or `api_key_env`; required Azure OpenAI resource `api_url` | `network_timeout_seconds`, `models_dev_provider_id`, `single_model_id`, `profile`, `compaction`, `model_overrides`, `protocol_trace` |
 | `anthropic` | `api_key` or `api_key_env`; optional `api_url` | `models_dev_provider_id`, `single_model_id`, `request.headers`, `request.remove_headers`, `profile`, `compaction`, `model_overrides` |
 | `google-genai` | `api_key` or `api_key_env`; optional `api_url` | `models_dev_provider_id`, `single_model_id`, `request.headers`, `request.remove_headers`, `profile`, `compaction`, `model_overrides` |
 | `vertex-ai` | `project` and `location` are required when enabled; optional `api_url` | `models_dev_provider_id`, `single_model_id`, `request.headers`, `request.remove_headers`, `profile`, `compaction`, `model_overrides` |
-| `codex` | ChatGPT/Codex OAuth state; no `api_key` or `api_key_env`; optional `api_url` | `auth_source`, `account_id`, `max_concurrent_requests`, `text_verbosity`, `include_encrypted_reasoning`, `model_discovery`, `response_transport`, `send_responses_beta_header`, `send_installation_id`, `installation_id_source`, `experimental`, `profile`, `compaction`, `protocol_trace` |
+| `codex` | ChatGPT/Codex OAuth state; no `api_key` or `api_key_env`; optional `api_url` | `network_timeout_seconds`, `auth_source`, `account_id`, `max_concurrent_requests`, `text_verbosity`, `include_encrypted_reasoning`, `model_discovery`, `response_transport`, `send_responses_beta_header`, `send_installation_id`, `installation_id_source`, `experimental`, `profile`, `compaction`, `protocol_trace` |
 | `copilot` | GitHub device flow by default; optional `api_url` | `auth_source`, `github_enterprise_url`, `github_token_env`, `copilot_token_env`, `model_discovery`, `enable_model_policies`, `include_preview_models`, `experimental`, `single_model_id`, `models_dev_provider_id`, `profile`, `compaction`, `model_overrides`, `protocol_trace` |
 | `xai` | xAI Grok OAuth (browser PKCE or device flow); optional `api_url` | `auth_source`, `model_discovery`, `single_model_id`, `models_dev_provider_id`, `request`, `model_request`, `profile`, `compaction`, `model_overrides`, `protocol_trace` |
 
@@ -299,7 +300,10 @@ type = "azure-openai"
 model = "my-gpt-4o-mini-deployment"
 api_key_env = "CODEALTA_AZURE_OPENAI_API_KEY"
 api_url = "https://your-resource.openai.azure.com"
+network_timeout_seconds = 180
 ```
+
+Use `network_timeout_seconds` when long Azure OpenAI or OpenAI-compatible streaming requests otherwise fail with the SDK's default network timeout.
 
 Azure OpenAI does not expose model listing through the SDK used by CodeAlta. If `single_model_id` is not set, CodeAlta uses `model` as the single deployment shown in model selectors.
 

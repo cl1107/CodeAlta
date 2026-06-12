@@ -1272,6 +1272,16 @@ public sealed class CodeAltaConfigStore
             RejectCopilotDirectOnlyFields(definition);
         }
 
+        if (!IsOpenAISdkProviderType(definition.ProviderType))
+        {
+            RejectUnsupportedField(definition, "network_timeout_seconds", definition.NetworkTimeoutSeconds);
+        }
+
+        if (definition.NetworkTimeoutSeconds is <= 0)
+        {
+            throw new InvalidOperationException($"providers.{definition.ProviderKey} network_timeout_seconds must be greater than zero.");
+        }
+
         switch (definition.ProviderType)
         {
             case "openai-chat":
@@ -1529,6 +1539,9 @@ public sealed class CodeAltaConfigStore
         => string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) ||
            uri.IsLoopback ||
            string.Equals(uri.Host, "localhost", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsOpenAISdkProviderType(string? providerType)
+        => providerType is "openai-chat" or "openai-responses" or "azure-openai" or CodexSubscriptionProviderType;
 
     private static void RejectUnsupportedField(CodeAltaProviderDocument definition, string fieldName, object? value)
     {
@@ -1808,6 +1821,7 @@ public sealed class CodeAltaConfigStore
                !string.IsNullOrWhiteSpace(definition.ApiKey) ||
                !string.IsNullOrWhiteSpace(definition.ApiKeyEnv) ||
                !string.IsNullOrWhiteSpace(definition.ApiUrl) ||
+               definition.NetworkTimeoutSeconds is not null ||
                !string.IsNullOrWhiteSpace(definition.GitHubEnterpriseUrl) ||
                !string.IsNullOrWhiteSpace(definition.GitHubTokenEnv) ||
                !string.IsNullOrWhiteSpace(definition.CopilotTokenEnv) ||
@@ -1894,6 +1908,7 @@ public sealed class CodeAltaConfigStore
             ApiKey = definition.ApiKey,
             ApiKeyEnv = definition.ApiKeyEnv,
             ApiUrl = definition.ApiUrl,
+            NetworkTimeoutSeconds = definition.NetworkTimeoutSeconds,
             GitHubEnterpriseUrl = definition.GitHubEnterpriseUrl,
             GitHubTokenEnv = definition.GitHubTokenEnv,
             CopilotTokenEnv = definition.CopilotTokenEnv,

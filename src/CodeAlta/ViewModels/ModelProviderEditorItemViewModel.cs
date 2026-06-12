@@ -305,6 +305,7 @@ internal sealed partial class ModelProviderEditorItemViewModel
             ApiKey = definition.ApiKey,
             ApiKeyEnv = definition.ApiKeyEnv,
             ApiUrl = definition.ApiUrl,
+            NetworkTimeoutSeconds = definition.NetworkTimeoutSeconds,
             GitHubEnterpriseUrl = definition.GitHubEnterpriseUrl,
             GitHubTokenEnv = definition.GitHubTokenEnv,
             CopilotTokenEnv = definition.CopilotTokenEnv,

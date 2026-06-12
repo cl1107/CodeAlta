@@ -22,6 +22,7 @@ public sealed class CodeAltaConfigStoreRawApiTests
             reasoning_effort = " high "
             api_key_env = " OPENROUTER_API_KEY "
             api_url = " https://openrouter.ai/api/v1 "
+            network_timeout_seconds = 100
             protocol_trace = true
             models_dev_provider_id = " OpenRouter "
             single_model_id = " gpt-5 "
@@ -100,6 +101,7 @@ public sealed class CodeAltaConfigStoreRawApiTests
         Assert.AreEqual("high", openRouter.ReasoningEffort);
         Assert.AreEqual("OPENROUTER_API_KEY", openRouter.ApiKeyEnv);
         Assert.AreEqual("https://openrouter.ai/api/v1", openRouter.ApiUrl);
+        Assert.AreEqual(100, openRouter.NetworkTimeoutSeconds);
         Assert.IsTrue(openRouter.ProtocolTrace);
         Assert.AreEqual("openrouter", openRouter.ModelsDevProviderId);
         Assert.AreEqual("gpt-5", openRouter.SingleModelId);
@@ -157,6 +159,42 @@ public sealed class CodeAltaConfigStoreRawApiTests
         Assert.AreEqual("my-gpt-4o-mini-deployment", azure.Model);
         Assert.AreEqual("AZURE_OPENAI_API_KEY", azure.ApiKeyEnv);
         Assert.AreEqual("https://example.openai.azure.com", azure.ApiUrl);
+    }
+
+    [TestMethod]
+    public void LoadGlobalProviderDefinitions_InvalidNetworkTimeout_Throws()
+    {
+        using var temp = TempDirectory.Create();
+        File.WriteAllText(
+            Path.Combine(temp.Path, "config.toml"),
+            """
+            [providers.openai]
+            type = "openai-chat"
+            api_key_env = "OPENAI_API_KEY"
+            network_timeout_seconds = 0
+            """);
+
+        var store = new CodeAltaConfigStore(new CatalogOptions { GlobalRoot = temp.Path });
+        var ex = Assert.ThrowsExactly<InvalidDataException>(() => store.LoadGlobalProviderDefinitions(includeDisabled: true));
+        StringAssert.Contains(ex.InnerException?.Message, "network_timeout_seconds");
+    }
+
+    [TestMethod]
+    public void LoadGlobalProviderDefinitions_RejectsNetworkTimeoutForUnsupportedProvider()
+    {
+        using var temp = TempDirectory.Create();
+        File.WriteAllText(
+            Path.Combine(temp.Path, "config.toml"),
+            """
+            [providers.anthropic]
+            type = "anthropic"
+            api_key_env = "ANTHROPIC_API_KEY"
+            network_timeout_seconds = 100
+            """);
+
+        var store = new CodeAltaConfigStore(new CatalogOptions { GlobalRoot = temp.Path });
+        var ex = Assert.ThrowsExactly<InvalidDataException>(() => store.LoadGlobalProviderDefinitions(includeDisabled: true));
+        StringAssert.Contains(ex.InnerException?.Message, "network_timeout_seconds");
     }
 
     [TestMethod]
@@ -549,6 +587,7 @@ public sealed class CodeAltaConfigStoreRawApiTests
                 ProviderType = "openai-chat",
                 ApiKeyEnv = "OPENROUTER_API_KEY",
                 ApiUrl = "https://openrouter.ai/api/v1",
+                NetworkTimeoutSeconds = 100,
                 ProtocolTrace = true,
                 Compaction = new CodeAltaProviderCompactionDocument
                 {
@@ -566,6 +605,7 @@ public sealed class CodeAltaConfigStoreRawApiTests
 
         Assert.IsTrue(providers["codex"].Enabled);
         Assert.IsTrue(providers["openrouter"].Enabled);
+        Assert.AreEqual(100, providers["openrouter"].NetworkTimeoutSeconds);
         Assert.IsTrue(providers["openrouter"].ProtocolTrace);
         Assert.IsNotNull(providers["openrouter"].Compaction);
         var compaction = providers["openrouter"].Compaction!;

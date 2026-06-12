@@ -17,7 +17,6 @@ namespace CodeAlta.Agent.OpenAI;
 
 internal static class OpenAIProviderSdkFactory
 {
-    private static readonly TimeSpan CodexSubscriptionNetworkTimeout = TimeSpan.FromMinutes(10);
     private static readonly Logger Logger = LogManager.GetLogger("CodeAlta.Agent.OpenAI");
     private static readonly HttpClient CodexOAuthHttpClient = new();
 
@@ -356,10 +355,9 @@ internal static class OpenAIProviderSdkFactory
             OrganizationId = provider.OrganizationId,
             ProjectId = provider.ProjectId,
             Transport = provider.HttpClient is null ? null : new HttpClientPipelineTransport(provider.HttpClient),
-            // Codex subscription responses can legitimately sit in model-side reasoning for longer than
-            // the SDK pipeline's default per-read timeout. Keep a finite watchdog, but avoid cutting off
-            // quiet long-running SSE streams too aggressively.
-            NetworkTimeout = provider.CodexSubscription is null ? null : CodexSubscriptionNetworkTimeout,
+            // Keep the OpenAI SDK network timeout configurable while preserving its default
+            // timeout unless a provider explicitly overrides it.
+            NetworkTimeout = ResolveNetworkTimeout(provider),
         };
 
         if (protocolTrace is not null)
@@ -426,10 +424,9 @@ internal static class OpenAIProviderSdkFactory
             OrganizationId = provider.OrganizationId,
             ProjectId = provider.ProjectId,
             Transport = provider.HttpClient is null ? null : new HttpClientPipelineTransport(provider.HttpClient),
-            // Codex subscription responses can legitimately sit in model-side reasoning for longer than
-            // the SDK pipeline's default per-read timeout. Keep a finite watchdog, but avoid cutting off
-            // quiet long-running SSE streams too aggressively.
-            NetworkTimeout = provider.CodexSubscription is null ? null : CodexSubscriptionNetworkTimeout,
+            // Keep the OpenAI SDK network timeout configurable while preserving its default
+            // timeout unless a provider explicitly overrides it.
+            NetworkTimeout = ResolveNetworkTimeout(provider),
         };
 
         if (protocolTrace is not null)
@@ -464,7 +461,7 @@ internal static class OpenAIProviderSdkFactory
         var options = new AzureOpenAIClientOptions
         {
             Transport = provider.HttpClient is null ? null : new HttpClientPipelineTransport(provider.HttpClient),
-            NetworkTimeout = provider.CodexSubscription is null ? null : CodexSubscriptionNetworkTimeout,
+            NetworkTimeout = ResolveNetworkTimeout(provider),
         };
 
         if (protocolTrace is not null)
@@ -482,6 +479,9 @@ internal static class OpenAIProviderSdkFactory
 
     private static InvalidOperationException CreateAzureOpenAIResponsesNotSupportedException()
         => new("Azure OpenAI is supported through the azure-openai chat-completions provider. The Azure.AI.OpenAI 2.1 SDK used by CodeAlta does not expose the Responses client.");
+
+    private static TimeSpan? ResolveNetworkTimeout(OpenAIProviderOptions provider)
+        => provider.NetworkTimeout;
 
     private static ResponsesClient CreateCodexSubscriptionResponsesClient(
         OpenAIProviderOptions provider,

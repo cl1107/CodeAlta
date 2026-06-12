@@ -40,6 +40,7 @@ display_name = "Work endpoint"
 type = "openai-responses"
 api_key_env = "WORK_ENDPOINT_API_KEY"
 api_url = "https://api.example.test/v1"
+network_timeout_seconds = 180
 model = "model-id"
 reasoning_effort = "high"
 models_dev_provider_id = "openai"
@@ -55,7 +56,8 @@ Important behavior:
 - `display_name` is optional; CodeAlta can derive a display name from the provider key.
 - `model` and `reasoning_effort` are defaults, not a hard limit on model selection unless the provider is configured with `single_model_id`.
 - `api_key` stores a literal secret; `api_key_env` points to an environment variable. Prefer environment variables for shared machines.
-- `api_url`, organization/project fields, provider-specific auth fields, `extra_body`, `profile`, `compaction`, `models_dev_provider_id`, and `model_overrides` are preserved by the advanced TOML editor.
+- `api_url`, `network_timeout_seconds`, organization/project fields, provider-specific auth fields, `extra_body`, `profile`, `compaction`, `models_dev_provider_id`, and `model_overrides` are preserved by the advanced TOML editor.
+- `network_timeout_seconds` sets the OpenAI/Azure SDK network timeout for `openai-chat`, `openai-responses`, `azure-openai`, and `codex` providers. Leave it unset to use the OpenAI SDK default timeout of 100 seconds.
 - The bundled template disables all built-ins explicitly. Users opt in by enabling/configuring a provider.
 
 ## Built-in provider types
@@ -94,6 +96,8 @@ OpenAI-compatible, Anthropic, Google, direct HTTP, and subscription-backed provi
 `openai-responses` uses Responses streaming over HTTP. `response_transport = "http"` and `response_transport = "sse"` both force the HTTP path in current code. WebSocket transport is configured only for subscription-backed `codex` providers.
 
 `azure-openai` uses `Azure.AI.OpenAI` against an Azure OpenAI resource endpoint such as `https://your-resource.openai.azure.com`. Azure OpenAI deployment names are used anywhere CodeAlta asks for a model id, so set `model` and/or `single_model_id` to the deployment name. The Azure SDK does not expose model management for Azure OpenAI, and CodeAlta falls back to the configured single model instead of listing deployments. Azure OpenAI is currently wired to the chat-completions path; use OpenAI-compatible `openai-responses` only for endpoints that expose the OpenAI v1 Responses API directly.
+
+Long-running OpenAI-compatible or Azure OpenAI requests can exceed the SDK pipeline's default network timeout. Set `network_timeout_seconds` to a larger positive value on the affected provider entry when you need to extend that timeout.
 
 Provider profiles can adjust role support and reasoning replay details. For endpoints that do not support developer-role messages, defaults can merge developer guidance into system content. Profiles and `extra_body` remain provider-specific and should be documented in provider examples only when a concrete endpoint requires them.
 
