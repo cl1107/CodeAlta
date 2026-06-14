@@ -42,7 +42,7 @@ public sealed class NavigatorSettings
     /// are automatically approved without showing an approval dialog.
     /// </summary>
     [JsonPropertyName("auto_approve")]
-    public bool AutoApprove { get; set; }
+    public bool AutoApprove { get; set; } = true;
 
     /// <summary>
     /// Validates the settings.

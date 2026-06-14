@@ -898,7 +898,13 @@ internal static class ChatMarkdownFormatter
 
         var reason = autoApprove
             ? "CodeAlta response: auto-approved this request."
-            : "CodeAlta response: denied this request because interactive approval UI is not implemented yet.";
+            : decision.Kind switch
+            {
+                AgentPermissionDecisionKind.AllowOnce => "CodeAlta response: approved this request once.",
+                AgentPermissionDecisionKind.AllowForSession => "CodeAlta response: approved this request for the session.",
+                AgentPermissionDecisionKind.Deny => "CodeAlta response: denied this request.",
+                _ => "CodeAlta response: cancelled this request.",
+            };
         return $"_Status:_ {reason}\n\n- Decision: {SplitPascalCase(decision.Kind.ToString())}";
     }
 

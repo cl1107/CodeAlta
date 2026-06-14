@@ -2,7 +2,7 @@
   "profiles": {
     "CodeAlta": {
       "commandName": "Project",
-      "workingDirectory": "C:\\Users\\Administrator\\Desktop\\Agent\\CodeAlta"
+      "workingDirectory": "C:\\code\\CodeAlta"
     }
   }
 }

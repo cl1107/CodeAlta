@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
+using CodeAlta.Agent.Runtime.Tools;
 
 namespace CodeAlta.Agent.Runtime;
 
@@ -189,7 +190,7 @@ internal static class AgentInstructionComposer
     {
         if (OperatingSystem.IsWindows())
         {
-            return "pwsh";
+            return AgentBuiltInToolFactory.GetWindowsShellFileNameForCurrentProcess();
         }
 
         var shell = Environment.GetEnvironmentVariable("SHELL");

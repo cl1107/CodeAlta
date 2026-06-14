@@ -15,6 +15,7 @@ internal sealed class NavigatorSettingsDialog
 {
     private readonly NavigatorSettingsDialogViewModel _viewModel;
     private readonly INavigatorSettingsDialogService _dialogService;
+    private readonly string? _initialLanguageName;
     private readonly Dialog _dialog;
     private bool _isSaving;
 
@@ -25,12 +26,13 @@ internal sealed class NavigatorSettingsDialog
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(dialogService);
 
+        _initialLanguageName = NormalizeLanguageName(settings.LanguageName);
         _viewModel = new NavigatorSettingsDialogViewModel
         {
             SortMode = settings.SortMode,
             RecentSessionsPerProject = settings.RecentSessionsPerProject,
             ThemeSchemeName = settings.ThemeSchemeName ?? string.Empty,
-            LanguageName = settings.LanguageName ?? string.Empty,
+            LanguageName = _initialLanguageName ?? string.Empty,
             AutoApprove = settings.AutoApprove,
         };
         _dialogService = dialogService;
@@ -203,8 +205,6 @@ internal sealed class NavigatorSettingsDialog
             return;
         }
 
-        AppSettings.AutoApprove = _viewModel.AutoApprove;
-
         _isSaving = true;
         Close();
         try
@@ -222,6 +222,7 @@ internal sealed class NavigatorSettingsDialog
         if (!_isSaving)
         {
             _dialogService.ClearNavigatorThemePreview();
+            SR.Language = _initialLanguageName ?? string.Empty;
         }
 
         var app = _dialog.App;

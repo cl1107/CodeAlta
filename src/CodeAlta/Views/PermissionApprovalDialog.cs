@@ -93,7 +93,7 @@ internal sealed class PermissionApprovalDialog
             .IsModal(true)
             .Padding(1)
             .Content(content);
-        ResponsiveDialogSize.Apply(_dialog, getBounds(), minWidth: 64, minHeight: 16, widthFactor: 0.40, heightFactor: 0.36);
+        ResponsiveDialogSize.Apply(_dialog, getBounds(), minWidth: 76, minHeight: 20, widthFactor: 0.52, heightFactor: 0.46);
         _dialog.AddCommand(new Command
         {
             Id = "CodeAlta.Permission.Cancel",

@@ -2082,6 +2082,17 @@ public sealed class CodeAltaAppTests
     }
 
     [TestMethod]
+    public void FormatChatImmediatePermissionDecisionMarkdown_ShowsInteractiveDecision()
+    {
+        var markdown = ChatMarkdownFormatter.FormatChatImmediatePermissionDecisionMarkdown(
+            new AgentPermissionDecision(AgentPermissionDecisionKind.AllowForSession),
+            autoApprove: false);
+
+        StringAssert.Contains(markdown, "CodeAlta response: approved this request for the session.");
+        StringAssert.Contains(markdown, "Decision: Allow For Session");
+    }
+
+    [TestMethod]
     public void FormatChatImmediateUserInputResponseMarkdown_ShowsReturnedAnswer()
     {
         var markdown = ChatMarkdownFormatter.FormatChatImmediateUserInputResponseMarkdown(

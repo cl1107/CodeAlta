@@ -779,6 +779,8 @@ public sealed class AgentToolsTests
             var normalArgs = normal.ArgumentList.Cast<string>().ToArray();
             var loginArgs = login.ArgumentList.Cast<string>().ToArray();
 
+            Assert.AreEqual(AgentBuiltInToolFactory.GetWindowsShellFileNameForCurrentProcess(), normal.FileName);
+            Assert.AreEqual(normal.FileName, login.FileName);
             CollectionAssert.AreEqual(new[] { "-NoProfile", "-Command" }, normalArgs.Take(2).ToArray());
             CollectionAssert.AreEqual(new[] { "-NoProfile", "-Command" }, loginArgs.Take(2).ToArray());
             StringAssert.Contains(normalArgs[2], command);
@@ -803,6 +805,36 @@ public sealed class AgentToolsTests
         {
             Environment.SetEnvironmentVariable("SHELL", originalShell);
         }
+    }
+
+    [TestMethod]
+    public void ResolveWindowsShellFileName_PrefersPwshWhenAvailableOnPath()
+    {
+        using var temp = TestTempDirectory.Create();
+        var pwshDir = Path.Combine(temp.Path, "pwsh");
+        var powershellDir = Path.Combine(temp.Path, "powershell");
+        Directory.CreateDirectory(pwshDir);
+        Directory.CreateDirectory(powershellDir);
+        File.WriteAllText(Path.Combine(pwshDir, "pwsh.exe"), string.Empty);
+        File.WriteAllText(Path.Combine(powershellDir, "powershell.exe"), string.Empty);
+        var pathValue = string.Join(Path.PathSeparator, pwshDir, powershellDir);
+
+        var fileName = AgentBuiltInToolFactory.ResolveWindowsShellFileName(pathValue);
+
+        Assert.AreEqual("pwsh", fileName);
+    }
+
+    [TestMethod]
+    public void ResolveWindowsShellFileName_FallsBackToWindowsPowerShellOnPath()
+    {
+        using var temp = TestTempDirectory.Create();
+        var powershellDir = Path.Combine(temp.Path, "powershell");
+        Directory.CreateDirectory(powershellDir);
+        File.WriteAllText(Path.Combine(powershellDir, "powershell.exe"), string.Empty);
+
+        var fileName = AgentBuiltInToolFactory.ResolveWindowsShellFileName(powershellDir);
+
+        Assert.AreEqual("powershell", fileName);
     }
 
     [TestMethod]

@@ -11,7 +11,7 @@ public sealed partial class NavigatorSettingsDialogViewModel
         RecentSessionsPerProject = 3;
         ThemeSchemeName = string.Empty;
         LanguageName = string.Empty;
-        AutoApprove = false;
+        AutoApprove = true;
     }
 
     [Bindable]

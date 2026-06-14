@@ -24,9 +24,6 @@ internal static class UiTheme
             SR.AutoDetect();
         }
 
-        // Apply auto-approve from saved settings
-        AppSettings.AutoApprove = stateCoordinator.NavigatorSettings.AutoApprove;
-
         string? cachedSchemeName = null;
         var cachedTheme = CodeAltaThemeResolver.Resolve(stateCoordinator.NavigatorSettings);
         Theme ResolveTheme()

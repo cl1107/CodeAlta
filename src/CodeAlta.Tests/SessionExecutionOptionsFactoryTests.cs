@@ -167,6 +167,67 @@ public sealed class SessionExecutionOptionsFactoryTests
     }
 
     [TestMethod]
+    public async Task BuildPreferredExecutionOptions_RoutesCodexPermissionRequestsThroughCoordinator()
+    {
+        using var temp = TestTempDirectory.Create();
+        var project = CreateProject("project-a", Path.Combine(temp.Path, "project-a"));
+        Directory.CreateDirectory(project.ProjectPath);
+        using var cancellation = new CancellationTokenSource();
+        var uiDispatcher = new CancelingPermissionUiDispatcher(cancellation.Cancel);
+        var factory = CreateFactory(temp.Path, project, uiDispatcher, autoApprove: false);
+
+        var options = factory.BuildPreferredExecutionOptions(ModelProviderIds.Codex, temp.Path, []);
+
+        var decision = await options.OnPermissionRequest(
+                CreatePermissionRequest("new-session-id"),
+                cancellation.Token)
+            .ConfigureAwait(false);
+
+        Assert.AreEqual(AgentPermissionDecisionKind.Cancel, decision.Kind);
+        Assert.IsTrue(uiDispatcher.PermissionDialogInvokeCount > 0, "Permission requests must reach the coordinator when AutoApprove is disabled.");
+    }
+
+    [TestMethod]
+    public async Task BuildExecutionOptions_RoutesCodexPermissionRequestsThroughCoordinator()
+    {
+        using var temp = TestTempDirectory.Create();
+        var catalogOptions = new CatalogOptions { GlobalRoot = temp.Path };
+        using var cancellation = new CancellationTokenSource();
+        var uiDispatcher = new CancelingPermissionUiDispatcher(cancellation.Cancel);
+        var sessionState = TestSessionStateServices.CreateCoordinator(
+            new ProjectCatalog(catalogOptions),
+            new SessionViewCatalog(catalogOptions),
+            uiDispatcher,
+            new ShellStateStore(uiDispatcher));
+        var session = CreateSession("session-1", ModelProviderIds.Codex.Value, temp.Path);
+        sessionState.ApplyInitialCatalogState(new ShellSessionStateCoordinator.InitialCatalogState([], [session], new SessionViewViewState()));
+        sessionState.OpenSession(session.SessionId);
+        var tab = sessionState.FindOpenSession(session.SessionId);
+        Assert.IsNotNull(tab);
+        var selection = new SessionSelectionContext(
+            sessionState,
+            static (_, _) => Task.CompletedTask,
+            static _ => false);
+        var commandContext = CreateCommandContext(uiDispatcher, autoApprove: false);
+        var factory = new SessionExecutionOptionsFactory(
+            catalogOptions,
+            new Dictionary<string, ModelProviderState>(StringComparer.OrdinalIgnoreCase),
+            selection,
+            new SessionPermissionRequestCoordinator(selection, commandContext, uiDispatcher),
+            new SessionUserInputRequestCoordinator(selection, commandContext));
+
+        var options = factory.BuildExecutionOptions(session, tab);
+
+        var decision = await options.OnPermissionRequest(
+                CreatePermissionRequest(session.SessionId),
+                cancellation.Token)
+            .ConfigureAwait(false);
+
+        Assert.AreEqual(AgentPermissionDecisionKind.Cancel, decision.Kind);
+        Assert.IsTrue(uiDispatcher.PermissionDialogInvokeCount > 0, "Codex sessions must not bypass the permission coordinator.");
+    }
+
+    [TestMethod]
     public async Task BuildPreferredExecutionOptions_AddsAltaToolForAnyProviderWhenServicesAreAvailable()
     {
         using var temp = TestTempDirectory.Create();
@@ -182,10 +243,14 @@ public sealed class SessionExecutionOptionsFactoryTests
         Assert.AreEqual(project.Id, caller.GetProperty("sourceProjectId").GetString());
     }
 
-    private static SessionExecutionOptionsFactory CreateFactory(string globalRoot, ProjectDescriptor selectedProject)
+    private static SessionExecutionOptionsFactory CreateFactory(
+        string globalRoot,
+        ProjectDescriptor selectedProject,
+        IUiDispatcher? uiDispatcher = null,
+        bool autoApprove = true)
     {
         var catalogOptions = new CatalogOptions { GlobalRoot = globalRoot };
-        var uiDispatcher = new InlineUiDispatcher();
+        uiDispatcher ??= new InlineUiDispatcher();
         var sessionState = TestSessionStateServices.CreateCoordinator(
             new ProjectCatalog(catalogOptions),
             new SessionViewCatalog(catalogOptions),
@@ -202,7 +267,7 @@ public sealed class SessionExecutionOptionsFactoryTests
             static (_, _) => Task.CompletedTask,
             static _ => false);
         var services = new AltaServiceCollection();
-        var commandContext = CreateCommandContext(uiDispatcher);
+        var commandContext = CreateCommandContext(uiDispatcher, autoApprove);
         return new SessionExecutionOptionsFactory(
             catalogOptions,
             new Dictionary<string, ModelProviderState>(StringComparer.Ordinal)
@@ -220,7 +285,7 @@ public sealed class SessionExecutionOptionsFactoryTests
             services);
     }
 
-    private static ShellSessionCommandContext CreateCommandContext(IUiDispatcher uiDispatcher)
+    private static ShellSessionCommandContext CreateCommandContext(IUiDispatcher uiDispatcher, bool autoApprove = true)
         => new(
             new DelegatingSessionLifecycleCommandPort(
                 static _ => Task.FromResult<SessionViewDescriptor?>(null),
@@ -229,7 +294,7 @@ public sealed class SessionExecutionOptionsFactoryTests
             new SessionCommandUiPort(
                 uiDispatcher,
                 static () => false,
-                static () => true,
+                () => autoApprove,
                 static () => { },
                 static () => { },
                 static () => { },
@@ -247,6 +312,22 @@ public sealed class SessionExecutionOptionsFactoryTests
                 uiDispatcher,
                 static (_, _, _) => { },
                 static (_, _, _, _) => { }));
+
+    private static AgentCommandPermissionRequest CreatePermissionRequest(string sessionId)
+        => new(
+            ModelProviderIds.Codex,
+            sessionId,
+            DateTimeOffset.UtcNow,
+            RunId: null,
+            InteractionId: "permission-test",
+            ApprovalId: null,
+            Command: "Write-Output approval-test",
+            WorkingDirectory: null,
+            Actions: null,
+            Reason: null,
+            Network: null,
+            ProposedExecPolicyAmendment: null,
+            ProposedNetworkPolicyAmendments: null);
 
     private static async Task<JsonElement> InvokeToolStatusAsync(SessionExecutionOptions options)
     {
@@ -312,6 +393,43 @@ public sealed class SessionExecutionOptionsFactoryTests
         {
             ArgumentNullException.ThrowIfNull(action);
             action();
+            return Task.CompletedTask;
+        }
+
+        public Task<T> InvokeAsync<T>(Func<T> action)
+        {
+            ArgumentNullException.ThrowIfNull(action);
+            return Task.FromResult(action());
+        }
+    }
+
+    private sealed class CancelingPermissionUiDispatcher : IUiDispatcher
+    {
+        private readonly Action _cancelPermissionRequest;
+
+        public CancelingPermissionUiDispatcher(Action cancelPermissionRequest)
+        {
+            ArgumentNullException.ThrowIfNull(cancelPermissionRequest);
+
+            _cancelPermissionRequest = cancelPermissionRequest;
+        }
+
+        public int PermissionDialogInvokeCount { get; private set; }
+
+        public bool CheckAccess() => true;
+
+        public void Post(Action action)
+        {
+            ArgumentNullException.ThrowIfNull(action);
+            action();
+        }
+
+        public Task InvokeAsync(Action action)
+        {
+            ArgumentNullException.ThrowIfNull(action);
+
+            PermissionDialogInvokeCount++;
+            _cancelPermissionRequest();
             return Task.CompletedTask;
         }
 

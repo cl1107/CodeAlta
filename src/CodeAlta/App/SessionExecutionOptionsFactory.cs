@@ -71,7 +71,7 @@ internal sealed class SessionExecutionOptionsFactory
                 sourceSessionIdProvider: sourceSessionIdProvider,
                 sourceProjectIdProvider: () => sourceProjectId,
                 workingDirectoryProvider: () => workingDirectory),
-            OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
+            OnPermissionRequest = CreatePermissionHandler(CreateTransientSessionKey(providerId, workingDirectory)),
             OnUserInputRequest = (request, cancellationToken) => _userInputRequests.HandleAsync(CreateTransientSessionKey(providerId, workingDirectory), request, cancellationToken),
         };
     }
@@ -100,7 +100,7 @@ internal sealed class SessionExecutionOptionsFactory
                 sourceSessionIdProvider: () => session.SessionId,
                 sourceProjectIdProvider: () => session.ProjectRef,
                 workingDirectoryProvider: () => ResolveWorkingDirectory(session)),
-            OnPermissionRequest = CreatePermissionHandler(providerId, session.SessionId),
+            OnPermissionRequest = CreatePermissionHandler(session.SessionId),
             OnUserInputRequest = (request, cancellationToken) => _userInputRequests.HandleAsync(session.SessionId, request, cancellationToken),
         };
     }
@@ -108,13 +108,14 @@ internal sealed class SessionExecutionOptionsFactory
     public static string CreateTransientSessionKey(ModelProviderId providerId, string workingDirectory)
         => $"{providerId.Value}:{workingDirectory}";
 
-    private AgentPermissionRequestHandler CreatePermissionHandler(ModelProviderId providerId, string sessionId)
+    private AgentPermissionRequestHandler CreatePermissionHandler(string fallbackSessionId)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(fallbackSessionId);
 
-        return string.Equals(providerId.Value, ModelProviderIds.Codex.Value, StringComparison.OrdinalIgnoreCase)
-            ? static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce))
-            : (request, cancellationToken) => _permissionRequests.HandleAsync(sessionId, request, cancellationToken);
+        return (request, cancellationToken) => _permissionRequests.HandleAsync(
+            string.IsNullOrWhiteSpace(request.SessionId) ? fallbackSessionId : request.SessionId,
+            request,
+            cancellationToken);
     }
 
     private IReadOnlyList<AgentToolDefinition>? CreateAltaTools(

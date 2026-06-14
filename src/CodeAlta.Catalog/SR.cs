@@ -9,7 +9,6 @@ namespace CodeAlta.Catalog;
 /// </summary>
 public static class SR
 {
-    private static string _language = "en";
     private static readonly ImmutableDictionary<string, string> s_zhCn = new Dictionary<string, string>
     {
         // === Sidebar ===
@@ -113,8 +112,8 @@ public static class SR
     /// </summary>
     public static string Language
     {
-        get => _language;
-        set => _language = string.IsNullOrWhiteSpace(value) ? "en" : value;
+        get => IsChinese(CultureInfo.CurrentUICulture.Name) ? "zh-CN" : "en";
+        set => ApplyLanguage(value);
     }
 
     /// <summary>
@@ -122,8 +121,11 @@ public static class SR
     /// </summary>
     public static string T(string key)
     {
-        if (_language.StartsWith("zh") && s_zhCn.TryGetValue(key, out var t))
+        if (IsChinese(CultureInfo.CurrentUICulture.Name) && s_zhCn.TryGetValue(key, out var t))
+        {
             return t;
+        }
+
         return key;
     }
 
@@ -137,18 +139,31 @@ public static class SR
     }
 
     /// <summary>
-    /// Auto-detects the language from the current UI culture.
+    /// Auto-detects the language from the system UI culture.
     /// </summary>
     public static void AutoDetect()
     {
+        ApplyLanguage(CultureInfo.InstalledUICulture.Name);
+    }
+
+    private static void ApplyLanguage(string? languageName)
+    {
         try
         {
-            var name = CultureInfo.CurrentUICulture.Name;
-            Language = name.StartsWith("zh", StringComparison.OrdinalIgnoreCase) ? "zh-CN" : "en";
+            if (string.IsNullOrWhiteSpace(languageName))
+            {
+                languageName = CultureInfo.InstalledUICulture.Name;
+            }
+
+            var cultureName = IsChinese(languageName) ? "zh-CN" : "en";
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(cultureName);
         }
-        catch
+        catch (CultureNotFoundException)
         {
-            Language = "en";
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("en");
         }
     }
+
+    private static bool IsChinese(string? languageName)
+        => !string.IsNullOrWhiteSpace(languageName) && languageName.StartsWith("zh", StringComparison.OrdinalIgnoreCase);
 }

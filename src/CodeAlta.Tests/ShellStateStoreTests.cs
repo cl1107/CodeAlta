@@ -10,6 +10,13 @@ namespace CodeAlta.Tests;
 public sealed class ShellStateStoreTests
 {
     [TestMethod]
+    public void AutoApproveSettings_DefaultToEnabled()
+    {
+        Assert.IsTrue(new NavigatorSettings().AutoApprove);
+        Assert.IsTrue(new NavigatorSettingsDialogViewModel().AutoApprove);
+    }
+
+    [TestMethod]
     public void Mutate_PublishesImmutableSnapshots()
     {
         var store = new ShellStateStore();
@@ -85,6 +92,8 @@ public sealed class ShellStateStoreTests
             SortMode = NavigatorProjectSortMode.Date,
             RecentSessionsPerProject = 7,
             ThemeSchemeName = "Elderberry Dark Soft",
+            LanguageName = "en-US",
+            AutoApprove = false,
         };
 
         var updated = ShellFrontendStateSnapshot.Empty
@@ -97,6 +106,8 @@ public sealed class ShellStateStoreTests
         Assert.AreEqual(1, updated.OpenSessionIds.Count);
         Assert.AreEqual(NavigatorProjectSortMode.Date, updated.NavigatorSettings.SortMode);
         Assert.AreEqual("Elderberry Dark Soft", updated.NavigatorSettings.ThemeSchemeName);
+        Assert.AreEqual("en-US", updated.NavigatorSettings.LanguageName);
+        Assert.IsFalse(updated.NavigatorSettings.AutoApprove);
         Assert.AreNotSame(navigatorSettings, updated.NavigatorSettings);
     }
 

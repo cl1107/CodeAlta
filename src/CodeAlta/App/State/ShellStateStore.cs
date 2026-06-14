@@ -192,6 +192,8 @@ internal sealed record ShellFrontendStateSnapshot(
             SortMode = settings.SortMode,
             RecentSessionsPerProject = settings.RecentSessionsPerProject,
             ThemeSchemeName = settings.ThemeSchemeName,
+            LanguageName = settings.LanguageName,
+            AutoApprove = settings.AutoApprove,
         };
 }
 

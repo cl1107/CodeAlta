@@ -19,6 +19,9 @@ namespace CodeAlta.Agent.Runtime.Tools;
 public static class AgentBuiltInToolFactory
 {
     private static readonly FileTreeWalker FileTreeWalker = new();
+    private static readonly Lazy<string> WindowsShellFileName = new(
+        () => ResolveWindowsShellFileName(Environment.GetEnvironmentVariable("PATH")),
+        LazyThreadSafetyMode.ExecutionAndPublication);
     private const string SupportedWebContentTypesDescription = "text/*, application/json, application/xml, and application/xhtml+xml";
     private const string WriteFileToolDescription =
         "Write an entire text file in one deterministic operation. Creates parent directories as needed and replaces any existing file.";
@@ -1369,7 +1372,7 @@ public static class AgentBuiltInToolFactory
         {
             // Prefer pwsh (PowerShell Core) when available; fall back to the built-in
             // powershell.exe so machines without pwsh can still run shell commands.
-            var fileName = File.Exists("pwsh.exe") ? "pwsh" : "powershell";
+            var fileName = WindowsShellFileName.Value;
             // Always suppress the user profile on Windows so prompt theming and other profile-time output
             // cannot leak ANSI/control sequences into tool results. The login flag is Unix-oriented here.
             // Wrap the command so a failing final external command can propagate its native exit code
@@ -1396,6 +1399,62 @@ public static class AgentBuiltInToolFactory
         }
 
         return new ShellProcessSpec(CreateProcessStartInfo(shellPath, arguments, workdir));
+    }
+
+    internal static string ResolveWindowsShellFileName(string? pathValue)
+    {
+        if (IsExecutableOnPath("pwsh.exe", pathValue))
+        {
+            return "pwsh";
+        }
+
+        if (IsExecutableOnPath("powershell.exe", pathValue))
+        {
+            return "powershell";
+        }
+
+        // Keep the historical fallback name so Process.Start reports the platform error
+        // if neither shell is discoverable through PATH on an unusual Windows install.
+        return "powershell";
+    }
+
+    internal static string GetWindowsShellFileNameForCurrentProcess()
+        => WindowsShellFileName.Value;
+
+    private static bool IsExecutableOnPath(string fileName, string? pathValue)
+    {
+        if (string.IsNullOrWhiteSpace(pathValue))
+        {
+            return false;
+        }
+
+        foreach (var directory in pathValue.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var normalizedDirectory = directory.Trim('"');
+            if (string.IsNullOrWhiteSpace(normalizedDirectory))
+            {
+                continue;
+            }
+
+            try
+            {
+                if (File.Exists(Path.Combine(normalizedDirectory, fileName)))
+                {
+                    return true;
+                }
+            }
+            catch (ArgumentException)
+            {
+            }
+            catch (NotSupportedException)
+            {
+            }
+            catch (PathTooLongException)
+            {
+            }
+        }
+
+        return false;
     }
 
     private static ProcessStartInfo CreateProcessStartInfo(string fileName, IReadOnlyList<string> arguments, string workdir)

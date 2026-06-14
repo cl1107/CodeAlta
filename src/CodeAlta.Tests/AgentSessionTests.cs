@@ -2,6 +2,7 @@ using System.Text.Json;
 using CodeAlta.Agent;
 using CodeAlta.Agent.Runtime;
 using CodeAlta.Agent.Runtime.Compaction;
+using CodeAlta.Agent.Runtime.Tools;
 using CodeAlta.Presentation.Formatting;
 
 namespace CodeAlta.Tests;
@@ -4113,7 +4114,7 @@ public sealed class AgentSessionTests
     {
         if (OperatingSystem.IsWindows())
         {
-            return "pwsh";
+            return AgentBuiltInToolFactory.GetWindowsShellFileNameForCurrentProcess();
         }
 
         var shell = Environment.GetEnvironmentVariable("SHELL");
