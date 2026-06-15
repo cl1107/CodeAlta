@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Reflection;
 using CodeAlta.Frontend.Commands;
 using CodeAlta.Models;
@@ -348,6 +349,39 @@ public sealed class SessionWorkspaceViewTests
         finally
         {
             InvokeTerminalApp(app, "EndRun");
+        }
+    }
+
+    [TestMethod]
+    public void BottomBarPromptAndModelButtons_RefreshLocalizedTextUpdatesLabels()
+    {
+        var previousUiCulture = CultureInfo.CurrentUICulture;
+        try
+        {
+            SR.Language = "en";
+            var workspaceViewModel = new SessionWorkspaceViewModel();
+            var promptComposerViewModel = new PromptComposerViewModel();
+            var agentPromptSelectorView = new AgentPromptSelectorView(
+                workspaceViewModel,
+                AgentPromptSelectorController.Create(static _ => { }));
+            var modelProviderSelectorView = new ModelProviderSelectorView(
+                workspaceViewModel,
+                promptComposerViewModel,
+                ModelProviderSelectorController.Create(static _ => { }, static _ => { }, static _ => { }, static () => { }));
+
+            Assert.AreEqual("Agent->", GetButtonText(agentPromptSelectorView.PromptDialogButton));
+            Assert.AreEqual("Model->", GetButtonText(modelProviderSelectorView.ModelsDialogButton));
+
+            SR.Language = "zh-CN";
+            agentPromptSelectorView.RefreshLocalizedText();
+            modelProviderSelectorView.RefreshLocalizedText();
+
+            Assert.AreEqual("智能体->", GetButtonText(agentPromptSelectorView.PromptDialogButton));
+            Assert.AreEqual("模型->", GetButtonText(modelProviderSelectorView.ModelsDialogButton));
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = previousUiCulture;
         }
     }
 

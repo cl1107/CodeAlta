@@ -10,6 +10,9 @@ namespace CodeAlta.Views;
 
 internal sealed class AgentPromptSelectorView
 {
+    private readonly TextBlock _promptDialogButtonText;
+    private readonly TextBlock _promptDialogButtonTooltip;
+
     public AgentPromptSelectorView(SessionWorkspaceViewModel workspaceViewModel, AgentPromptSelectorController controller)
     {
         ArgumentNullException.ThrowIfNull(workspaceViewModel);
@@ -27,9 +30,11 @@ internal sealed class AgentPromptSelectorView
             .MinWidth(18)
             .MaxWidth(40)
             .IsEnabled(workspaceViewModel.Bind.CanSelectAgentPrompt);
-        PromptDialogButton = new Button(new TextBlock(SR.T("Agent->")) { Wrap = false, IsSelectable = false })
+        _promptDialogButtonText = new TextBlock(SR.T("Agent->")) { Wrap = false, IsSelectable = false };
+        _promptDialogButtonTooltip = new TextBlock(SR.T("Open the agent prompts dialog."));
+        PromptDialogButton = new Button(_promptDialogButtonText)
             .Click(controller.OpenPrompts);
-        var promptDialogButtonHost = PromptDialogButton.Tooltip(new TextBlock(SR.T("Open the agent prompts dialog.")));
+        var promptDialogButtonHost = PromptDialogButton.Tooltip(_promptDialogButtonTooltip);
 
         Root = new HStack(
         [
@@ -46,6 +51,12 @@ internal sealed class AgentPromptSelectorView
     public Button PromptDialogButton { get; }
 
     public Select<AgentPromptOption> PromptSelect { get; }
+
+    public void RefreshLocalizedText()
+    {
+        _promptDialogButtonText.Text = SR.T("Agent->");
+        _promptDialogButtonTooltip.Text = SR.T("Open the agent prompts dialog.");
+    }
 
     public void SyncItems(SessionWorkspaceViewModel workspaceViewModel)
     {

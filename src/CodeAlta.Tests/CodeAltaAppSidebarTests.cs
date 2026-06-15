@@ -1,3 +1,4 @@
+using System.Globalization;
 using CodeAlta.Agent;
 using CodeAlta.Catalog;
 using CodeAlta.LiveTool;
@@ -423,6 +424,32 @@ public sealed class CodeAltaAppSidebarTests
         Assert.IsNull(splitter.Second);
         Assert.IsFalse(title.Text?.Contains("Navigator", StringComparison.Ordinal) ?? true);
         Assert.AreEqual("\u25E7", toggleIcon.Text);
+    }
+
+    [TestMethod]
+    public void SidebarView_RefreshLocalizedTextUpdatesNavigatorAndNotesTitles()
+    {
+        var previousUiCulture = CultureInfo.CurrentUICulture;
+        try
+        {
+            SR.Language = "en";
+            var view = new SidebarView(new SidebarViewModel(), static () => { }, static () => { }, static () => { }, static () => { }, static _ => { }, static _ => { }, new CapturingSidebarRowCommandDispatcher(), static _ => { });
+            var navigatorTitle = Assert.IsInstanceOfType<Markup>(Assert.IsInstanceOfType<Group>(view.NavigatorRoot).TopLeftText);
+            var notesTitle = Assert.IsInstanceOfType<Markup>(Assert.IsInstanceOfType<Group>(view.NotesRoot).TopLeftText);
+
+            StringAssert.Contains(navigatorTitle.Text ?? string.Empty, "Navigator");
+            StringAssert.Contains(notesTitle.Text ?? string.Empty, "Notes");
+
+            SR.Language = "zh-CN";
+            view.RefreshLocalizedText();
+
+            StringAssert.Contains(navigatorTitle.Text ?? string.Empty, "导航器");
+            StringAssert.Contains(notesTitle.Text ?? string.Empty, "笔记");
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = previousUiCulture;
+        }
     }
 
     [TestMethod]

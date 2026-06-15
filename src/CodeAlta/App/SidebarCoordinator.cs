@@ -350,4 +350,6 @@ internal sealed class SidebarCoordinator
         row = null!;
         return false;
     }
+
+    public void RefreshLocalizedText() => _view.RefreshLocalizedText();
 }

@@ -229,11 +229,17 @@ internal sealed class SidebarView
         }
 
         _isCollapsed = isCollapsed;
-        _title.Text = BuildTitleMarkup();
+        RefreshLocalizedText();
         _collapseToggleIcon.Text = isCollapsed ? ExpandNavigatorIcon : CollapseNavigatorIcon;
         _group.Content = isCollapsed ? null : _contentGrid;
         _rootSplitter.Second = isCollapsed ? null : _notesView.Root;
         CollapsedChanged?.Invoke(isCollapsed);
+    }
+
+    public void RefreshLocalizedText()
+    {
+        _title.Text = BuildTitleMarkup();
+        _notesView.RefreshLocalizedText();
     }
 
     public void SetNotesMarkdown(string markdown)
@@ -364,6 +370,7 @@ internal sealed class SidebarView
     {
         private readonly IAltaNotesService _notesService;
         private readonly MarkdownControl _markdown;
+        private readonly Markup _title;
 
         public SidebarNotesView(IAltaNotesService notesService)
         {
@@ -384,18 +391,19 @@ internal sealed class SidebarView
             var copyButton = new Button(new TextBlock(TerminalIcons.MdContentCopy.ToString()) { Wrap = false, IsSelectable = false })
                 .Style(TitleButtonStyle);
             copyButton.Click(() => copyButton.App?.Terminal.Clipboard.TrySetText(_markdown.Markdown ?? string.Empty));
-            var copyButtonHost = copyButton.Tooltip(new TextBlock(SR.T("Copy notes as Markdown")));
-            var clearButton = new Button(new TextBlock($"{TerminalIcons.MdTrashCanOutline} {SR.T("Clear")}") { Wrap = false, IsSelectable = false })
+            var copyButtonHost = copyButton.Tooltip(new TextBlock(() => SR.T("Copy notes as Markdown")));
+            var clearButton = new Button(new TextBlock(() => $"{TerminalIcons.MdTrashCanOutline} {SR.T("Clear")}") { Wrap = false, IsSelectable = false })
                 .Style(TitleButtonStyle);
             clearButton.Click(ClearNotes);
-            var clearButtonHost = clearButton.Tooltip(new TextBlock(SR.T("Clear notes")));
+            var clearButtonHost = clearButton.Tooltip(new TextBlock(() => SR.T("Clear notes")));
             var notesScroll = new ScrollViewer(_markdown)
                 .HorizontalScrollEnabled(false)
                 .VerticalScrollEnabled(true)
                 .Stretch();
 
+            _title = new Markup(BuildTitleMarkup());
             Group? notesGroup = null;
-            notesGroup = new Group($"{TerminalIcons.MdNoteTextOutline} {SR.T("Notes")}", notesScroll)
+            notesGroup = new Group(_title, notesScroll)
             {
                 HorizontalAlignment = Align.Stretch,
                 VerticalAlignment = Align.Stretch,
@@ -407,6 +415,9 @@ internal sealed class SidebarView
         }
 
         public Visual Root { get; }
+
+        public void RefreshLocalizedText()
+            => _title.Text = BuildTitleMarkup();
 
         public void SetMarkdown(string markdown)
         {
@@ -443,6 +454,9 @@ internal sealed class SidebarView
                 return string.Empty;
             }
         }
+
+        private static string BuildTitleMarkup()
+            => $"{TerminalIcons.MdNoteTextOutline} {SR.T("Notes")}";
     }
 
     private sealed class TitleButton : Button

@@ -73,6 +73,14 @@ internal sealed class SessionTabHostView
         return _sessionPromptPanels.TryGetValue(tabId, out panel);
     }
 
+    public void RefreshLocalizedText()
+    {
+        foreach (var panel in _sessionPromptPanels.Values)
+        {
+            panel.RefreshLocalizedText();
+        }
+    }
+
     public void RememberTabPage(string tabId, TabPage page)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tabId);
@@ -375,4 +383,10 @@ internal sealed class SessionPromptPanel
     public SessionWorkspaceViewModel WorkspaceViewModel => ChromeState.WorkspaceViewModel;
 
     public PromptComposerViewModel PromptComposerViewModel => ChromeState.PromptComposerViewModel;
+
+    public void RefreshLocalizedText()
+    {
+        AgentPromptSelectorView.RefreshLocalizedText();
+        ModelProviderSelectorView.RefreshLocalizedText();
+    }
 }

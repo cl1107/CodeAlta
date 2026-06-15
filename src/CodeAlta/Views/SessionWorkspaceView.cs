@@ -243,8 +243,15 @@ internal sealed class SessionWorkspaceView
     {
         var panel = ActivePromptPanel;
         panel.ChromeState.ApplyProjection(_shellViewModel, _workspaceViewModel, _promptComposerViewModel, preserveAlwaysEnqueue: true);
+        panel.RefreshLocalizedText();
         panel.AgentPromptSelectorView.SyncItems(panel.WorkspaceViewModel);
         panel.ModelProviderSelectorView.SyncItems(panel.WorkspaceViewModel);
+    }
+
+    public void RefreshLocalizedText()
+    {
+        _fallbackPromptPanel?.RefreshLocalizedText();
+        _sessionTabHostView.RefreshLocalizedText();
     }
 
     public void RefreshActivePromptImages()

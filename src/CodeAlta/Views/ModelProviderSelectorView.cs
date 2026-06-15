@@ -11,6 +11,9 @@ namespace CodeAlta.Views;
 
 internal sealed class ModelProviderSelectorView
 {
+    private readonly TextBlock _modelsDialogButtonText;
+    private readonly TextBlock _modelsDialogButtonTooltip;
+
     public ModelProviderSelectorView(
         SessionWorkspaceViewModel workspaceViewModel,
         PromptComposerViewModel promptComposerViewModel,
@@ -45,9 +48,11 @@ internal sealed class ModelProviderSelectorView
         AlwaysEnqueueCheckBox = new CheckBox(SR.T("AlwaysQueue"))
             .IsChecked(promptComposerViewModel.Bind.AlwaysEnqueue)
             .IsEnabled(promptComposerViewModel.Bind.CanAlwaysEnqueue);
-        ModelsDialogButton = new Button(new TextBlock(SR.T("Model->")) { Wrap = false, IsSelectable = false })
+        _modelsDialogButtonText = new TextBlock(SR.T("Model->")) { Wrap = false, IsSelectable = false };
+        _modelsDialogButtonTooltip = new TextBlock(SR.T("Open the models dialog."));
+        ModelsDialogButton = new Button(_modelsDialogButtonText)
             .Click(controller.OpenModels);
-        var modelsDialogButtonHost = ModelsDialogButton.Tooltip(new TextBlock(SR.T("Open the models dialog.")));
+        var modelsDialogButtonHost = ModelsDialogButton.Tooltip(_modelsDialogButtonTooltip);
         var compactSessionButton = new Button(new TextBlock($"{TerminalIcons.MdSelectCompare}"))
             .Click(controller.CompactSession)
             .IsEnabled(promptComposerViewModel.Bind.CanCompact)
@@ -78,6 +83,12 @@ internal sealed class ModelProviderSelectorView
     public Select<ChatReasoningOption> ChatReasoningSelect { get; }
 
     public CheckBox AlwaysEnqueueCheckBox { get; }
+
+    public void RefreshLocalizedText()
+    {
+        _modelsDialogButtonText.Text = SR.T("Model->");
+        _modelsDialogButtonTooltip.Text = SR.T("Open the models dialog.");
+    }
 
     public void SyncItems(SessionWorkspaceViewModel workspaceViewModel)
     {

@@ -498,6 +498,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
     {
         if (_shellView is not null) return _shellView;
 
+        _sidebarCoordinator.RefreshLocalizedText();
         var pfs = _ownedServices?.ProjectFileSearchService ?? NullProjectFileSearchService.Instance;
         Func<string?> promptRoot = ResolvePromptRoot;
         var pb = _ownedServices?.PluginHostBridge;

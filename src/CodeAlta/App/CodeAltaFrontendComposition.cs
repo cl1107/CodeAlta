@@ -215,6 +215,7 @@ internal sealed class CodeAltaFrontendComposition
             }
         });
         var resolveProviderDisplayName = CreateProviderDisplayNameResolver(providerDescriptors);
+        SidebarCoordinator? sidebarCoordinatorRef = null;
         var (navigatorActionCoordinator, sidebarCoordinator) = SidebarServicesFactory.Create(
             sidebarViewModel,
             catalogOptions,
@@ -223,9 +224,14 @@ internal sealed class CodeAltaFrontendComposition
             notesService,
             resolveProviderDisplayName,
             () => frontend.SessionInput,
-            () => frontendEvents.Publish(new CatalogChangedEvent()),
+            () =>
+            {
+                sidebarCoordinatorRef?.RefreshLocalizedText();
+                frontendEvents.Publish(new CatalogChangedEvent());
+            },
             frontend.SetStatus,
             frontend.SetReadyStatusForCurrentSelection);
+        sidebarCoordinatorRef = sidebarCoordinator;
         notesService.Changed += (_, args) => UiDispatch.Post(
             uiDispatcher,
             () =>
