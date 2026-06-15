@@ -386,7 +386,11 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
     internal void ApplyPendingSidebarSelection()
         => _sidebarCoordinator.ApplyPendingSelection();
 
-    public void PrepareForRun() => SetStatus(SR.T("Connecting providers..."), showSpinner: true);
+    public void PrepareForRun()
+    {
+        StartupNavigatorSettingsApplier.Apply(_sessionStateCoordinator, UiLogger);
+        SetStatus(SR.T("Connecting providers..."), showSpinner: true);
+    }
     public Visual GetRoot() => EnsureShellView().Root;
 
     public TerminalLoopResult Tick(CancellationToken cancellationToken)

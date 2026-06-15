@@ -140,6 +140,9 @@ internal sealed partial class ShellSessionStateCoordinator
         ApplyInitialCatalogState(await LoadInitialCatalogStateAsync(cancellationToken));
     }
 
+    public Task<NavigatorSettings> LoadNavigatorSettingsAsync(CancellationToken cancellationToken)
+        => _viewStateCoordinator.LoadNavigatorSettingsAsync(cancellationToken);
+
     public async Task PersistViewStateAsync()
         => await _viewStateCoordinator.PersistViewStateAsync(ViewState);
 
@@ -261,6 +264,15 @@ internal sealed partial class ShellSessionStateCoordinator
 
     public NavigatorSettings GetNavigatorSettingsSnapshot()
         => _viewStateCoordinator.GetNavigatorSettingsSnapshot(ViewState);
+
+    public void ApplyNavigatorSettingsSnapshot(NavigatorSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        settings.Validate();
+
+        ViewState.Navigator = SessionViewStateCoordinator.CloneNavigatorSettings(settings);
+        SyncStateStore(selectionChanged: true);
+    }
 
     public async Task SaveNavigatorSettingsAsync(NavigatorSettings settings)
     {

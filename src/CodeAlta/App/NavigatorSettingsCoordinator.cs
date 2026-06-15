@@ -47,6 +47,7 @@ internal sealed class NavigatorSettingsCoordinator : INavigatorSettingsDialogSer
         try
         {
             await _sessionStateCoordinator.SaveNavigatorSettingsAsync(settings);
+            UiTheme.ApplyLanguage(settings);
             _refreshCatalogAndSessionWorkspace();
         }
         catch (Exception ex)

@@ -17,6 +17,12 @@ internal sealed class SessionViewStateCoordinator
     public Task<SessionViewViewState> LoadViewStateAsync(CancellationToken cancellationToken)
         => _sessionCatalog.LoadViewStateAsync(cancellationToken);
 
+    public async Task<NavigatorSettings> LoadNavigatorSettingsAsync(CancellationToken cancellationToken)
+    {
+        var viewState = await LoadViewStateAsync(cancellationToken).ConfigureAwait(false);
+        return GetNavigatorSettingsSnapshot(viewState);
+    }
+
     public async Task PersistViewStateAsync(SessionViewViewState viewState)
     {
         ArgumentNullException.ThrowIfNull(viewState);
@@ -144,13 +150,20 @@ internal sealed class SessionViewStateCoordinator
     {
         ArgumentNullException.ThrowIfNull(viewState);
 
+        return CloneNavigatorSettings(viewState.Navigator);
+    }
+
+    public static NavigatorSettings CloneNavigatorSettings(NavigatorSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
         return new NavigatorSettings
         {
-            SortMode = viewState.Navigator.SortMode,
-            RecentSessionsPerProject = viewState.Navigator.RecentSessionsPerProject,
-            ThemeSchemeName = viewState.Navigator.ThemeSchemeName,
-            LanguageName = viewState.Navigator.LanguageName,
-            AutoApprove = viewState.Navigator.AutoApprove,
+            SortMode = settings.SortMode,
+            RecentSessionsPerProject = settings.RecentSessionsPerProject,
+            ThemeSchemeName = settings.ThemeSchemeName,
+            LanguageName = settings.LanguageName,
+            AutoApprove = settings.AutoApprove,
         };
     }
 

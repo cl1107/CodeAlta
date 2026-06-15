@@ -13,16 +13,7 @@ internal static class UiTheme
         ArgumentNullException.ThrowIfNull(shellView);
         ArgumentNullException.ThrowIfNull(stateCoordinator);
 
-        // Apply language from settings, falling back to system locale
-        var languageName = stateCoordinator.NavigatorSettings.LanguageName;
-        if (!string.IsNullOrWhiteSpace(languageName))
-        {
-            SR.Language = languageName;
-        }
-        else
-        {
-            SR.AutoDetect();
-        }
+        ApplyLanguage(stateCoordinator.NavigatorSettings);
 
         string? cachedSchemeName = null;
         var cachedTheme = CodeAltaThemeResolver.Resolve(stateCoordinator.NavigatorSettings);
@@ -52,5 +43,22 @@ internal static class UiTheme
         }
 
         return shellView;
+    }
+
+    public static void ApplyLanguage(NavigatorSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ApplyLanguage(settings.LanguageName);
+    }
+
+    private static void ApplyLanguage(string? languageName)
+    {
+        if (!string.IsNullOrWhiteSpace(languageName))
+        {
+            SR.Language = languageName;
+            return;
+        }
+
+        SR.AutoDetect();
     }
 }

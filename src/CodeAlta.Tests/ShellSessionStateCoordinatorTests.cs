@@ -1,3 +1,4 @@
+using System.Globalization;
 using CodeAlta.Agent;
 using CodeAlta.App;
 using CodeAlta.App.Events;
@@ -5,6 +6,7 @@ using CodeAlta.App.State;
 using CodeAlta.Catalog;
 using CodeAlta.Models;
 using CodeAlta.Threading;
+using CodeAlta.Views;
 
 namespace CodeAlta.Tests;
 
@@ -744,6 +746,38 @@ public sealed class ShellSessionStateCoordinatorTests
         Assert.AreEqual(NavigatorProjectSortMode.Date, viewState.Navigator.SortMode);
         Assert.AreEqual(7, viewState.Navigator.RecentSessionsPerProject);
         Assert.AreEqual("Elderberry Dark Soft", viewState.Navigator.ThemeSchemeName);
+    }
+
+    [TestMethod]
+    public async Task LoadNavigatorSettingsAsync_CanApplyPersistedLanguageBeforeCatalogRecovery()
+    {
+        using var temp = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = temp.Path };
+        var sessionCatalog = new SessionViewCatalog(options);
+        await sessionCatalog.SaveViewStateAsync(new SessionViewViewState
+        {
+            Navigator = new NavigatorSettings
+            {
+                LanguageName = "zh-CN",
+            },
+        }).ConfigureAwait(false);
+        var coordinator = CreateCoordinator(options, sessionCatalog);
+        var previousUiCulture = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("en-US");
+
+            var settings = await coordinator.LoadNavigatorSettingsAsync(CancellationToken.None).ConfigureAwait(false);
+            coordinator.ApplyNavigatorSettingsSnapshot(settings);
+            UiTheme.ApplyLanguage(coordinator.NavigatorSettings);
+
+            Assert.AreEqual("zh-CN", SR.Language);
+            Assert.AreEqual("语言", SR.T("Language"));
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = previousUiCulture;
+        }
     }
 
     [TestMethod]
