@@ -1,3 +1,4 @@
+using CodeAlta.Catalog;
 using XenoAtom.Ansi;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Commands;
@@ -65,8 +66,12 @@ internal sealed class ShellCommand
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(target);
-        return GetLabelMarkup?.Invoke(context, target) ?? AnsiMarkup.Escape(Label);
+        return GetLabelMarkup?.Invoke(context, target) ?? AnsiMarkup.Escape(GetLocalizedLabel());
     }
+
+    public string GetLocalizedLabel() => SR.T(Label);
+
+    public string GetLocalizedDescription() => SR.T(Description);
 }
 
 internal enum ShellCommandHelpCategory

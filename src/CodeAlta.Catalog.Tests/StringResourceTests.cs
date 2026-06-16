@@ -121,10 +121,29 @@ public sealed partial class StringResourceTests
             {
                 builder.Add(Regex.Unescape(match.Groups[1].Value));
             }
+
+            if (Path.GetFileName(path).Equals("BuiltinShellCommands.cs", StringComparison.Ordinal))
+            {
+                ExtractBuiltinShellCommandStringKeys(source, builder);
+            }
         }
 
         Assert.IsTrue(builder.Count > 0, "No SR.T string keys were found.");
         return builder.ToImmutable();
+    }
+
+    private static void ExtractBuiltinShellCommandStringKeys(string source, ISet<string> builder)
+    {
+        foreach (Match match in ShellCommandTextAssignmentRegex().Matches(source))
+        {
+            builder.Add(Regex.Unescape(match.Groups[1].Value));
+        }
+
+        foreach (Match match in ShellCommandFactoryCallRegex().Matches(source))
+        {
+            builder.Add(Regex.Unescape(match.Groups[2].Value));
+            builder.Add(Regex.Unescape(match.Groups[3].Value));
+        }
     }
 
     private static bool IsGeneratedOrBuildOutput(string path)
@@ -187,4 +206,10 @@ public sealed partial class StringResourceTests
 
     [GeneratedRegex("SR\\.T\\(\\\"((?:[^\\\"\\\\]|\\\\.)*)\\\"")]
     private static partial Regex SrTCallRegex();
+
+    [GeneratedRegex("\\b(?:Label|Description)\\s*=\\s*\\\"((?:[^\\\"\\\\]|\\\\.)*)\\\"")]
+    private static partial Regex ShellCommandTextAssignmentRegex();
+
+    [GeneratedRegex("\\b(?:Dialog|Session|ScrollMessage)\\(\\s*\\\"((?:[^\\\"\\\\]|\\\\.)*)\\\"\\s*,\\s*\\\"((?:[^\\\"\\\\]|\\\\.)*)\\\"\\s*,\\s*\\\"((?:[^\\\"\\\\]|\\\\.)*)\\\"")]
+    private static partial Regex ShellCommandFactoryCallRegex();
 }

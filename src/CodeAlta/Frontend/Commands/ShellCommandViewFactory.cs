@@ -1,5 +1,6 @@
 using CodeAlta.App;
 using CodeAlta.Models;
+using XenoAtom.Ansi;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Commands;
 
@@ -16,10 +17,10 @@ internal static class ShellCommandViewFactory
         return new Command
         {
             Id = command.Id,
-            LabelMarkup = command.Label,
+            LabelMarkup = AnsiMarkup.Escape(command.GetLocalizedLabel()),
             Name = command.Name,
             SearchText = BuildSearchText(command),
-            DescriptionMarkup = $"[dim]{XenoAtom.Ansi.AnsiMarkup.Escape(command.Description)}[/]",
+            DescriptionMarkup = $"[dim]{AnsiMarkup.Escape(command.GetLocalizedDescription())}[/]",
             Gesture = command.Gesture,
             Sequence = command.Sequence,
             Importance = command.Importance,
@@ -33,7 +34,7 @@ internal static class ShellCommandViewFactory
     }
 
     private static string BuildSearchText(ShellCommand command)
-        => string.Join(' ', new[] { command.Label, command.Name, command.SearchText }.Where(static text => !string.IsNullOrWhiteSpace(text))!);
+        => string.Join(' ', new[] { command.GetLocalizedLabel(), command.Label, command.GetLocalizedDescription(), command.Description, command.Name, command.SearchText }.Where(static text => !string.IsNullOrWhiteSpace(text))!);
 
     private static CommandPresentation ResolvePresentation(ShellCommand command)
     {

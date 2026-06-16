@@ -61,7 +61,7 @@ internal static class ShellHelpContentBuilder
             .Select(group => new ShellHelpSection(
                 GetCategoryTitle(group.Key),
                 group
-                    .OrderBy(static command => command.Label, StringComparer.Ordinal)
+                    .OrderBy(static command => command.GetLocalizedLabel(), StringComparer.Ordinal)
                     .Select(BuildEntry)
                     .ToArray()))
             .Where(static section => section.Entries.Count > 0)
@@ -69,7 +69,7 @@ internal static class ShellHelpContentBuilder
     }
 
     private static ShellHelpEntry BuildEntry(ShellCommand command)
-        => new(command.Label, command.Description, BuildBindings(command));
+        => new(command.GetLocalizedLabel(), command.GetLocalizedDescription(), BuildBindings(command));
 
     private static IReadOnlyList<string> BuildBindings(ShellCommand command)
     {
@@ -95,7 +95,9 @@ internal static class ShellHelpContentBuilder
             return true;
         }
 
-        return command.Label.Contains(filterText, StringComparison.OrdinalIgnoreCase) ||
+        return command.GetLocalizedLabel().Contains(filterText, StringComparison.OrdinalIgnoreCase) ||
+               command.Label.Contains(filterText, StringComparison.OrdinalIgnoreCase) ||
+               command.GetLocalizedDescription().Contains(filterText, StringComparison.OrdinalIgnoreCase) ||
                command.Description.Contains(filterText, StringComparison.OrdinalIgnoreCase) ||
                (!string.IsNullOrWhiteSpace(command.Name) && command.Name.Contains(filterText, StringComparison.OrdinalIgnoreCase)) ||
                (!string.IsNullOrWhiteSpace(command.SearchText) && command.SearchText.Contains(filterText, StringComparison.OrdinalIgnoreCase));
