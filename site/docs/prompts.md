@@ -147,7 +147,7 @@ prompts/
 If multiple roots contain the same prompt or system id, the later source overrides the earlier one: project overrides global, and global overrides built-in. This lets you keep a global `reviewer` prompt while giving one repository a stricter project-local `reviewer.prompt.md`.
 
 > [!NOTE]
-> Prompt ids come from file names. For example, `reviewer.prompt.md` creates or overrides the agent prompt id `reviewer`.
+> Prompt ids come from file names. For example, `reviewer.prompt.md` creates or overrides the agent prompt id `reviewer`, and `team-release.system-prompt.md` creates or overrides the system prompt id `team-release`.
 
 ## Create a custom agent prompt
 
@@ -158,7 +158,9 @@ Use a custom prompt when you repeat the same workflow often enough that it deser
 3. Create a **Global** prompt for all projects or a **Project** prompt for the current project.
 4. Pick a short lowercase id such as `reviewer`, `triage`, or `release`.
 5. Fill in a concise name, description, optional system prompt id, optional composition overrides, and Markdown body.
-6. Select the prompt from the footer **Agent:** selector or cycle prompts with `Ctrl+T` / `/next_prompt`.
+6. Select the agent prompt from the footer **Agent:** selector or cycle prompts with `Ctrl+T` / `/next_prompt`.
+
+Creating a system prompt does not activate it by itself. In normal use, a system prompt becomes active only when the selected agent prompt references its id in the **System Prompt** field (the `system` frontmatter property).
 
 A minimal prompt file looks like this:
 
@@ -182,7 +184,7 @@ verification gaps.
 
 ## Agent prompt frontmatter and composition
 
-Agent prompt frontmatter is the user-facing entry point for prompt composition. The file name selects the agent prompt id, the prompt's `system` field selects the system prompt id, and optional boolean fields override which generated context sections CodeAlta includes.
+Agent prompt frontmatter is the user-facing entry point for prompt composition. The file name selects the agent prompt id, the prompt's `system` field selects the system prompt id, and optional boolean fields override which generated context sections CodeAlta includes. In other words, you normally activate a custom system prompt by editing or creating an agent prompt that points at it, then selecting that agent prompt for the session.
 
 {.table}
 | Field | Required? | Use it for |
@@ -196,6 +198,20 @@ Agent prompt frontmatter is the user-facing entry point for prompt composition. 
 | `tool_guidance` | No | Include generated host-tool guidance and available agent-prompt discovery. |
 
 Do not restate defaults in every prompt. When the boolean fields are omitted, CodeAlta uses its normal defaults, which currently include all generated sections when content is available. Add a boolean only when a workflow intentionally needs a different composition.
+
+For example, if you create `prompts/system/team-release.system-prompt.md`, reference it from an agent prompt with `system: team-release`:
+
+```markdown
+---
+name: Release Coordinator
+description: Release workflow using the team release system prompt.
+system: team-release
+---
+Coordinate the release checklist, verify packaging steps, and ask before
+publishing.
+```
+
+Selecting **Release Coordinator** as the active agent prompt is what activates `team-release` for that session. If the `system` field is omitted, CodeAlta uses `default`.
 
 For example, a narrow review prompt can keep the normal system prompt while disabling skill and tool-discovery guidance:
 
@@ -264,16 +280,14 @@ A project prompt can specialize a global workflow without changing other reposit
 
 System prompt files carry host-level behavior and should be short, stable, and explicit. Agent prompts are better for workflow-specific session behavior.
 
-Use the agent prompt `system` frontmatter field when a workflow needs a custom system prompt:
+Use the agent prompt `system` frontmatter field when a workflow needs a custom system prompt. The value is the system prompt id, not the full path: for `prompts/system/team-release.system-prompt.md`, write `system: team-release` in the agent prompt frontmatter, then select that agent prompt for the session.
 
-```markdown
----
-name: Release Coordinator
-description: Release workflow using the team release system prompt.
-system: team-release
----
-Coordinate the release checklist, verify packaging steps, and ask before
-publishing.
-```
+The activation flow is:
+
+1. Create or override a system prompt, for example `prompts/system/team-release.system-prompt.md`.
+2. Create or edit an agent prompt and set its **System Prompt** field (the `system` frontmatter property) to `team-release`.
+3. Select that agent prompt from the **Agent:** selector before sending the prompt.
 
 Keep composition overrides close to the agent prompt that needs them. Disabling generated context such as tool guidance can make advanced prompt workflows less discoverable to the agent, so prefer the default generated sections unless a specific workflow has a clear reason to remove them.
+
+If you want a custom system prompt to affect the built-in **Default** or **Plan** modes, create a global or project agent prompt with the same agent prompt id (`default.prompt.md` or `plan.prompt.md`) and add the `system` field there. Review these overrides carefully because they change every session that uses that mode in the matching scope.
