@@ -53,6 +53,7 @@ internal sealed class PromptManagementDialog
     private string? _loadedDescription;
     private string _loadedSystem = AgentPromptCatalog.DefaultPromptName;
     private string _loadedBody = string.Empty;
+    private PromptCompositionMode _loadedMode = PromptCompositionMode.Replace;
 
     public PromptManagementDialog(
         CatalogOptions catalogOptions,
@@ -451,7 +452,7 @@ internal sealed class PromptManagementDialog
             }
         }
 
-        var defaultIndex = _rows.ToList().FindIndex(static row =>
+        var defaultIndex = _rows.ToList().FindLastIndex(static row =>
             !row.Descriptor.IsShadowed &&
             string.Equals(row.Descriptor.PromptName, AgentPromptCatalog.DefaultPromptName, StringComparison.OrdinalIgnoreCase));
         return defaultIndex >= 0 ? defaultIndex : 0;
@@ -473,7 +474,7 @@ internal sealed class PromptManagementDialog
             }
         }
 
-        var defaultIndex = _systemRows.ToList().FindIndex(static row =>
+        var defaultIndex = _systemRows.ToList().FindLastIndex(static row =>
             !row.Descriptor.IsShadowed &&
             string.Equals(row.Descriptor.PromptName, AgentPromptCatalog.DefaultPromptName, StringComparison.OrdinalIgnoreCase));
         return defaultIndex >= 0 ? defaultIndex : 0;
@@ -660,6 +661,7 @@ internal sealed class PromptManagementDialog
                 _loadedDescription = null;
                 _loadedSystem = AgentPromptCatalog.DefaultPromptName;
                 _loadedBody = string.Empty;
+                _loadedMode = PromptCompositionMode.Replace;
                 _nameBox.Text = string.Empty;
                 _descriptionBox.Text = string.Empty;
                 _systemBox.Text = AgentPromptCatalog.DefaultPromptName;
@@ -673,6 +675,7 @@ internal sealed class PromptManagementDialog
             _loadedDescription = descriptor.Description;
             _loadedSystem = descriptor.SystemPromptName;
             _loadedBody = descriptor.Body;
+            _loadedMode = descriptor.Mode;
             _nameBox.Text = descriptor.DisplayName;
             _descriptionBox.Text = descriptor.Description ?? string.Empty;
             _systemBox.Text = descriptor.SystemPromptName;
@@ -697,6 +700,7 @@ internal sealed class PromptManagementDialog
         {
             _loadedDescription = null;
             _loadedSystem = AgentPromptCatalog.DefaultPromptName;
+            _loadedMode = PromptCompositionMode.Replace;
             if (_selectedSystemRow is null)
             {
                 _loadedName = string.Empty;
@@ -712,6 +716,7 @@ internal sealed class PromptManagementDialog
             var descriptor = _selectedSystemRow.Descriptor;
             _loadedName = descriptor.PromptName;
             _loadedBody = descriptor.Body;
+            _loadedMode = descriptor.Mode;
             _nameBox.Text = descriptor.PromptName;
             _descriptionBox.Text = string.Empty;
             _systemBox.Text = string.Empty;
@@ -816,7 +821,7 @@ internal sealed class PromptManagementDialog
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(row.Descriptor.SourcePath)!);
-            File.WriteAllText(row.Descriptor.SourcePath, BuildSystemPromptFile(body));
+            File.WriteAllText(row.Descriptor.SourcePath, BuildSystemPromptFile(body, row.Descriptor.Mode));
             SetDialogStatus(SR.T("Saved system prompt '{0}'.", row.Descriptor.PromptName), StatusTone.Ready);
             _setStatus(SR.T("Saved system prompt '{0}'.", row.Descriptor.PromptName), StatusTone.Ready);
             _onPromptsChanged();
@@ -1044,11 +1049,12 @@ internal sealed class PromptManagementDialog
             name!,
             NormalizeOptionalText(descriptionBox.Text),
             NormalizeSystemName(systemBox.Text),
-            body);
+            body,
+            PromptCompositionMode.Replace);
         try
         {
             Directory.CreateDirectory(targetDirectory);
-            File.WriteAllText(path, resourceTab == PromptResourceTab.SystemPrompt ? BuildSystemPromptFile(values.Body) : BuildPromptFile(values));
+            File.WriteAllText(path, resourceTab == PromptResourceTab.SystemPrompt ? BuildSystemPromptFile(values.Body, values.Mode) : BuildPromptFile(values));
             createDialog.Close();
             SetDialogStatus(SR.T("Created {0} '{1}'.", ResourceLabel(resourceTab), name), StatusTone.Ready);
             _setStatus(SR.T("Created {0} '{1}'.", ResourceLabel(resourceTab), name), StatusTone.Ready);
@@ -1095,7 +1101,7 @@ internal sealed class PromptManagementDialog
                 return false;
             }
 
-            values = new PromptEditorValues(_loadedName, null, AgentPromptCatalog.DefaultPromptName, systemBody);
+            values = new PromptEditorValues(_loadedName, null, AgentPromptCatalog.DefaultPromptName, systemBody, _loadedMode);
             validationMessage = string.Empty;
             return true;
         }
@@ -1118,7 +1124,8 @@ internal sealed class PromptManagementDialog
             name,
             NormalizeOptionalText(_descriptionBox.Text),
             NormalizeSystemName(_systemBox.Text),
-            body);
+            body,
+            _loadedMode);
         validationMessage = string.Empty;
         return true;
     }
@@ -1275,6 +1282,11 @@ internal sealed class PromptManagementDialog
             : AnsiMarkup.Escape(descriptor.DisplayName);
 
         var status = descriptor.IsShadowed ? " " + SR.T("shadowed") : descriptor.IsBuiltIn ? " " + SR.T("read-only") : string.Empty;
+        if (descriptor.Mode == PromptCompositionMode.Append)
+        {
+            status += " append";
+        }
+
         return new OptionListItem(
             new Markup(title) { Wrap = false },
             new Markup($"[dim]{AnsiMarkup.Escape(source)}{AnsiMarkup.Escape(status)}[/]") { Wrap = false },
@@ -1293,6 +1305,11 @@ internal sealed class PromptManagementDialog
             : AnsiMarkup.Escape(descriptor.PromptName);
 
         var status = descriptor.IsShadowed ? " " + SR.T("shadowed") : descriptor.IsBuiltIn ? " " + SR.T("read-only") : string.Empty;
+        if (descriptor.Mode == PromptCompositionMode.Append)
+        {
+            status += " append";
+        }
+
         return new OptionListItem(
             new Markup(title) { Wrap = false },
             new Markup($"[dim]{AnsiMarkup.Escape(source)}{AnsiMarkup.Escape(status)}[/]") { Wrap = false },
@@ -1322,6 +1339,11 @@ internal sealed class PromptManagementDialog
         var builder = new StringBuilder();
         builder.AppendLine("---");
         builder.Append("name: ").AppendLine(ToYamlScalar(values.Name));
+        if (values.Mode == PromptCompositionMode.Append)
+        {
+            builder.AppendLine("mode: append");
+        }
+
         if (!string.IsNullOrWhiteSpace(values.Description))
         {
             builder.Append("description: ").AppendLine(ToYamlScalar(values.Description!));
@@ -1337,8 +1359,15 @@ internal sealed class PromptManagementDialog
         return builder.ToString();
     }
 
-    private static string BuildSystemPromptFile(string body)
-        => body.Trim() + Environment.NewLine;
+    private static string BuildSystemPromptFile(string body, PromptCompositionMode mode)
+    {
+        if (mode == PromptCompositionMode.Append)
+        {
+            return $"---{Environment.NewLine}mode: append{Environment.NewLine}---{Environment.NewLine}{body.Trim()}{Environment.NewLine}";
+        }
+
+        return body.Trim() + Environment.NewLine;
+    }
 
     private static string ToYamlScalar(string value)
     {
@@ -1420,7 +1449,7 @@ internal sealed class PromptManagementDialog
 
     private sealed record SystemPromptRow(SystemPromptDescriptor Descriptor);
 
-    private readonly record struct PromptEditorValues(string Name, string? Description, string SystemPromptName, string Body);
+    private readonly record struct PromptEditorValues(string Name, string? Description, string SystemPromptName, string Body, PromptCompositionMode Mode);
 
     private enum PromptStorageScope
     {

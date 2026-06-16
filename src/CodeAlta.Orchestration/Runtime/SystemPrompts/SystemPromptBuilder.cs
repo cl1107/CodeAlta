@@ -66,13 +66,19 @@ public sealed class SystemPromptBuilder
         }
 
         var selectedSystemOverride = NormalizeName(request.SelectedBaseName);
-        var selectedSystemName = selectedSystemOverride ?? promptResolution.Selected.SystemPromptName ?? DefaultName;
+        var agentSystemPromptName = ResolveEffectiveSystemPromptName(promptResolution);
+        var selectedSystemName = selectedSystemOverride ?? agentSystemPromptName ?? DefaultName;
         var selectedSystemReason = selectedSystemOverride is not null
             ? "runtime"
-            : promptResolution.Selected.SystemPromptName is not null
+            : agentSystemPromptName is not null
                 ? $"agent:{composition.AgentPromptName}"
                 : "default-name";
-        var effectivePartOptions = promptResolution.Selected.PartOptions.MergeOver(SystemPromptPartOptions.Default);
+        var effectivePartOptions = SystemPromptPartOptions.Default;
+        foreach (var applied in promptResolution.Applied)
+        {
+            effectivePartOptions = applied.Resource.PartOptions.MergeOver(effectivePartOptions);
+        }
+
         effectivePartOptions = request.PartOptionsOverride?.MergeOver(effectivePartOptions) ?? effectivePartOptions;
         var systemResolution = ResolveResource(roots, "system", ".system-prompt.md", selectedSystemName, diagnostics, SystemPromptResourceKind.SystemPrompt);
 
@@ -82,15 +88,24 @@ public sealed class SystemPromptBuilder
         }
 
         var parts = new List<SystemPromptManifestPart>();
-        var systemMessage = systemResolution.Selected.Body.Trim();
-        parts.Add(CreateResourcePart(systemResolution.Selected, "system", selectedSystemName, "system", 100, "selected", systemResolution.ReplacedPath));
+        var systemMessage = systemResolution.Body!.Trim();
+        foreach (var applied in systemResolution.Applied)
+        {
+            parts.Add(CreateResourcePart(applied.Resource, "system", selectedSystemName, "system", 100, applied.Status, applied.Replaces));
+        }
+
         foreach (var skipped in systemResolution.Skipped)
         {
             parts.Add(CreateResourcePart(skipped.Resource, "system", selectedSystemName, "system", 100, skipped.Status, null));
         }
 
         var developerParts = new List<RenderedPromptPart>();
-        AddDeveloperPart(developerParts, parts, CreateResourcePart(promptResolution.Selected, "agent_prompt", composition.AgentPromptName, "developer", 300, "selected", promptResolution.ReplacedPath), "Agent Prompt", promptResolution.Selected.Body);
+        foreach (var applied in promptResolution.Applied)
+        {
+            parts.Add(CreateResourcePart(applied.Resource, "agent_prompt", composition.AgentPromptName, "developer", 300, applied.Status, applied.Replaces));
+        }
+
+        developerParts.Add(new RenderedPromptPart($"agents/{composition.AgentPromptName}", RenderSection("Agent Prompt", promptResolution.Body!)));
         foreach (var skipped in promptResolution.Skipped)
         {
             parts.Add(CreateResourcePart(skipped.Resource, "agent_prompt", composition.AgentPromptName, "developer", 300, skipped.Status, null));
@@ -263,6 +278,50 @@ public sealed class SystemPromptBuilder
         return null;
     }
 
+    private static PromptCompositionMode? ParsePromptCompositionMode(IReadOnlyDictionary<string, string> frontmatter, string path, List<SystemPromptDiagnostic> diagnostics, ref bool hasErrors)
+    {
+        bool? appendFlag = null;
+        if (frontmatter.TryGetValue("append", out var appendValue))
+        {
+            if (bool.TryParse(appendValue, out var append))
+            {
+                appendFlag = append;
+            }
+            else
+            {
+                diagnostics.Add(SystemPromptDiagnostic.Error("invalid_prompt_frontmatter", $"Prompt resource '{path}' frontmatter field 'append' must be true or false.", path));
+                hasErrors = true;
+                return null;
+            }
+        }
+
+        PromptCompositionMode? mode = null;
+        if (frontmatter.TryGetValue("mode", out var modeValue))
+        {
+            mode = NormalizeName(modeValue)?.ToLowerInvariant() switch
+            {
+                null or "replace" => PromptCompositionMode.Replace,
+                "append" => PromptCompositionMode.Append,
+                _ => null,
+            };
+            if (mode is null)
+            {
+                diagnostics.Add(SystemPromptDiagnostic.Error("invalid_prompt_frontmatter", $"Prompt resource '{path}' frontmatter field 'mode' must be 'replace' or 'append'.", path));
+                hasErrors = true;
+                return null;
+            }
+        }
+
+        if (appendFlag is not null && mode is not null && appendFlag.Value != (mode.Value == PromptCompositionMode.Append))
+        {
+            diagnostics.Add(SystemPromptDiagnostic.Error("invalid_prompt_frontmatter", $"Prompt resource '{path}' frontmatter fields 'append' and 'mode' conflict.", path));
+            hasErrors = true;
+            return null;
+        }
+
+        return mode ?? (appendFlag == true ? PromptCompositionMode.Append : PromptCompositionMode.Replace);
+    }
+
     private static ResourceResolution ResolveResource(SystemPromptContentRoots roots, string folder, string suffix, string name, List<SystemPromptDiagnostic> diagnostics, SystemPromptResourceKind resourceKind)
     {
         var candidates = EnumerateExistingRoots(roots)
@@ -274,20 +333,27 @@ public sealed class SystemPromptBuilder
         if (candidates.Length == 0)
         {
             diagnostics.Add(SystemPromptDiagnostic.Error("missing_prompt_resource", $"Prompt resource '{folder}/{name}{suffix}' was not found.", null));
-            return new ResourceResolution(null, null, []);
+            return new ResourceResolution(null, null, [], []);
         }
 
         var selected = candidates[^1];
-        var replaced = candidates.Length > 1 ? candidates[^2].Path : null;
         if (!string.Equals(selected.SourceKind, "built-in", StringComparison.OrdinalIgnoreCase))
         {
             diagnostics.Add(SystemPromptDiagnostic.Warning($"active_{folder}_override", $"Active {folder} resource comes from {selected.SourceKind}: {selected.Path}", selected.Path));
         }
 
-        var skipped = candidates.Take(candidates.Length - 1)
+        var chainStart = FindCompositionChainStart(candidates);
+        var applied = candidates.Skip(chainStart)
+            .Select((resource, index) => new AppliedResource(
+                resource,
+                index == 0 ? "selected" : "appended",
+                index == 0 && chainStart > 0 ? candidates[chainStart - 1].Path : null))
+            .ToArray();
+        var skipped = candidates.Take(chainStart)
             .Select(static resource => new SkippedResource(resource, "replaced"))
             .ToArray();
-        return new ResourceResolution(selected, replaced, skipped);
+        var body = JoinPromptBodies(applied.Select(static resource => resource.Resource.Body));
+        return new ResourceResolution(selected, body, applied, skipped);
     }
 
     private static PromptResource? LoadResource(PromptRoot root, string folder, string suffix, string name, List<SystemPromptDiagnostic> diagnostics, SystemPromptResourceKind resourceKind)
@@ -311,10 +377,11 @@ public sealed class SystemPromptBuilder
 
         var (frontmatter, body) = SplitFrontmatter(text, path, diagnostics);
         var allowedFields = resourceKind == SystemPromptResourceKind.AgentPrompt
-            ? new HashSet<string>(["name", "description", "system", "skills", "project_context", "runtime_context", "tool_guidance", "version", "max_tokens", "id", "kind", "path"], StringComparer.OrdinalIgnoreCase)
-            : new HashSet<string>(["description", "version", "max_tokens", "id", "kind", "path"], StringComparer.OrdinalIgnoreCase);
+            ? new HashSet<string>(["name", "description", "system", "skills", "project_context", "runtime_context", "tool_guidance", "mode", "append", "version", "max_tokens", "id", "kind", "path"], StringComparer.OrdinalIgnoreCase)
+            : new HashSet<string>(["description", "mode", "append", "version", "max_tokens", "id", "kind", "path"], StringComparer.OrdinalIgnoreCase);
         var partOptions = PartialSystemPromptPartOptions.Empty;
         var hasErrors = false;
+        var mode = ParsePromptCompositionMode(frontmatter, path, diagnostics, ref hasErrors);
         foreach (var key in frontmatter.Keys)
         {
             if (!allowedFields.Contains(key))
@@ -345,7 +412,7 @@ public sealed class SystemPromptBuilder
             }
         }
 
-        if (hasErrors)
+        if (hasErrors || mode is null)
         {
             return null;
         }
@@ -357,7 +424,7 @@ public sealed class SystemPromptBuilder
         }
 
         var displayName = NormalizeName(frontmatter.GetValueOrDefault("name"));
-        if (resourceKind == SystemPromptResourceKind.AgentPrompt && displayName is null)
+        if (resourceKind == SystemPromptResourceKind.AgentPrompt && displayName is null && mode == PromptCompositionMode.Replace)
         {
             diagnostics.Add(SystemPromptDiagnostic.Error("missing_prompt_name", $"Agent prompt '{path}' is missing required frontmatter field 'name'.", path));
             return null;
@@ -367,7 +434,7 @@ public sealed class SystemPromptBuilder
             ? NormalizeName(frontmatter.GetValueOrDefault("system"))
             : null;
         var trimmed = body.Trim();
-        return new PromptResource(root.SourceKind, root.Precedence, path, trimmed, frontmatter.GetValueOrDefault("description"), displayName, systemPromptName, partOptions, HashText(trimmed));
+        return new PromptResource(root.SourceKind, root.Precedence, path, trimmed, frontmatter.GetValueOrDefault("description"), displayName, systemPromptName, partOptions, HashText(trimmed), mode.Value);
     }
 
     private static Dictionary<string, string> ParseFlatKeyValueFile(string text, List<SystemPromptDiagnostic> diagnostics, string path, bool allowFrontmatterDelimiters)
@@ -437,12 +504,6 @@ public sealed class SystemPromptBuilder
             Status: status,
             Replaces: replaces,
             SourcePaths: []);
-
-    private static void AddDeveloperPart(List<RenderedPromptPart> developerParts, List<SystemPromptManifestPart> manifestParts, SystemPromptManifestPart manifestPart, string title, string body)
-    {
-        manifestParts.Add(manifestPart);
-        developerParts.Add(new RenderedPromptPart(manifestPart.Key, RenderSection(title, body)));
-    }
 
     private static SystemPromptManifestPart AddGeneratedPart(List<RenderedPromptPart> developerParts, List<SystemPromptManifestPart> manifestParts, string key, string kind, string title, int order, string body)
     {
@@ -554,6 +615,9 @@ public sealed class SystemPromptBuilder
         builder.Append("One-shot/child send: `alta session send <session-id> --prompt-id <id> --stdin`.");
         return builder.ToString();
     }
+
+    private static string? ResolveEffectiveSystemPromptName(ResourceResolution promptResolution)
+        => LastNonBlank(promptResolution.Applied.Select(static resource => resource.Resource.SystemPromptName));
 
     private static string? BuildProjectContext(SystemPromptBuildRequest request, string? projectRoot, List<SystemPromptDiagnostic> diagnostics, out IReadOnlyList<string> files)
     {
@@ -672,6 +736,41 @@ public sealed class SystemPromptBuilder
         }
     }
 
+    private static int FindCompositionChainStart(IReadOnlyList<PromptResource> resources)
+    {
+        for (var index = resources.Count - 1; index >= 0; index--)
+        {
+            if (resources[index].Mode == PromptCompositionMode.Replace)
+            {
+                return index;
+            }
+        }
+
+        return 0;
+    }
+
+    private static string JoinPromptBodies(IEnumerable<string> bodies)
+    {
+        var builder = new StringBuilder();
+        foreach (var body in bodies)
+        {
+            var trimmed = body.Trim();
+            if (trimmed.Length == 0)
+            {
+                continue;
+            }
+
+            if (builder.Length > 0)
+            {
+                builder.AppendLine().AppendLine();
+            }
+
+            builder.Append(trimmed);
+        }
+
+        return builder.ToString();
+    }
+
     private static string RenderSection(string title, string body)
         => $"# {title}{Environment.NewLine}{Environment.NewLine}{body.Trim()}";
 
@@ -697,6 +796,9 @@ public sealed class SystemPromptBuilder
 
     private static string? NormalizeName(string? name)
         => string.IsNullOrWhiteSpace(name) ? null : name.Trim();
+
+    private static string? LastNonBlank(IEnumerable<string?> values)
+        => values.LastOrDefault(static value => !string.IsNullOrWhiteSpace(value))?.Trim();
 
     private static string? FirstNonBlank(IEnumerable<string> values)
         => values.FirstOrDefault(static value => !string.IsNullOrWhiteSpace(value));
@@ -779,8 +881,9 @@ public sealed class SystemPromptBuilder
     }
 
     private sealed record PromptRoot(string SourceKind, int Precedence, string Path);
-    private sealed record PromptResource(string SourceKind, int Precedence, string Path, string Body, string? Description, string? DisplayName, string? SystemPromptName, PartialSystemPromptPartOptions PartOptions, string Hash);
-    private sealed record ResourceResolution(PromptResource? Selected, string? ReplacedPath, IReadOnlyList<SkippedResource> Skipped);
+    private sealed record PromptResource(string SourceKind, int Precedence, string Path, string Body, string? Description, string? DisplayName, string? SystemPromptName, PartialSystemPromptPartOptions PartOptions, string Hash, PromptCompositionMode Mode);
+    private sealed record ResourceResolution(PromptResource? Selected, string? Body, IReadOnlyList<AppliedResource> Applied, IReadOnlyList<SkippedResource> Skipped);
+    private sealed record AppliedResource(PromptResource Resource, string Status, string? Replaces);
     private sealed record SkippedResource(PromptResource Resource, string Status);
     private sealed record RenderedPromptPart(string Key, string Markdown);
     private enum SystemPromptResourceKind { SystemPrompt, AgentPrompt }

@@ -54,6 +54,45 @@ public sealed class SystemPromptInfrastructureTests
     }
 
     [TestMethod]
+    public void AgentPromptCatalog_AppendsEffectiveAgentPromptBodyAndMetadata()
+    {
+        using var temp = TempDirectory.Create();
+        var appBase = Path.Combine(temp.Path, "app");
+        var globalRoot = Path.Combine(temp.Path, "global");
+        WritePrompt(appBase, "default", "Default Built-in", "built-in-system", "Built-in body.", "Built-in description.");
+        WritePrompt(
+            globalRoot,
+            "default",
+            name: null,
+            system: "default",
+            body: "Global appended body.",
+            description: null,
+            frontmatterLines: ["mode: append"]);
+
+        var catalog = new AgentPromptCatalog(new FileSystemPromptContentLocator(appBase));
+        var allPrompts = catalog.ListPrompts(new AgentPromptCatalogQuery
+        {
+            UserCodeAltaRoot = globalRoot,
+        });
+        var effectiveDefault = catalog.ResolvePrompt(
+            new AgentPromptCatalogQuery
+            {
+                UserCodeAltaRoot = globalRoot,
+            },
+            "default");
+
+        Assert.IsNotNull(effectiveDefault);
+        Assert.AreEqual(AgentPromptSourceKind.UserGlobal, effectiveDefault.SourceKind);
+        Assert.AreEqual(PromptCompositionMode.Append, effectiveDefault.Mode);
+        Assert.AreEqual("Default Built-in", effectiveDefault.DisplayName);
+        Assert.AreEqual("Built-in description.", effectiveDefault.Description);
+        Assert.AreEqual("built-in-system", effectiveDefault.SystemPromptName);
+        Assert.AreEqual($"Built-in body.{Environment.NewLine}{Environment.NewLine}Global appended body.", effectiveDefault.Body);
+        Assert.IsFalse(allPrompts.Single(prompt => prompt.SourceKind == AgentPromptSourceKind.BuiltIn).IsShadowed);
+        Assert.IsFalse(allPrompts.Single(prompt => prompt.SourceKind == AgentPromptSourceKind.UserGlobal).IsShadowed);
+    }
+
+    [TestMethod]
     public void SystemPromptBuilder_UsesSelectedAgentPromptBodyAndSystemProperty()
     {
         using var temp = TempDirectory.Create();
@@ -169,6 +208,72 @@ public sealed class SystemPromptInfrastructureTests
     }
 
     [TestMethod]
+    public void SystemPromptBuilder_AppendsSystemAndAgentPromptResources()
+    {
+        using var temp = TempDirectory.Create();
+        var appBase = Path.Combine(temp.Path, "app");
+        var globalRoot = Path.Combine(temp.Path, "global");
+        var projectRoot = Path.Combine(temp.Path, "project");
+        Directory.CreateDirectory(projectRoot);
+        WriteSystem(appBase, "default", "Built-in default system.");
+        WriteSystem(globalRoot, "default", "Global system addition.", ["mode: append"]);
+        WriteSystem(projectRoot, "default", "Project system addition.", ["append: true"]);
+        WritePrompt(appBase, "default", "Default", "default", "Built-in default prompt.");
+        WritePrompt(
+            globalRoot,
+            "default",
+            name: null,
+            system: "default",
+            body: "Global agent addition.",
+            frontmatterLines: ["mode: append", "skills: false"]);
+        WritePrompt(
+            projectRoot,
+            "default",
+            name: null,
+            system: "default",
+            body: "Project agent addition.",
+            frontmatterLines: ["append: true", "tool_guidance: false"]);
+
+        var builder = new SystemPromptBuilder(new FileSystemPromptContentLocator(appBase));
+        var bundle = builder.Build(new SystemPromptBuildRequest
+        {
+            ProviderKey = "codex",
+            ProviderType = "codex",
+            ProtocolFamily = "codex",
+            Session = new SessionViewDescriptor
+            {
+                SessionId = "session-1",
+                ProviderId = "codex",
+                ProviderKey = "codex",
+                WorkingDirectory = projectRoot,
+                Kind = SessionViewKind.ProjectSession,
+            },
+            Project = new ProjectDescriptor
+            {
+                Id = "project-1",
+                Slug = "project-1",
+                DisplayName = "Project 1",
+                ProjectPath = projectRoot,
+            },
+            UserCodeAltaRoot = globalRoot,
+            SelectedPromptName = "default",
+            AvailableSkillsMarkdown = "Available skill guidance.",
+        });
+
+        var newline = Environment.NewLine;
+        Assert.AreEqual($"Built-in default system.{newline}{newline}Global system addition.{newline}{newline}Project system addition.", bundle.SystemMessage);
+        StringAssert.Contains(bundle.DeveloperInstructions!, $"Built-in default prompt.{newline}{newline}Global agent addition.{newline}{newline}Project agent addition.");
+        Assert.IsFalse(bundle.DeveloperInstructions!.Contains("# Available Skills", StringComparison.Ordinal));
+        Assert.IsFalse(bundle.DeveloperInstructions!.Contains("# Tool Guidance", StringComparison.Ordinal));
+        Assert.IsFalse(bundle.Manifest.Composition.PartOptions.Skills);
+        Assert.IsFalse(bundle.Manifest.Composition.PartOptions.ToolGuidance);
+        Assert.AreEqual(1, bundle.Manifest.Parts.Count(part => part.Key == "system/default" && part.Status == "selected"));
+        Assert.AreEqual(2, bundle.Manifest.Parts.Count(part => part.Key == "system/default" && part.Status == "appended"));
+        Assert.AreEqual(1, bundle.Manifest.Parts.Count(part => part.Key == "agents/default" && part.Status == "selected"));
+        Assert.AreEqual(2, bundle.Manifest.Parts.Count(part => part.Key == "agents/default" && part.Status == "appended"));
+    }
+
+    [TestMethod]
     public void SystemPromptBuilder_ListsEffectiveAgentPromptsWithoutSensitiveMetadata()
     {
         using var temp = TempDirectory.Create();
@@ -229,21 +334,31 @@ public sealed class SystemPromptInfrastructureTests
         Assert.IsTrue(bundle.Manifest.Parts.Any(static part => part.Key == "prompt.discovery" && part.Kind == "agent_prompts" && part.Status == "selected"));
     }
 
-    private static void WriteSystem(string root, string id, string body)
+    private static void WriteSystem(string root, string id, string body, IReadOnlyList<string>? frontmatterLines = null)
     {
-        var directory = root.EndsWith("project", StringComparison.OrdinalIgnoreCase)
-            ? Path.Combine(root, ".alta", "prompts", "system")
-            : Path.Combine(root, "content", "prompts", "system");
+        var directory = root.EndsWith("app", StringComparison.OrdinalIgnoreCase)
+            ? Path.Combine(root, "content", "prompts", "system")
+            : root.EndsWith("project", StringComparison.OrdinalIgnoreCase)
+                ? Path.Combine(root, ".alta", "prompts", "system")
+                : Path.Combine(root, "prompts", "system");
         Directory.CreateDirectory(directory);
-        File.WriteAllText(Path.Combine(directory, id + ".system-prompt.md"), $"""
-            ---
-            description: Test system prompt.
-            ---
-            {body}
-            """);
+        var builder = new StringWriter();
+        builder.WriteLine("---");
+        builder.WriteLine("description: Test system prompt.");
+        if (frontmatterLines is not null)
+        {
+            foreach (var line in frontmatterLines)
+            {
+                builder.WriteLine(line);
+            }
+        }
+
+        builder.WriteLine("---");
+        builder.WriteLine(body);
+        File.WriteAllText(Path.Combine(directory, id + ".system-prompt.md"), builder.ToString());
     }
 
-    private static void WritePrompt(string root, string id, string name, string system, string body, string description = "Test agent prompt.", IReadOnlyList<string>? frontmatterLines = null)
+    private static void WritePrompt(string root, string id, string? name, string system, string body, string? description = "Test agent prompt.", IReadOnlyList<string>? frontmatterLines = null)
     {
         var directory = root.EndsWith("app", StringComparison.OrdinalIgnoreCase)
             ? Path.Combine(root, "content", "prompts", "agents")
@@ -253,13 +368,21 @@ public sealed class SystemPromptInfrastructureTests
         Directory.CreateDirectory(directory);
         var builder = new StringWriter();
         builder.WriteLine("---");
-        builder.WriteLine("name: " + name);
+        if (name is not null)
+        {
+            builder.WriteLine("name: " + name);
+        }
+
         if (!string.Equals(system, "default", StringComparison.OrdinalIgnoreCase))
         {
             builder.WriteLine("system: " + system);
         }
 
-        builder.WriteLine("description: " + description);
+        if (description is not null)
+        {
+            builder.WriteLine("description: " + description);
+        }
+
         if (frontmatterLines is not null)
         {
             foreach (var line in frontmatterLines)

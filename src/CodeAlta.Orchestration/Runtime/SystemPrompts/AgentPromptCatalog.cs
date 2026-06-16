@@ -33,7 +33,7 @@ public sealed class AgentPromptCatalog
         ArgumentNullException.ThrowIfNull(query);
         var roots = ResolveRoots(query);
         var prompts = EnumeratePromptRoots(roots)
-            .SelectMany(static root => LoadPrompts(root))
+            .SelectMany(static root => LoadAgentPromptResources(root))
             .OrderBy(static prompt => prompt.Precedence)
             .ThenBy(static prompt => prompt.PromptName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(static prompt => prompt.SourcePath, StringComparer.OrdinalIgnoreCase)
@@ -41,23 +41,16 @@ public sealed class AgentPromptCatalog
 
         if (prompts.Length == 0)
         {
-            return prompts;
+            return [];
         }
 
-        var effectiveByName = prompts
-            .GroupBy(static prompt => prompt.PromptName, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(
-                static group => group.Key,
-                static group => group.OrderBy(static prompt => prompt.Precedence).Last(),
-                StringComparer.OrdinalIgnoreCase);
+        var shadowedByPath = BuildShadowedPathMap(prompts);
 
         return prompts
             .Select(prompt =>
             {
-                var effective = effectiveByName[prompt.PromptName];
-                return ReferenceEquals(prompt, effective)
-                    ? prompt
-                    : prompt with { IsShadowed = true, ShadowedByPath = effective.SourcePath };
+                var isShadowed = shadowedByPath.TryGetValue(prompt.SourcePath, out var shadowedBy);
+                return ToDescriptor(prompt, isShadowed, shadowedBy);
             })
             .ToArray();
     }
@@ -73,7 +66,7 @@ public sealed class AgentPromptCatalog
         ArgumentNullException.ThrowIfNull(query);
         var roots = ResolveRoots(query);
         var prompts = EnumerateSystemPromptRoots(roots)
-            .SelectMany(static root => LoadSystemPrompts(root))
+            .SelectMany(static root => LoadSystemPromptResources(root))
             .OrderBy(static prompt => prompt.Precedence)
             .ThenBy(static prompt => prompt.PromptName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(static prompt => prompt.SourcePath, StringComparer.OrdinalIgnoreCase)
@@ -81,23 +74,16 @@ public sealed class AgentPromptCatalog
 
         if (prompts.Length == 0)
         {
-            return prompts;
+            return [];
         }
 
-        var effectiveByName = prompts
-            .GroupBy(static prompt => prompt.PromptName, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(
-                static group => group.Key,
-                static group => group.OrderBy(static prompt => prompt.Precedence).Last(),
-                StringComparer.OrdinalIgnoreCase);
+        var shadowedByPath = BuildShadowedPathMap(prompts);
 
         return prompts
             .Select(prompt =>
             {
-                var effective = effectiveByName[prompt.PromptName];
-                return ReferenceEquals(prompt, effective)
-                    ? prompt
-                    : prompt with { IsShadowed = true, ShadowedByPath = effective.SourcePath };
+                var isShadowed = shadowedByPath.TryGetValue(prompt.SourcePath, out var shadowedBy);
+                return ToDescriptor(prompt, isShadowed, shadowedBy);
             })
             .ToArray();
     }
@@ -111,8 +97,11 @@ public sealed class AgentPromptCatalog
     public IReadOnlyList<AgentPromptDescriptor> ListEffectivePrompts(AgentPromptCatalogQuery query)
     {
         ArgumentNullException.ThrowIfNull(query);
-        return ListPrompts(query)
-            .Where(static prompt => !prompt.IsShadowed)
+        var roots = ResolveRoots(query);
+        return EnumeratePromptRoots(roots)
+            .SelectMany(static root => LoadAgentPromptResources(root))
+            .GroupBy(static prompt => prompt.PromptName, StringComparer.OrdinalIgnoreCase)
+            .Select(static group => ComposeEffectivePrompt(group))
             .OrderBy(static prompt => prompt.Precedence)
             .ThenBy(static prompt => prompt.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(static prompt => prompt.PromptName, StringComparer.OrdinalIgnoreCase)
@@ -235,7 +224,7 @@ public sealed class AgentPromptCatalog
         }
     }
 
-    private static IEnumerable<AgentPromptDescriptor> LoadPrompts(GlobalPromptRoot root)
+    private static IEnumerable<LoadedAgentPromptResource> LoadAgentPromptResources(GlobalPromptRoot root)
     {
         foreach (var path in Directory.EnumerateFiles(root.Path, "*.prompt.md", SearchOption.TopDirectoryOnly))
         {
@@ -246,7 +235,7 @@ public sealed class AgentPromptCatalog
         }
     }
 
-    private static IEnumerable<SystemPromptDescriptor> LoadSystemPrompts(GlobalPromptRoot root)
+    private static IEnumerable<LoadedSystemPromptResource> LoadSystemPromptResources(GlobalPromptRoot root)
     {
         foreach (var path in Directory.EnumerateFiles(root.Path, "*.system-prompt.md", SearchOption.TopDirectoryOnly))
         {
@@ -257,7 +246,7 @@ public sealed class AgentPromptCatalog
         }
     }
 
-    private static bool TryLoadPrompt(GlobalPromptRoot root, string path, out AgentPromptDescriptor descriptor)
+    private static bool TryLoadPrompt(GlobalPromptRoot root, string path, out LoadedAgentPromptResource descriptor)
     {
         descriptor = null!;
         string text;
@@ -271,8 +260,14 @@ public sealed class AgentPromptCatalog
         }
 
         var (frontmatter, body) = SplitFrontmatter(text);
+        var mode = ParseCompositionMode(frontmatter);
+        if (mode is null)
+        {
+            return false;
+        }
+
         var displayName = NormalizeRequiredText(frontmatter.GetValueOrDefault("name"));
-        if (displayName is null || string.IsNullOrWhiteSpace(body))
+        if ((displayName is null && mode == PromptCompositionMode.Replace) || string.IsNullOrWhiteSpace(body))
         {
             return false;
         }
@@ -287,9 +282,9 @@ public sealed class AgentPromptCatalog
             return false;
         }
 
-        var systemPromptName = NormalizePromptName(frontmatter.GetValueOrDefault("system")) ?? DefaultPromptName;
+        var systemPromptName = NormalizePromptName(frontmatter.GetValueOrDefault("system"));
         var trimmedBody = body.Trim();
-        descriptor = new AgentPromptDescriptor(
+        descriptor = new LoadedAgentPromptResource(
             PromptName: normalizedPromptName,
             DisplayName: displayName,
             Description: NormalizeOptionalText(frontmatter.GetValueOrDefault("description")),
@@ -299,12 +294,11 @@ public sealed class AgentPromptCatalog
             Precedence: root.Precedence,
             SourcePath: Path.GetFullPath(path),
             ContentHash: HashText(trimmedBody),
-            IsShadowed: false,
-            ShadowedByPath: null);
+            Mode: mode.Value);
         return true;
     }
 
-    private static bool TryLoadSystemPrompt(GlobalPromptRoot root, string path, out SystemPromptDescriptor descriptor)
+    private static bool TryLoadSystemPrompt(GlobalPromptRoot root, string path, out LoadedSystemPromptResource descriptor)
     {
         descriptor = null!;
         string text;
@@ -317,7 +311,13 @@ public sealed class AgentPromptCatalog
             return false;
         }
 
-        var (_, body) = SplitFrontmatter(text);
+        var (frontmatter, body) = SplitFrontmatter(text);
+        var mode = ParseCompositionMode(frontmatter);
+        if (mode is null)
+        {
+            return false;
+        }
+
         var promptName = Path.GetFileName(path);
         promptName = promptName.EndsWith(".system-prompt.md", StringComparison.OrdinalIgnoreCase)
             ? promptName[..^".system-prompt.md".Length]
@@ -329,17 +329,172 @@ public sealed class AgentPromptCatalog
             return false;
         }
 
-        descriptor = new SystemPromptDescriptor(
+        descriptor = new LoadedSystemPromptResource(
             PromptName: normalizedPromptName,
             Body: trimmedBody,
             SourceKind: root.SourceKind,
             Precedence: root.Precedence,
             SourcePath: Path.GetFullPath(path),
             ContentHash: HashText(trimmedBody),
-            IsShadowed: false,
-            ShadowedByPath: null);
+            Mode: mode.Value);
         return true;
     }
+
+    private static AgentPromptDescriptor ComposeEffectivePrompt(IEnumerable<LoadedAgentPromptResource> group)
+    {
+        var ordered = group
+            .OrderBy(static prompt => prompt.Precedence)
+            .ThenBy(static prompt => prompt.SourcePath, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var chainStart = FindCompositionChainStart(ordered);
+        var applied = ordered[chainStart..];
+        var top = applied[^1];
+        var body = JoinPromptBodies(applied.Select(static prompt => prompt.Body));
+        var displayName = LastNonBlank(applied.Select(static prompt => prompt.DisplayName)) ?? top.PromptName;
+        var description = LastNonBlank(applied.Select(static prompt => prompt.Description));
+        var systemPromptName = LastNonBlank(applied.Select(static prompt => prompt.SystemPromptName)) ?? DefaultPromptName;
+        return new AgentPromptDescriptor(
+            PromptName: top.PromptName,
+            DisplayName: displayName,
+            Description: description,
+            SystemPromptName: systemPromptName,
+            Body: body,
+            SourceKind: top.SourceKind,
+            Precedence: top.Precedence,
+            SourcePath: top.SourcePath,
+            ContentHash: HashText(body),
+            Mode: top.Mode,
+            IsShadowed: false,
+            ShadowedByPath: null);
+    }
+
+    private static AgentPromptDescriptor ToDescriptor(LoadedAgentPromptResource prompt, bool isShadowed, string? shadowedByPath)
+        => new(
+            PromptName: prompt.PromptName,
+            DisplayName: prompt.DisplayName ?? prompt.PromptName,
+            Description: prompt.Description,
+            SystemPromptName: prompt.SystemPromptName ?? DefaultPromptName,
+            Body: prompt.Body,
+            SourceKind: prompt.SourceKind,
+            Precedence: prompt.Precedence,
+            SourcePath: prompt.SourcePath,
+            ContentHash: prompt.ContentHash,
+            Mode: prompt.Mode,
+            IsShadowed: isShadowed,
+            ShadowedByPath: shadowedByPath);
+
+    private static SystemPromptDescriptor ToDescriptor(LoadedSystemPromptResource prompt, bool isShadowed, string? shadowedByPath)
+        => new(
+            PromptName: prompt.PromptName,
+            Body: prompt.Body,
+            SourceKind: prompt.SourceKind,
+            Precedence: prompt.Precedence,
+            SourcePath: prompt.SourcePath,
+            ContentHash: prompt.ContentHash,
+            Mode: prompt.Mode,
+            IsShadowed: isShadowed,
+            ShadowedByPath: shadowedByPath);
+
+    private static Dictionary<string, string?> BuildShadowedPathMap<TPrompt>(IReadOnlyList<TPrompt> prompts)
+        where TPrompt : ILoadedPromptResource
+    {
+        var shadowedByPath = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var group in prompts.GroupBy(static prompt => prompt.PromptName, StringComparer.OrdinalIgnoreCase))
+        {
+            var ordered = group
+                .OrderBy(static prompt => prompt.Precedence)
+                .ThenBy(static prompt => prompt.SourcePath, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            var chainStart = FindCompositionChainStart(ordered);
+            if (chainStart <= 0)
+            {
+                continue;
+            }
+
+            var shadowedBy = ordered[chainStart].SourcePath;
+            foreach (var prompt in ordered.Take(chainStart))
+            {
+                shadowedByPath[prompt.SourcePath] = shadowedBy;
+            }
+        }
+
+        return shadowedByPath;
+    }
+
+    private static int FindCompositionChainStart<TPrompt>(IReadOnlyList<TPrompt> prompts)
+        where TPrompt : ILoadedPromptResource
+    {
+        for (var index = prompts.Count - 1; index >= 0; index--)
+        {
+            if (prompts[index].Mode == PromptCompositionMode.Replace)
+            {
+                return index;
+            }
+        }
+
+        return 0;
+    }
+
+    private static PromptCompositionMode? ParseCompositionMode(IReadOnlyDictionary<string, string> frontmatter)
+    {
+        bool? appendFlag = null;
+        if (frontmatter.TryGetValue("append", out var appendValue))
+        {
+            if (!bool.TryParse(appendValue, out var append))
+            {
+                return null;
+            }
+
+            appendFlag = append;
+        }
+
+        PromptCompositionMode? mode = null;
+        if (frontmatter.TryGetValue("mode", out var modeValue))
+        {
+            mode = NormalizeOptionalText(modeValue)?.ToLowerInvariant() switch
+            {
+                null or "replace" => PromptCompositionMode.Replace,
+                "append" => PromptCompositionMode.Append,
+                _ => null,
+            };
+            if (mode is null)
+            {
+                return null;
+            }
+        }
+
+        if (appendFlag is not null && mode is not null && appendFlag.Value != (mode.Value == PromptCompositionMode.Append))
+        {
+            return null;
+        }
+
+        return mode ?? (appendFlag == true ? PromptCompositionMode.Append : PromptCompositionMode.Replace);
+    }
+
+    private static string JoinPromptBodies(IEnumerable<string> bodies)
+    {
+        var builder = new StringBuilder();
+        foreach (var body in bodies)
+        {
+            var trimmed = body.Trim();
+            if (trimmed.Length == 0)
+            {
+                continue;
+            }
+
+            if (builder.Length > 0)
+            {
+                builder.AppendLine().AppendLine();
+            }
+
+            builder.Append(trimmed);
+        }
+
+        return builder.ToString();
+    }
+
+    private static string? LastNonBlank(IEnumerable<string?> values)
+        => values.LastOrDefault(static value => !string.IsNullOrWhiteSpace(value))?.Trim();
 
     private static (Dictionary<string, string> Frontmatter, string Body) SplitFrontmatter(string text)
     {
@@ -401,6 +556,36 @@ public sealed class AgentPromptCatalog
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private sealed record GlobalPromptRoot(AgentPromptSourceKind SourceKind, int Precedence, string Path);
+
+    private interface ILoadedPromptResource
+    {
+        string PromptName { get; }
+        AgentPromptSourceKind SourceKind { get; }
+        int Precedence { get; }
+        string SourcePath { get; }
+        PromptCompositionMode Mode { get; }
+    }
+
+    private sealed record LoadedAgentPromptResource(
+        string PromptName,
+        string? DisplayName,
+        string? Description,
+        string? SystemPromptName,
+        string Body,
+        AgentPromptSourceKind SourceKind,
+        int Precedence,
+        string SourcePath,
+        string ContentHash,
+        PromptCompositionMode Mode) : ILoadedPromptResource;
+
+    private sealed record LoadedSystemPromptResource(
+        string PromptName,
+        string Body,
+        AgentPromptSourceKind SourceKind,
+        int Precedence,
+        string SourcePath,
+        string ContentHash,
+        PromptCompositionMode Mode) : ILoadedPromptResource;
 }
 
 /// <summary>
@@ -440,6 +625,18 @@ public enum AgentPromptSourceKind
 }
 
 /// <summary>
+/// Describes how a prompt file composes with lower-precedence files that have the same prompt id.
+/// </summary>
+public enum PromptCompositionMode
+{
+    /// <summary>The prompt file replaces lower-precedence files with the same id.</summary>
+    Replace,
+
+    /// <summary>The prompt file appends its body to the nearest lower-precedence replacement chain with the same id.</summary>
+    Append,
+}
+
+/// <summary>
 /// Describes a discovered agent prompt resource.
 /// </summary>
 /// <param name="PromptName">The file-derived prompt identifier.</param>
@@ -448,9 +645,10 @@ public enum AgentPromptSourceKind
 /// <param name="SystemPromptName">The system prompt selected by this agent prompt.</param>
 /// <param name="Body">The prompt body.</param>
 /// <param name="SourceKind">The prompt source kind.</param>
-/// <param name="Precedence">The source precedence where larger values override smaller values.</param>
+/// <param name="Precedence">The source precedence where larger values compose after smaller values and replace them by default.</param>
 /// <param name="SourcePath">The absolute source file path.</param>
 /// <param name="ContentHash">The SHA-256 content hash.</param>
+/// <param name="Mode">How the prompt file composes with lower-precedence files with the same id.</param>
 /// <param name="IsShadowed">Whether a higher-precedence prompt with the same name overrides this prompt.</param>
 /// <param name="ShadowedByPath">The overriding prompt path, when shadowed.</param>
 public sealed record AgentPromptDescriptor(
@@ -463,6 +661,7 @@ public sealed record AgentPromptDescriptor(
     int Precedence,
     string SourcePath,
     string ContentHash,
+    PromptCompositionMode Mode,
     bool IsShadowed,
     string? ShadowedByPath)
 {
@@ -476,9 +675,10 @@ public sealed record AgentPromptDescriptor(
 /// <param name="PromptName">The file-derived system prompt identifier.</param>
 /// <param name="Body">The system prompt body.</param>
 /// <param name="SourceKind">The prompt source kind.</param>
-/// <param name="Precedence">The source precedence where larger values override smaller values.</param>
+/// <param name="Precedence">The source precedence where larger values compose after smaller values and replace them by default.</param>
 /// <param name="SourcePath">The absolute source file path.</param>
 /// <param name="ContentHash">The SHA-256 content hash.</param>
+/// <param name="Mode">How the system prompt file composes with lower-precedence files with the same id.</param>
 /// <param name="IsShadowed">Whether a higher-precedence system prompt with the same name overrides this prompt.</param>
 /// <param name="ShadowedByPath">The overriding prompt path, when shadowed.</param>
 public sealed record SystemPromptDescriptor(
@@ -488,6 +688,7 @@ public sealed record SystemPromptDescriptor(
     int Precedence,
     string SourcePath,
     string ContentHash,
+    PromptCompositionMode Mode,
     bool IsShadowed,
     string? ShadowedByPath)
 {

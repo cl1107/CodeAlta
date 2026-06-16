@@ -991,7 +991,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         group.Add(CreatePromptEditCommand(context));
         AddHelpText(
             group,
-            "Agent prompts live under prompts/agents/*.prompt.md and can choose a system prompt. System prompts live under prompts/system/*.system-prompt.md.",
+            "Agent prompts live under prompts/agents/*.prompt.md and can choose a system prompt. System prompts live under prompts/system/*.system-prompt.md. Same-id files replace lower-precedence prompts by default; frontmatter `mode: append` appends instead.",
             "Default target is agent prompts; add `--system` for system prompts. `--scope` accepts global, project, builtin, or all and defaults to all.",
             "LLM workflow: run `alta prompt list` to find an agent prompt-id, optionally `alta prompt show <prompt-id>`, then use it with `alta session set_agent --prompt-id <prompt-id>` or one send via `alta session send <session-id> --prompt-id <prompt-id> ...`.",
             "Examples:",
@@ -3766,6 +3766,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
     {
         var record = CreatePromptRecord(context, prompt.PromptName, prompt.DisplayName, prompt.Description, "agent", prompt.SourceKind, prompt.SourcePath, prompt.ContentHash, prompt.IsShadowed, prompt.ShadowedByPath);
         record["systemPromptId"] = prompt.SystemPromptName;
+        record["mode"] = ToPromptCompositionModeLabel(prompt.Mode);
         if (includeContent)
         {
             record["content"] = prompt.Body;
@@ -3778,6 +3779,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
     {
         var metadata = ReadPromptMetadata(prompt.SourcePath);
         var record = CreatePromptRecord(context, prompt.PromptName, metadata.Name ?? prompt.PromptName, metadata.Description, "system", prompt.SourceKind, prompt.SourcePath, prompt.ContentHash, prompt.IsShadowed, prompt.ShadowedByPath);
+        record["mode"] = ToPromptCompositionModeLabel(prompt.Mode);
         if (includeContent)
         {
             record["content"] = prompt.Body;
@@ -3971,6 +3973,9 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             AgentPromptSourceKind.Project => "project",
             _ => sourceKind.ToString(),
         };
+
+    private static string ToPromptCompositionModeLabel(PromptCompositionMode mode)
+        => mode == PromptCompositionMode.Append ? "append" : "replace";
 
     private static string ToPromptScopeLabel(AgentPromptSourceKind sourceKind)
         => sourceKind switch

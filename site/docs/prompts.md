@@ -87,7 +87,7 @@ The selected agent prompt is the entry point for composition: its body becomes d
     <path class="ca-arrow" d="M795 350 C795 385 710 397 650 397" />
     <path class="ca-arrow" d="M755 154 C755 236 650 330 565 378" />
   </svg>
-  <figcaption class="small text-secondary mt-2">Composition is file-backed and deterministic. Project-local prompt files can override global and built-in files; the selected agent prompt then decides which system prompt and generated sections are included for that session.</figcaption>
+  <figcaption class="small text-secondary mt-2">Composition is file-backed and deterministic. Project-local prompt files can replace or append to global and built-in files; the selected agent prompt then decides which system prompt and generated sections are included for that session.</figcaption>
 </figure>
 
 In the model request, the system prompt is sent as the system message. The agent prompt body and enabled generated sections are combined as developer instructions, while the user's actual request and attachments remain the user message.
@@ -144,10 +144,12 @@ prompts/
     reviewer.prompt.md
 ```
 
-If multiple roots contain the same prompt or system id, the later source overrides the earlier one: project overrides global, and global overrides built-in. This lets you keep a global `reviewer` prompt while giving one repository a stricter project-local `reviewer.prompt.md`.
+If multiple roots contain the same prompt or system id, the later source replaces the earlier one by default: project replaces global, and global replaces built-in. This lets you keep a global `reviewer` prompt while giving one repository a stricter project-local `reviewer.prompt.md`.
+
+When you only want to add local instructions to an existing prompt, set `mode: append` (or `append: true`) in frontmatter. CodeAlta then appends that file's body after the nearest lower-precedence replacement chain instead of replacing it. Multiple append files stack in precedence order.
 
 > [!NOTE]
-> Prompt ids come from file names. For example, `reviewer.prompt.md` creates or overrides the agent prompt id `reviewer`, and `team-release.system-prompt.md` creates or overrides the system prompt id `team-release`.
+> Prompt ids come from file names. For example, `reviewer.prompt.md` creates, replaces, or appends to the agent prompt id `reviewer`, and `team-release.system-prompt.md` creates, replaces, or appends to the system prompt id `team-release`.
 
 ## Create a custom agent prompt
 
@@ -184,20 +186,34 @@ verification gaps.
 
 ## Agent prompt frontmatter and composition
 
-Agent prompt frontmatter is the user-facing entry point for prompt composition. The file name selects the agent prompt id, the prompt's `system` field selects the system prompt id, and optional boolean fields override which generated context sections CodeAlta includes. In other words, you normally activate a custom system prompt by editing or creating an agent prompt that points at it, then selecting that agent prompt for the session.
+Agent prompt frontmatter is the user-facing entry point for prompt composition. The file name selects the agent prompt id, the prompt's `system` field selects the system prompt id, `mode` controls replacement versus append behavior, and optional boolean fields override which generated context sections CodeAlta includes. In other words, you normally activate a custom system prompt by editing or creating an agent prompt that points at it, then selecting that agent prompt for the session.
 
 {.table}
 | Field | Required? | Use it for |
 |---|---:|---|
-| `name` | Yes | Display name in the prompt selector. |
+| `name` | Yes for replace; inherited for append | Display name in the prompt selector. |
 | `description` | No | Short decision-useful summary shown to agents and users. |
 | `system` | No | System prompt id from `prompts/system/<id>.system-prompt.md`; defaults to `default` when omitted. |
+| `mode` | No | `append` to add this prompt body to the lower-precedence prompt with the same id; omit or use `replace` for the default replacement behavior. |
+| `append` | No | Boolean alias for `mode: append`; prefer `mode` for new prompt files. |
 | `skills` | No | Include available/active skill guidance. |
 | `project_context` | No | Include repository instruction files such as `AGENTS.md`. |
 | `runtime_context` | No | Include current date, platform, working directory, project root, and session kind. |
 | `tool_guidance` | No | Include generated host-tool guidance and available agent-prompt discovery. |
 
-Do not restate defaults in every prompt. When the boolean fields are omitted, CodeAlta uses its normal defaults, which currently include all generated sections when content is available. Add a boolean only when a workflow intentionally needs a different composition.
+Do not restate defaults in every prompt. When generated-section boolean fields are omitted, CodeAlta uses its normal defaults, which currently include all generated sections when content is available. Add one of those booleans only when a workflow intentionally needs a different composition.
+
+For example, a project can add repository-specific rules to the built-in `default` agent prompt without copying the whole file:
+
+```markdown
+---
+mode: append
+---
+For this repository, run `dotnet test -c Release` before reporting success
+when C# runtime code changes.
+```
+
+Appended agent prompts inherit lower-precedence metadata such as `name`, `description`, `system`, and generated-section settings unless the appended file sets those fields. For example, an appended prompt can still set `tool_guidance: false` if the local addition intentionally changes composition.
 
 For example, if you create `prompts/system/team-release.system-prompt.md`, reference it from an agent prompt with `system: team-release`:
 
@@ -244,7 +260,7 @@ For advanced workflows, the body can mention CodeAlta live-tool capabilities the
 
 Use the **Agent:** selector below the prompt editor to choose the prompt for the current draft/session. Built-in prompts appear first, followed by global prompts and project prompts.
 
-The prompt manager lists built-in, global, and project prompts, shows shadowed overrides, and lets you create, edit, save, or delete global/project prompt files. Built-in prompt and system prompt files are visible for inspection but read-only; create a global or project file with the same id to override one.
+The prompt manager lists built-in, global, and project prompts, shows shadowed replacements, and lets you create, edit, save, or delete global/project prompt files. Built-in prompt and system prompt files are visible for inspection but read-only; create a global or project file with the same id to replace or append to one.
 
 Agents can also use the `prompt` and `session` live-tool command groups internally when you ask for prompt automation. For example, you can ask:
 
@@ -264,7 +280,7 @@ Switch this session to the reviewer prompt for the next turn.
 
 Those are user prompts, not terminal commands. CodeAlta-managed agents translate them into the appropriate prompt/session operations when available.
 
-## Default and project-specific overrides
+## Default and project-specific overrides or extensions
 
 A project prompt can specialize a global workflow without changing other repositories. Common examples:
 
@@ -280,14 +296,23 @@ A project prompt can specialize a global workflow without changing other reposit
 
 System prompt files carry host-level behavior and should be short, stable, and explicit. Agent prompts are better for workflow-specific session behavior.
 
+System prompts support the same `mode: append` / `append: true` frontmatter as agent prompts. This is useful for global or project-local additions to `default.system-prompt.md` without copying CodeAlta's full built-in system prompt:
+
+```markdown
+---
+mode: append
+---
+Always mention this team's release freeze window before proposing publish steps.
+```
+
 Use the agent prompt `system` frontmatter field when a workflow needs a custom system prompt. The value is the system prompt id, not the full path: for `prompts/system/team-release.system-prompt.md`, write `system: team-release` in the agent prompt frontmatter, then select that agent prompt for the session.
 
 The activation flow is:
 
-1. Create or override a system prompt, for example `prompts/system/team-release.system-prompt.md`.
+1. Create, replace, or append a system prompt, for example `prompts/system/team-release.system-prompt.md`.
 2. Create or edit an agent prompt and set its **System Prompt** field (the `system` frontmatter property) to `team-release`.
 3. Select that agent prompt from the **Agent:** selector before sending the prompt.
 
 Keep composition overrides close to the agent prompt that needs them. Disabling generated context such as tool guidance can make advanced prompt workflows less discoverable to the agent, so prefer the default generated sections unless a specific workflow has a clear reason to remove them.
 
-If you want a custom system prompt to affect the built-in **Default** or **Plan** modes, create a global or project agent prompt with the same agent prompt id (`default.prompt.md` or `plan.prompt.md`) and add the `system` field there. Review these overrides carefully because they change every session that uses that mode in the matching scope.
+If you want a custom system prompt to affect the built-in **Default** or **Plan** modes, create a global or project agent prompt with the same agent prompt id (`default.prompt.md` or `plan.prompt.md`) and add the `system` field there. Review these replacements or append extensions carefully because they change every session that uses that mode in the matching scope.
