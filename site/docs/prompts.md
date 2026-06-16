@@ -19,6 +19,79 @@ CodeAlta separates prompt-related instructions into a few layers:
 
 The active agent prompt is included when a session starts or resumes. Its optional `system` property chooses which system prompt id to use; when omitted, CodeAlta uses `default`. Optional composition fields in the agent prompt frontmatter can also turn generated context sections on or off for that workflow.
 
+## Prompt composition at a glance
+
+The selected agent prompt is the entry point for composition: its body becomes developer instructions, and its frontmatter chooses the system prompt plus the generated context sections CodeAlta adds around it.
+
+<figure class="my-4">
+  <svg class="img-fluid rounded-4 shadow" viewBox="0 0 960 430" role="img" aria-labelledby="prompt-composition-title prompt-composition-desc" xmlns="http://www.w3.org/2000/svg">
+    <title id="prompt-composition-title">Prompt composition flow</title>
+    <desc id="prompt-composition-desc">The selected agent prompt references a system prompt and controls generated context such as runtime context, tool guidance, skills, and project context before CodeAlta sends system, developer, and user messages to the model.</desc>
+    <defs>
+      <marker id="composition-arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+        <path d="M0,0 L0,6 L9,3 z" fill="#8ab4f8" />
+      </marker>
+      <style>
+        .ca-bg { fill: #101820; }
+        .ca-card { fill: #17212b; stroke: #51606f; stroke-width: 1.5; }
+        .ca-agent { fill: #19324a; stroke: #8ab4f8; stroke-width: 2; }
+        .ca-output { fill: #1d2d22; stroke: #89d185; stroke-width: 2; }
+        .ca-muted { fill: #21303d; stroke: #51606f; stroke-width: 1.5; }
+        .ca-arrow { stroke: #8ab4f8; stroke-width: 2.4; fill: none; marker-end: url(#composition-arrow); }
+        .ca-text { fill: #eef3f8; font: 600 17px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+        .ca-small { fill: #c7d1dc; font: 13px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+        .ca-label { fill: #9fb3c8; font: 12px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; text-transform: uppercase; letter-spacing: .08em; }
+        .ca-pill { fill: #233447; stroke: #5b7188; stroke-width: 1; }
+      </style>
+    </defs>
+    <rect class="ca-bg" width="960" height="430" rx="24" />
+    <text class="ca-label" x="40" y="45">Prompt resources</text>
+    <rect class="ca-muted" x="40" y="62" width="190" height="92" rx="16" />
+    <text class="ca-text" x="62" y="96">Resource roots</text>
+    <text class="ca-small" x="62" y="122">built-in → global → project</text>
+    <rect class="ca-agent" x="290" y="54" width="270" height="130" rx="18" />
+    <text class="ca-text" x="315" y="88">Selected agent prompt</text>
+    <text class="ca-small" x="315" y="116">agents/&lt;id&gt;.prompt.md</text>
+    <rect class="ca-pill" x="315" y="134" width="100" height="28" rx="14" />
+    <text class="ca-small" x="334" y="153">body</text>
+    <rect class="ca-pill" x="426" y="134" width="106" height="28" rx="14" />
+    <text class="ca-small" x="445" y="153">frontmatter</text>
+    <rect class="ca-card" x="640" y="62" width="230" height="92" rx="16" />
+    <text class="ca-text" x="665" y="96">System prompt</text>
+    <text class="ca-small" x="665" y="122">chosen by system, else default</text>
+    <text class="ca-label" x="40" y="222">Generated context toggles</text>
+    <rect class="ca-card" x="40" y="240" width="190" height="110" rx="16" />
+    <text class="ca-text" x="62" y="271">Runtime context</text>
+    <text class="ca-small" x="62" y="297">date, platform, cwd,</text>
+    <text class="ca-small" x="62" y="317">project root, session kind</text>
+    <rect class="ca-card" x="260" y="240" width="190" height="110" rx="16" />
+    <text class="ca-text" x="282" y="271">Tool guidance</text>
+    <text class="ca-small" x="282" y="297">host tools and</text>
+    <text class="ca-small" x="282" y="317">agent-prompt discovery</text>
+    <rect class="ca-card" x="480" y="240" width="190" height="110" rx="16" />
+    <text class="ca-text" x="502" y="271">Skills</text>
+    <text class="ca-small" x="502" y="297">available and active</text>
+    <text class="ca-small" x="502" y="317">skill guidance</text>
+    <rect class="ca-card" x="700" y="240" width="190" height="110" rx="16" />
+    <text class="ca-text" x="722" y="271">Project context</text>
+    <text class="ca-small" x="722" y="297">AGENTS.md and other</text>
+    <text class="ca-small" x="722" y="317">repository instructions</text>
+    <rect class="ca-output" x="315" y="380" width="330" height="34" rx="17" />
+    <text class="ca-small" x="340" y="402">Model request: system + developer + user messages</text>
+    <path class="ca-arrow" d="M230 108 H286" />
+    <path class="ca-arrow" d="M560 108 H636" />
+    <path class="ca-arrow" d="M425 184 V218" />
+    <path class="ca-arrow" d="M135 350 C135 385 230 397 310 397" />
+    <path class="ca-arrow" d="M355 350 C365 372 395 382 435 382" />
+    <path class="ca-arrow" d="M575 350 C565 372 535 382 505 382" />
+    <path class="ca-arrow" d="M795 350 C795 385 710 397 650 397" />
+    <path class="ca-arrow" d="M755 154 C755 236 650 330 565 378" />
+  </svg>
+  <figcaption class="small text-secondary mt-2">Composition is file-backed and deterministic. Project-local prompt files can override global and built-in files; the selected agent prompt then decides which system prompt and generated sections are included for that session.</figcaption>
+</figure>
+
+In the model request, the system prompt is sent as the system message. The agent prompt body and enabled generated sections are combined as developer instructions, while the user's actual request and attachments remain the user message.
+
 ## Built-in modes
 
 CodeAlta ships two built-in agent prompts:
