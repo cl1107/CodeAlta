@@ -953,6 +953,26 @@ public sealed class AgentToolsTests
     }
 
     [TestMethod]
+    public void AgentToolBridge_CreateOpenAIStrictInputSchema_DropsRequiredNamesWithoutProperties()
+    {
+        using var schema = JsonDocument.Parse(
+            """
+            {
+              "type": "object",
+              "required": ["fields"],
+              "additionalProperties": { "type": "object" }
+            }
+            """);
+
+        var strict = AgentToolBridge.CreateOpenAIStrictInputSchema(schema.RootElement);
+
+        Assert.AreEqual("object", strict.GetProperty("type").GetString());
+        Assert.AreEqual(0, strict.GetProperty("properties").EnumerateObject().Count());
+        Assert.AreEqual(0, strict.GetProperty("required").EnumerateArray().Count());
+        Assert.IsFalse(strict.GetProperty("additionalProperties").GetBoolean());
+    }
+
+    [TestMethod]
     public void CreateDefaultTools_ExposesApplyPatchOnlyForOfficialOpenAIAndCodexSubscriptionProviders()
     {
         using var temp = TestTempDirectory.Create();

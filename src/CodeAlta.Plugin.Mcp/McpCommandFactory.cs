@@ -35,6 +35,7 @@ internal static class McpCommandFactory
 
         command.Add(CreateListCommand(context, options));
         command.Add(CreateStatusCommand(context, options));
+        command.Add(CreateAuthCommand(context, options));
         command.Add(CreateConfigCommand(context, options));
         command.Add(CreateServerCommand(context, options));
         command.Add(CreateToolCommand(context, options));
@@ -42,7 +43,7 @@ internal static class McpCommandFactory
             command,
             "Configuration commands read fixed CodeAlta MCP config paths: project .alta/mcp.json and global ~/.alta/mcp.json.",
             "Tool commands lazily connect to configured stdio and HTTP/SSE MCP servers with bounded startup and tool-call timeouts.",
-            "Examples: `alta mcp list`; `alta mcp tool search`; `alta mcp tool describe --server memory --tool read_graph`; `alta mcp tool call --server memory --tool echo --arguments {\"text\":\"hi\"}`.");
+            "Examples: `alta mcp list`; `alta mcp auth login docs`; `alta mcp tool search`; `alta mcp tool describe --server memory --tool read_graph`; `alta mcp tool call --server memory --tool echo --arguments {\"text\":\"hi\"}`.");
         return command;
     }
 
@@ -119,7 +120,7 @@ internal static class McpCommandFactory
             var snapshot = Discover(context, options);
             foreach (var server in snapshot.EffectiveServers)
             {
-                WriteRecord(context.Stdout, CreateServerRecord("alta.mcp.server", context, server));
+                WriteRecord(context.Stdout, CreateServerRecord("alta.mcp.server", context, server, options.UserHomeDirectory));
             }
 
             return ValueTask.FromResult(0);
@@ -136,7 +137,130 @@ internal static class McpCommandFactory
         AddHelpText(
             command,
             "Tool commands lazily connect to stdio and HTTP/SSE MCP servers, list tools with a bounded startup timeout, and apply MCP policy filters.",
-            "HTTP/SSE servers use headers from MCP JSON config; header values may reference environment variables with ${NAME}. OAuth and interactive auth flows are not implemented.");
+            "HTTP/SSE servers use headers from MCP JSON config; header values may reference environment variables with ${NAME}. For OAuth-enabled servers, run `alta mcp auth login <server>` first when browser authorization is required.");
+        return command;
+    }
+
+    private static Command CreateAuthCommand(PluginAltaCommandContext context, McpCommandFactoryOptions options)
+    {
+        var command = Group("auth", "Manage CodeAlta-owned OAuth browser login tokens for HTTP MCP servers.");
+        command.Add(CreateAuthStatusCommand(context, options));
+        command.Add(CreateAuthLoginCommand(context, options));
+        command.Add(CreateAuthLogoutCommand(context, options));
+        AddHelpText(command, "Examples: `alta mcp auth status`; `alta mcp auth login docs`; `alta mcp auth logout docs`.");
+        return command;
+    }
+
+    private static Command CreateAuthStatusCommand(PluginAltaCommandContext context, McpCommandFactoryOptions options)
+    {
+        string? server = null;
+        var command = Leaf("status", "Show OAuth token cache status for HTTP MCP servers without connecting to them.");
+        command.Add("server=", "Filter by MCP server key.", value => server = value);
+        command.Add((_, _) =>
+        {
+            var snapshot = Discover(context, options);
+            foreach (var effective in snapshot.EffectiveServers.Where(item => string.IsNullOrWhiteSpace(server) || string.Equals(item.Definition.Key, server, StringComparison.Ordinal)))
+            {
+                WriteRecord(context.Stdout, CreateOAuthStatusRecord(context, effective.Definition, options.UserHomeDirectory));
+            }
+
+            return ValueTask.FromResult(0);
+        });
+        return command;
+    }
+
+    private static Command CreateAuthLoginCommand(PluginAltaCommandContext context, McpCommandFactoryOptions options)
+    {
+        string? server = null;
+        var command = Leaf("login", "Open a browser OAuth flow for one HTTP MCP server and cache tokens in CodeAlta plugin state.");
+        command.Add("<server>", "MCP HTTP server key.", value => server = value);
+        command.Add(async (_, _) =>
+        {
+            var serverKey = RequireServerKey(server);
+            var definition = Discover(context, options).EffectiveServers.FirstOrDefault(item => string.Equals(item.Definition.Key, serverKey, StringComparison.Ordinal))?.Definition;
+            if (definition is null)
+            {
+                return WriteError(context, "server_not_found", $"MCP server '{serverKey}' is not configured.");
+            }
+
+            if (definition.Transport != McpTransportKind.Http)
+            {
+                return WriteError(context, "unsupported_transport", $"MCP server '{serverKey}' does not use HTTP/SSE transport; browser OAuth is only available for remote HTTP MCP servers.");
+            }
+
+            await using var runtime = new McpRuntimeService();
+            var result = await runtime.TestServerAsync(
+                CreateRuntimeRequest(context, options) with
+                {
+                    ForceOAuth = true,
+                    AllowOAuthBrowserLogin = true,
+                    OpenOAuthBrowser = true,
+                    OAuthStatus = message => WriteRecord(context.Stdout, new
+                    {
+                        type = "alta.mcp.auth.progress",
+                        version = 1,
+                        correlationId = context.CorrelationId,
+                        server = serverKey,
+                        message,
+                    }),
+                },
+                serverKey,
+                context.CancellationToken).ConfigureAwait(false);
+            foreach (var diagnostic in result.Diagnostics)
+            {
+                WriteRecord(context.Stdout, CreateDiagnosticRecord(context, diagnostic));
+            }
+
+            var succeeded = result.Tools.Count > 0 || result.Diagnostics.Count == 0;
+            WriteRecord(context.Stdout, new
+            {
+                type = "alta.mcp.auth.login",
+                version = 1,
+                correlationId = context.CorrelationId,
+                server = result.Server,
+                status = succeeded ? "succeeded" : "failed",
+                toolCount = result.Tools.Count,
+                completedAt = DateTimeOffset.UtcNow,
+            });
+            return succeeded ? 0 : 1;
+        });
+        AddHelpText(command, "Example: `alta mcp auth login docs`.");
+        return command;
+    }
+
+    private static Command CreateAuthLogoutCommand(PluginAltaCommandContext context, McpCommandFactoryOptions options)
+    {
+        string? server = null;
+        var command = Leaf("logout", "Delete CodeAlta-owned cached OAuth tokens for one HTTP MCP server.");
+        command.Add("<server>", "MCP HTTP server key.", value => server = value);
+        command.Add((_, _) =>
+        {
+            var serverKey = RequireServerKey(server);
+            var definition = Discover(context, options).EffectiveServers.FirstOrDefault(item => string.Equals(item.Definition.Key, serverKey, StringComparison.Ordinal))?.Definition;
+            if (definition is null)
+            {
+                return ValueTask.FromResult(WriteError(context, "server_not_found", $"MCP server '{serverKey}' is not configured."));
+            }
+
+            if (definition.Transport != McpTransportKind.Http)
+            {
+                return ValueTask.FromResult(WriteError(context, "unsupported_transport", $"MCP server '{serverKey}' does not use HTTP/SSE transport; OAuth tokens are only available for remote HTTP MCP servers."));
+            }
+
+            var cache = new McpOAuthTokenCache(McpOAuthTokenCache.GetTokenPath(options.UserHomeDirectory, definition.Key, definition.Url));
+            var existed = cache.Exists;
+            cache.Delete();
+            WriteRecord(context.Stdout, new
+            {
+                type = "alta.mcp.auth.logout",
+                version = 1,
+                correlationId = context.CorrelationId,
+                server = serverKey,
+                removed = existed,
+            });
+            return ValueTask.FromResult(0);
+        });
+        AddHelpText(command, "Example: `alta mcp auth logout docs`.");
         return command;
     }
 
@@ -289,7 +413,7 @@ internal static class McpCommandFactory
 
             foreach (var server in effective)
             {
-                WriteRecord(context.Stdout, CreateServerRecord("alta.mcp.status.server", context, server));
+                WriteRecord(context.Stdout, CreateServerRecord("alta.mcp.status.server", context, server, options.UserHomeDirectory));
             }
 
             return ValueTask.FromResult(0);
@@ -655,9 +779,12 @@ internal static class McpCommandFactory
     private static bool ShouldEmitEffective(McpEffectiveServer effective, string scope)
         => scope == "all" || string.Equals(scope, FormatScope(effective.Definition.SourceScope), StringComparison.OrdinalIgnoreCase);
 
-    private static object CreateServerRecord(string type, PluginAltaCommandContext context, McpEffectiveServer server)
+    private static object CreateServerRecord(string type, PluginAltaCommandContext context, McpEffectiveServer server, string? userHomeDirectory)
     {
         var definition = server.Definition;
+        var tokenStatus = definition.Transport == McpTransportKind.Http
+            ? new McpOAuthTokenCache(McpOAuthTokenCache.GetTokenPath(userHomeDirectory, definition.Key, definition.Url)).GetStatusAsync(definition.Key, CancellationToken.None).GetAwaiter().GetResult()
+            : null;
         return new
         {
             type,
@@ -676,7 +803,30 @@ internal static class McpCommandFactory
             env = definition.Env.Count > 0 ? McpRedactor.RedactDictionary(definition.Env) : null,
             url = definition.Transport == McpTransportKind.Http ? McpRedactor.RedactUrl(definition.Url) : null,
             headers = definition.Headers.Count > 0 ? McpRedactor.RedactDictionary(definition.Headers) : null,
+            oauthConfigured = definition.OAuth?.Enabled == true,
+            oauthTokenCached = tokenStatus?.HasToken,
+            oauthTokenExpiresAt = tokenStatus?.ExpiresAt,
             shadowedGlobalPath = server.ShadowedGlobalDefinition?.SourcePath,
+        };
+    }
+
+    private static object CreateOAuthStatusRecord(PluginAltaCommandContext context, McpServerDefinition definition, string? userHomeDirectory)
+    {
+        var status = definition.Transport == McpTransportKind.Http
+            ? new McpOAuthTokenCache(McpOAuthTokenCache.GetTokenPath(userHomeDirectory, definition.Key, definition.Url)).GetStatusAsync(definition.Key, CancellationToken.None).GetAwaiter().GetResult()
+            : new McpOAuthTokenStatus { Server = definition.Key, HasToken = false };
+        return new
+        {
+            type = "alta.mcp.auth.status",
+            version = 1,
+            correlationId = context.CorrelationId,
+            server = definition.Key,
+            transport = definition.Transport == McpTransportKind.Http ? "http" : "stdio",
+            oauthAvailable = definition.Transport == McpTransportKind.Http,
+            oauthConfigured = definition.OAuth?.Enabled == true,
+            tokenCached = status.HasToken,
+            tokenExpiresAt = status.ExpiresAt,
+            cachePath = status.Path,
         };
     }
 

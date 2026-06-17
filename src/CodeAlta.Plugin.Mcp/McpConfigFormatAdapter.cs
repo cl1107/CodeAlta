@@ -213,6 +213,7 @@ internal static class McpConfigFormatAdapter
             Env = ReadStringDictionary(server, "env"),
             Url = url,
             Headers = ReadStringDictionary(server, "headers"),
+            OAuth = ReadOAuthOptions(server),
         };
     }
 
@@ -240,7 +241,7 @@ internal static class McpConfigFormatAdapter
     private static JsonObject RenderServer(JsonObject node, McpConfigFlavor flavor, McpServerDefinition definition)
     {
         var originalType = GetString(node, "type");
-        RemoveKnownTransportFields(node);
+        RemoveKnownTransportFields(node, removeOAuthFields: definition.Transport == McpTransportKind.Stdio || definition.OAuth is not null);
         if (definition.Transport == McpTransportKind.Stdio)
         {
             node["command"] = definition.Command;
@@ -272,6 +273,11 @@ internal static class McpConfigFormatAdapter
                 node["headers"] = ToJsonObject(definition.Headers);
             }
 
+            if (definition.OAuth is not null)
+            {
+                node["auth"] = RenderOAuthOptions(definition.OAuth);
+            }
+
             if (flavor == McpConfigFlavor.Vscode)
             {
                 node["type"] = string.Equals(originalType, "http", StringComparison.OrdinalIgnoreCase) ? "http" : "sse";
@@ -290,7 +296,7 @@ internal static class McpConfigFormatAdapter
         return node;
     }
 
-    private static void RemoveKnownTransportFields(JsonObject node)
+    private static void RemoveKnownTransportFields(JsonObject node, bool removeOAuthFields)
     {
         node.Remove("command");
         node.Remove("args");
@@ -299,6 +305,11 @@ internal static class McpConfigFormatAdapter
         node.Remove("url");
         node.Remove("headers");
         node.Remove("type");
+        if (removeOAuthFields)
+        {
+            node.Remove("auth");
+            node.Remove("oauth");
+        }
     }
 
     private static bool IsSupportedType(string type)
@@ -365,6 +376,95 @@ internal static class McpConfigFormatAdapter
 
         return values;
     }
+
+    private static McpOAuthOptions? ReadOAuthOptions(JsonObject obj)
+    {
+        var node = obj.TryGetPropertyValue("auth", out var authNode) ? authNode : null;
+        node ??= obj.TryGetPropertyValue("oauth", out var oauthNode) ? oauthNode : null;
+        if (node is null)
+        {
+            return null;
+        }
+
+        if (node is not JsonObject auth)
+        {
+            throw new InvalidDataException("MCP field 'auth' must be an object when present.");
+        }
+
+        var type = GetString(auth, "type");
+        if (!string.IsNullOrWhiteSpace(type) &&
+            !string.Equals(type, "oauth", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(type, "oauth2", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(type, "browser_oauth", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return new McpOAuthOptions
+        {
+            Enabled = GetBool(auth, "enabled") ?? true,
+            ClientId = GetString(auth, "client_id") ?? GetString(auth, "clientId"),
+            ClientSecret = GetString(auth, "client_secret") ?? GetString(auth, "clientSecret"),
+            ClientMetadataDocumentUri = GetString(auth, "client_metadata_document_uri") ?? GetString(auth, "clientMetadataDocumentUri"),
+            RedirectUri = GetString(auth, "redirect_uri") ?? GetString(auth, "redirectUri"),
+            Scopes = ReadOptionalStringArray(auth, "scopes"),
+            DynamicClientRegistration = GetBool(auth, "dynamic_client_registration") ?? GetBool(auth, "dynamicClientRegistration") ?? true,
+        };
+    }
+
+    private static JsonObject RenderOAuthOptions(McpOAuthOptions options)
+    {
+        var auth = new JsonObject
+        {
+            ["type"] = "oauth",
+        };
+        if (!options.Enabled)
+        {
+            auth["enabled"] = false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(options.ClientId))
+        {
+            auth["client_id"] = options.ClientId;
+        }
+
+        if (!string.IsNullOrWhiteSpace(options.ClientSecret))
+        {
+            auth["client_secret"] = options.ClientSecret;
+        }
+
+        if (!string.IsNullOrWhiteSpace(options.ClientMetadataDocumentUri))
+        {
+            auth["client_metadata_document_uri"] = options.ClientMetadataDocumentUri;
+        }
+
+        if (!string.IsNullOrWhiteSpace(options.RedirectUri))
+        {
+            auth["redirect_uri"] = options.RedirectUri;
+        }
+
+        if (options.Scopes.Count > 0)
+        {
+            auth["scopes"] = ToJsonArray(options.Scopes);
+        }
+
+        if (!options.DynamicClientRegistration)
+        {
+            auth["dynamic_client_registration"] = false;
+        }
+
+        return auth;
+    }
+
+    private static bool? GetBool(JsonObject obj, string propertyName)
+        => obj.TryGetPropertyValue(propertyName, out var node) && node is JsonValue value && value.TryGetValue<bool>(out var result)
+            ? result
+            : null;
+
+    private static IReadOnlyList<string> ReadOptionalStringArray(JsonObject obj, string propertyName)
+        => obj.TryGetPropertyValue(propertyName, out var node) && node is not null
+            ? ReadStringArray(obj, propertyName)
+            : [];
 
     private static JsonArray ToJsonArray(IEnumerable<string> values)
     {

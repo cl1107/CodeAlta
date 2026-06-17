@@ -91,6 +91,44 @@ public sealed class McpManagementServiceTests
     }
 
     [TestMethod]
+    public void RefreshSnapshot_ReportsAndDeletesOAuthTokenCacheWithoutMcpConfigMutation()
+    {
+        using var home = TempDirectory.Create();
+        using var project = TempDirectory.Create();
+        Directory.CreateDirectory(Path.Combine(project.Path, ".alta"));
+        var mcpPath = Path.Combine(project.Path, ".alta", "mcp.json");
+        File.WriteAllText(
+            mcpPath,
+            """
+            { "mcpServers": { "docs": { "url": "https://example.test/mcp", "auth": { "type": "oauth" } } } }
+            """);
+        var tokenPath = McpOAuthTokenCache.GetTokenPath(home.Path, "docs", "https://example.test/mcp");
+        Directory.CreateDirectory(Path.GetDirectoryName(tokenPath)!);
+        File.WriteAllText(
+            tokenPath,
+            $$"""
+            {"access_token":"secret-token","token_type":"Bearer","scope":"read","expires_in":3600,"obtained_at":"{{DateTimeOffset.UtcNow:O}}"}
+            """);
+        var beforeConfig = File.ReadAllText(mcpPath);
+        var service = new McpManagementService();
+        var request = new McpManagementRequest { ProjectDirectory = project.Path, UserHomeDirectory = home.Path };
+
+        var snapshot = service.RefreshSnapshot(request);
+        var server = snapshot.Servers.Single(item => item.Key == "docs");
+
+        Assert.IsTrue(server.OAuthAvailable);
+        Assert.IsTrue(server.OAuthConfigured);
+        Assert.IsTrue(server.OAuthTokenCached);
+        Assert.IsNotNull(server.OAuthTokenExpiresAt);
+        Assert.IsTrue(service.LogoutOAuth("docs", request));
+        Assert.IsFalse(File.Exists(tokenPath));
+        Assert.AreEqual(beforeConfig, File.ReadAllText(mcpPath));
+
+        var refreshed = service.RefreshSnapshot(request).Servers.Single(item => item.Key == "docs");
+        Assert.IsFalse(refreshed.OAuthTokenCached);
+    }
+
+    [TestMethod]
     public void Redactor_PreservesLongNormalTextAndNonSecretHeaders()
     {
         var longText = "issue 27 title body created updated comments normal response 1234567890";

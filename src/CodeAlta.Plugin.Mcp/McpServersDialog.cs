@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using CodeAlta.Plugins.Abstractions;
 using XenoAtom.Ansi;
@@ -32,10 +33,14 @@ internal sealed class McpServersDialog
     private readonly Markup _statusMarkup;
     private readonly Visual _detailHost;
     private readonly HashSet<string> _automaticToolDiscoveryKeys = new(StringComparer.OrdinalIgnoreCase);
+    private readonly State<string?> _activeLoginUrl = new(null);
+    private readonly State<string?> _activeLoginNoticeText = new(null);
+    private readonly State<int> _activeLoginDialogRefreshVersion = new(0);
     private int _selectedDetailTabIndex;
     private readonly object _testServerSyncRoot = new();
     private McpServerRow? _cachedDetailPaneRow;
     private Visual? _cachedDetailPane;
+    private Dialog? _activeLoginDialog;
     private McpManagementSnapshot? _snapshot;
     private CancellationTokenSource? _activeTestServerCancellation;
     private McpServerRow? _activeTestServerRow;
@@ -424,6 +429,7 @@ internal sealed class McpServersDialog
         var entry = row.Entry;
         var canEditPolicy = !row.IsDraft && entry.State is (McpManagementServerState.Configured or McpManagementServerState.Disabled);
         var canTestServer = canEditPolicy && entry.Transport is not null;
+        var canAuthorize = canEditPolicy && entry.Transport == McpManagementTransport.Http;
         var enablementAndActions = new HStack(
             new CheckBox("Enabled").IsChecked(row.EnabledState).IsEnabled(canEditPolicy),
             new Button("Apply")
@@ -433,6 +439,12 @@ internal sealed class McpServersDialog
             new Button("Test")
                 .IsEnabled(canTestServer)
                 .Click(() => _ = TestServerAsync(row, automatic: false)),
+            new Button(entry.OAuthTokenCached ? "Login" : "Authorize")
+                .IsEnabled(canAuthorize)
+                .Click(() => _ = AuthorizeServerAsync(row)),
+            new Button("Logout")
+                .IsEnabled(canAuthorize && entry.OAuthTokenCached)
+                .Click(() => LogoutServer(row)),
             new Button($"{McpTerminalIcons.MdRefresh} Refresh")
                 .Tone(ControlTone.Primary)
                 .Click(() => Reload(entry.Key)),
@@ -474,6 +486,7 @@ internal sealed class McpServersDialog
         var entry = row.Entry;
         return new VStack(
             CreateSection("Normalized Details", BuildPropertiesGrid(entry)),
+            CreateSection("Authorization", new Markup(BuildAuthorizationMarkup(entry)) { Wrap = true }),
             CreateSection("Policy", new Markup(BuildPolicyMarkup(entry, _snapshot)) { Wrap = true }),
             CreateSection("Diagnostics", new Markup(BuildDiagnosticsMarkup(entry)) { Wrap = true }))
         {
@@ -639,6 +652,93 @@ internal sealed class McpServersDialog
         return Task.Run(() => RunTestServerAsync(row, serverKey, request, testCancellation, cancellationToken, automatic));
     }
 
+    private Task AuthorizeServerAsync(McpServerRow row)
+    {
+        if (row.IsDraft || row.Entry.Transport != McpManagementTransport.Http)
+        {
+            _statusText = "[warning]Select a configured HTTP MCP server before authorizing.[/]";
+            _ = PublishUiAsync(() => { });
+            return Task.CompletedTask;
+        }
+
+        var testCancellation = BeginTestServerOperation(row);
+        if (testCancellation is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        var serverKey = row.Entry.Key;
+        var request = _createRequest();
+        var cancellationToken = testCancellation.Token;
+        ShowActiveLoginDialog(serverKey);
+        _statusText = $"[dim]Starting browser login for MCP server {AnsiMarkup.Escape(serverKey)}...[/]";
+        return Task.Run(async () =>
+        {
+            try
+            {
+                var result = await _service.LoginOAuthAsync(
+                    serverKey,
+                    message => _ = PublishUiAsync(() => UpdateActiveLoginStatus(message)),
+                    request,
+                    cancellationToken).ConfigureAwait(false);
+                if (!IsActiveTestServerOperation(testCancellation))
+                {
+                    return;
+                }
+
+                _ = PublishUiAsync(() =>
+                {
+                    ApplyTestResult(row, result, selectUpdatedRow: true);
+                    _statusText = result.Status == McpManagementTestStatus.Succeeded
+                        ? $"[success]MCP server {AnsiMarkup.Escape(result.Server)} is authorized and listed {result.Tools.Count} tool(s).[/]"
+                        : $"[error]MCP server {AnsiMarkup.Escape(result.Server)} browser login failed. See Diagnostics above.[/]";
+                });
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                if (IsActiveTestServerOperation(testCancellation))
+                {
+                    _ = PublishUiAsync(() => _statusText = "[warning]MCP browser login was canceled.[/]");
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or Tomlyn.TomlException)
+            {
+                if (IsActiveTestServerOperation(testCancellation))
+                {
+                    _ = PublishUiAsync(() => _statusText = $"[error]MCP browser login failed:[/] {AnsiMarkup.Escape(ex.GetBaseException().Message)}");
+                }
+            }
+            finally
+            {
+                EndTestServerOperation(testCancellation);
+            }
+        });
+    }
+
+    private void LogoutServer(McpServerRow row)
+    {
+        if (row.IsDraft || row.Entry.Transport != McpManagementTransport.Http)
+        {
+            _statusText = "[warning]Select a configured HTTP MCP server before logout.[/]";
+            _ = PublishUiAsync(() => { });
+            return;
+        }
+
+        try
+        {
+            var removed = _service.LogoutOAuth(row.Entry.Key, _createRequest());
+            _statusText = removed
+                ? $"[success]Removed cached OAuth tokens for {AnsiMarkup.Escape(row.Entry.Key)}.[/]"
+                : $"[dim]No cached OAuth tokens found for {AnsiMarkup.Escape(row.Entry.Key)}.[/]";
+            Reload(row.Entry.Key);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or Tomlyn.TomlException)
+        {
+            _statusText = $"[error]Failed to remove OAuth tokens:[/] {AnsiMarkup.Escape(ex.GetBaseException().Message)}";
+            _ = PublishUiAsync(() => { });
+        }
+    }
+
     private void StartAutomaticToolDiscovery(McpServerRow row)
     {
         if (!ShouldAutomaticallyDiscoverTools(row))
@@ -780,13 +880,20 @@ internal sealed class McpServersDialog
 
     private void EndTestServerOperation(CancellationTokenSource cancellation)
     {
+        var wasActive = false;
         lock (_testServerSyncRoot)
         {
             if (ReferenceEquals(_activeTestServerCancellation, cancellation))
             {
                 _activeTestServerCancellation = null;
                 _activeTestServerRow = null;
+                wasActive = true;
             }
+        }
+
+        if (wasActive)
+        {
+            _ = PublishUiAsync(CloseActiveLoginDialog);
         }
 
         cancellation.Dispose();
@@ -804,6 +911,7 @@ internal sealed class McpServersDialog
         }
 
         CancelTestServerOperation(cancellation);
+        _ = PublishUiAsync(CloseActiveLoginDialog);
     }
 
     private void CancelCurrentTestServerOperationIfDifferent(McpServerRow? row)
@@ -822,6 +930,7 @@ internal sealed class McpServersDialog
         }
 
         CancelTestServerOperation(cancellation);
+        _ = PublishUiAsync(CloseActiveLoginDialog);
     }
 
     private static void CancelTestServerOperation(CancellationTokenSource? cancellation)
@@ -1035,6 +1144,295 @@ internal sealed class McpServersDialog
         }
     }
 
+    private void ShowActiveLoginDialog(string serverKey)
+    {
+        if (_dialog.App is null)
+        {
+            return;
+        }
+
+        CloseActiveLoginDialog();
+
+        _activeLoginUrl.Value = null;
+        _activeLoginNoticeText.Value = null;
+        var cancelButton = new Button("Cancel Login")
+            .Tone(ControlTone.Warning)
+            .Click(CancelActiveLoginOperation);
+        var content = new ComputedVisual(
+            () =>
+            {
+                _ = _activeLoginDialogRefreshVersion.Value;
+                return BuildActiveLoginDialogContent(serverKey);
+            });
+        var dialog = new Dialog()
+            .Title("MCP Browser Login")
+            .TopRightText(cancelButton)
+            .BottomRightText(new Markup("[dim]Esc cancel · Ctrl+G Ctrl+C cancel[/]"))
+            .IsModal(true)
+            .Padding(1)
+            .Content(content)
+            .Style(DialogStyle.Rounded);
+        dialog.AddCommand(new UiCommand
+        {
+            Id = "CodeAlta.Mcp.Login.Cancel",
+            LabelMarkup = "Cancel Login",
+            DescriptionMarkup = "Cancel the active MCP browser login.",
+            Gesture = new KeyGesture(TerminalKey.Escape),
+            Importance = CommandImportance.Primary,
+            Execute = _ => CancelActiveLoginOperation(),
+        });
+        dialog.AddCommand(new UiCommand
+        {
+            Id = "CodeAlta.Mcp.Login.CancelSequence",
+            LabelMarkup = "Cancel Login",
+            DescriptionMarkup = "Cancel the active MCP browser login.",
+            Sequence = new KeySequence(
+                new KeyGesture(TerminalChar.CtrlG, TerminalModifiers.Ctrl),
+                new KeyGesture(TerminalChar.CtrlC, TerminalModifiers.Ctrl)),
+            Importance = CommandImportance.Primary,
+            Execute = _ => CancelActiveLoginOperation(),
+        });
+        dialog.AddCommand(new UiCommand
+        {
+            Id = "CodeAlta.Mcp.Login.CopyUrl",
+            LabelMarkup = "Copy Login URL",
+            DescriptionMarkup = "Copy the current MCP login URL to the clipboard.",
+            Sequence = new KeySequence(
+                new KeyGesture(TerminalChar.CtrlG, TerminalModifiers.Ctrl),
+                new KeyGesture(TerminalChar.CtrlU, TerminalModifiers.Ctrl)),
+            Importance = CommandImportance.Secondary,
+            CanExecute = _ => !string.IsNullOrWhiteSpace(_activeLoginUrl.Value),
+            Execute = _ => CopyActiveLoginUrl(),
+        });
+
+        _activeLoginDialog = dialog;
+        PluginDialogLayout.ApplyResponsiveSize(dialog, _getBounds, minWidth: 72, minHeight: 14, widthFactor: 0.56, heightFactor: 0.36);
+        dialog.Show();
+    }
+
+    private Visual BuildActiveLoginDialogContent(string serverKey)
+    {
+        var sections = new List<Visual>
+        {
+            new Markup($"[dim]Complete MCP browser login for {AnsiMarkup.Escape(serverKey)}, then return to CodeAlta. This dialog closes automatically when login completes.[/]") { Wrap = true },
+            CreateLoginUrlSection(),
+        };
+        if (_activeLoginNoticeText.Value is { } noticeText)
+        {
+            sections.Add(new Markup(noticeText) { Wrap = true });
+        }
+
+        sections.Add(new HStack(
+            new Button("Copy URL")
+                .IsEnabled(() => !string.IsNullOrWhiteSpace(_activeLoginUrl.Value))
+                .Click(CopyActiveLoginUrl),
+            new Button("Cancel Login")
+                .Tone(ControlTone.Warning)
+                .Click(CancelActiveLoginOperation))
+        {
+            HorizontalAlignment = Align.End,
+            Spacing = 1,
+        });
+        return new VStack(sections.ToArray())
+        {
+            HorizontalAlignment = Align.Stretch,
+            VerticalAlignment = Align.Stretch,
+            Spacing = 1,
+        };
+    }
+
+    private Visual CreateLoginUrlSection()
+    {
+        if (string.IsNullOrWhiteSpace(_activeLoginUrl.Value))
+        {
+            return new VStack(
+                new Markup("[bold]URL[/]"),
+                new Markup("[dim]Waiting for the MCP server to return the login URL...[/]") { Wrap = true })
+            {
+                HorizontalAlignment = Align.Stretch,
+                Spacing = 0,
+            };
+        }
+
+        return new VStack(
+            new Markup("[bold]URL[/] [dim]Press Enter on any link line to open it.[/]"),
+            CreateWrappedLoginLink(_activeLoginUrl.Value))
+        {
+            HorizontalAlignment = Align.Stretch,
+            Spacing = 0,
+        };
+    }
+
+    private static Visual CreateWrappedLoginLink(string uri)
+    {
+        var lines = SplitLoginUriForDisplay(uri).Select(segment =>
+            (Visual)new Link(uri, segment)
+                .Opened((_, e) =>
+                {
+                    TryOpenBrowser(e.Uri);
+                    e.Handled = true;
+                })
+                .Tooltip(new TextBlock($"Open {uri}")));
+        return new VStack(lines.ToArray())
+        {
+            HorizontalAlignment = Align.Stretch,
+            Spacing = 0,
+        };
+    }
+
+    private static IReadOnlyList<string> SplitLoginUriForDisplay(string uri)
+    {
+        const int maxSegmentLength = 64;
+        if (uri.Length <= maxSegmentLength)
+        {
+            return [uri];
+        }
+
+        var segments = new List<string>();
+        var start = 0;
+        while (start < uri.Length)
+        {
+            var remaining = uri.Length - start;
+            if (remaining <= maxSegmentLength)
+            {
+                segments.Add(uri[start..]);
+                break;
+            }
+
+            var length = FindLoginUriWrapLength(uri, start, maxSegmentLength);
+            segments.Add(uri.Substring(start, length));
+            start += length;
+        }
+
+        return segments;
+    }
+
+    private static int FindLoginUriWrapLength(string uri, int start, int maxLength)
+    {
+        var endExclusive = Math.Min(uri.Length, start + maxLength);
+        for (var index = endExclusive - 1; index > start + 16; index--)
+        {
+            if (uri[index] is '/' or '?' or '&' or '=' or '-' or '_' or '.')
+            {
+                return index - start + 1;
+            }
+        }
+
+        return endExclusive - start;
+    }
+
+    private void UpdateActiveLoginStatus(string message)
+    {
+        _statusText = $"[dim]{AnsiMarkup.Escape(message)}[/]";
+        if (TryExtractLoginUri(message, out var uri))
+        {
+            _activeLoginUrl.Value = uri;
+        }
+
+        _activeLoginNoticeText.Value = $"[dim]{AnsiMarkup.Escape(message)}[/]";
+        RefreshActiveLoginDialog();
+    }
+
+    private static bool TryExtractLoginUri(string message, out string uri)
+    {
+        uri = string.Empty;
+        var index = message.IndexOf("http", StringComparison.OrdinalIgnoreCase);
+        if (index < 0)
+        {
+            return false;
+        }
+
+        var candidate = message[index..].Trim();
+        var end = candidate.IndexOfAny([' ', '\r', '\n']);
+        if (end >= 0)
+        {
+            candidate = candidate[..end];
+        }
+
+        candidate = candidate.TrimEnd('.', ',', ';');
+        if (!Uri.TryCreate(candidate, UriKind.Absolute, out var parsed) || (parsed.Scheme != Uri.UriSchemeHttp && parsed.Scheme != Uri.UriSchemeHttps))
+        {
+            return false;
+        }
+
+        uri = parsed.ToString();
+        return true;
+    }
+
+    private void CancelActiveLoginOperation()
+    {
+        CancellationTokenSource? cancellation;
+        lock (_testServerSyncRoot)
+        {
+            cancellation = _activeTestServerCancellation;
+        }
+
+        if (cancellation is null)
+        {
+            _activeLoginNoticeText.Value = "[warning]No MCP browser login is active.[/]";
+            RefreshActiveLoginDialog();
+            return;
+        }
+
+        CancelTestServerOperation(cancellation);
+        _activeLoginNoticeText.Value = "[warning]Cancel requested. Waiting for MCP browser login to stop...[/]";
+        _statusText = "[warning]Cancel requested. Waiting for MCP browser login to stop...[/]";
+        RefreshActiveLoginDialog();
+    }
+
+    private void CopyActiveLoginUrl()
+    {
+        if (string.IsNullOrWhiteSpace(_activeLoginUrl.Value))
+        {
+            _activeLoginNoticeText.Value = "[warning]No MCP login URL is available yet.[/]";
+            RefreshActiveLoginDialog();
+            return;
+        }
+
+        _dialog.App?.Terminal.Clipboard.TrySetText(_activeLoginUrl.Value);
+        _activeLoginNoticeText.Value = "[success]Copied MCP login URL to clipboard.[/]";
+        RefreshActiveLoginDialog();
+    }
+
+    private void CloseActiveLoginDialog()
+    {
+        var dialog = _activeLoginDialog;
+        if (dialog is null)
+        {
+            return;
+        }
+
+        var app = dialog.App ?? _dialog.App;
+        dialog.Close();
+        _activeLoginDialog = null;
+        _activeLoginUrl.Value = null;
+        _activeLoginNoticeText.Value = null;
+        app?.Focus(_dialog);
+    }
+
+    private void RefreshActiveLoginDialog()
+    {
+        if (_activeLoginDialog is not null)
+        {
+            _activeLoginDialogRefreshVersion.Value++;
+        }
+    }
+
+    private static void TryOpenBrowser(string uri)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = uri,
+                UseShellExecute = true,
+            });
+        }
+        catch
+        {
+        }
+    }
+
     private bool IsClosed()
     {
         lock (_testServerSyncRoot)
@@ -1120,6 +1518,8 @@ internal sealed class McpServersDialog
             ("Environment", FormatDictionary(entry.Env)),
             ("URL", entry.Url),
             ("Headers", FormatDictionary(entry.Headers)),
+            ("OAuth", entry.Transport == McpManagementTransport.Http ? entry.OAuthConfigured ? "configured" : entry.OAuthTokenCached ? "cached token" : "available" : null),
+            ("OAuth Token Expires", entry.OAuthTokenExpiresAt?.ToLocalTime().ToString("g", System.Globalization.CultureInfo.CurrentCulture)),
             ("Shadowed Global", entry.ShadowedGlobalPath),
             ("Tools", $"{entry.ExposedToolCount}/{entry.TotalToolCount} exposed"),
         };
@@ -1141,6 +1541,27 @@ internal sealed class McpServersDialog
         return rowIndex == 0
             ? new TextBlock("No normalized details available.") { Wrap = true }
             : grid;
+    }
+
+    private static string BuildAuthorizationMarkup(McpManagementServerSnapshot entry)
+    {
+        if (entry.Transport != McpManagementTransport.Http)
+        {
+            return "[dim]Browser OAuth authorization is only available for HTTP/SSE MCP servers.[/]";
+        }
+
+        var builder = new StringBuilder();
+        builder.Append("Browser OAuth: ").Append(entry.OAuthConfigured ? "[success]configured[/]" : "[dim]auto-detect/cached-token capable[/]").AppendLine();
+        builder.Append("Cached token: ").Append(entry.OAuthTokenCached ? "[success]present[/]" : "[dim]not present[/]").AppendLine();
+        if (entry.OAuthTokenExpiresAt is not null)
+        {
+            builder.Append("Expires: ")
+                .Append(AnsiMarkup.Escape(entry.OAuthTokenExpiresAt.Value.ToLocalTime().ToString("g", System.Globalization.CultureInfo.CurrentCulture)))
+                .AppendLine();
+        }
+
+        builder.Append("Use Authorize/Login to open a browser flow. Tokens are stored in CodeAlta's local MCP plugin state, not in MCP JSON config. Use Logout to delete cached tokens.");
+        return builder.ToString();
     }
 
     private static string BuildPolicyMarkup(McpManagementServerSnapshot entry, McpManagementSnapshot? snapshot)

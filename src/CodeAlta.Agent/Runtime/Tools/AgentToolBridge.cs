@@ -194,15 +194,17 @@ public static class AgentToolBridge
             : null;
         var extraDescriptionLines = new List<string>();
         var hasProperties = schema.TryGetProperty("properties", out var properties) && properties.ValueKind == JsonValueKind.Object;
+        var isObjectShape = hasProperties || IsObjectType(schema);
         var requiredPropertyNames = hasProperties
             ? GetRequiredPropertyNames(schema)
             : null;
-        var shouldWriteAdditionalPropertiesFalse = hasProperties || IsObjectType(schema);
+        var shouldWriteAdditionalPropertiesFalse = isObjectShape;
+        var wroteProperties = false;
 
         writer.WriteStartObject();
         foreach (var property in schema.EnumerateObject())
         {
-            if (hasProperties && property.NameEquals("required"))
+            if (isObjectShape && property.NameEquals("required"))
             {
                 continue;
             }
@@ -222,6 +224,7 @@ public static class AgentToolBridge
             {
                 writer.WritePropertyName(property.Name);
                 writer.WriteStartObject();
+                wroteProperties = true;
                 foreach (var childProperty in property.Value.EnumerateObject())
                 {
                     writer.WritePropertyName(childProperty.Name);
@@ -281,13 +284,22 @@ public static class AgentToolBridge
             writer.WriteString("description", AppendDescription(description, extraDescriptionLines));
         }
 
-        if (hasProperties)
+        if (isObjectShape && !wroteProperties)
+        {
+            writer.WriteStartObject("properties");
+            writer.WriteEndObject();
+        }
+
+        if (isObjectShape)
         {
             writer.WritePropertyName("required");
             writer.WriteStartArray();
-            foreach (var propertyName in properties.EnumerateObject().Select(static property => property.Name))
+            if (hasProperties)
             {
-                writer.WriteStringValue(propertyName);
+                foreach (var propertyName in properties.EnumerateObject().Select(static property => property.Name))
+                {
+                    writer.WriteStringValue(propertyName);
+                }
             }
 
             writer.WriteEndArray();

@@ -46,6 +46,8 @@ internal sealed record McpServerDefinition
     public string? Url { get; init; }
 
     public IReadOnlyDictionary<string, string> Headers { get; init; } = new Dictionary<string, string>(StringComparer.Ordinal);
+
+    public McpOAuthOptions? OAuth { get; init; }
 }
 
 internal sealed record McpConfigSource

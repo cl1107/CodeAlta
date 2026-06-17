@@ -90,6 +90,7 @@ A server entry must be an object under the selected root key. It must define exa
 | `env` | object with string values | stdio | Environment variables for the launched server. Values may reference process environment variables with `${NAME}`. |
 | `url` | string | HTTP/SSE | Remote MCP endpoint. Runtime validation requires an absolute `http` or `https` URL. Mutually exclusive with `command`. |
 | `headers` | object with string values | HTTP/SSE | Static HTTP headers for remote servers. Values may reference process environment variables with `${NAME}`. Header names must be valid HTTP token names; values cannot contain CR/LF after expansion. |
+| `auth` | object | HTTP/SSE | Optional CodeAlta OAuth/Authv2 browser-login settings. Use `{ "type": "oauth" }` for dynamic client registration, or include `clientId`, optional `clientSecret`, `scopes`, and `redirectUri` when the authorization server requires a pre-registered client. Tokens are not stored in MCP JSON. |
 | `type` | string | both | Optional transport hint. Supported values are `stdio`, `http`, and `sse`. `command` can only be combined with `stdio`; `url` cannot be combined with `stdio`. |
 | `tools` | any existing JSON value | Copilot-style files | Preserved for flavor compatibility. CodeAlta does not use it to enable/disable tools; use TOML policy instead. |
 
@@ -130,6 +131,27 @@ Remote server:
 ```
 
 `${NAME}` placeholders are expanded only in stdio `env` values and remote `headers` values. If the referenced environment variable is missing, CodeAlta reports an `environment_variable_not_found` diagnostic and does not send the literal placeholder to the server.
+
+### Remote OAuth/Authv2 browser login
+
+For HTTP/SSE MCP servers that follow the MCP authorization flow, prefer CodeAlta-managed browser login over committing bearer tokens to JSON. Configure the server with an OAuth auth block, then use the MCP Servers dialog **Authorize/Login** action or ask the agent to run `alta mcp auth login <server>`:
+
+```json
+{
+  "mcpServers": {
+    "docs": {
+      "type": "http",
+      "url": "https://example.test/mcp",
+      "auth": {
+        "type": "oauth",
+        "scopes": ["read", "search"]
+      }
+    }
+  }
+}
+```
+
+CodeAlta stores OAuth access/refresh tokens in local user state under `~/.alta/auth/mcp/`; it does not write tokens, authorization codes, or refresh tokens to `.alta/mcp.json` or TOML policy. Browser login uses a loopback callback with a per-login state value and an ephemeral port by default; set `redirectUri` only when an authorization server requires a pre-registered fixed callback. The MCP Servers dialog opens a small modal login dialog for **Authorize/Login**, shows/copies the login URL when available, and supports **Cancel Login** (`Esc` or `Ctrl+G Ctrl+C`) for stuck browser flows. Dialogs and `alta mcp auth status` show only cache status and expiry. Non-interactive agent runs and ordinary MCP tool commands use cached/refreshable tokens only and will not open a browser unexpectedly. Use **Logout** in the dialog or `alta mcp auth logout <server>` to delete cached tokens.
 
 ### GitHub MCP server example
 
@@ -309,9 +331,9 @@ Activation records the server keys for the session and immediately tries to list
 mcp__<server>__<tool>
 ```
 
-Alias parts keep ASCII letters and digits and replace other characters with `_`. If sanitized server or tool names collide, CodeAlta appends a stable hash suffix. The MCP tool input schema is passed through to the agent tool definition, and direct agent calls delegate to the same runtime path as the MCP live-tool call operation.
+Alias parts keep ASCII letters and digits and replace other characters with `_`. If sanitized server or tool names collide, CodeAlta appends a stable hash suffix. The MCP tool input schema is passed through to the agent tool definition when it fits CodeAlta's strict/OpenAI-compatible tool schema subset. If an MCP schema uses dynamic object maps or required names outside local `properties`, CodeAlta exposes a strict-safe `arguments_json` string parameter instead; the string must contain the raw MCP argument JSON object and is unwrapped before the MCP call. Direct agent calls delegate to the same runtime path as the MCP live-tool call operation.
 
-If a server cannot start, connect, authenticate, or list tools, it contributes diagnostics for that request and no agent tools for that run. OAuth and interactive authentication UX are not implemented; configure static headers in JSON or authenticate the server outside CodeAlta.
+If a server cannot start, connect, authenticate, or list tools, it contributes diagnostics for that request and no agent tools for that run. For protected HTTP servers, complete browser login from the dialog or with `alta mcp auth login <server>`, or configure static headers in JSON when the provider requires them.
 
 ## MCP Servers dialog
 
@@ -322,6 +344,7 @@ Open the dialog from `/mcp`, the command palette entry **MCP Servers**, the MCP 
 - toggle server enablement through TOML policy;
 - discover tools in the background when a configured server is selected;
 - test a server with configured timeouts;
+- authorize/login or logout HTTP OAuth/Authv2 servers without storing tokens in MCP JSON;
 - toggle individual tools by writing/removing raw tool names in `disabled_tools`.
 
 Use **Open JSON Config**, or ask the agent to add/remove/update MCP servers, for advanced JSON shapes that the dialog form does not expose.

@@ -221,6 +221,114 @@ public sealed class McpRuntimeServiceTests
     }
 
     [TestMethod]
+    public async Task PluginBeforeAgentRun_WrapsIncompatibleMcpToolSchemaArgumentsJson()
+    {
+        using var project = TempDirectory.Create();
+        WriteTinyServerConfig(
+            project.Path,
+            "atlassian",
+            logPath: null,
+            extraEnv: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["MCP_TEST_INCOMPATIBLE_TOOL"] = "1",
+            });
+        WriteProjectPolicy(
+            project.Path,
+            """
+            [plugins.mcp]
+            direct_exposure = "allowlist"
+
+            [plugins.mcp.servers.atlassian]
+            direct_tools = ["editJiraIssue"]
+            allowed_tools = ["editJiraIssue"]
+            """);
+        var plugin = new McpPlugin();
+        var contribution = plugin.GetAltaCommands().Single();
+        var stdout = new StringWriter(CultureInfo.InvariantCulture);
+        var stderr = new StringWriter(CultureInfo.InvariantCulture);
+        var app = new CommandApp("alta", "test") { contribution.CreateCommandNode(CreateAltaContext(stdout, stderr, project.Path)) };
+        var activateExitCode = await app.RunAsync(["mcp", "activate", "atlassian"], new CommandRunConfig { Out = TextWriter.Null, Error = stderr });
+        Assert.AreEqual(0, activateExitCode, stderr.ToString());
+
+        var before = await plugin.OnBeforeAgentRunAsync(
+            new PluginBeforeAgentRunContext
+            {
+                Plugin = CreatePluginDescriptor(),
+                Services = NoopPluginServices.Create(),
+                ProjectPath = project.Path,
+            },
+            CancellationToken.None);
+
+        Assert.IsNotNull(before);
+        var tool = before.AdditionalTools.Single();
+        Assert.AreEqual("mcp__atlassian__editJiraIssue", tool.Spec.Name);
+        var schema = tool.Spec.InputSchema;
+        var properties = schema.GetProperty("properties");
+        Assert.IsTrue(properties.TryGetProperty("arguments_json", out var argumentsJsonSchema));
+        Assert.AreEqual("string", argumentsJsonSchema.GetProperty("type").GetString());
+        Assert.IsFalse(properties.TryGetProperty("fields", out _));
+        StringAssert.Contains(argumentsJsonSchema.GetProperty("description").GetString(), "Original MCP input schema");
+
+        using var arguments = JsonDocument.Parse("""
+            { "arguments_json": "{\"fields\":{\"summary\":\"Updated\"}}" }
+            """);
+        var result = await tool.Handler(
+            new AgentToolInvocation(new ModelProviderId("test"), "session", "call", tool.Spec.Name, arguments.RootElement.Clone()),
+            CancellationToken.None);
+        Assert.IsTrue(result.Success, result.Error);
+        var text = Assert.IsInstanceOfType<AgentToolResultItem.Text>(result.Items.Single()).Value;
+        StringAssert.Contains(text, "jira:");
+        StringAssert.Contains(text, "\"fields\":{\"summary\":\"Updated\"}");
+
+        using var invalidArguments = JsonDocument.Parse("""{ "arguments_json": "not json" }""");
+        var invalidResult = await tool.Handler(
+            new AgentToolInvocation(new ModelProviderId("test"), "session", "call", tool.Spec.Name, invalidArguments.RootElement.Clone()),
+            CancellationToken.None);
+        Assert.IsFalse(invalidResult.Success);
+        StringAssert.Contains(invalidResult.Error, "valid JSON");
+    }
+
+    [TestMethod]
+    public void McpPlugin_RequiresArgumentsJsonWrapper_ForImplicitDynamicObjectSchema()
+    {
+        using var openObject = JsonDocument.Parse("""{ "type": "object" }""");
+        using var closedObject = JsonDocument.Parse("""{ "type": "object", "properties": {}, "additionalProperties": false }""");
+
+        Assert.IsTrue(McpPlugin.RequiresArgumentsJsonWrapper(openObject.RootElement));
+        Assert.IsFalse(McpPlugin.RequiresArgumentsJsonWrapper(closedObject.RootElement));
+    }
+
+    [TestMethod]
+    public async Task OAuthBrowserAuthorization_RejectsCallbackStateMismatchAndHandlesPreflight()
+    {
+        var port = GetFreeLoopbackPort();
+        var redirectUri = new Uri($"http://127.0.0.1:{port}/mcp/oauth/callback", UriKind.Absolute);
+        var messages = new List<string>();
+        var authorization = new McpOAuthBrowserAuthorization(messages.Add, openBrowser: false);
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var authorizeTask = authorization.AuthorizeAsync(
+            new Uri("https://auth.example.test/authorize?state=expected-state", UriKind.Absolute),
+            redirectUri,
+            cancellation.Token);
+        using var http = new HttpClient();
+        using var preflight = new HttpRequestMessage(HttpMethod.Options, redirectUri)
+        {
+            Headers = { { "Origin", "https://auth.example.test" }, { "Access-Control-Request-Private-Network", "true" } },
+        };
+
+        var preflightResponse = await http.SendAsync(preflight, cancellation.Token);
+        var callbackResponse = await http.GetAsync(new Uri(redirectUri.AbsoluteUri + "?code=oauth-code-secret&state=wrong-state", UriKind.Absolute), cancellation.Token);
+        var code = await authorizeTask.WaitAsync(cancellation.Token);
+
+        Assert.AreEqual(HttpStatusCode.NoContent, preflightResponse.StatusCode);
+        Assert.AreEqual("true", preflightResponse.Headers.GetValues("Access-Control-Allow-Private-Network").Single());
+        Assert.AreEqual(HttpStatusCode.OK, callbackResponse.StatusCode);
+        Assert.IsNull(code);
+        Assert.IsTrue(messages.Any(static message => message.Contains("state did not match", StringComparison.Ordinal)));
+        Assert.IsFalse(string.Join(Environment.NewLine, messages).Contains("oauth-code-secret", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public async Task Activate_UsesCallerSourceSessionForNextRunScope()
     {
         using var project = TempDirectory.Create();
@@ -690,6 +798,51 @@ public sealed class McpRuntimeServiceTests
     }
 
     [TestMethod]
+    public async Task HttpServer_UsesCachedOAuthBearerTokenWithoutOpeningBrowser()
+    {
+        using var home = TempDirectory.Create();
+        using var project = TempDirectory.Create();
+        await using var server = TinyHttpMcpServer.Start(requiredHeaderName: "Authorization", requiredHeaderValue: "Bearer expected-token");
+        Directory.CreateDirectory(Path.Combine(project.Path, ".alta"));
+        File.WriteAllText(
+            McpConfigDiscovery.GetProjectConfigPath(project.Path),
+            JsonSerializer.Serialize(new
+            {
+                mcpServers = new Dictionary<string, object>
+                {
+                    ["remote"] = new
+                    {
+                        url = server.Endpoint,
+                        auth = new { type = "oauth" },
+                    },
+                },
+            }));
+        var tokenPath = McpOAuthTokenCache.GetTokenPath(home.Path, "remote", server.Endpoint);
+        Directory.CreateDirectory(Path.GetDirectoryName(tokenPath)!);
+        File.WriteAllText(
+            tokenPath,
+            $$"""
+            {"access_token":"expected-token","token_type":"Bearer","expires_in":3600,"obtained_at":"{{DateTimeOffset.UtcNow:O}}"}
+            """);
+        await using var service = new McpRuntimeService();
+
+        var search = await service.SearchToolsAsync(
+            new McpRuntimeRequest
+            {
+                ProjectDirectory = project.Path,
+                UserHomeDirectory = home.Path,
+                OAuthStatus = _ => Assert.Fail("Non-interactive MCP discovery must not request browser OAuth progress."),
+            },
+            "remote",
+            null,
+            CancellationToken.None);
+
+        Assert.AreEqual(0, search.Diagnostics.Count, string.Join(Environment.NewLine, search.Diagnostics.Select(static diagnostic => diagnostic.Message)) + Environment.NewLine + server.ErrorSummary);
+        Assert.IsTrue(search.Tools.Any(static tool => tool.Name == "echo"));
+        Assert.IsTrue(server.SawHeader("Authorization", "Bearer expected-token"), "Cached OAuth tokens should be sent as bearer authorization for non-interactive discovery.");
+    }
+
+    [TestMethod]
     public async Task HttpServer_ValidationAndAuthenticationDiagnosticsAreRedacted()
     {
         using var project = TempDirectory.Create();
@@ -722,14 +875,36 @@ public sealed class McpRuntimeServiceTests
                     },
                 },
             }));
-        await using var authService = new McpRuntimeService();
+        var unobserved = new List<Exception>();
+        void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
+        {
+            unobserved.Add(e.Exception);
+            e.SetObserved();
+        }
 
-        var unauthorized = await authService.SearchToolsAsync(new McpRuntimeRequest { ProjectDirectory = project.Path }, "remote", null, CancellationToken.None);
+        TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
+        McpRuntimeToolSearchResult unauthorized;
+        try
+        {
+            await using (var authService = new McpRuntimeService())
+            {
+                unauthorized = await authService.SearchToolsAsync(new McpRuntimeRequest { ProjectDirectory = project.Path }, "remote", null, CancellationToken.None);
+            }
+
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+        }
+        finally
+        {
+            TaskScheduler.UnobservedTaskException -= OnUnobservedTaskException;
+        }
 
         Assert.AreEqual(0, unauthorized.Tools.Count);
         Assert.AreEqual("server_authentication_failed", unauthorized.Diagnostics.Single().Code);
         Assert.IsFalse(unauthorized.Diagnostics.Single().Message.Contains("secret-value", StringComparison.Ordinal));
         Assert.IsFalse(unauthorized.Diagnostics.Single().Message.Contains("wrong-secret-token-value", StringComparison.Ordinal));
+        Assert.AreEqual(0, unobserved.Count, string.Join(Environment.NewLine, unobserved.Select(static exception => exception.ToString())));
     }
 
     private static void WriteTinyServerConfig(string root, string server, string? logPath, bool global = false, IReadOnlyDictionary<string, string>? extraEnv = null)
@@ -800,6 +975,13 @@ public sealed class McpRuntimeServiceTests
 
     private static string TinyServerAssemblyPath
         => Path.Combine(AppContext.BaseDirectory, "CodeAlta.Tests.TinyMcpServer.dll");
+
+    private static int GetFreeLoopbackPort()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        return ((IPEndPoint)listener.LocalEndpoint).Port;
+    }
 
     private sealed class TempDirectory : IDisposable
     {

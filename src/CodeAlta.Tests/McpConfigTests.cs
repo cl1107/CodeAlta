@@ -141,6 +141,71 @@ public sealed class McpConfigTests
     }
 
     [TestMethod]
+    public void FormatAdapter_ParsesOAuthOptionsWithoutSecretsInHeaders()
+    {
+        var document = McpConfigFormatAdapter.ParseDocument(
+            """
+            {
+              "mcpServers": {
+                "docs": {
+                  "url": "https://example.test/mcp",
+                  "auth": {
+                    "type": "oauth",
+                    "clientId": "codealta-test",
+                    "scopes": ["read", "search"],
+                    "redirectUri": "http://127.0.0.1:1456/mcp/oauth/callback"
+                  }
+                }
+              }
+            }
+            """);
+
+        var server = McpConfigFormatAdapter.ReadServers(document, McpConfigScope.Project, "mcp.json").Single();
+
+        Assert.AreEqual(McpTransportKind.Http, server.Transport);
+        Assert.IsNotNull(server.OAuth);
+        Assert.IsTrue(server.OAuth.Enabled);
+        Assert.AreEqual("codealta-test", server.OAuth.ClientId);
+        CollectionAssert.AreEqual(new[] { "read", "search" }, server.OAuth.Scopes.ToArray());
+        Assert.AreEqual(0, server.Headers.Count);
+    }
+
+    [TestMethod]
+    public void FormatAdapter_RemovesOAuthSettingsWhenRenderingStdioServer()
+    {
+        var document = McpConfigFormatAdapter.ParseDocument(
+            """
+            {
+              "mcpServers": {
+                "docs": {
+                  "url": "https://example.test/mcp",
+                  "auth": { "type": "oauth", "client_secret": "secret-value" }
+                }
+              }
+            }
+            """);
+
+        McpConfigFormatAdapter.AddOrUpdateServer(
+            document,
+            new McpServerDefinition
+            {
+                Key = "docs",
+                Transport = McpTransportKind.Stdio,
+                SourceScope = McpConfigScope.Project,
+                SourcePath = "mcp.json",
+                SourceFlavor = McpConfigFlavor.CodeAlta,
+                Command = "node",
+            });
+        var rendered = McpConfigFormatAdapter.Serialize(document.Root);
+        var server = McpConfigFormatAdapter.ReadServers(document, McpConfigScope.Project, "mcp.json").Single();
+
+        Assert.AreEqual(McpTransportKind.Stdio, server.Transport);
+        Assert.IsNull(server.OAuth);
+        Assert.IsFalse(rendered.Contains("\"auth\"", StringComparison.Ordinal));
+        Assert.IsFalse(rendered.Contains("secret-value", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public void FormatAdapter_RejectsAmbiguousRootKeys()
     {
         var exception = Assert.ThrowsExactly<InvalidDataException>(static () => McpConfigFormatAdapter.ParseDocument(
@@ -547,6 +612,72 @@ public sealed class McpConfigTests
         Assert.AreEqual("https://example.test/mcp", server.GetProperty("url").GetString());
         Assert.AreEqual("Bearer token", server.GetProperty("headers").GetProperty("Authorization").GetString());
         StringAssert.Contains(stdout.ToString(), "\"format\":\"vscode\"");
+    }
+
+    [TestMethod]
+    public async Task PluginCommand_AuthStatusAndLogoutUseTokenCacheWithoutPrintingSecrets()
+    {
+        using var home = TempDirectory.Create();
+        using var project = TempDirectory.Create();
+        Directory.CreateDirectory(Path.Combine(project.Path, ".alta"));
+        File.WriteAllText(
+            McpConfigDiscovery.GetProjectConfigPath(project.Path),
+            """
+            { "mcpServers": { "docs": { "url": "https://example.test/mcp", "auth": { "type": "oauth" } } } }
+            """);
+        var tokenPath = McpOAuthTokenCache.GetTokenPath(home.Path, "docs", "https://example.test/mcp");
+        Directory.CreateDirectory(Path.GetDirectoryName(tokenPath)!);
+        File.WriteAllText(tokenPath, "{\"access_token\":\"secret-token\",\"token_type\":\"Bearer\"}");
+        var stdout = new StringWriter(CultureInfo.InvariantCulture);
+        var stderr = new StringWriter(CultureInfo.InvariantCulture);
+        var context = CreateAltaContext(stdout, stderr, project.Path);
+        var app = new CommandApp("alta", "test")
+        {
+            McpCommandFactory.CreateCommand(context, new McpCommandFactoryOptions { UserHomeDirectory = home.Path }),
+        };
+
+        var statusExitCode = await app.RunAsync(["mcp", "auth", "status", "--server", "docs"], new CommandRunConfig { Out = TextWriter.Null, Error = stderr });
+        var statusText = stdout.ToString();
+        var status = ReadJsonLines(statusText).Single(static line => line.GetProperty("type").GetString() == "alta.mcp.auth.status");
+
+        Assert.AreEqual(0, statusExitCode, stderr.ToString());
+        Assert.IsTrue(status.GetProperty("tokenCached").GetBoolean());
+        Assert.IsFalse(statusText.Contains("secret-token", StringComparison.Ordinal));
+
+        stdout.GetStringBuilder().Clear();
+        stderr.GetStringBuilder().Clear();
+        var logoutExitCode = await app.RunAsync(["mcp", "auth", "logout", "docs"], new CommandRunConfig { Out = TextWriter.Null, Error = stderr });
+        var logout = ReadJsonLines(stdout.ToString()).Single(static line => line.GetProperty("type").GetString() == "alta.mcp.auth.logout");
+
+        Assert.AreEqual(0, logoutExitCode, stderr.ToString());
+        Assert.IsTrue(logout.GetProperty("removed").GetBoolean());
+        Assert.IsFalse(File.Exists(tokenPath));
+    }
+
+    [TestMethod]
+    public async Task PluginCommand_AuthLoginRejectsStdioServersWithoutStartingThem()
+    {
+        using var project = TempDirectory.Create();
+        Directory.CreateDirectory(Path.Combine(project.Path, ".alta"));
+        File.WriteAllText(
+            McpConfigDiscovery.GetProjectConfigPath(project.Path),
+            """
+            { "mcpServers": { "local": { "command": "definitely-not-started-by-auth-login" } } }
+            """);
+        var stdout = new StringWriter(CultureInfo.InvariantCulture);
+        var stderr = new StringWriter(CultureInfo.InvariantCulture);
+        var context = CreateAltaContext(stdout, stderr, project.Path);
+        var app = new CommandApp("alta", "test")
+        {
+            McpCommandFactory.CreateCommand(context, new McpCommandFactoryOptions()),
+        };
+
+        var exitCode = await app.RunAsync(["mcp", "auth", "login", "local"], new CommandRunConfig { Out = TextWriter.Null, Error = stderr });
+        var error = ReadJsonLines(stdout.ToString()).Single(static line => line.GetProperty("type").GetString() == "alta.mcp.error");
+
+        Assert.AreEqual(1, exitCode);
+        Assert.AreEqual("unsupported_transport", error.GetProperty("code").GetString());
+        Assert.IsTrue(stderr.ToString().Length == 0, stderr.ToString());
     }
 
     [TestMethod]

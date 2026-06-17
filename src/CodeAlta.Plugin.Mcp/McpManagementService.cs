@@ -275,6 +275,18 @@ public sealed record McpManagementServerSnapshot
     /// <summary>Gets unredacted remote headers for edit forms. Do not use this value in command output or diagnostics.</summary>
     public IReadOnlyDictionary<string, string>? EditableHeaders { get; init; }
 
+    /// <summary>Gets whether browser OAuth authorization is configured or available for this HTTP server.</summary>
+    public bool OAuthAvailable { get; init; }
+
+    /// <summary>Gets whether OAuth authorization is enabled in the server definition.</summary>
+    public bool OAuthConfigured { get; init; }
+
+    /// <summary>Gets whether CodeAlta has cached OAuth tokens for this server.</summary>
+    public bool OAuthTokenCached { get; init; }
+
+    /// <summary>Gets the cached OAuth token expiry, when known and available.</summary>
+    public DateTimeOffset? OAuthTokenExpiresAt { get; init; }
+
     /// <summary>Gets whether the server is enabled by effective policy.</summary>
     public bool? PolicyEnabled { get; init; }
 
@@ -553,7 +565,7 @@ public sealed class McpManagementService
         var projectPolicyPath = projectDirectory is null ? null : McpPolicyWriter.GetProjectPolicyPath(projectDirectory);
         var (policy, policyDiagnostic) = LoadPolicy(globalPolicyPath, projectPolicyPath);
         var sources = configSnapshot.Sources.Select(MapSource).ToArray();
-        var servers = BuildServers(configSnapshot, policy, sources);
+        var servers = BuildServers(configSnapshot, policy, sources, request.UserHomeDirectory);
         var snapshot = new McpManagementSnapshot
         {
             ProjectDirectory = projectDirectory,
@@ -826,8 +838,117 @@ public sealed class McpManagementService
         return result;
     }
 
+    /// <summary>
+    /// Gets the CodeAlta-owned OAuth token cache status for one MCP server.
+    /// </summary>
+    internal McpOAuthTokenStatus GetOAuthStatus(string serverKey, McpManagementRequest? request = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serverKey);
+        request ??= _lastRequest;
+        var effective = ResolveEffectiveServer(serverKey.Trim(), request);
+        if (effective is null)
+        {
+            return new McpOAuthTokenStatus { Server = serverKey.Trim(), HasToken = false };
+        }
+
+        return GetOAuthStatus(effective.Definition, request.UserHomeDirectory);
+    }
+
+    /// <summary>
+    /// Runs an explicit browser OAuth login for one MCP HTTP server and updates cached status.
+    /// </summary>
+    /// <param name="serverKey">The MCP server key.</param>
+    /// <param name="reportStatus">An optional callback that receives redacted progress messages and the login URL when available.</param>
+    /// <param name="request">Optional path request used to resolve config and token-cache paths.</param>
+    /// <param name="cancellationToken">A token that cancels the browser login.</param>
+    /// <returns>The server test result produced after login/list-tools completes or fails.</returns>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="serverKey" /> is empty.</exception>
+    public async Task<McpManagementServerTestResult> LoginOAuthAsync(
+        string serverKey,
+        Action<string>? reportStatus,
+        McpManagementRequest? request = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serverKey);
+        request ??= _lastRequest;
+        var projectDirectory = NormalizeProjectDirectory(request.ProjectDirectory);
+        var effective = ResolveEffectiveServer(serverKey.Trim(), request with { ProjectDirectory = projectDirectory });
+        if (effective is null)
+        {
+            return new McpManagementServerTestResult
+            {
+                Server = serverKey.Trim(),
+                Status = McpManagementTestStatus.Failed,
+                Diagnostics = [$"MCP server '{serverKey.Trim()}' is not configured in the effective MCP configuration."],
+            };
+        }
+
+        if (effective.Definition.Transport != McpTransportKind.Http)
+        {
+            return new McpManagementServerTestResult
+            {
+                Server = serverKey.Trim(),
+                Status = McpManagementTestStatus.Unsupported,
+                Diagnostics = [$"MCP server '{serverKey.Trim()}' does not use HTTP/SSE transport; browser OAuth is only available for remote HTTP MCP servers."],
+            };
+        }
+
+        await using var runtime = new McpRuntimeService();
+        var runtimeResult = await runtime.TestServerAsync(
+            new McpRuntimeRequest
+            {
+                ProjectDirectory = projectDirectory,
+                UserHomeDirectory = request.UserHomeDirectory,
+                ForceOAuth = true,
+                AllowOAuthBrowserLogin = true,
+                OpenOAuthBrowser = true,
+                OAuthStatus = reportStatus,
+            },
+            serverKey.Trim(),
+            cancellationToken).ConfigureAwait(false);
+        var result = MapTestResult(runtimeResult);
+        RefreshSnapshot(request with { ProjectDirectory = projectDirectory });
+        UpdateCachedSnapshotWithTestResult(result);
+        return result;
+    }
+
+    /// <summary>
+    /// Deletes CodeAlta-owned cached OAuth tokens for one MCP server.
+    /// </summary>
+    /// <param name="serverKey">The MCP server key.</param>
+    /// <param name="request">Optional path request used to resolve config and token-cache paths.</param>
+    /// <returns><see langword="true" /> when a cached token file existed before deletion; otherwise <see langword="false" />.</returns>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="serverKey" /> is empty.</exception>
+    public bool LogoutOAuth(string serverKey, McpManagementRequest? request = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serverKey);
+        request ??= _lastRequest;
+        var effective = ResolveEffectiveServer(serverKey.Trim(), request);
+        if (effective is null)
+        {
+            return false;
+        }
+
+        var cache = new McpOAuthTokenCache(McpOAuthTokenCache.GetTokenPath(request.UserHomeDirectory, effective.Definition.Key, effective.Definition.Url));
+        var existed = cache.Exists;
+        cache.Delete();
+        RefreshSnapshot(request);
+        return existed;
+    }
+
     private static string? NormalizeProjectDirectory(string? projectDirectory)
         => string.IsNullOrWhiteSpace(projectDirectory) ? null : Path.GetFullPath(projectDirectory);
+
+    private McpEffectiveServer? ResolveEffectiveServer(string serverKey, McpManagementRequest request)
+    {
+        var projectDirectory = NormalizeProjectDirectory(request.ProjectDirectory);
+        var snapshot = _discovery.Discover(new McpConfigPathOptions
+        {
+            ProjectDirectory = projectDirectory,
+            UserHomeDirectory = request.UserHomeDirectory,
+        });
+        return snapshot.EffectiveServers.FirstOrDefault(server => string.Equals(server.Definition.Key, serverKey, StringComparison.Ordinal));
+    }
 
     private IReadOnlyList<McpManagementToolSnapshot> GetCachedTools(string serverKey)
     {
@@ -1003,7 +1124,8 @@ public sealed class McpManagementService
     private static IReadOnlyList<McpManagementServerSnapshot> BuildServers(
         McpConfigSnapshot configSnapshot,
         McpPolicyOptions policy,
-        IReadOnlyList<McpManagementConfigSourceSnapshot> sources)
+        IReadOnlyList<McpManagementConfigSourceSnapshot> sources,
+        string? userHomeDirectory)
     {
         var rows = new List<McpManagementServerSnapshot>();
         foreach (var source in sources.Where(static source => !source.Exists || !source.IsValid))
@@ -1023,12 +1145,12 @@ public sealed class McpManagementService
 
         foreach (var server in configSnapshot.EffectiveServers)
         {
-            rows.Add(MapServer(server, policy, McpManagementServerState.Configured));
+            rows.Add(MapServer(server, policy, McpManagementServerState.Configured, userHomeDirectory));
         }
 
         foreach (var shadowed in configSnapshot.ShadowedGlobalServers)
         {
-            rows.Add(MapShadowedServer(shadowed, policy));
+            rows.Add(MapShadowedServer(shadowed, policy, userHomeDirectory));
         }
 
         return rows
@@ -1037,12 +1159,13 @@ public sealed class McpManagementService
             .ToArray();
     }
 
-    private static McpManagementServerSnapshot MapServer(McpEffectiveServer effective, McpPolicyOptions policy, McpManagementServerState defaultState)
+    private static McpManagementServerSnapshot MapServer(McpEffectiveServer effective, McpPolicyOptions policy, McpManagementServerState defaultState, string? userHomeDirectory)
     {
         var definition = effective.Definition;
         policy.Servers.TryGetValue(definition.Key, out var serverPolicy);
         var policyEnabled = serverPolicy?.Enabled ?? policy.Enabled;
         var state = policyEnabled ? defaultState : McpManagementServerState.Disabled;
+        var oauthStatus = GetOAuthStatus(definition, userHomeDirectory);
         return new McpManagementServerSnapshot
         {
             Key = definition.Key,
@@ -1065,6 +1188,10 @@ public sealed class McpManagementService
             EditableUrl = definition.Transport == McpTransportKind.Http ? definition.Url : null,
             Headers = definition.Headers.Count > 0 ? McpRedactor.RedactDictionary(definition.Headers) : new Dictionary<string, string>(StringComparer.Ordinal),
             EditableHeaders = definition.Headers.Count > 0 ? new Dictionary<string, string>(definition.Headers, StringComparer.Ordinal) : new Dictionary<string, string>(StringComparer.Ordinal),
+            OAuthAvailable = definition.Transport == McpTransportKind.Http,
+            OAuthConfigured = definition.OAuth?.Enabled == true,
+            OAuthTokenCached = oauthStatus.HasToken,
+            OAuthTokenExpiresAt = oauthStatus.ExpiresAt,
             PolicyEnabled = policyEnabled,
             PolicyRequired = serverPolicy?.Required,
             DirectExposure = serverPolicy?.DirectExposure ?? policy.DirectExposure,
@@ -1077,9 +1204,10 @@ public sealed class McpManagementService
         };
     }
 
-    private static McpManagementServerSnapshot MapShadowedServer(McpServerDefinition definition, McpPolicyOptions policy)
+    private static McpManagementServerSnapshot MapShadowedServer(McpServerDefinition definition, McpPolicyOptions policy, string? userHomeDirectory)
     {
         policy.Servers.TryGetValue(definition.Key, out var serverPolicy);
+        var oauthStatus = GetOAuthStatus(definition, userHomeDirectory);
         return new McpManagementServerSnapshot
         {
             Key = definition.Key,
@@ -1100,6 +1228,10 @@ public sealed class McpManagementService
             EditableUrl = definition.Transport == McpTransportKind.Http ? definition.Url : null,
             Headers = definition.Headers.Count > 0 ? McpRedactor.RedactDictionary(definition.Headers) : new Dictionary<string, string>(StringComparer.Ordinal),
             EditableHeaders = definition.Headers.Count > 0 ? new Dictionary<string, string>(definition.Headers, StringComparer.Ordinal) : new Dictionary<string, string>(StringComparer.Ordinal),
+            OAuthAvailable = definition.Transport == McpTransportKind.Http,
+            OAuthConfigured = definition.OAuth?.Enabled == true,
+            OAuthTokenCached = oauthStatus.HasToken,
+            OAuthTokenExpiresAt = oauthStatus.ExpiresAt,
             PolicyEnabled = serverPolicy?.Enabled ?? policy.Enabled,
             PolicyRequired = serverPolicy?.Required,
             DirectExposure = serverPolicy?.DirectExposure ?? policy.DirectExposure,
@@ -1108,6 +1240,24 @@ public sealed class McpManagementService
             DisabledTools = serverPolicy?.DisabledTools ?? [],
             Diagnostics = ["This global definition is ignored because a project server uses the same key."],
         };
+    }
+
+    private static McpOAuthTokenStatus GetOAuthStatus(McpServerDefinition definition, string? userHomeDirectory)
+    {
+        if (definition.Transport != McpTransportKind.Http)
+        {
+            return new McpOAuthTokenStatus { Server = definition.Key, HasToken = false };
+        }
+
+        var cache = new McpOAuthTokenCache(McpOAuthTokenCache.GetTokenPath(userHomeDirectory, definition.Key, definition.Url));
+        try
+        {
+            return cache.GetStatusAsync(definition.Key, CancellationToken.None).GetAwaiter().GetResult();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        {
+            return new McpOAuthTokenStatus { Server = definition.Key, HasToken = false, Path = cache.Path };
+        }
     }
 
     private static McpManagementSummary BuildSummary(

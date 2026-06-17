@@ -124,6 +124,9 @@ alta mcp tool search
 alta mcp tool search --server <server> --query <text>
 alta mcp tool describe --server <server> --tool <raw-tool-name>
 alta mcp tool call --server <server> --tool <raw-tool-name> --arguments {"key":"value"}
+alta mcp auth status [--server <server>]
+alta mcp auth login <server>
+alta mcp auth logout <server>
 ```
 
 `tool search`, `describe`, and `call` lazily connect to enabled effective servers, list tools, apply policy filters, and return diagnostics plus tool/call records. Tools are routed by raw MCP server key and raw MCP tool name. Returned records also include the same stable qualified alias used for direct agent-tool exposure, `mcp__<server>__<tool>`; alias parts are sanitized and receive a stable short hash suffix when sanitized names collide.
@@ -133,12 +136,35 @@ alta mcp tool call --server <server> --tool <raw-tool-name> --arguments {"key":"
 `McpRuntimeService` owns finite MCP runtime state for direct MCP agent tools, the `alta mcp tool ...` commands, and the dialog's Test Server action. It supports:
 
 - stdio servers launched from JSON `command`, `args`, optional `cwd`, and optional `env`;
-- HTTP/SSE servers using absolute `http`/`https` URLs, SDK transport auto-detection, connection timeout, and JSON `headers` with optional `${NAME}` environment-variable expansion;
+- HTTP/SSE servers using absolute `http`/`https` URLs, SDK transport auto-detection, connection timeout, JSON `headers` with optional `${NAME}` environment-variable expansion, and CodeAlta-managed OAuth/Authv2 tokens when authorized;
 - bounded startup/tool discovery with effective global or per-server startup timeout;
 - bounded tool calls with effective global or per-server tool timeout;
 - disabled-server, missing-server, disabled-tool, missing-tool, invalid transport, invalid URL/header, timeout, unavailable, and authentication diagnostics.
 
-Runtime diagnostics redact sensitive values before they reach command output or the dialog. Redaction covers configured URLs/headers, secret-like dictionary keys, arguments, exceptions, text output, and structured JSON output. HTTP 401/403 diagnostics explicitly direct the user to configure headers (including `${NAME}` environment-variable references when preferred) or complete auth outside CodeAlta; OAuth UX is not implemented.
+Runtime diagnostics redact sensitive values before they reach command output or the dialog. Redaction covers configured URLs/headers, secret-like dictionary keys, arguments, exceptions, text output, and structured JSON output. HTTP 401/403 diagnostics explicitly direct the user to use the dialog **Authorize/Login** action or `alta mcp auth login <server>` for browser OAuth, or to configure static headers (including `${NAME}` environment-variable references when preferred) when appropriate.
+
+## HTTP OAuth/Authv2 browser login
+
+Remote HTTP/SSE MCP servers that follow the MCP authorization flow can use browser login instead of long-lived bearer headers in MCP JSON. Add an optional per-server JSON auth block when client details are needed; for servers that support dynamic client registration, the URL plus `"auth": { "type": "oauth" }` is usually enough:
+
+```json
+{
+  "mcpServers": {
+    "docs": {
+      "url": "https://example.test/mcp",
+      "auth": {
+        "type": "oauth",
+        "clientId": "optional-client-id",
+        "scopes": ["read", "search"]
+      }
+    }
+  }
+}
+```
+
+CodeAlta stores access/refresh tokens in local user MCP plugin state under `~/.alta/auth/mcp/`, not in `.alta/mcp.json` or TOML policy. The token cache uses per-server files, creates parent directories for the current user, writes through a temporary file, and command/dialog output reports only status and expiry, never token values, authorization codes, or client secrets. Browser login uses a loopback callback with a per-login state value and an ephemeral port by default; set `redirectUri` only when an authorization server requires a pre-registered fixed callback. Non-interactive agent runs and ordinary `alta mcp tool ...` commands use cached/refreshable tokens only; they do not surprise-open a browser.
+
+Use the MCP Servers dialog **Authorize/Login** action for a configured HTTP server to open the browser flow. The action opens a small modal login dialog on top of the MCP dialog, shows/copies the login URL when available, and supports **Cancel Login** (`Esc` or `Ctrl+G Ctrl+C`) for stuck or unwanted browser flows. Use **Logout** to delete cached tokens. The CLI fallback is `alta mcp auth login <server>`, `alta mcp auth status`, and `alta mcp auth logout <server>`.
 
 Tool-call results preserve `isError` from MCP. Text content becomes `contentText` and `content` blocks; structured content is included after redaction when it fits the output character budget. Image, audio, embedded-resource, resource-link, and unknown non-text content are summarized instead of embedding raw payloads. Output beyond `max_tool_output_chars` is truncated and marked with `truncated = true`.
 
@@ -155,7 +181,7 @@ Open the MCP Servers dialog through any of these entry points:
 
 The dialog and status indicator share `McpManagementService`. `Refresh` reads the fixed JSON config files and TOML policy without connecting to servers. The server list includes effective servers, disabled servers, invalid/missing config rows, and global definitions shadowed by project config. Dialog counts are cached snapshot counts; the status indicator uses cached exposed/total counts when a dialog test has run, otherwise it reports session activation state as `tools pending`, `active tools N`, or `tools not loaded`; `tools pending` should be transient and is replaced after activation-time or agent-run tool enumeration updates the bindable status state. Enabled configured servers with no cached test result start a background, cancellable tool discovery when selected so the **Tools (N)** tab is prefilled without blocking rendering, close, or application shutdown.
 
-For a selected configured server, the dialog shows compact enablement/actions above the tab strip. The first **Config** tab contains editable JSON server fields. The **Tools (N)** tab contains discovered tool policy controls. The following **Details** tab contains normalized/redacted connection fields, source scope/path/format, policy values, and diagnostics. Rendering and refresh use cached/discovered config snapshots and do not synchronously connect to servers; background prefill and the explicit **Test** action connect to the selected stdio or HTTP/SSE server with configured timeouts, update cached exposed/total tool counts, and surface success, failure, timeout, cancellation, and auth/unavailable diagnostics without blocking normal config refresh/rendering. The top-level **Add**, **Save**, and **Remove** actions create/update/remove JSON server definitions in the selected project/global scope. Editable config fields show the unredacted JSON values because they are write-back fields. Editable arguments use semicolon-separated values; env/header fields use semicolon-separated `KEY=VALUE` pairs and support `${NAME}` environment-variable placeholders. The compact Enabled checkbox writes server `enabled` policy. The discovered tools table shows Enabled, raw MCP name/title, and policy status. Toggling a tool writes/removes that raw tool name in `disabled_tools`; it does not edit JSON server definitions.
+For a selected configured server, the dialog shows compact enablement/actions above the tab strip. The first **Config** tab contains editable JSON server fields. The **Tools (N)** tab contains discovered tool policy controls. The following **Details** tab contains normalized/redacted connection fields, authorization status for HTTP servers, source scope/path/format, policy values, and diagnostics. Rendering and refresh use cached/discovered config snapshots and do not synchronously connect to servers; background prefill and the explicit **Test** action connect to the selected stdio or HTTP/SSE server with configured timeouts, update cached exposed/total tool counts, and surface success, failure, timeout, cancellation, and auth/unavailable diagnostics without blocking normal config refresh/rendering. The **Authorize/Login** action is explicit and may open a browser; automatic prefill and background agent-tool enumeration remain non-interactive. The top-level **Add**, **Save**, and **Remove** actions create/update/remove JSON server definitions in the selected project/global scope. Editable config fields show the unredacted JSON values because they are write-back fields. Editable arguments use semicolon-separated values; env/header fields use semicolon-separated `KEY=VALUE` pairs and support `${NAME}` environment-variable placeholders. The compact Enabled checkbox writes server `enabled` policy. The discovered tools table shows Enabled, raw MCP name/title, and policy status. Toggling a tool writes/removes that raw tool name in `disabled_tools`; it does not edit JSON server definitions.
 
 Use `alta mcp server add/remove/...` or **Open JSON Config** for advanced JSON shapes not exposed by the dialog form.
 
@@ -179,8 +205,8 @@ Progressive dynamic `AgentToolDefinition` exposure is shipped behavior:
 - before each agent run, the MCP plugin connects only to activated servers and refreshes their tools;
 - every enabled tool on an activated server that passes global/server policy (`enabled`, `allowed_tools`, `disabled_tools`) is exposed as a direct agent tool;
 - the deterministic `mcp__<server>__<tool>` alias is used as `AgentToolSpec.Name`, with the same sanitization and collision hashing used by runtime command output;
-- the MCP `inputSchema` is passed through as the tool input schema;
-- direct tool handlers delegate to `McpRuntimeService.CallToolAsync(serverKey, toolName, arguments, ...)`, preserving tool timeout, redaction, `isError`, structured content, and truncation behavior;
+- the MCP `inputSchema` is passed through as the tool input schema when it can be represented by CodeAlta's strict/OpenAI-compatible tool schema subset; schemas with dynamic object maps or required names outside local `properties` are exposed through an `arguments_json` compatibility string containing the raw MCP argument JSON object;
+- direct tool handlers delegate to `McpRuntimeService.CallToolAsync(serverKey, toolName, arguments, ...)`, unwrapping `arguments_json` when needed and preserving tool timeout, redaction, `isError`, structured content, and truncation behavior;
 - startup/list-tools diagnostics are reported through per-run MCP prompt guidance without leaking headers, environment values, arguments, or tool output secrets;
 - direct tools are enumerated on activation for immediate status feedback and refreshed at agent-run enumeration time. `tool-list-changed` notifications and a long-lived MCP connection manager are optional follow-ups only if finite refresh is insufficient.
 
@@ -188,7 +214,6 @@ Progressive dynamic `AgentToolDefinition` exposure is shipped behavior:
 
 The following remain outside direct MCP tool exposure until separately implemented and tested:
 
-- OAuth and interactive authentication UX for HTTP/SSE MCP servers;
 - MCP resources, prompts, elicitation, and user-interaction flows unless required by direct tool invocation;
 - timeline display integration beyond the existing generic direct-tool display;
 - `tool-list-changed` notifications and automatic dynamic refresh beyond agent-run/plugin-tool enumeration;

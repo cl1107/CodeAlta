@@ -1,9 +1,12 @@
 using System.ComponentModel;
+using System.Net;
 using System.Net.Http;
+using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using ModelContextProtocol;
+using ModelContextProtocol.Authentication;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -15,6 +18,14 @@ internal sealed record McpRuntimeRequest
     public string? ProjectDirectory { get; init; }
 
     public string? UserHomeDirectory { get; init; }
+
+    public bool AllowOAuthBrowserLogin { get; init; }
+
+    public bool ForceOAuth { get; init; }
+
+    public bool OpenOAuthBrowser { get; init; } = true;
+
+    public Action<string>? OAuthStatus { get; init; }
 }
 
 internal sealed record McpRuntimeDiagnostic
@@ -397,7 +408,7 @@ internal sealed class McpRuntimeService : IAsyncDisposable
         var globalPolicyPath = McpPolicyWriter.GetGlobalPolicyPath(request.UserHomeDirectory);
         var projectPolicyPath = projectDirectory is null ? null : McpPolicyWriter.GetProjectPolicyPath(projectDirectory);
         var policy = _policyLoader.Load(globalPolicyPath, projectPolicyPath);
-        return new RuntimeContext(config, policy, CreateServerAliasPartMap(config.EffectiveServers));
+        return new RuntimeContext(request, config, policy, CreateServerAliasPartMap(config.EffectiveServers));
     }
 
     private async Task<ServerRuntimeState> GetServerStateAsync(RuntimeContext context, McpEffectiveServer effective, CancellationToken cancellationToken)
@@ -429,16 +440,22 @@ internal sealed class McpRuntimeService : IAsyncDisposable
         var timeoutMs = NormalizeTimeout(serverPolicy?.StartupTimeoutMs ?? context.Policy.StartupTimeoutMs, 30000);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromMilliseconds(timeoutMs));
+        IClientTransport? transport = null;
+        McpClient? client = null;
         try
         {
-            var transport = CreateTransport(effective.Definition, timeoutMs);
-            var client = await McpClient.CreateAsync(transport, loggerFactory: NullLoggerFactory.Instance, cancellationToken: timeout.Token).ConfigureAwait(false);
+            transport = CreateTransport(effective.Definition, context.Request, timeoutMs);
+            client = await McpClient.CreateAsync(transport, loggerFactory: NullLoggerFactory.Instance, cancellationToken: timeout.Token).ConfigureAwait(false);
+            transport = null;
             var listedTools = await client.ListToolsAsync(cancellationToken: timeout.Token).ConfigureAwait(false);
             var tools = ConvertTools(key, serverAliasPart, listedTools.ToArray(), context.Policy, serverPolicy);
-            return Cache(cacheKey, ServerRuntimeState.Connected(client, tools));
+            var connectedClient = client;
+            client = null;
+            return Cache(cacheKey, ServerRuntimeState.Connected(connectedClient, tools));
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
+            await DisposeFailedStartupAsync(client, transport).ConfigureAwait(false);
             return Cache(cacheKey, ServerRuntimeState.Failed(new McpRuntimeDiagnostic
             {
                 Code = "server_startup_timeout",
@@ -447,13 +464,49 @@ internal sealed class McpRuntimeService : IAsyncDisposable
                 Message = $"MCP {FormatTransport(effective.Definition.Transport)} server '{key}' did not finish startup/tool discovery within {timeoutMs} ms.",
             }));
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            await DisposeFailedStartupAsync(client, transport).ConfigureAwait(false);
+            throw;
+        }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested && IsRuntimeException(ex))
         {
+            await DisposeFailedStartupAsync(client, transport).ConfigureAwait(false);
             return Cache(cacheKey, ServerRuntimeState.Failed(CreateUnavailableDiagnostic(effective.Definition, ex)));
         }
     }
 
-    private static IClientTransport CreateTransport(McpServerDefinition definition, int timeoutMs)
+    private static async ValueTask DisposeFailedStartupAsync(McpClient? client, IClientTransport? transport)
+    {
+        if (client is not null)
+        {
+            try
+            {
+                await client.DisposeAsync().ConfigureAwait(false);
+            }
+            catch (Exception ex) when (IsRuntimeException(ex) || ex is OperationCanceledException)
+            {
+                // A failed HTTP/SSE handshake can leave SDK receive/close tasks faulted; disposal is best-effort here
+                // because the user-facing startup failure is reported separately as a redacted diagnostic.
+            }
+
+            return;
+        }
+
+        if (transport is IAsyncDisposable asyncDisposable)
+        {
+            try
+            {
+                await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+            }
+            catch (Exception ex) when (IsRuntimeException(ex) || ex is OperationCanceledException)
+            {
+                // Best-effort cleanup for partially connected transports.
+            }
+        }
+    }
+
+    private static IClientTransport CreateTransport(McpServerDefinition definition, McpRuntimeRequest request, int timeoutMs)
     {
         if (definition.Transport == McpTransportKind.Stdio)
         {
@@ -478,7 +531,84 @@ internal sealed class McpRuntimeService : IAsyncDisposable
             ConnectionTimeout = TimeSpan.FromMilliseconds(timeoutMs),
             AdditionalHeaders = headers,
         };
+        var oauth = CreateOAuthOptions(definition, request);
+        if (oauth is not null)
+        {
+            httpOptions.OAuth = oauth;
+        }
+
         return new HttpClientTransport(httpOptions, NullLoggerFactory.Instance);
+    }
+
+    private static ClientOAuthOptions? CreateOAuthOptions(McpServerDefinition definition, McpRuntimeRequest request)
+    {
+        if (definition.Transport != McpTransportKind.Http || string.IsNullOrWhiteSpace(definition.Url))
+        {
+            return null;
+        }
+
+        if (definition.OAuth is { Enabled: false })
+        {
+            return null;
+        }
+
+        var configured = definition.OAuth is { Enabled: true } ? definition.OAuth : null;
+        var tokenPath = McpOAuthTokenCache.GetTokenPath(request.UserHomeDirectory, definition.Key, definition.Url);
+        if (!request.ForceOAuth && configured is null && !File.Exists(tokenPath))
+        {
+            return null;
+        }
+
+        var oauth = configured ?? new McpOAuthOptions();
+        var redirectUri = !string.IsNullOrWhiteSpace(oauth.RedirectUri) && Uri.TryCreate(oauth.RedirectUri, UriKind.Absolute, out var configuredRedirectUri)
+            ? configuredRedirectUri
+            : CreateDefaultOAuthRedirectUri();
+        var options = new ClientOAuthOptions
+        {
+            RedirectUri = redirectUri,
+            ClientId = string.IsNullOrWhiteSpace(oauth.ClientId) ? null : oauth.ClientId,
+            ClientSecret = string.IsNullOrWhiteSpace(oauth.ClientSecret) ? null : oauth.ClientSecret,
+            ClientMetadataDocumentUri = !string.IsNullOrWhiteSpace(oauth.ClientMetadataDocumentUri) && Uri.TryCreate(oauth.ClientMetadataDocumentUri, UriKind.Absolute, out var metadataUri) ? metadataUri : null,
+            Scopes = oauth.Scopes.Count == 0 ? null : oauth.Scopes,
+            TokenCache = new McpOAuthTokenCache(tokenPath),
+            AdditionalAuthorizationParameters = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["state"] = CreateOAuthState(),
+            },
+            DynamicClientRegistration = oauth.DynamicClientRegistration
+                ? new DynamicClientRegistrationOptions
+                {
+                    ClientName = "CodeAlta",
+                    ClientUri = new Uri("https://github.com/xoofx/CodeAlta", UriKind.Absolute),
+                }
+                : null,
+        };
+        if (request.AllowOAuthBrowserLogin)
+        {
+            var browser = new McpOAuthBrowserAuthorization(request.OAuthStatus, request.OpenOAuthBrowser);
+            options.AuthorizationRedirectDelegate = browser.AuthorizeAsync;
+        }
+        else
+        {
+            options.AuthorizationRedirectDelegate = static (_, _, _) => Task.FromResult<string?>(null);
+        }
+
+        return options;
+    }
+
+    private static Uri CreateDefaultOAuthRedirectUri()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        return new Uri($"http://127.0.0.1:{port}/mcp/oauth/callback", UriKind.Absolute);
+    }
+
+    private static string CreateOAuthState()
+    {
+        Span<byte> bytes = stackalloc byte[16];
+        RandomNumberGenerator.Fill(bytes);
+        return Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
     }
 
     private async Task<ResolvedToolState?> ResolveToolStateAsync(RuntimeContext context, string serverKey, string toolName, IList<McpRuntimeDiagnostic> diagnostics, CancellationToken cancellationToken)
@@ -549,7 +679,8 @@ internal sealed class McpRuntimeService : IAsyncDisposable
             string.Join('\0', definition.Args),
             definition.Cwd ?? string.Empty,
             JoinDictionary(definition.Env),
-            JoinDictionary(definition.Headers));
+            JoinDictionary(definition.Headers),
+            FormatOAuthCachePart(definition.OAuth));
 
     private static string JoinDictionary(IReadOnlyDictionary<string, string> values)
         => string.Join(
@@ -572,6 +703,11 @@ internal sealed class McpRuntimeService : IAsyncDisposable
                 return InvalidTransport(definition, "Stdio MCP servers cannot include URL or header fields.");
             }
 
+            if (definition.OAuth is not null)
+            {
+                return InvalidTransport(definition, "Stdio MCP servers cannot include OAuth authorization settings.");
+            }
+
             if (TryCreateVariableDiagnostic(definition, definition.Env, "environment variable", out var variableDiagnostic))
             {
                 return variableDiagnostic;
@@ -588,6 +724,15 @@ internal sealed class McpRuntimeService : IAsyncDisposable
         if (string.IsNullOrWhiteSpace(definition.Url))
         {
             return InvalidTransport(definition, "HTTP/SSE MCP servers must define a non-empty URL.");
+        }
+
+        if (definition.OAuth is { } oauth)
+        {
+            var oauthDiagnostic = ValidateOAuthOptions(definition, oauth);
+            if (oauthDiagnostic is not null)
+            {
+                return oauthDiagnostic;
+            }
         }
 
         if (!Uri.TryCreate(definition.Url, UriKind.Absolute, out var uri) || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
@@ -632,6 +777,56 @@ internal sealed class McpRuntimeService : IAsyncDisposable
                     Message = $"Invalid MCP server '{definition.Key}': HTTP header '{McpRedactor.RedactValue("header", name)}' contains an invalid value.",
                 };
             }
+        }
+
+        return null;
+    }
+
+    private static string FormatOAuthCachePart(McpOAuthOptions? oauth)
+        => oauth is null
+            ? string.Empty
+            : string.Join(
+                '\0',
+                oauth.Enabled.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                oauth.ClientId ?? string.Empty,
+                oauth.ClientSecret ?? string.Empty,
+                oauth.ClientMetadataDocumentUri ?? string.Empty,
+                oauth.RedirectUri ?? string.Empty,
+                string.Join('\0', oauth.Scopes),
+                oauth.DynamicClientRegistration.ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+    private static McpRuntimeDiagnostic? ValidateOAuthOptions(McpServerDefinition definition, McpOAuthOptions oauth)
+    {
+        if (!oauth.Enabled)
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(oauth.RedirectUri) &&
+            (!Uri.TryCreate(oauth.RedirectUri, UriKind.Absolute, out var redirectUri) ||
+             redirectUri.Scheme != Uri.UriSchemeHttp ||
+             !redirectUri.IsLoopback ||
+             redirectUri.IsDefaultPort))
+        {
+            return new McpRuntimeDiagnostic
+            {
+                Code = "invalid_oauth_redirect_uri",
+                Server = definition.Key,
+                Transport = "http",
+                Message = $"Invalid MCP server '{definition.Key}': OAuth redirect_uri must be an absolute HTTP loopback URL with an explicit non-default port.",
+            };
+        }
+
+        if (!string.IsNullOrWhiteSpace(oauth.ClientMetadataDocumentUri) &&
+            (!Uri.TryCreate(oauth.ClientMetadataDocumentUri, UriKind.Absolute, out var metadataUri) || metadataUri.Scheme != Uri.UriSchemeHttps))
+        {
+            return new McpRuntimeDiagnostic
+            {
+                Code = "invalid_oauth_client_metadata_document_uri",
+                Server = definition.Key,
+                Transport = "http",
+                Message = $"Invalid MCP server '{definition.Key}': OAuth client_metadata_document_uri must be an absolute HTTPS URL.",
+            };
         }
 
         return null;
@@ -1081,7 +1276,7 @@ internal sealed class McpRuntimeService : IAsyncDisposable
                 Code = "server_authentication_failed",
                 Server = definition.Key,
                 Transport = "http",
-                Message = $"MCP HTTP/SSE server '{definition.Key}' rejected the connection with HTTP {(int)httpException.StatusCode.Value}; configure static headers in MCP JSON or complete authentication outside CodeAlta. OAuth UX is not implemented.",
+                Message = $"MCP HTTP/SSE server '{definition.Key}' rejected the connection with HTTP {(int)httpException.StatusCode.Value}; use the MCP Servers dialog Authorize/Login action or `alta mcp auth login {definition.Key}` for browser OAuth, or configure static headers in MCP JSON when appropriate.",
             };
         }
 
@@ -1126,7 +1321,7 @@ internal sealed class McpRuntimeService : IAsyncDisposable
         return null;
     }
 
-    private sealed record RuntimeContext(McpConfigSnapshot Config, McpPolicyOptions Policy, IReadOnlyDictionary<string, string> ServerAliasParts);
+    private sealed record RuntimeContext(McpRuntimeRequest Request, McpConfigSnapshot Config, McpPolicyOptions Policy, IReadOnlyDictionary<string, string> ServerAliasParts);
 
     private sealed record DirectToolCandidate(McpRuntimeTool Tool, McpServerPolicyOptions? ServerPolicy);
 

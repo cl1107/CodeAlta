@@ -38,7 +38,7 @@ builder.Services
 
 await builder.Build().RunAsync().ConfigureAwait(false);
 
-internal sealed record TinyMcpServerSettings(string? LogPath, string? StderrLine, int DelayMs, string? ExtraTool, string? ExtraTools, bool RichTools)
+internal sealed record TinyMcpServerSettings(string? LogPath, string? StderrLine, int DelayMs, string? ExtraTool, string? ExtraTools, bool RichTools, bool IncompatibleTool)
 {
     public static TinyMcpServerSettings FromEnvironment()
     {
@@ -50,7 +50,8 @@ internal sealed record TinyMcpServerSettings(string? LogPath, string? StderrLine
             Math.Max(0, delayMs),
             Environment.GetEnvironmentVariable("MCP_TEST_EXTRA_TOOL"),
             Environment.GetEnvironmentVariable("MCP_TEST_EXTRA_TOOLS"),
-            string.Equals(Environment.GetEnvironmentVariable("MCP_TEST_RICH_TOOLS"), "1", StringComparison.Ordinal));
+            string.Equals(Environment.GetEnvironmentVariable("MCP_TEST_RICH_TOOLS"), "1", StringComparison.Ordinal),
+            string.Equals(Environment.GetEnvironmentVariable("MCP_TEST_INCOMPATIBLE_TOOL"), "1", StringComparison.Ordinal));
     }
 
     public Task DelayAsync(CancellationToken cancellationToken)
@@ -145,6 +146,25 @@ internal static class TinyMcpTools
             ]);
         }
 
+        if (settings.IncompatibleTool)
+        {
+            tools.Add(new Tool
+            {
+                Name = "editJiraIssue",
+                Description = "Updates fields on a Jira issue using a dynamic fields map.",
+                InputSchema = ParseSchema("""
+                    {
+                      "type": "object",
+                      "required": ["fields"],
+                      "additionalProperties": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    }
+                    """),
+            });
+        }
+
         return tools;
     }
 
@@ -163,6 +183,8 @@ internal static class TinyMcpTools
             "rich" => CreateRichResult(),
             "error" => TextResult("failure text", isError: true),
             "long" => CreateLongResult(),
+            "editJiraIssue" => TextResult("jira:" + JsonSerializer.Serialize(
+                request.Arguments ?? new Dictionary<string, JsonElement>(StringComparer.Ordinal))),
             _ when IsExtraTool(request.Name) => TextResult("extra:" + request.Name),
             _ => throw new McpProtocolException("Unknown tool " + request.Name, McpErrorCode.InvalidParams),
         };
