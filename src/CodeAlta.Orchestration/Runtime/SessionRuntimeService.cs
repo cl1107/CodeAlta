@@ -899,10 +899,7 @@ public sealed class SessionRuntimeService : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(options);
         ArgumentException.ThrowIfNullOrWhiteSpace(skillName);
 
-        var project = await ResolveProjectAsync(session, cancellationToken).ConfigureAwait(false);
-        var query = BuildSkillCatalogQuery(project, options.ProjectRoots);
-        var activation = await _skillCatalog.ActivateAsync(query, skillName, cancellationToken).ConfigureAwait(false)
-            ?? throw new KeyNotFoundException($"Skill '{skillName}' was not found or is not activatable for this session.");
+        var activation = await CreateSkillActivationAsync(session, options, skillName, cancellationToken).ConfigureAwait(false);
 
         var input = new AgentInput(
         [
@@ -922,6 +919,33 @@ public sealed class SessionRuntimeService : IAsyncDisposable
                 new AgentSendOptions { Input = input },
                 cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Resolves a CodeAlta-managed skill activation payload for a session without starting an agent run.
+    /// </summary>
+    /// <param name="session">Target session.</param>
+    /// <param name="options">Execution options used to resolve project-local skill roots.</param>
+    /// <param name="skillName">Skill name to activate.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The resolved activation payload.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="session"/> or <paramref name="options"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="skillName"/> is empty.</exception>
+    /// <exception cref="KeyNotFoundException">Thrown when the requested skill cannot be resolved.</exception>
+    public async Task<SkillActivation> CreateSkillActivationAsync(
+        SessionViewDescriptor session,
+        SessionExecutionOptions options,
+        string skillName,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentException.ThrowIfNullOrWhiteSpace(skillName);
+
+        var project = await ResolveProjectAsync(session, cancellationToken).ConfigureAwait(false);
+        var query = BuildSkillCatalogQuery(project, options.ProjectRoots);
+        return await _skillCatalog.ActivateAsync(query, skillName, cancellationToken).ConfigureAwait(false)
+            ?? throw new KeyNotFoundException($"Skill '{skillName}' was not found or is not activatable for this session.");
     }
 
     /// <summary>

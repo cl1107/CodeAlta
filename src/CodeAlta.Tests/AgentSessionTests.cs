@@ -447,6 +447,88 @@ public sealed class AgentSessionTests
     }
 
     [TestMethod]
+    public async Task AgentSession_SendAsync_PersistsGenericAltaSkillActivationTranscript()
+    {
+        using var temp = TestTempDirectory.Create();
+        var store = new FileSystemAgentSessionStore(new AgentRuntimePathLayout(Path.Combine(temp.Path, "machine", "agents")));
+        var provider = CreateProvider();
+        var summary = CreateSummary("session-alta-skill-activation") with { WorkingDirectory = temp.Path };
+        var state = CreateState("session-alta-skill-activation");
+        await store.UpsertSessionAsync(summary).ConfigureAwait(false);
+        await store.UpsertStateAsync(state).ConfigureAwait(false);
+
+        var skillRoot = Path.Combine(temp.Path, ".alta", "skills", "code-review");
+        Directory.CreateDirectory(skillRoot);
+        var skillFilePath = Path.Combine(skillRoot, "SKILL.md");
+        await File.WriteAllTextAsync(skillFilePath, "# Skill").ConfigureAwait(false);
+        var payload = CreateSkillPayload("code-review", skillFilePath, "Review code for regressions.");
+        var transcript = string.Join(
+            '\n',
+            JsonSerializer.Serialize(new { type = "alta.result", exitCode = 0, recordCount = 1 }),
+            JsonSerializer.Serialize(new { type = "alta.skill.activated", skillName = "code-review", payload })) + "\n";
+
+        using var schema = JsonDocument.Parse("""{"type":"object"}""");
+        await using var session = new AgentSession(
+            ModelProviderIds.OpenAIResponses,
+            provider,
+            summary,
+            state,
+            [],
+            store,
+            new ScriptedTurnExecutor(
+                (_, _, _) =>
+                {
+                    using var arguments = JsonDocument.Parse(
+                        """
+                        {"args":["skill","activate","code-review","--session","session-alta-skill-activation"]}
+                        """);
+                    return Task.FromResult(
+                        new AgentTurnResponse
+                        {
+                            AssistantMessage = new AgentConversationMessage(
+                                AgentConversationRole.Assistant,
+                                [new AgentMessagePart.ToolCall("call-alta-skill", "alta", arguments.RootElement.Clone())]),
+                            Usage = CreateUsageSnapshot(7, 4),
+                            ProviderSessionId = "resp_alta_skill_1",
+                        });
+                },
+                (_, _, _) => Task.FromResult(
+                    new AgentTurnResponse
+                    {
+                        AssistantMessage = new AgentConversationMessage(
+                            AgentConversationRole.Assistant,
+                            [new AgentMessagePart.Text("Skill loaded.")]),
+                        Usage = CreateUsageSnapshot(11, 6),
+                        ProviderSessionId = "resp_alta_skill_2",
+                    })),
+            new AgentSessionCreateOptions
+            {
+                ProviderKey = provider.ProviderKey,
+                Model = "gpt-5.4",
+                WorkingDirectory = temp.Path,
+                OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
+                Tools =
+                [
+                    new AgentToolDefinition(
+                        new AgentToolSpec("alta", "Run alta", schema.RootElement.Clone()),
+                        (_, _) => Task.FromResult(new AgentToolResult(true, [new AgentToolResultItem.Text(transcript)]))),
+                ],
+            });
+
+        _ = await session.SendAsync(new AgentSendOptions { Input = AgentInput.Text("Use the review skill.") }).ConfigureAwait(false);
+
+        var history = await session.GetHistoryAsync().ConfigureAwait(false);
+        Assert.IsTrue(history.OfType<AgentRawEvent>().Any(static evt => evt.BackendEventType == "local.skillActivation"));
+        Assert.IsTrue(history.OfType<AgentActivityEvent>().Where(static evt => evt.ActivityId == "call-alta-skill").All(static evt => evt.Kind == AgentActivityKind.Skill));
+
+        var persistedState = await store.GetStateAsync(provider.ProtocolFamily, provider.ProviderKey, summary.SessionId).ConfigureAwait(false);
+        Assert.IsNotNull(persistedState);
+        Assert.AreEqual(1, persistedState.LoadedSkills.Count);
+        Assert.AreEqual("code-review", persistedState.LoadedSkills[0].Name);
+        Assert.AreEqual(skillFilePath, persistedState.LoadedSkills[0].SkillFilePath);
+    }
+
+    [TestMethod]
     public async Task AgentSession_SendAsync_UserSkillInputPersistsUserActivation()
     {
         using var temp = TestTempDirectory.Create();

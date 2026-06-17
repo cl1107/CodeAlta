@@ -287,7 +287,7 @@ public sealed class AgentSession : IAgentSession, IAgentCompactionOutcomeProvide
                         throw new InvalidOperationException($"Tool '{toolCall.Name}' was not registered for session '{SessionId}'.");
                     }
 
-                    var activityKind = IsSkillActivationTool(toolCall.Name)
+                    var activityKind = IsSkillActivationTool(toolCall)
                         ? AgentActivityKind.Skill
                         : AgentActivityKind.ToolCall;
 
@@ -408,7 +408,7 @@ public sealed class AgentSession : IAgentSession, IAgentCompactionOutcomeProvide
                         SerializeLocalMessage(toolMessage),
                         runId);
                     AgentRawEvent? rawSkillActivationEvent = null;
-                    if (result.Success && IsSkillActivationTool(toolCall.Name))
+                    if (result.Success && IsSkillActivationTool(toolCall))
                     {
                         var activatedSkill = TryCreateLoadedSkillState(toolCall, result);
                         if (activatedSkill is not null)
@@ -1002,7 +1002,7 @@ public sealed class AgentSession : IAgentSession, IAgentCompactionOutcomeProvide
                         SessionId,
                         DateTimeOffset.UtcNow,
                         runId,
-                        IsSkillActivationTool(toolCall.Name) ? AgentActivityKind.Skill : AgentActivityKind.ToolCall,
+                        IsSkillActivationTool(toolCall) ? AgentActivityKind.Skill : AgentActivityKind.ToolCall,
                         AgentActivityPhase.Requested,
                         toolCall.CallId,
                         null,
@@ -2430,7 +2430,7 @@ public sealed class AgentSession : IAgentSession, IAgentCompactionOutcomeProvide
         ArgumentNullException.ThrowIfNull(toolCall);
         ArgumentNullException.ThrowIfNull(result);
 
-        if (IsSkillActivationTool(toolCall.Name))
+        if (IsSkillActivationTool(toolCall))
         {
             return result;
         }
@@ -2757,24 +2757,99 @@ public sealed class AgentSession : IAgentSession, IAgentCompactionOutcomeProvide
             "rename_file_or_dir" or
             "apply_patch";
 
-    private static bool IsSkillActivationTool(string toolName)
-        => string.Equals(toolName, "codealta_skills_activate", StringComparison.Ordinal);
+    private static bool IsSkillActivationTool(AgentMessagePart.ToolCall toolCall)
+        => string.Equals(toolCall.Name, "codealta_skills_activate", StringComparison.Ordinal) ||
+           IsAltaSkillActivationCommand(toolCall);
+
+    private static bool IsAltaSkillActivationCommand(AgentMessagePart.ToolCall toolCall)
+    {
+        if (!string.Equals(toolCall.Name, "alta", StringComparison.Ordinal) ||
+            !toolCall.Arguments.TryGetProperty("args", out var argsElement) ||
+            argsElement.ValueKind != JsonValueKind.Array)
+        {
+            return false;
+        }
+
+        var args = argsElement.EnumerateArray()
+            .Where(static item => item.ValueKind == JsonValueKind.String)
+            .Select(static item => item.GetString())
+            .Where(static item => !string.IsNullOrWhiteSpace(item))
+            .Select(static item => item!)
+            .ToArray();
+        return args is ["skills_activate", ..] ||
+               args is ["skill", "activate", ..] ||
+               args is ["skills", "activate", ..];
+    }
 
     private static AgentLoadedSkillState? TryCreateLoadedSkillState(
         AgentMessagePart.ToolCall toolCall,
         AgentToolResult result)
     {
-        var payload = result.Items.OfType<AgentToolResultItem.Text>()
+        var renderedResult = result.Items.OfType<AgentToolResultItem.Text>()
             .Select(static item => item.Value)
             .FirstOrDefault(static value => !string.IsNullOrWhiteSpace(value));
-        if (string.IsNullOrWhiteSpace(payload))
+        if (string.IsNullOrWhiteSpace(renderedResult))
         {
             return null;
         }
 
+        var payload = renderedResult;
         var skillName = GetArgumentString(toolCall.Arguments, "skillName")
             ?? GetArgumentString(toolCall.Arguments, "skill_name");
+        if (IsAltaSkillActivationCommand(toolCall))
+        {
+            var activationRecord = TryReadAltaSkillActivationRecord(renderedResult);
+            if (activationRecord is null)
+            {
+                return null;
+            }
+
+            payload = activationRecord.Payload;
+            skillName = activationRecord.SkillName ?? skillName;
+        }
+
         return TryCreateLoadedSkillState(skillName, null, payload, "model", toolCall.CallId);
+    }
+
+    private static AltaSkillActivationRecord? TryReadAltaSkillActivationRecord(string transcript)
+    {
+        foreach (var line in transcript.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            JsonDocument? document = null;
+            try
+            {
+                document = JsonDocument.Parse(line);
+                var root = document.RootElement;
+                if (!root.TryGetProperty("type", out var type) ||
+                    type.ValueKind != JsonValueKind.String ||
+                    !string.Equals(type.GetString(), "alta.skill.activated", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var payload = root.TryGetProperty("payload", out var payloadElement) && payloadElement.ValueKind == JsonValueKind.String
+                    ? payloadElement.GetString()
+                    : null;
+                if (string.IsNullOrWhiteSpace(payload))
+                {
+                    return null;
+                }
+
+                var skillName = root.TryGetProperty("skillName", out var skillNameElement) && skillNameElement.ValueKind == JsonValueKind.String
+                    ? skillNameElement.GetString()
+                    : null;
+                return new AltaSkillActivationRecord(skillName, payload);
+            }
+            catch (JsonException)
+            {
+            }
+            finally
+            {
+                document?.Dispose();
+            }
+        }
+
+        return null;
     }
 
     private static bool TryCreateUserActivatedSkillState(
@@ -2934,6 +3009,8 @@ public sealed class AgentSession : IAgentSession, IAgentCompactionOutcomeProvide
         => arguments.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.String
             ? value.GetString()
             : null;
+
+    private sealed record AltaSkillActivationRecord(string? SkillName, string Payload);
 
     private static AgentLoadedSkillState EnsureSkillAvailability(AgentLoadedSkillState skill)
     {

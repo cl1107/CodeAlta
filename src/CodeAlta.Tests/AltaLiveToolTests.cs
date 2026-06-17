@@ -3293,6 +3293,55 @@ public sealed class AltaLiveToolTests
     }
 
     [TestMethod]
+    public async Task SkillActivate_AgentCallerCurrentActiveSessionReturnsPayloadWithoutStartingRun()
+    {
+        using var root = TempDirectory.Create();
+        await WriteSkillAsync(Path.Combine(root.Path, "skills", "sample-skill"), "sample-skill", "Active run activation skill.").ConfigureAwait(false);
+        var options = new CatalogOptions { GlobalRoot = root.Path };
+        var sendBlocker = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var providerRuntime = new StatefulProviderRuntime(ModelProviderIds.Codex)
+        {
+            PublishRunEventOnSend = true,
+            SendBlocker = sendBlocker,
+        };
+        var runtime = CreateRuntime(options, providerRuntime);
+        await using var _ = runtime.ConfigureAwait(false);
+        var dispatcher = CreateDispatcher(new AltaServiceCollection()
+            .Add(options)
+            .Add(new ProjectCatalog(options))
+            .Add(new SessionViewCatalog(options))
+            .Add(runtime));
+        var created = await dispatcher.InvokeAsync(["session", "create", "--global", "--provider", ModelProviderIds.Codex.Value], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var sessionId = ReadJsonLines(created.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.session.created").GetProperty("sessionId").GetString()!;
+        var session = new SessionViewDescriptor { SessionId = sessionId };
+        var sendTask = dispatcher.InvokeAsync(["session", "send", sessionId, "--message", "start"], caller: AltaCallerIdentity.Cli).AsTask();
+        await WaitUntilAsync(() => runtime.HasActiveRunAsync(session).ConfigureAwait(false).GetAwaiter().GetResult()).ConfigureAwait(false);
+        var caller = new AltaCallerIdentity
+        {
+            Kind = "agent",
+            SourceSessionId = sessionId,
+            SourceAgentId = "agent-session",
+        };
+
+        try
+        {
+            var result = await dispatcher.InvokeAsync(["skill", "activate", "sample-skill", "--session", sessionId], caller: caller).ConfigureAwait(false);
+
+            Assert.AreEqual(AltaExitCodes.Success, result.ExitCode, result.Stderr);
+            Assert.AreEqual(1, providerRuntime.SentOptions.Count, "Skill activation from the active session should not start a nested run.");
+            var activated = ReadJsonLines(result.Stdout).Single(line => line.GetProperty("type").GetString() == "alta.skill.activated");
+            Assert.AreEqual("sample-skill", activated.GetProperty("skillName").GetString());
+            StringAssert.Contains(activated.GetProperty("payload").GetString(), "Active run activation skill.");
+        }
+        finally
+        {
+            sendBlocker.TrySetResult();
+            var completedSend = await sendTask.ConfigureAwait(false);
+            Assert.AreEqual(AltaExitCodes.Success, completedSend.ExitCode, completedSend.Stderr);
+        }
+    }
+
+    [TestMethod]
     public async Task SkillActivate_DisabledSkillReturnsNotFoundAndDoesNotSend()
     {
         using var root = TempDirectory.Create();

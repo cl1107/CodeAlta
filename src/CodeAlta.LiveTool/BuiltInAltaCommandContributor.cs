@@ -2798,17 +2798,23 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         var executionOptions = await BuildExecutionOptionsForSessionAsync(context, sessionInfo, promptId: null).ConfigureAwait(false);
         try
         {
-            var runId = await runtime.ActivateSkillAsync(sessionInfo.Session, executionOptions, skillName, context.CancellationToken).ConfigureAwait(false);
-            AltaJsonlWriter.WriteRecord(context.Stdout, new
+            if (await runtime.HasActiveRunAsync(sessionInfo.Session, context.CancellationToken).ConfigureAwait(false))
             {
-                type = "alta.skill.activated",
-                version = 1,
-                correlationId = context.CorrelationId,
-                skillName,
-                sessionId = sessionInfo.Session.SessionId,
-                runId = runId.Value,
-                activatedBy = CreateProvenance(context),
-            });
+                if (IsSameAgentSourceSession(context, sessionInfo.Session.SessionId))
+                {
+                    var activation = await runtime.CreateSkillActivationAsync(sessionInfo.Session, executionOptions, skillName, context.CancellationToken).ConfigureAwait(false);
+                    WriteSkillActivated(context, activation, sessionInfo.Session.SessionId, runId: null, includePayload: true);
+                    return AltaExitCodes.Success;
+                }
+
+                return Unsupported(
+                    context,
+                    "skill.activationSessionBusy",
+                    $"Session '{sessionInfo.Session.SessionId}' has an active run. Wait until the session is idle before activating a skill for it.");
+            }
+
+            var runId = await runtime.ActivateSkillAsync(sessionInfo.Session, executionOptions, skillName, context.CancellationToken).ConfigureAwait(false);
+            WriteSkillActivated(context, activation: null, sessionInfo.Session.SessionId, runId.Value, includePayload: false, skillName);
             return AltaExitCodes.Success;
         }
         catch (KeyNotFoundException ex)
@@ -2819,6 +2825,31 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         {
             return Unsupported(context, "skill.activationUnsupported", ex.Message);
         }
+    }
+
+    private static bool IsSameAgentSourceSession(AltaCommandContext context, string sessionId)
+        => string.Equals(context.Caller.Kind, "agent", StringComparison.OrdinalIgnoreCase) &&
+           string.Equals(context.Caller.SourceSessionId, sessionId, StringComparison.OrdinalIgnoreCase);
+
+    private static void WriteSkillActivated(
+        AltaCommandContext context,
+        SkillActivation? activation,
+        string sessionId,
+        string? runId,
+        bool includePayload,
+        string? skillName = null)
+    {
+        AltaJsonlWriter.WriteRecord(context.Stdout, new
+        {
+            type = "alta.skill.activated",
+            version = 1,
+            correlationId = context.CorrelationId,
+            skillName = activation?.Descriptor.Name ?? skillName,
+            sessionId,
+            runId,
+            activatedBy = CreateProvenance(context),
+            payload = includePayload ? activation?.Payload : null,
+        });
     }
 
     private static async ValueTask<int> HandleProviderListAsync(AltaCommandContext context, bool detailed)
