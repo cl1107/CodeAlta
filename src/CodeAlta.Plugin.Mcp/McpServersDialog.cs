@@ -438,10 +438,10 @@ internal sealed class McpServersDialog
                 .Click(() => ApplyEnablement(row)),
             new Button("Test")
                 .IsEnabled(canTestServer)
-                .Click(() => _ = TestServerAsync(row, automatic: false)),
+                .Click(() => ObserveBackgroundOperation(TestServerAsync(row, automatic: false), "MCP server test")),
             new Button(entry.OAuthTokenCached ? "Login" : "Authorize")
                 .IsEnabled(canAuthorize)
-                .Click(() => _ = AuthorizeServerAsync(row)),
+                .Click(() => ObserveBackgroundOperation(AuthorizeServerAsync(row), "MCP browser login")),
             new Button("Logout")
                 .IsEnabled(canAuthorize && entry.OAuthTokenCached)
                 .Click(() => LogoutServer(row)),
@@ -701,7 +701,7 @@ internal sealed class McpServersDialog
                     _ = PublishUiAsync(() => _statusText = "[warning]MCP browser login was canceled.[/]");
                 }
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or Tomlyn.TomlException)
+            catch (Exception ex)
             {
                 if (IsActiveTestServerOperation(testCancellation))
                 {
@@ -713,6 +713,31 @@ internal sealed class McpServersDialog
                 EndTestServerOperation(testCancellation);
             }
         });
+    }
+
+    private void ObserveBackgroundOperation(Task task, string operationName)
+    {
+        _ = ObserveBackgroundOperationAsync(task, operationName);
+    }
+
+    private async Task ObserveBackgroundOperationAsync(Task task, string operationName)
+    {
+        try
+        {
+            await task.ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            try
+            {
+                await PublishUiAsync(() => _statusText = $"[error]{AnsiMarkup.Escape(operationName)} failed:[/] {AnsiMarkup.Escape(ex.GetBaseException().Message)}").ConfigureAwait(false);
+            }
+            catch
+            {
+                // The dialog may be closing; observing the original task is still required so the process does not
+                // treat an already-reported background login failure as an unobserved task exception.
+            }
+        }
     }
 
     private void LogoutServer(McpServerRow row)
@@ -751,7 +776,7 @@ internal sealed class McpServersDialog
             return;
         }
 
-        _ = TestServerAsync(row, automatic: true);
+        ObserveBackgroundOperation(TestServerAsync(row, automatic: true), "MCP server tool discovery");
     }
 
     private static bool ShouldAutomaticallyDiscoverTools(McpServerRow row)

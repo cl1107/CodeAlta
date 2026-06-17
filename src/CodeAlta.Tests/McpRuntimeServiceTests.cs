@@ -843,6 +843,102 @@ public sealed class McpRuntimeServiceTests
     }
 
     [TestMethod]
+    public async Task HttpServer_OAuthLoginInvalidTokenDoesNotPublishUnobservedTaskException()
+    {
+        using var home = TempDirectory.Create();
+        using var project = TempDirectory.Create();
+        await using var server = InvalidOAuthHttpMcpServer.Start();
+        Directory.CreateDirectory(Path.Combine(project.Path, ".alta"));
+        File.WriteAllText(
+            McpConfigDiscovery.GetProjectConfigPath(project.Path),
+            JsonSerializer.Serialize(new
+            {
+                mcpServers = new Dictionary<string, object>
+                {
+                    ["remote"] = new
+                    {
+                        url = server.Endpoint,
+                        auth = new
+                        {
+                            type = "oauth",
+                            client_id = "codealta-test-client",
+                            dynamic_client_registration = false,
+                        },
+                    },
+                },
+            }));
+        var unobserved = new List<Exception>();
+        void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
+        {
+            unobserved.Add(e.Exception);
+            e.SetObserved();
+        }
+
+        using var http = new HttpClient();
+        var authorizationCallbacks = new List<Task>();
+        var authorizationCallbacksLock = new object();
+        void ReportStatus(string message)
+        {
+            const string prefix = "Open MCP authorization in your browser: ";
+            if (!message.StartsWith(prefix, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            var authorizationUri = new Uri(message[prefix.Length..], UriKind.Absolute);
+            var callback = Task.Run(async () =>
+            {
+                using var response = await http.GetAsync(authorizationUri).ConfigureAwait(false);
+            });
+            lock (authorizationCallbacksLock)
+            {
+                authorizationCallbacks.Add(callback);
+            }
+        }
+
+        TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
+        McpRuntimeServerTestResult result;
+        try
+        {
+            await using (var service = new McpRuntimeService())
+            {
+                result = await service.TestServerAsync(
+                    new McpRuntimeRequest
+                    {
+                        ProjectDirectory = project.Path,
+                        UserHomeDirectory = home.Path,
+                        ForceOAuth = true,
+                        AllowOAuthBrowserLogin = true,
+                        OpenOAuthBrowser = false,
+                        OAuthStatus = ReportStatus,
+                    },
+                    "remote",
+                    CancellationToken.None);
+            }
+
+            Task[] callbacks;
+            lock (authorizationCallbacksLock)
+            {
+                callbacks = authorizationCallbacks.ToArray();
+            }
+
+            await Task.WhenAll(callbacks).WaitAsync(TimeSpan.FromSeconds(10));
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+        }
+        finally
+        {
+            TaskScheduler.UnobservedTaskException -= OnUnobservedTaskException;
+        }
+
+        Assert.AreEqual(0, result.Tools.Count);
+        Assert.AreEqual("server_authentication_failed", result.Diagnostics.Single().Code);
+        Assert.IsTrue(server.AuthorizationRequestCount > 0, server.ErrorSummary);
+        Assert.AreEqual(0, unobserved.Count, string.Join(Environment.NewLine, unobserved.Select(static exception => exception.ToString())));
+    }
+
+    [TestMethod]
     public async Task HttpServer_ValidationAndAuthenticationDiagnosticsAreRedacted()
     {
         using var project = TempDirectory.Create();
@@ -1012,6 +1108,229 @@ public sealed class McpRuntimeServiceTests
             {
             }
             catch (UnauthorizedAccessException)
+            {
+            }
+        }
+    }
+
+    private sealed class InvalidOAuthHttpMcpServer : IAsyncDisposable
+    {
+        private const string InvalidToken = "invalid-token";
+        private readonly HttpListener _listener = new();
+        private readonly CancellationTokenSource _shutdown = new();
+        private readonly Task _acceptLoop;
+        private readonly object _syncRoot = new();
+        private readonly List<string> _errors = [];
+        private int _authorizationRequestCount;
+
+        private InvalidOAuthHttpMcpServer()
+        {
+            var port = GetFreeLoopbackPort();
+            BaseUri = new Uri($"http://127.0.0.1:{port}/", UriKind.Absolute);
+            Endpoint = new Uri(BaseUri, "mcp").ToString();
+            _listener.Prefixes.Add(BaseUri.ToString());
+            _listener.Start();
+            _acceptLoop = Task.Run(AcceptLoopAsync);
+        }
+
+        public string Endpoint { get; }
+
+        public int AuthorizationRequestCount => Volatile.Read(ref _authorizationRequestCount);
+
+        private Uri BaseUri { get; }
+
+        public static InvalidOAuthHttpMcpServer Start()
+            => new();
+
+        public string ErrorSummary
+        {
+            get
+            {
+                lock (_syncRoot)
+                {
+                    return string.Join(Environment.NewLine, _errors);
+                }
+            }
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await _shutdown.CancelAsync();
+            _listener.Stop();
+            try
+            {
+                await _acceptLoop.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+            catch (HttpListenerException)
+            {
+            }
+
+            _listener.Close();
+            _shutdown.Dispose();
+        }
+
+        private async Task AcceptLoopAsync()
+        {
+            while (!_shutdown.IsCancellationRequested)
+            {
+                HttpListenerContext context;
+                try
+                {
+                    context = await _listener.GetContextAsync().ConfigureAwait(false);
+                }
+                catch (HttpListenerException) when (_shutdown.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (ObjectDisposedException) when (_shutdown.IsCancellationRequested)
+                {
+                    break;
+                }
+
+                _ = Task.Run(() => HandleRequestAsync(context, _shutdown.Token));
+            }
+        }
+
+        private async Task HandleRequestAsync(HttpListenerContext context, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var path = context.Request.Url?.AbsolutePath ?? string.Empty;
+                if (string.Equals(path, "/mcp", StringComparison.Ordinal))
+                {
+                    await WriteMcpAuthenticationFailureAsync(context, cancellationToken).ConfigureAwait(false);
+                }
+                else if (path.StartsWith("/.well-known/oauth-protected-resource", StringComparison.Ordinal))
+                {
+                    await WriteJsonAsync(
+                        context,
+                        200,
+                        JsonSerializer.Serialize(new
+                        {
+                            resource = Endpoint,
+                            authorization_servers = new[] { BaseUri.GetLeftPart(UriPartial.Authority) },
+                        }),
+                        cancellationToken).ConfigureAwait(false);
+                }
+                else if (string.Equals(path, "/.well-known/oauth-authorization-server", StringComparison.Ordinal))
+                {
+                    await WriteJsonAsync(
+                        context,
+                        200,
+                        JsonSerializer.Serialize(new
+                        {
+                            authorization_endpoint = new Uri(BaseUri, "authorize").ToString(),
+                            token_endpoint = new Uri(BaseUri, "token").ToString(),
+                            response_types_supported = new[] { "code" },
+                            grant_types_supported = new[] { "authorization_code", "refresh_token" },
+                            token_endpoint_auth_methods_supported = new[] { "none" },
+                            code_challenge_methods_supported = new[] { "S256" },
+                        }),
+                        cancellationToken).ConfigureAwait(false);
+                }
+                else if (string.Equals(path, "/authorize", StringComparison.Ordinal))
+                {
+                    Interlocked.Increment(ref _authorizationRequestCount);
+                    WriteAuthorizationRedirect(context);
+                }
+                else if (string.Equals(path, "/token", StringComparison.Ordinal))
+                {
+                    await WriteJsonAsync(
+                        context,
+                        200,
+                        JsonSerializer.Serialize(new
+                        {
+                            access_token = InvalidToken,
+                            token_type = "Bearer",
+                            expires_in = 3600,
+                        }),
+                        cancellationToken).ConfigureAwait(false);
+                }
+                else
+                {
+                    await WriteJsonAsync(context, 404, "{}", cancellationToken).ConfigureAwait(false);
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException && ex is not ObjectDisposedException && ex is not HttpListenerException)
+            {
+                lock (_syncRoot)
+                {
+                    _errors.Add(ex.ToString());
+                }
+
+                TryClose(context);
+            }
+            catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or HttpListenerException)
+            {
+                TryClose(context);
+            }
+        }
+
+        private async Task WriteMcpAuthenticationFailureAsync(HttpListenerContext context, CancellationToken cancellationToken)
+        {
+            if (string.Equals(context.Request.HttpMethod, "POST", StringComparison.OrdinalIgnoreCase) &&
+                string.IsNullOrEmpty(context.Request.Headers["Authorization"]))
+            {
+                await WriteJsonAsync(context, 404, "{}", cancellationToken).ConfigureAwait(false);
+                return;
+            }
+
+            if (!string.Equals(context.Request.Headers["Authorization"], "Bearer " + InvalidToken, StringComparison.Ordinal))
+            {
+                context.Response.Headers["WWW-Authenticate"] = "Bearer resource_metadata=\"" + new Uri(BaseUri, ".well-known/oauth-protected-resource") + "\"";
+                await WriteJsonAsync(context, 401, "{\"error\":\"unauthorized\"}", cancellationToken).ConfigureAwait(false);
+                return;
+            }
+
+            await WriteJsonAsync(context, 401, "{\"error\":\"invalid_token\",\"error_description\":\"Missing or invalid access token\"}", cancellationToken).ConfigureAwait(false);
+        }
+
+        private static void WriteAuthorizationRedirect(HttpListenerContext context)
+        {
+            var redirectUri = context.Request.QueryString["redirect_uri"];
+            if (string.IsNullOrWhiteSpace(redirectUri))
+            {
+                context.Response.StatusCode = 400;
+                context.Response.Close();
+                return;
+            }
+
+            var state = context.Request.QueryString["state"];
+            var separator = redirectUri.Contains('?', StringComparison.Ordinal) ? '&' : '?';
+            var location = redirectUri + separator + "code=oauth-code";
+            if (!string.IsNullOrEmpty(state))
+            {
+                location += "&state=" + WebUtility.UrlEncode(state);
+            }
+
+            context.Response.StatusCode = 302;
+            context.Response.RedirectLocation = location;
+            context.Response.Close();
+        }
+
+        private static async Task WriteJsonAsync(HttpListenerContext context, int statusCode, string body, CancellationToken cancellationToken)
+        {
+            var bodyBytes = Encoding.UTF8.GetBytes(body);
+            context.Response.StatusCode = statusCode;
+            context.Response.ContentType = "application/json";
+            context.Response.ContentLength64 = bodyBytes.Length;
+            await context.Response.OutputStream.WriteAsync(bodyBytes, cancellationToken).ConfigureAwait(false);
+            context.Response.Close();
+        }
+
+        private static void TryClose(HttpListenerContext context)
+        {
+            try
+            {
+                context.Response.Close();
+            }
+            catch (ObjectDisposedException)
             {
             }
         }

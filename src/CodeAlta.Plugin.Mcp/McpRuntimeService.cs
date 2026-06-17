@@ -1,10 +1,12 @@
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Channels;
 using ModelContextProtocol;
 using ModelContextProtocol.Authentication;
 using ModelContextProtocol.Client;
@@ -110,6 +112,8 @@ internal sealed record McpRuntimeContentBlock
 
 internal sealed class McpRuntimeService : IAsyncDisposable
 {
+    private const int FailedTransportReadDrainDelayMilliseconds = 50;
+
     private readonly McpConfigDiscovery _discovery = new();
     private readonly McpPolicyLoader _policyLoader = new();
     private readonly Dictionary<string, ServerRuntimeState> _servers = new(StringComparer.Ordinal);
@@ -519,7 +523,7 @@ internal sealed class McpRuntimeService : IAsyncDisposable
                 EnvironmentVariables = ExpandDictionary(definition.Env).ToDictionary(static pair => pair.Key, static pair => (string?)pair.Value, StringComparer.Ordinal),
                 ShutdownTimeout = CreateStdioShutdownTimeout(timeoutMs),
             };
-            return new StdioClientTransport(options, NullLoggerFactory.Instance);
+            return new ObservingClientTransport(new StdioClientTransport(options, NullLoggerFactory.Instance));
         }
 
         var headers = ExpandDictionary(definition.Headers).ToDictionary(static pair => pair.Key, static pair => pair.Value, StringComparer.Ordinal);
@@ -537,7 +541,110 @@ internal sealed class McpRuntimeService : IAsyncDisposable
             httpOptions.OAuth = oauth;
         }
 
-        return new HttpClientTransport(httpOptions, NullLoggerFactory.Instance);
+        return new ObservingClientTransport(new HttpClientTransport(httpOptions, NullLoggerFactory.Instance));
+    }
+
+    private sealed class ObservingClientTransport : IClientTransport, IAsyncDisposable
+    {
+        private readonly IClientTransport _inner;
+
+        public ObservingClientTransport(IClientTransport inner)
+        {
+            ArgumentNullException.ThrowIfNull(inner);
+            _inner = inner;
+        }
+
+        public string Name => _inner.Name;
+
+        public async Task<ITransport> ConnectAsync(CancellationToken cancellationToken = default)
+        {
+            var transport = await _inner.ConnectAsync(cancellationToken).ConfigureAwait(false);
+            return new ObservingTransport(transport);
+        }
+
+        public ValueTask DisposeAsync()
+            => _inner is IAsyncDisposable disposable ? disposable.DisposeAsync() : ValueTask.CompletedTask;
+    }
+
+    private sealed class ObservingTransport : ITransport
+    {
+        private readonly ITransport _inner;
+        private readonly ChannelReader<JsonRpcMessage> _messageReader;
+
+        public ObservingTransport(ITransport inner)
+        {
+            ArgumentNullException.ThrowIfNull(inner);
+            _inner = inner;
+            _messageReader = new ObservingChannelReader(inner.MessageReader);
+        }
+
+        public string? SessionId => _inner.SessionId;
+
+        public ChannelReader<JsonRpcMessage> MessageReader => _messageReader;
+
+        public Task SendMessageAsync(JsonRpcMessage message, CancellationToken cancellationToken = default)
+            => _inner.SendMessageAsync(message, cancellationToken);
+
+        public ValueTask DisposeAsync()
+            => _inner.DisposeAsync();
+    }
+
+    private sealed class ObservingChannelReader : ChannelReader<JsonRpcMessage>
+    {
+        private readonly ChannelReader<JsonRpcMessage> _inner;
+        private readonly Task _completion;
+
+        public ObservingChannelReader(ChannelReader<JsonRpcMessage> inner)
+        {
+            ArgumentNullException.ThrowIfNull(inner);
+            _inner = inner;
+            _completion = ObserveCompletionAsync(inner.Completion);
+        }
+
+        public override Task Completion => _completion;
+
+        public override bool CanCount => _inner.CanCount;
+
+        public override bool CanPeek => _inner.CanPeek;
+
+        public override int Count => _inner.Count;
+
+        public override ValueTask<JsonRpcMessage> ReadAsync(CancellationToken cancellationToken = default)
+            => _inner.ReadAsync(cancellationToken);
+
+        public override bool TryPeek([MaybeNullWhen(false)] out JsonRpcMessage item)
+            => _inner.TryPeek(out item);
+
+        public override bool TryRead([MaybeNullWhen(false)] out JsonRpcMessage item)
+            => _inner.TryRead(out item);
+
+        public override async ValueTask<bool> WaitToReadAsync(CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                return await _inner.WaitToReadAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (IsRuntimeException(ex))
+            {
+                // ModelContextProtocol 1.4.0 starts its message pump before startup completes. HTTP/SSE startup
+                // failures can close the reader while the initialize send is still unwinding, which lets the SDK
+                // fault an internal pending-response task that callers cannot observe. Briefly let the failed send
+                // propagate and then complete the reader cleanly so startup reports the original transport error.
+                await Task.Delay(FailedTransportReadDrainDelayMilliseconds, CancellationToken.None).ConfigureAwait(false);
+                return false;
+            }
+        }
+
+        private static async Task ObserveCompletionAsync(Task completion)
+        {
+            try
+            {
+                await completion.ConfigureAwait(false);
+            }
+            catch (Exception ex) when (IsRuntimeException(ex))
+            {
+            }
+        }
     }
 
     private static ClientOAuthOptions? CreateOAuthOptions(McpServerDefinition definition, McpRuntimeRequest request)
@@ -1261,7 +1368,14 @@ internal sealed class McpRuntimeService : IAsyncDisposable
         => TimeSpan.FromMilliseconds(Math.Clamp(startupTimeoutMs, 1, 500));
 
     private static bool IsRuntimeException(Exception exception)
-        => exception is McpException or IOException or InvalidOperationException or Win32Exception or JsonException or TimeoutException or OperationCanceledException or HttpRequestException;
+    {
+        if (exception is AggregateException aggregate)
+        {
+            return aggregate.InnerExceptions.Count > 0 && aggregate.InnerExceptions.All(IsRuntimeException);
+        }
+
+        return exception is McpException or IOException or InvalidOperationException or Win32Exception or JsonException or TimeoutException or OperationCanceledException or HttpRequestException;
+    }
 
     private static string FormatTransport(McpTransportKind transport)
         => transport == McpTransportKind.Stdio ? "stdio" : "http";
@@ -1315,6 +1429,17 @@ internal sealed class McpRuntimeService : IAsyncDisposable
             if (current is HttpRequestException httpException)
             {
                 return httpException;
+            }
+
+            if (current is AggregateException aggregate)
+            {
+                foreach (var inner in aggregate.InnerExceptions)
+                {
+                    if (FindHttpRequestException(inner) is { } aggregateHttpException)
+                    {
+                        return aggregateHttpException;
+                    }
+                }
             }
         }
 
