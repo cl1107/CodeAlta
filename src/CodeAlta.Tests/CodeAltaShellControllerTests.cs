@@ -125,6 +125,7 @@ public sealed class CodeAltaShellControllerTests
         var initializationTask = controller.InitializeAsync(CancellationToken.None);
 
         await WaitUntilAsync(() => log.Contains("Shell.ApplyRecoveredCatalogState:1:1")).ConfigureAwait(false);
+        await WaitUntilAsync(() => log.Contains("Importer.Import")).ConfigureAwait(false);
 
         Assert.IsFalse(initializationTask.IsCompleted, "Provider initialization should still be running.");
         CollectionAssert.Contains(log, "Shell.InitializeModelProviders");
