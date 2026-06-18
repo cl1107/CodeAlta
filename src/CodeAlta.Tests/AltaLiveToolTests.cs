@@ -2464,8 +2464,14 @@ public sealed class AltaLiveToolTests
         providerRuntime.PublishIdle(sessionId, new AgentRunId("run-1"));
         await WaitUntilAsync(() => providerRuntime.SentOptions.Count == 2).ConfigureAwait(false);
 
-        var list = await dispatcher.InvokeAsync(["reminder", "list", "--all"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
-        var item = ReadJsonLines(list.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.reminder.item");
+        JsonElement item = default;
+        await WaitUntilAsync(async () =>
+        {
+            var list = await dispatcher.InvokeAsync(["reminder", "list", "--all"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+            item = ReadJsonLines(list.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.reminder.item");
+            return string.Equals(item.GetProperty("state").GetString(), "completed", StringComparison.Ordinal) &&
+                item.GetProperty("firedCount").GetInt32() == 2;
+        }).ConfigureAwait(false);
         Assert.AreEqual(reminderId, item.GetProperty("reminderId").GetString());
         Assert.AreEqual("completed", item.GetProperty("state").GetString());
         Assert.AreEqual(2, item.GetProperty("firedCount").GetInt32());
@@ -3740,6 +3746,20 @@ public sealed class AltaLiveToolTests
     {
         var deadline = DateTimeOffset.UtcNow.AddSeconds(2);
         while (!condition())
+        {
+            if (DateTimeOffset.UtcNow >= deadline)
+            {
+                Assert.Fail("Timed out waiting for the expected asynchronous condition.");
+            }
+
+            await Task.Delay(25).ConfigureAwait(false);
+        }
+    }
+
+    private static async Task WaitUntilAsync(Func<Task<bool>> condition)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(2);
+        while (!await condition().ConfigureAwait(false))
         {
             if (DateTimeOffset.UtcNow >= deadline)
             {
