@@ -11,6 +11,7 @@ internal sealed class ReminderUiCoordinator : IDisposable
 {
     private readonly AltaReminderService _reminderService;
     private readonly ReminderUiCoordinatorPort _port;
+    private readonly State<int> _reminderVersion = new(0);
 
     public ReminderUiCoordinator(
         AltaReminderService reminderService,
@@ -43,10 +44,16 @@ internal sealed class ReminderUiCoordinator : IDisposable
     }
 
     public int GetSelectedSessionReminderCount()
-        => _port.GetSelectedSession() is { } session ? GetActiveReminderCount(session.SessionId) : 0;
+    {
+        var _ = _reminderVersion.Value;
+        return _port.GetSelectedSession() is { } session ? GetActiveReminderCount(session.SessionId) : 0;
+    }
 
     public bool HasActiveReminder(string sessionId)
-        => GetActiveReminderCount(sessionId) > 0;
+    {
+        var _ = _reminderVersion.Value;
+        return GetActiveReminderCount(sessionId) > 0;
+    }
 
     public void Dispose()
         => _reminderService.Changed -= OnReminderServiceChanged;
@@ -55,7 +62,11 @@ internal sealed class ReminderUiCoordinator : IDisposable
         => _reminderService.List(sessionId, includeCompleted: false).Count;
 
     private void OnReminderServiceChanged(object? sender, EventArgs e)
-        => _port.DispatchToUi(_port.RefreshProjection);
+        => _port.DispatchToUi(() =>
+        {
+            _reminderVersion.Value++;
+            _port.RefreshProjection();
+        });
 }
 
 internal sealed class ReminderUiCoordinatorPort
