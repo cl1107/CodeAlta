@@ -198,6 +198,122 @@ public sealed class ShellWorkspaceCoordinatorTests
     }
 
     [TestMethod]
+    public void ApplySelectionProjection_DraftUsageReflectsModelSelectorPreference()
+    {
+        using var temp = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = temp.Path };
+        var sessionStateCoordinator = CreateSessionStateCoordinator(options);
+        sessionStateCoordinator.ApplyRecoveredCatalogState([], []);
+        var providerState = new ModelProviderState(ModelProviderIds.Codex, "Codex")
+        {
+            Availability = ModelProviderAvailability.Ready,
+            SelectedModelId = "first-listed-model",
+        };
+        var sessionUsage = new SessionUsageViewModel();
+        var sessionSelection = new SessionSelectionContext(
+            sessionStateCoordinator,
+            static (_, _) => Task.CompletedTask,
+            sessionId => string.Equals(sessionId, sessionStateCoordinator.SelectedSessionId, StringComparison.OrdinalIgnoreCase));
+        var workspaceContext = new ShellWorkspaceContext(
+            new DelegatingShellPromptAvailabilityPort(
+                static () => ModelProviderIds.Codex,
+                static () => (false, string.Empty, StatusTone.Info)),
+            new ShellWorkspaceSurfacePort(
+                static () => true,
+                static () => null,
+                static () => null,
+                static _ => { },
+                static () => { },
+                static _ => { },
+                static _ => { }),
+            new DelegatingShellWorkspaceProjectionPort(
+                sessionStateCoordinator.EnsureSelectionDefaults,
+                static () => { },
+                static () => { },
+                static () => { },
+                () => providerState.SelectedModelId = "configured-default-model",
+                static _ => { },
+                static _ => { },
+                static () => { },
+                static () => { },
+                static () => { }),
+            new InlineUiDispatcher());
+        var workspace = new ShellWorkspaceCoordinator(
+            new CodeAltaShellViewModel(),
+            new SessionWorkspaceViewModel(),
+            sessionUsage,
+            new Dictionary<string, ModelProviderState>(StringComparer.OrdinalIgnoreCase)
+            {
+                [ModelProviderIds.Codex.Value] = providerState,
+            },
+            sessionSelection,
+            workspaceContext);
+
+        workspace.ApplySelectionProjection();
+
+        Assert.AreEqual("configured-default-model", sessionUsage.ModelName);
+    }
+
+    [TestMethod]
+    public void ApplySelectionProjection_SessionUsageReflectsRestoredModelPreference()
+    {
+        using var temp = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = temp.Path };
+        var session = CreateSession("session-1", "project-1");
+        var sessionStateCoordinator = CreateSessionStateCoordinator(options);
+        sessionStateCoordinator.ApplyRecoveredCatalogState([CreateProject("project-1", "CodeAlta")], [session]);
+        sessionStateCoordinator.OpenSession(session.SessionId);
+        var providerState = new ModelProviderState(ModelProviderIds.Codex, "Codex")
+        {
+            Availability = ModelProviderAvailability.Ready,
+            SelectedModelId = "first-listed-model",
+        };
+        var sessionUsage = new SessionUsageViewModel();
+        var sessionSelection = new SessionSelectionContext(
+            sessionStateCoordinator,
+            static (_, _) => Task.CompletedTask,
+            sessionId => string.Equals(sessionId, sessionStateCoordinator.SelectedSessionId, StringComparison.OrdinalIgnoreCase));
+        var workspaceContext = new ShellWorkspaceContext(
+            new DelegatingShellPromptAvailabilityPort(
+                static () => ModelProviderIds.Codex,
+                static () => (false, string.Empty, StatusTone.Info)),
+            new ShellWorkspaceSurfacePort(
+                static () => true,
+                static () => null,
+                static () => null,
+                static _ => { },
+                static () => { },
+                static _ => { },
+                static _ => { }),
+            new DelegatingShellWorkspaceProjectionPort(
+                sessionStateCoordinator.EnsureSelectionDefaults,
+                static () => { },
+                static () => { },
+                static () => { },
+                static () => { },
+                tab => tab.ModelId = "restored-session-model",
+                static _ => { },
+                static () => { },
+                static () => { },
+                static () => { }),
+            new InlineUiDispatcher());
+        var workspace = new ShellWorkspaceCoordinator(
+            new CodeAltaShellViewModel(),
+            new SessionWorkspaceViewModel(),
+            sessionUsage,
+            new Dictionary<string, ModelProviderState>(StringComparer.OrdinalIgnoreCase)
+            {
+                [ModelProviderIds.Codex.Value] = providerState,
+            },
+            sessionSelection,
+            workspaceContext);
+
+        workspace.ApplySelectionProjection();
+
+        Assert.AreEqual("restored-session-model", sessionUsage.ModelName);
+    }
+
+    [TestMethod]
     public void ApplySelectionProjection_EnrichesRecoveredUsageWithProviderModelLimit()
     {
         using var temp = TempDirectory.Create();

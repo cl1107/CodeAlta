@@ -114,10 +114,10 @@ internal sealed class WorkspaceProjectionController
 
     private void RefreshSessionWorkspaceCore()
     {
-        _sessionUsageProjection.Refresh();
         _sessionWorkspaceViewModel.CanShowSessionInfo = _sessionSelection.GetSelectedSession() is not null;
         _viewRefreshState.Value++;
         RefreshSessionPaneContent();
+        _sessionUsageProjection.Refresh();
     }
 
     private void RefreshSessionPaneContent()
