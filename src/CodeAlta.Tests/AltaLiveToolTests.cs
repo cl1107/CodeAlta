@@ -3204,6 +3204,56 @@ public sealed class AltaLiveToolTests
     }
 
     [TestMethod]
+    public async Task SessionQueue_RunThatIdlesBeforeSubmittedStateDrainsNextPrompt()
+    {
+        using var root = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = root.Path };
+        var sessionCatalog = new SessionViewCatalog(options);
+        var ProviderId = new ModelProviderId("queue-idle-before-submit-state");
+        var providerRuntime = new StatefulProviderRuntime(ProviderId);
+        var runtime = CreateRuntime(options, providerRuntime);
+        await using var _ = runtime.ConfigureAwait(false);
+        var dispatcher = CreateDispatcher(new AltaServiceCollection()
+            .Add(options)
+            .Add(new ProjectCatalog(options))
+            .Add(sessionCatalog)
+            .Add(runtime));
+        var created = await dispatcher.InvokeAsync(["session", "create", "--global", "--provider", ProviderId.Value], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var createdRecord = ReadJsonLines(created.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.session.created");
+        var sessionId = createdRecord.GetProperty("sessionId").GetString()!;
+
+        var send = await dispatcher.InvokeAsync(["session", "send", sessionId, "--message", "first prompt"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var queueOne = await dispatcher.InvokeAsync(["session", "queue", sessionId, "--message", "queued prompt one"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var queueTwo = await dispatcher.InvokeAsync(["session", "queue", sessionId, "--message", "queued prompt two"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+
+        Assert.AreEqual(AltaExitCodes.Success, send.ExitCode);
+        Assert.AreEqual(AltaExitCodes.Success, queueOne.ExitCode);
+        Assert.AreEqual(AltaExitCodes.Success, queueTwo.ExitCode);
+
+        providerRuntime.PublishIdleBeforeSendReturns = true;
+        providerRuntime.PublishIdle(sessionId, new AgentRunId("run-1"));
+
+        await WaitUntilAsync(() => providerRuntime.SentOptions.Count == 3).ConfigureAwait(false);
+        Assert.AreEqual("queued prompt one", ExtractText(providerRuntime.SentOptions[1].Input));
+        Assert.AreEqual("queued prompt two", ExtractText(providerRuntime.SentOptions[2].Input));
+        SessionViewLocalState? state = null;
+        await WaitUntilAsync(() =>
+        {
+            try
+            {
+                state = ReadJournalStateAsync(sessionCatalog, sessionId).ConfigureAwait(false).GetAwaiter().GetResult();
+                return state.QueuedPrompts.Count == 2 && state.QueuedPrompts.All(static prompt => prompt.State == "submitted");
+            }
+            catch (IOException)
+            {
+                return false;
+            }
+        }).ConfigureAwait(false);
+        Assert.IsNotNull(state);
+        CollectionAssert.AreEqual(new[] { "submitted", "submitted" }, state.QueuedPrompts.Select(static prompt => prompt.State).ToArray());
+    }
+
+    [TestMethod]
     public async Task SessionMessage_WrapsPeerAgentContentAsNonInstructionalMessage()
     {
         using var root = TempDirectory.Create();
@@ -4052,6 +4102,8 @@ public sealed class AltaLiveToolTests
 
         public bool PublishRunEventOnSend { get; init; }
 
+        public bool PublishIdleBeforeSendReturns { get; set; }
+
         public IReadOnlyList<AgentModelInfo> Models { get; init; } = [];
 
         public ModelProviderId ProviderId => providerId;
@@ -4191,6 +4243,11 @@ public sealed class AltaLiveToolTests
             if (owner.PublishRunEventOnSend)
             {
                 owner.PublishUserCompleted(sessionId, runId, ExtractText(options.Input));
+            }
+
+            if (owner.PublishIdleBeforeSendReturns)
+            {
+                owner.PublishIdle(sessionId, runId);
             }
 
             if (owner.SendBlocker is not null)

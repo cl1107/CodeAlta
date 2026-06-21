@@ -123,6 +123,72 @@ public sealed class ShellSessionStateCoordinatorTests
     }
 
     [TestMethod]
+    public async Task PersistSessionLocalStateAsync_PreservesRuntimePromptQueueState()
+    {
+        using var temp = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = temp.Path };
+        var sessionCatalog = new SessionViewCatalog(options);
+        var coordinator = CreateCoordinator(options, sessionCatalog);
+        coordinator.ViewState = new SessionViewViewState();
+        var session = CreateSession("session-1");
+        var timestamp = session.CreatedAt.AddMinutes(1);
+        var submittedBy = new AltaActorProvenance
+        {
+            Kind = "agent",
+            SourceSessionId = "child-session",
+            CreatedAt = timestamp,
+        };
+        await sessionCatalog.JournalStore.AppendStateAsync(
+                session,
+                new SessionViewLocalState
+                {
+                    PromptProvenance =
+                    [
+                        new SessionViewPromptProvenance
+                        {
+                            PromptId = "queue-1",
+                            Kind = "parent-notify",
+                            Queued = true,
+                            PromptPreview = "queued child result",
+                            SubmittedBy = submittedBy,
+                            CreatedAt = timestamp,
+                        },
+                    ],
+                    QueuedPrompts =
+                    [
+                        new SessionViewQueuedPrompt
+                        {
+                            QueueItemId = "queue-1",
+                            Kind = "parent-notify",
+                            Prompt = "queued child result",
+                            PromptPreview = "queued child result",
+                            State = "queued",
+                            SubmittedBy = submittedBy,
+                            CreatedAt = timestamp,
+                        },
+                    ],
+                })
+            .ConfigureAwait(false);
+        session.MessageCount = 7;
+
+        await coordinator.PersistSessionLocalStateAsync(session).ConfigureAwait(false);
+
+        var reloaded = await sessionCatalog.JournalStore.ReadLatestStateAsync(session.SessionId, session.CreatedAt).ConfigureAwait(false);
+        Assert.IsNotNull(reloaded);
+        Assert.AreEqual(7, reloaded.MessageCount);
+        var provenance = reloaded.PromptProvenance.Single();
+        Assert.AreEqual("queue-1", provenance.PromptId);
+        Assert.AreEqual("parent-notify", provenance.Kind);
+        Assert.IsTrue(provenance.Queued);
+        Assert.AreEqual("child-session", provenance.SubmittedBy?.SourceSessionId);
+        var queuedPrompt = reloaded.QueuedPrompts.Single();
+        Assert.AreEqual("queue-1", queuedPrompt.QueueItemId);
+        Assert.AreEqual("queued", queuedPrompt.State);
+        Assert.AreEqual("queued child result", queuedPrompt.Prompt);
+        Assert.AreEqual("child-session", queuedPrompt.SubmittedBy?.SourceSessionId);
+    }
+
+    [TestMethod]
     public async Task CloseSessionTabAsync_LastSelectedProjectSessionFallsBackToProjectScope()
     {
         using var temp = TempDirectory.Create();

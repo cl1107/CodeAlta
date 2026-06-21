@@ -1624,6 +1624,11 @@ public sealed class SessionRuntimeService : IAsyncDisposable
 
             await MarkQueuedPromptFailedAsync(sessionId, work.Prompt.QueueItemId, ex.Message, DateTimeOffset.UtcNow).ConfigureAwait(false);
         }
+
+        // A fast run can publish Idle before RunAsync returns and before the submitting item is
+        // marked submitted. Probe the queue again after clearing QueueDrainInProgress so later
+        // queued prompts are not left waiting for a terminal event that already happened.
+        await TryDrainNextQueuedPromptAsync(sessionId).ConfigureAwait(false);
     }
 
     private async Task<QueuedPromptDrainWork?> TryMarkNextQueuedPromptSubmittingAsync(string sessionId)

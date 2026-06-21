@@ -129,7 +129,10 @@ internal sealed class SessionViewStateCoordinator
 
         try
         {
-            await _sessionCatalog.JournalStore.AppendStateAsync(session, localState, cancellationToken).ConfigureAwait(false);
+            // View-state persistence owns UI/session metadata only; keep runtime-owned prompt
+            // queue/provenance fields from the latest journal snapshot intact.
+            var journalState = await CreateJournalLocalStateSnapshotAsync(session, localState, cancellationToken).ConfigureAwait(false);
+            await _sessionCatalog.JournalStore.AppendStateAsync(session, journalState, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -208,6 +211,85 @@ internal sealed class SessionViewStateCoordinator
             ParentSessionId = session.ParentSessionId,
             CreatedBy = session.CreatedBy,
         };
+
+    private async Task<SessionViewLocalState> CreateJournalLocalStateSnapshotAsync(
+        SessionViewDescriptor session,
+        SessionViewLocalState localState,
+        CancellationToken cancellationToken)
+    {
+        var snapshot = CloneSessionLocalState(localState);
+        try
+        {
+            var latestState = await _sessionCatalog.JournalStore
+                .ReadLatestStateAsync(session.SessionId, session.CreatedAt, cancellationToken)
+                .ConfigureAwait(false);
+            if (latestState is not null)
+            {
+                snapshot.PromptProvenance = ClonePromptProvenance(latestState.PromptProvenance);
+                snapshot.QueuedPrompts = CloneQueuedPrompts(latestState.QueuedPrompts);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+        catch (InvalidDataException)
+        {
+        }
+        catch (System.Text.Json.JsonException)
+        {
+        }
+
+        return snapshot;
+    }
+
+    private static SessionViewLocalState CloneSessionLocalState(SessionViewLocalState localState)
+        => new()
+        {
+            ProviderKey = localState.ProviderKey,
+            ModelId = localState.ModelId,
+            ReasoningEffort = localState.ReasoningEffort,
+            AgentPromptId = localState.AgentPromptId,
+            Archived = localState.Archived,
+            MessageCount = localState.MessageCount,
+            ParentSessionId = localState.ParentSessionId,
+            CreatedBy = localState.CreatedBy,
+            PromptProvenance = ClonePromptProvenance(localState.PromptProvenance),
+            QueuedPrompts = CloneQueuedPrompts(localState.QueuedPrompts),
+        };
+
+    private static List<SessionViewPromptProvenance> ClonePromptProvenance(IEnumerable<SessionViewPromptProvenance>? promptProvenance)
+        => promptProvenance?.Select(static provenance => new SessionViewPromptProvenance
+        {
+            PromptId = provenance.PromptId,
+            Kind = provenance.Kind,
+            RunId = provenance.RunId,
+            Queued = provenance.Queued,
+            PromptPreview = provenance.PromptPreview,
+            SubmittedBy = provenance.SubmittedBy,
+            CreatedAt = provenance.CreatedAt,
+        }).ToList() ?? [];
+
+    private static List<SessionViewQueuedPrompt> CloneQueuedPrompts(IEnumerable<SessionViewQueuedPrompt>? queuedPrompts)
+        => queuedPrompts?.Select(static prompt => new SessionViewQueuedPrompt
+        {
+            QueueItemId = prompt.QueueItemId,
+            Kind = prompt.Kind,
+            Prompt = prompt.Prompt,
+            PromptPreview = prompt.PromptPreview,
+            State = prompt.State,
+            RunId = prompt.RunId,
+            SubmittedBy = prompt.SubmittedBy,
+            CreatedAt = prompt.CreatedAt,
+            DrainedAt = prompt.DrainedAt,
+            LastError = prompt.LastError,
+        }).ToList() ?? [];
 
     private static string? NormalizeThemeSchemeName(string? themeSchemeName)
         => string.IsNullOrWhiteSpace(themeSchemeName) ? null : themeSchemeName.Trim();
