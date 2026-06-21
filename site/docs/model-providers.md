@@ -82,6 +82,7 @@ Common provider fields are:
 | `protocol_trace` | Enables low-level protocol tracing for OpenAI, Codex, and Copilot transports. |
 | `models_dev_provider_id` | Optional models.dev provider id used to enrich model metadata where supported. |
 | `single_model_id` | Fixed model id for endpoints that do not expose a model list. |
+| `models_include_regex` | Optional .NET regular expression applied to model ids after discovery/fallback. When unset, all discovered models remain visible; examples include `model1|model2` or `model\d+`. |
 | `profile` | Compatibility profile block; see below. |
 | `compaction` | Local raw-API compaction settings; see [Context usage and compaction](#context-usage-and-compaction). |
 | `model_overrides` | Per-model metadata overrides; see [Model metadata overrides](#model-metadata-overrides). |
@@ -93,15 +94,15 @@ Provider-type-specific fields and restrictions:
 
 | Type | Credential and endpoint fields | Additional fields handled for that type |
 | --- | --- | --- |
-| `openai-chat`, `openai-responses` | `api_key` or `api_key_env`; optional `api_url`, `organization_id`, `project_id` | `network_timeout_seconds`, `models_dev_provider_id`, `single_model_id`, `extra_body`, `request`, `model_request`, `profile`, `compaction`, `model_overrides`, `protocol_trace` |
-| `azure-openai` | `api_key` or `api_key_env`; required Azure OpenAI resource `api_url` | `network_timeout_seconds`, `models_dev_provider_id`, `single_model_id`, `profile`, `compaction`, `model_overrides`, `protocol_trace` |
-| `anthropic` | `api_key` or `api_key_env`; optional `api_url` | `models_dev_provider_id`, `single_model_id`, `request.headers`, `request.remove_headers`, `profile`, `compaction`, `model_overrides` |
-| `google-genai` | `api_key` or `api_key_env`; optional `api_url` | `models_dev_provider_id`, `single_model_id`, `request.headers`, `request.remove_headers`, `profile`, `compaction`, `model_overrides` |
-| `vertex-ai` | `project` and `location` are required when enabled; optional `api_url` | `models_dev_provider_id`, `single_model_id`, `request.headers`, `request.remove_headers`, `profile`, `compaction`, `model_overrides` |
-| `mistral` | `api_key` or `api_key_env`; optional `api_url` | `models_dev_provider_id`, `single_model_id`, `request.headers`, `request.remove_headers`, `profile`, `compaction`, `model_overrides` |
-| `codex` | ChatGPT/Codex OAuth state; no `api_key` or `api_key_env`; optional `api_url` | `network_timeout_seconds`, `auth_source`, `account_id`, `max_concurrent_requests`, `text_verbosity`, `include_encrypted_reasoning`, `model_discovery`, `response_transport`, `send_responses_beta_header`, `send_installation_id`, `installation_id_source`, `experimental`, `profile`, `compaction`, `protocol_trace` |
-| `copilot` | GitHub device flow by default; optional `api_url` | `auth_source`, `github_enterprise_url`, `github_token_env`, `copilot_token_env`, `model_discovery`, `enable_model_policies`, `include_preview_models`, `experimental`, `single_model_id`, `models_dev_provider_id`, `profile`, `compaction`, `model_overrides`, `protocol_trace` |
-| `xai` | xAI Grok OAuth (browser PKCE or device flow); optional `api_url` | `auth_source`, `model_discovery`, `single_model_id`, `models_dev_provider_id`, `request`, `model_request`, `profile`, `compaction`, `model_overrides`, `protocol_trace` |
+| `openai-chat`, `openai-responses` | `api_key` or `api_key_env`; optional `api_url`, `organization_id`, `project_id` | `network_timeout_seconds`, `models_dev_provider_id`, `single_model_id`, `models_include_regex`, `extra_body`, `request`, `model_request`, `profile`, `compaction`, `model_overrides`, `protocol_trace` |
+| `azure-openai` | `api_key` or `api_key_env`; required Azure OpenAI resource `api_url` | `network_timeout_seconds`, `models_dev_provider_id`, `single_model_id`, `models_include_regex`, `profile`, `compaction`, `model_overrides`, `protocol_trace` |
+| `anthropic` | `api_key` or `api_key_env`; optional `api_url` | `models_dev_provider_id`, `single_model_id`, `models_include_regex`, `request.headers`, `request.remove_headers`, `profile`, `compaction`, `model_overrides` |
+| `google-genai` | `api_key` or `api_key_env`; optional `api_url` | `models_dev_provider_id`, `single_model_id`, `models_include_regex`, `request.headers`, `request.remove_headers`, `profile`, `compaction`, `model_overrides` |
+| `vertex-ai` | `project` and `location` are required when enabled; optional `api_url` | `models_dev_provider_id`, `single_model_id`, `models_include_regex`, `request.headers`, `request.remove_headers`, `profile`, `compaction`, `model_overrides` |
+| `mistral` | `api_key` or `api_key_env`; optional `api_url` | `models_dev_provider_id`, `single_model_id`, `models_include_regex`, `request.headers`, `request.remove_headers`, `profile`, `compaction`, `model_overrides` |
+| `codex` | ChatGPT/Codex OAuth state; no `api_key` or `api_key_env`; optional `api_url` | `network_timeout_seconds`, `models_include_regex`, `auth_source`, `account_id`, `max_concurrent_requests`, `text_verbosity`, `include_encrypted_reasoning`, `model_discovery`, `response_transport`, `send_responses_beta_header`, `send_installation_id`, `installation_id_source`, `experimental`, `profile`, `compaction`, `protocol_trace` |
+| `copilot` | GitHub device flow by default; optional `api_url` | `auth_source`, `github_enterprise_url`, `github_token_env`, `copilot_token_env`, `model_discovery`, `enable_model_policies`, `include_preview_models`, `experimental`, `single_model_id`, `models_include_regex`, `models_dev_provider_id`, `profile`, `compaction`, `model_overrides`, `protocol_trace` |
+| `xai` | xAI Grok OAuth (browser PKCE or device flow); optional `api_url` | `auth_source`, `model_discovery`, `single_model_id`, `models_include_regex`, `models_dev_provider_id`, `request`, `model_request`, `profile`, `compaction`, `model_overrides`, `protocol_trace` |
 
 Codex accepts these values for constrained fields: `auth_source = "codealta_oauth"`, `"codex_auth_import"`, `"codex_auth_file_readonly"`, or `"external_token_command"`; `text_verbosity = "low"`, `"medium"`, or `"high"`; `model_discovery = "codex_endpoint_with_static_fallback"`, `"codex_endpoint"`, or `"static"`; `response_transport = "websocket_with_http_fallback"` or `"http"`; and `installation_id_source = "codealta_state"`, `"codex_home_import"`, or `"codex_home_readonly"`.
 
@@ -423,7 +424,8 @@ Provider model discovery comes from the upstream provider API when available. Co
 
 - `models_dev_provider_id` to map a provider to the local models.dev catalog;
 - `model_overrides` for context windows or output limits;
-- `single_model_id` for single-model endpoints that do not expose `/models`.
+- `single_model_id` for single-model endpoints that do not expose `/models`;
+- `models_include_regex` to keep only model ids matching one .NET regular expression, for example `gpt-5|claude` or `^gemini-.*-pro`.
 
 When the models.dev provider id is inferred from the provider key, CodeAlta maps local aliases to models.dev ids where needed: `copilot` resolves as `github-copilot`, and `gemini` resolves as `google`.
 

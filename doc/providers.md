@@ -44,6 +44,7 @@ network_timeout_seconds = 180
 model = "model-id"
 reasoning_effort = "high"
 models_dev_provider_id = "openai"
+models_include_regex = "model-id|model-next"
 
 [providers.work.model_overrides.model-id]
 context_window = 400000
@@ -55,8 +56,9 @@ Important behavior:
 - `enabled = false` prevents registration. Omitted `enabled` normalizes to `true` for user entries.
 - `display_name` is optional; CodeAlta can derive a display name from the provider key.
 - `model` and `reasoning_effort` are defaults, not a hard limit on model selection unless the provider is configured with `single_model_id`.
+- `models_include_regex` is an optional .NET regular expression applied to discovered model ids. Omit it to expose every discovered/fallback model; use alternation such as `model1|model2` or patterns such as `model\d+` to keep a smaller catalog.
 - `api_key` stores a literal secret; `api_key_env` points to an environment variable. Prefer environment variables for shared machines.
-- `api_url`, `network_timeout_seconds`, organization/project fields, provider-specific auth fields, `extra_body`, `profile`, `compaction`, `models_dev_provider_id`, and `model_overrides` are preserved by the advanced TOML editor.
+- `api_url`, `network_timeout_seconds`, organization/project fields, provider-specific auth fields, `extra_body`, `profile`, `compaction`, `models_dev_provider_id`, `models_include_regex`, and `model_overrides` are preserved by the advanced TOML editor.
 - `network_timeout_seconds` sets the OpenAI/Azure SDK network timeout for `openai-chat`, `openai-responses`, `azure-openai`, and `codex` providers. Leave it unset to use the OpenAI SDK default timeout of 100 seconds.
 - The bundled template disables all built-ins explicitly. Users opt in by enabling/configuring a provider.
 

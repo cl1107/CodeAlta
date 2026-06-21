@@ -1,5 +1,6 @@
 using System.Text;
 using CodeAlta.Agent;
+using CodeAlta.Agent.ModelCatalog;
 using CodeAlta.Agent.Runtime.Compaction;
 using Tomlyn;
 using Tomlyn.Model;
@@ -962,6 +963,7 @@ public sealed class CodeAltaConfigStore
         definition.Location = NormalizeText(definition.Location);
         definition.ModelsDevProviderId = NormalizeProviderKey(definition.ModelsDevProviderId);
         definition.SingleModelId = NormalizeModel(definition.SingleModelId);
+        definition.ModelsIncludeRegex = NormalizeText(definition.ModelsIncludeRegex);
         definition.ExtraBody = NormalizeExtraBody(definition.ExtraBody);
         definition.Request = NormalizeRequest(definition.Request);
         definition.Profile = NormalizeProfile(definition.Profile);
@@ -1117,6 +1119,25 @@ public sealed class CodeAltaConfigStore
             .Select(static value => value.Trim())
             .ToList();
         return normalized.Count == 0 ? null : normalized;
+    }
+
+    private static void ValidateModelsIncludeRegex(CodeAltaProviderDocument definition)
+    {
+        if (string.IsNullOrWhiteSpace(definition.ModelsIncludeRegex))
+        {
+            return;
+        }
+
+        try
+        {
+            AgentModelCatalogFilter.ValidateIncludeRegex(definition.ModelsIncludeRegex);
+        }
+        catch (ArgumentException ex)
+        {
+            throw new InvalidOperationException(
+                $"providers.{definition.ProviderKey} models_include_regex must be a valid regular expression: {ex.Message}",
+                ex);
+        }
     }
 
     private static Dictionary<string, string>? NormalizeDictionary(Dictionary<string, string>? values)
@@ -1282,6 +1303,8 @@ public sealed class CodeAltaConfigStore
         {
             throw new InvalidOperationException($"providers.{definition.ProviderKey} network_timeout_seconds must be greater than zero.");
         }
+
+        ValidateModelsIncludeRegex(definition);
 
         switch (definition.ProviderType)
         {
@@ -1856,6 +1879,7 @@ public sealed class CodeAltaConfigStore
                !string.IsNullOrWhiteSpace(definition.Location) ||
                !string.IsNullOrWhiteSpace(definition.ModelsDevProviderId) ||
                !string.IsNullOrWhiteSpace(definition.SingleModelId) ||
+               !string.IsNullOrWhiteSpace(definition.ModelsIncludeRegex) ||
                definition.ExtraBody is { Count: > 0 } ||
                definition.Request is not null ||
                definition.Profile is not null ||
@@ -1943,6 +1967,7 @@ public sealed class CodeAltaConfigStore
             Location = definition.Location,
             ModelsDevProviderId = definition.ModelsDevProviderId,
             SingleModelId = definition.SingleModelId,
+            ModelsIncludeRegex = definition.ModelsIncludeRegex,
             ExtraBody = CloneExtraBody(definition.ExtraBody),
             Request = CloneRequest(definition.Request),
             Profile = CloneProfile(definition.Profile),

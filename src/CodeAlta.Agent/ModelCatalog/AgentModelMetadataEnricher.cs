@@ -6,14 +6,16 @@ internal static class AgentModelMetadataEnricher
         IReadOnlyList<AgentModelInfo> models,
         ModelsDevCatalogService? catalog,
         string? modelsDevProviderId,
-        IReadOnlyDictionary<string, AgentModelOverride>? overrides)
+        IReadOnlyDictionary<string, AgentModelOverride>? overrides,
+        string? modelsIncludeRegex = null)
     {
-        if (models.Count == 0)
+        var filteredModels = AgentModelCatalogFilter.ApplyIncludeRegex(models, modelsIncludeRegex);
+        if (filteredModels.Count == 0)
         {
-            return models;
+            return filteredModels;
         }
 
-        return models
+        return filteredModels
             .Select(model => EnrichModel(model, catalog, modelsDevProviderId, overrides))
             .ToArray();
     }

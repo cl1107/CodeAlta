@@ -130,7 +130,8 @@ public sealed class MistralModelProviderRuntime : IAgentModelProviderRuntime
                 models,
                 provider.ModelCatalog,
                 provider.ModelsDevProviderId,
-                provider.ModelOverrides);
+                provider.ModelOverrides,
+                provider.ModelsIncludeRegex);
         }
 
         if (!string.IsNullOrWhiteSpace(provider.SingleModelId))
@@ -143,7 +144,8 @@ public sealed class MistralModelProviderRuntime : IAgentModelProviderRuntime
                 models,
                 provider.ModelCatalog,
                 provider.ModelsDevProviderId,
-                provider.ModelOverrides);
+                provider.ModelOverrides,
+                provider.ModelsIncludeRegex);
         }
 
         models = await ListRemoteModelsAsync(provider, providerDescriptor, cancellationToken).ConfigureAwait(false);
@@ -152,7 +154,8 @@ public sealed class MistralModelProviderRuntime : IAgentModelProviderRuntime
             models,
             provider.ModelCatalog,
             provider.ModelsDevProviderId,
-            provider.ModelOverrides);
+            provider.ModelOverrides,
+            provider.ModelsIncludeRegex);
     }
 
     private static async Task<IReadOnlyList<AgentModelInfo>> ListRemoteModelsAsync(

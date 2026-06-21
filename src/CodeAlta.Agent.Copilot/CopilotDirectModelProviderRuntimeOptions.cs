@@ -92,6 +92,11 @@ public sealed class CopilotDirectProviderOptions
     public string? SingleModelId { get; set; }
 
     /// <summary>
+    /// Gets or sets the optional regular expression used to include discovered model ids.
+    /// </summary>
+    public string? ModelsIncludeRegex { get; set; }
+
+    /// <summary>
     /// Gets or sets the models.dev provider identifier used to enrich model metadata.
     /// </summary>
     public string? ModelsDevProviderId { get; set; }

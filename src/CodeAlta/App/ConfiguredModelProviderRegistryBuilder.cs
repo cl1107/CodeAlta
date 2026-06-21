@@ -169,6 +169,7 @@ internal static class ConfiguredModelProviderRegistryBuilder
                         "openai",
                         modelCatalog),
                     SingleModelId = NormalizeText(definition.SingleModelId),
+                    ModelsIncludeRegex = NormalizeText(definition.ModelsIncludeRegex),
                     ExtraHeaders = CreateRequestHeaders(
                         AgentTransportKind.OpenAIChatCompletions,
                         definition.ProviderKey,
@@ -239,6 +240,7 @@ internal static class ConfiguredModelProviderRegistryBuilder
                         "openai",
                         modelCatalog),
                     SingleModelId = NormalizeText(definition.SingleModelId),
+                    ModelsIncludeRegex = NormalizeText(definition.ModelsIncludeRegex),
                     ExtraHeaders = CreateRequestHeaders(
                         AgentTransportKind.OpenAIResponses,
                         definition.ProviderKey,
@@ -309,6 +311,7 @@ internal static class ConfiguredModelProviderRegistryBuilder
                         "openai",
                         modelCatalog),
                     SingleModelId = singleModelId,
+                    ModelsIncludeRegex = NormalizeText(definition.ModelsIncludeRegex),
                     ModelOverrides = CreateModelOverrides(definition.ModelOverrides),
                     ModelCatalog = modelCatalog,
                     ProtocolTracing = CreateOpenAIProtocolTraceOptions(definition, stateRootPath),
@@ -344,6 +347,7 @@ internal static class ConfiguredModelProviderRegistryBuilder
             Profile = CreateCodexSubscriptionProfile(definition.Profile),
             Compaction = CreateCompactionSettings(definition.Compaction),
             ModelCatalog = modelCatalog,
+            ModelsIncludeRegex = NormalizeText(definition.ModelsIncludeRegex),
             ProtocolTracing = CreateOpenAIProtocolTraceOptions(definition, stateRootPath),
             CodexSubscription = new OpenAICodexSubscriptionOptions
             {
@@ -434,6 +438,7 @@ internal static class ConfiguredModelProviderRegistryBuilder
                 "github-copilot",
                 modelCatalog),
             SingleModelId = NormalizeText(definition.SingleModelId),
+            ModelsIncludeRegex = NormalizeText(definition.ModelsIncludeRegex),
             ModelOverrides = CreateModelOverrides(definition.ModelOverrides),
             ModelCatalog = modelCatalog,
             ProtocolTraceEnabled = definition.ProtocolTrace == true,
@@ -488,6 +493,7 @@ internal static class ConfiguredModelProviderRegistryBuilder
             },
             ModelDiscovery = NormalizeText(definition.ModelDiscovery) ?? XaiModelDiscoveryModes.EndpointWithStaticFallback,
             SingleModelId = NormalizeText(definition.SingleModelId),
+            ModelsIncludeRegex = NormalizeText(definition.ModelsIncludeRegex),
             ModelsDevProviderId = NormalizeText(definition.ModelsDevProviderId),
             ExtraHeaders = CreateRequestHeaders(
                 AgentTransportKind.OpenAIResponses,
@@ -577,6 +583,7 @@ internal static class ConfiguredModelProviderRegistryBuilder
                         "anthropic",
                         modelCatalog),
                     SingleModelId = NormalizeText(definition.SingleModelId),
+                    ModelsIncludeRegex = NormalizeText(definition.ModelsIncludeRegex),
                     ExtraHeaders = CreateRequestHeaders(
                         AgentTransportKind.AnthropicMessages,
                         definition.ProviderKey,
@@ -676,6 +683,7 @@ internal static class ConfiguredModelProviderRegistryBuilder
                         "google",
                         modelCatalog),
                     SingleModelId = NormalizeText(definition.SingleModelId),
+                    ModelsIncludeRegex = NormalizeText(definition.ModelsIncludeRegex),
                     ExtraHeaders = CreateRequestHeaders(
                         useVertexAI ? AgentTransportKind.GoogleVertexAI : AgentTransportKind.GoogleGeminiApi,
                         definition.ProviderKey,
@@ -736,6 +744,7 @@ internal static class ConfiguredModelProviderRegistryBuilder
                         "mistral",
                         modelCatalog),
                     SingleModelId = NormalizeText(definition.SingleModelId),
+                    ModelsIncludeRegex = NormalizeText(definition.ModelsIncludeRegex),
                     ExtraHeaders = CreateRequestHeaders(
                         AgentTransportKind.MistralChat,
                         definition.ProviderKey,

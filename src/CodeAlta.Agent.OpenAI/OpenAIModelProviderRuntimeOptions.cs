@@ -120,6 +120,11 @@ public sealed class OpenAIProviderOptions
     public string? SingleModelId { get; set; }
 
     /// <summary>
+    /// Gets or sets the optional regular expression used to include discovered model ids.
+    /// </summary>
+    public string? ModelsIncludeRegex { get; set; }
+
+    /// <summary>
     /// Gets or sets provider-specific request-body fields to append to OpenAI-compatible requests.
     /// </summary>
     public IReadOnlyDictionary<string, object?>? ExtraBody { get; set; }

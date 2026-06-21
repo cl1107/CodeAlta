@@ -142,7 +142,8 @@ public sealed class AnthropicModelProviderRuntime : IAgentModelProviderRuntime
                 models,
                 provider.ModelCatalog,
                 provider.ModelsDevProviderId,
-                provider.ModelOverrides);
+                provider.ModelOverrides,
+                provider.ModelsIncludeRegex);
         }
 
         if (!string.IsNullOrWhiteSpace(provider.SingleModelId))
@@ -155,7 +156,8 @@ public sealed class AnthropicModelProviderRuntime : IAgentModelProviderRuntime
                 models,
                 provider.ModelCatalog,
                 provider.ModelsDevProviderId,
-                provider.ModelOverrides);
+                provider.ModelOverrides,
+                provider.ModelsIncludeRegex);
         }
 
         var client = CreateSdkClient(provider, providerDescriptor);
@@ -188,7 +190,8 @@ public sealed class AnthropicModelProviderRuntime : IAgentModelProviderRuntime
             models,
             provider.ModelCatalog,
             provider.ModelsDevProviderId,
-            provider.ModelOverrides);
+            provider.ModelOverrides,
+            provider.ModelsIncludeRegex);
     }
 
     private static AnthropicClient CreateSdkClient(

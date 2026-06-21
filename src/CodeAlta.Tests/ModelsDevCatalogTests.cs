@@ -140,6 +140,37 @@ public sealed class ModelsDevCatalogTests
     }
 
     [TestMethod]
+    public async Task OpenAIResponsesModelProviderRuntime_ListModelsAsync_AppliesModelsIncludeRegex()
+    {
+        using var temp = TestTempDirectory.Create();
+        await using var providerRuntime = new OpenAIResponsesModelProviderRuntime(new OpenAIResponsesModelProviderRuntimeOptions
+        {
+            StateRootPath = temp.Path,
+            Providers =
+            {
+                new OpenAIProviderOptions
+                {
+                    ProviderKey = "openai",
+                    IsDefault = true,
+                    ModelsIncludeRegex = "^gpt-(4o|5)",
+                    ModelListAsync = static _ => Task.FromResult<IReadOnlyList<AgentModelInfo>>(
+                    [
+                        new AgentModelInfo("gpt-4o", DisplayName: "gpt-4o", Provider: "openai"),
+                        new AgentModelInfo("gpt-5", DisplayName: "gpt-5", Provider: "openai"),
+                        new AgentModelInfo("o3", DisplayName: "o3", Provider: "openai"),
+                    ]),
+                },
+            },
+        });
+
+        var models = await providerRuntime.ListModelsAsync().ConfigureAwait(false);
+
+        CollectionAssert.AreEqual(
+            new[] { "gpt-4o", "gpt-5" },
+            models.Select(static model => model.Id).ToArray());
+    }
+
+    [TestMethod]
     public async Task AnthropicModelProviderRuntime_ListModelsAsync_EnrichesWithModelsDevMetadata()
     {
         await using var catalog = CreateCatalog();

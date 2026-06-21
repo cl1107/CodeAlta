@@ -3870,6 +3870,12 @@
   fr: "Models.dev Id"
   ja: "モデル.dev ID"
   zh: "Models.dev ID"
+"Models Include Regex":
+  de: "Modelle-Einschluss-Regex"
+  es: "Regex de inclusión de modelos"
+  fr: "Regex d’inclusion des modèles"
+  ja: "モデル包含正規表現"
+  zh: "模型包含正则表达式"
 "Modified":
   de: "Geändert"
   es: "Modificado"

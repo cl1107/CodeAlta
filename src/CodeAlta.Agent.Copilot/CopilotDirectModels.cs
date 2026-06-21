@@ -202,7 +202,8 @@ internal sealed class CopilotModelDiscoveryClient
             models,
             _provider.ModelCatalog,
             _provider.ModelsDevProviderId,
-            _provider.ModelOverrides);
+            _provider.ModelOverrides,
+            _provider.ModelsIncludeRegex);
 
     private static AgentModelInfo CreateSingleModel(string modelId, ModelProviderRuntimeDescriptor providerDescriptor)
     {

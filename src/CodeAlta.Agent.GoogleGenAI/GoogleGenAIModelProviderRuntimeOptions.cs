@@ -103,6 +103,11 @@ public sealed class GoogleGenAIProviderOptions
     public string? SingleModelId { get; set; }
 
     /// <summary>
+    /// Gets or sets the optional regular expression used to include discovered model ids.
+    /// </summary>
+    public string? ModelsIncludeRegex { get; set; }
+
+    /// <summary>
     /// Gets or sets per-model metadata overrides.
     /// </summary>
     public IReadOnlyDictionary<string, AgentModelOverride>? ModelOverrides { get; set; }

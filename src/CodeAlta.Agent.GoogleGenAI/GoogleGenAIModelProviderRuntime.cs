@@ -129,7 +129,8 @@ public sealed class GoogleGenAIModelProviderRuntime : IAgentModelProviderRuntime
                 models,
                 provider.ModelCatalog,
                 provider.ModelsDevProviderId,
-                provider.ModelOverrides);
+                provider.ModelOverrides,
+                provider.ModelsIncludeRegex);
         }
 
         if (!string.IsNullOrWhiteSpace(provider.SingleModelId))
@@ -142,7 +143,8 @@ public sealed class GoogleGenAIModelProviderRuntime : IAgentModelProviderRuntime
                 models,
                 provider.ModelCatalog,
                 provider.ModelsDevProviderId,
-                provider.ModelOverrides);
+                provider.ModelOverrides,
+                provider.ModelsIncludeRegex);
         }
 
         using var client = CreateSdkClient(provider);
@@ -158,7 +160,8 @@ public sealed class GoogleGenAIModelProviderRuntime : IAgentModelProviderRuntime
             models,
             provider.ModelCatalog,
             provider.ModelsDevProviderId,
-            provider.ModelOverrides);
+            provider.ModelOverrides,
+            provider.ModelsIncludeRegex);
     }
 
     private static Client CreateSdkClient(GoogleGenAIProviderOptions provider)

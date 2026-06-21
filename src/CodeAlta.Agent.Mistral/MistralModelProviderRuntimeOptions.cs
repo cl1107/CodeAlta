@@ -82,6 +82,11 @@ public sealed class MistralProviderOptions
     public string? SingleModelId { get; set; }
 
     /// <summary>
+    /// Gets or sets the optional regular expression used to include discovered model ids.
+    /// </summary>
+    public string? ModelsIncludeRegex { get; set; }
+
+    /// <summary>
     /// Gets or sets additional static HTTP headers to include with provider requests.
     /// Authentication headers are owned by the provider runtime and should not be supplied here.
     /// </summary>
