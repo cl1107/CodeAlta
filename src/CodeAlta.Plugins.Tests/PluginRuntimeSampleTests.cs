@@ -12,6 +12,7 @@ public sealed class PluginRuntimeSampleTests
         "skill-root",
         "package-reference",
         "background-task",
+        "instruction-path-normalizer",
         "multi-plugin-assembly",
     ];
 

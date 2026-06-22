@@ -3388,6 +3388,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             AdditionalSystemMessage = AppendPromptText(source.AdditionalSystemMessage, augmentation.AdditionalSystemMessage),
             AdditionalDeveloperInstructions = AppendPromptText(source.AdditionalDeveloperInstructions, augmentation.AdditionalDeveloperInstructions),
             PreferredToolNames = source.PreferredToolNames.Concat(augmentation.PreferredToolNames).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+            InstructionProcessor = augmentation.InstructionProcessor ?? source.InstructionProcessor,
             OnPermissionRequest = source.OnPermissionRequest,
             OnUserInputRequest = source.OnUserInputRequest,
         };

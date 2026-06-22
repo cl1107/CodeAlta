@@ -23,6 +23,7 @@ public sealed class PluginAbstractionsTests
         CollectionAssert.AreEqual(Array.Empty<PluginAgentToolContribution>(), plugin.GetAgentTools().ToArray());
         CollectionAssert.AreEqual(Array.Empty<PluginSystemPromptContribution>(), plugin.GetSystemPromptContributions().ToArray());
         CollectionAssert.AreEqual(Array.Empty<PluginPromptProcessorContribution>(), plugin.GetPromptProcessors().ToArray());
+        CollectionAssert.AreEqual(Array.Empty<PluginInstructionProcessorContribution>(), plugin.GetInstructionProcessors().ToArray());
         CollectionAssert.AreEqual(Array.Empty<PluginCompactionContribution>(), plugin.GetCompactionContributions().ToArray());
         CollectionAssert.AreEqual(Array.Empty<PluginUiContribution>(), plugin.GetUiContributions().ToArray());
         CollectionAssert.AreEqual(Array.Empty<PluginResourceContribution>(), plugin.GetResources().ToArray());
@@ -147,6 +148,30 @@ public sealed class PluginAbstractionsTests
             Handler = static (context, _) => new ValueTask<PluginPromptResult>(PluginPromptResult.Handled(context.Text)),
         };
         Assert.AreEqual("hello", (await processor.Handler(CreatePromptContext("hello"), CancellationToken.None)).UserMessage);
+
+        var instructionProcessor = new PluginInstructionProcessorContribution
+        {
+            Name = "redactor",
+            Capabilities = PluginInstructionProcessorCapabilities.Read | PluginInstructionProcessorCapabilities.Replace | PluginInstructionProcessorCapabilities.ReportsChangeSummary,
+            Handler = static (context, _) => new ValueTask<PluginInstructionProcessingResult>(
+                PluginInstructionProcessingResult.Replace(developerInstructions: context.Instructions.DeveloperInstructions?.Replace("secret", "[redacted]", StringComparison.Ordinal), changeSummary: "redacted test marker")),
+        };
+        var instructionResult = await instructionProcessor.Handler(
+            new PluginInstructionProcessingContext
+            {
+                Plugin = PluginDescriptorFactory.FromType(typeof(EmptyPlugin)),
+                Services = NoopPluginServices.Create(),
+                Instructions = new PluginInstructionSnapshot
+                {
+                    DeveloperInstructions = "contains secret",
+                    InstructionHash = "hash",
+                    DeveloperCharacterCount = "contains secret".Length,
+                },
+            },
+            CancellationToken.None);
+        Assert.AreEqual(PluginInstructionProcessingDisposition.Replace, instructionResult.Disposition);
+        Assert.AreEqual("contains [redacted]", instructionResult.ReplacementDeveloperInstructions);
+        Assert.AreEqual("redacted test marker", instructionResult.ChangeSummary);
     }
 
     [TestMethod]

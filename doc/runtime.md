@@ -147,10 +147,9 @@ System prompts carry the invariant host/agent behavior. Agent prompts are select
 - the selected agent prompt body from `prompts/agents`;
 - generated runtime/tool guidance;
 - skills metadata when skills are available for the selected session;
-- project-context sections and file/reference context;
-- plugin-contributed prompt parts.
+- project-context sections and file/reference context.
 
-`AgentInstructionComposer` then adds agent-runtime context and project instruction files unless equivalent content is already present. Available-skill guidance is included uniformly when the selected session has visible skills, along with parent/additional developer guidance that orchestration explicitly supplies.
+Orchestration appends parent/additional developer guidance and trusted plugin-contributed system/developer prompt parts after the file-backed builder output. Dedicated plugin instruction processors can then inspect or replace the final system/developer instruction text before provider submission, prompt hashing/statistics, and system-prompt journal/manifest events. `AgentInstructionComposer` still adds fallback agent-runtime context and project instruction files for lower-level callers unless orchestration marks the instructions as already fully composed, which prevents a plugin transform from being undone by fallback runtime-context injection.
 
 Instruction composition should remain deterministic and file-backed. Avoid embedding large static prompt strings directly in orchestration code when they belong in prompt resources.
 

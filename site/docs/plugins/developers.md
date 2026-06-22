@@ -231,6 +231,25 @@ plugin segments to the ready prompt placeholder.
 Keep prompt-editor callbacks cancellable and avoid long synchronous work so
 typing stays responsive.
 
+## Final instruction processors
+
+`GetPromptProcessors()` handles user prompt text and attachments before a turn
+is submitted. To inspect or replace final system/developer instructions, use
+`GetInstructionProcessors()` instead. Instruction processors run after CodeAlta
+has composed the system prompt, agent prompt, generated runtime/project/tool
+context, and plugin prompt parts, but before provider submission, prompt
+hashing, and prompt journal metadata.
+
+Return `PluginInstructionProcessingResult.Continue`, `Replace(...)`, or
+`Cancel(...)`. Keep `ChangeSummary` and metadata audit-safe; CodeAlta records
+which trusted plugin changed instructions and which channels changed, not the
+pre-transform text. This is trusted in-process customization, not a sandbox or
+security boundary.
+
+The built-in plugin-runtime skill includes an
+`instruction-path-normalizer` sample that changes Windows-style backslashes to
+forward slashes inside generated runtime-context paths.
+
 ## Agent tools and `alta` live-tool commands
 
 `GetAgentTools()` contributes host-injected agent tools. The contribution wraps

@@ -125,6 +125,314 @@ public enum PluginPromptDisposition
     Cancel,
 }
 
+/// <summary>Describes a final system/developer instruction processor contribution.</summary>
+public sealed record PluginInstructionProcessorContribution
+{
+    /// <summary>Gets the natural contribution name used for diagnostics and audit metadata.</summary>
+    public string? Name { get; init; }
+
+    /// <summary>Gets the processing order.</summary>
+    public int Order { get; init; }
+
+    /// <summary>Gets the declared processing target.</summary>
+    public PluginInstructionProcessingTarget Target { get; init; } = PluginInstructionProcessingTarget.Default;
+
+    /// <summary>Gets declared processor capabilities for UI and audit display.</summary>
+    public PluginInstructionProcessorCapabilities Capabilities { get; init; } = PluginInstructionProcessorCapabilities.Read | PluginInstructionProcessorCapabilities.Replace;
+
+    /// <summary>Gets the processor handler.</summary>
+    public required PluginInstructionProcessorHandler Handler { get; init; }
+}
+
+/// <summary>Describes applicability for a final instruction processor.</summary>
+public sealed record PluginInstructionProcessingTarget
+{
+    /// <summary>Gets the default processing target.</summary>
+    public static PluginInstructionProcessingTarget Default { get; } = new();
+
+    /// <summary>Gets the instruction channels the processor is interested in.</summary>
+    public PluginInstructionChannels Channels { get; init; } = PluginInstructionChannels.All;
+
+    /// <summary>Gets the processing stages the processor applies to.</summary>
+    public PluginInstructionProcessingStages Stages { get; init; } = PluginInstructionProcessingStages.FinalBeforeProviderRequest;
+
+    /// <summary>Gets provider identifiers this processor applies to. Empty means all providers.</summary>
+    public IReadOnlyList<string> ProviderIds { get; init; } = [];
+
+    /// <summary>Gets provider family identifiers this processor applies to. Empty means all provider families.</summary>
+    public IReadOnlyList<string> ProviderFamilies { get; init; } = [];
+
+    /// <summary>Gets model identifiers this processor applies to. Empty means all models.</summary>
+    public IReadOnlyList<string> ModelIds { get; init; } = [];
+
+    /// <summary>Gets a value indicating whether the processor requires a CodeAlta-managed provider.</summary>
+    public bool RequiresCodeAltaManagedProvider { get; init; }
+}
+
+/// <summary>Identifies instruction channels available to processors.</summary>
+[Flags]
+public enum PluginInstructionChannels
+{
+    /// <summary>No instruction channels.</summary>
+    None = 0,
+    /// <summary>The system message channel.</summary>
+    System = 1 << 0,
+    /// <summary>The developer instructions channel.</summary>
+    Developer = 1 << 1,
+    /// <summary>All instruction channels.</summary>
+    All = System | Developer,
+}
+
+/// <summary>Identifies final instruction processing stages.</summary>
+[Flags]
+public enum PluginInstructionProcessingStages
+{
+    /// <summary>No processing stages.</summary>
+    None = 0,
+    /// <summary>Instructions are fully composed and about to be used for provider requests and prompt audit events.</summary>
+    FinalBeforeProviderRequest = 1 << 0,
+}
+
+/// <summary>Identifies the purpose for instruction processing.</summary>
+public enum PluginInstructionProcessingPurpose
+{
+    /// <summary>An ordinary agent run.</summary>
+    AgentRun,
+    /// <summary>A compaction run.</summary>
+    Compaction,
+    /// <summary>A summary or summarization run.</summary>
+    Summary,
+    /// <summary>A recovery run for provider/tool overflow handling.</summary>
+    ToolResultOverflowRecovery,
+}
+
+/// <summary>Declares instruction processor capabilities.</summary>
+[Flags]
+public enum PluginInstructionProcessorCapabilities
+{
+    /// <summary>No declared capabilities.</summary>
+    None = 0,
+    /// <summary>The processor reads final instructions.</summary>
+    Read = 1 << 0,
+    /// <summary>The processor may replace one or more instruction channels.</summary>
+    Replace = 1 << 1,
+    /// <summary>The processor may cancel the run.</summary>
+    Cancel = 1 << 2,
+    /// <summary>The processor reports an audit-safe change summary.</summary>
+    ReportsChangeSummary = 1 << 3,
+}
+
+/// <summary>Context for final system/developer instruction processing.</summary>
+public sealed class PluginInstructionProcessingContext : PluginOperationContext
+{
+    /// <summary>Gets the processing stage.</summary>
+    public PluginInstructionProcessingStages Stage { get; init; } = PluginInstructionProcessingStages.FinalBeforeProviderRequest;
+
+    /// <summary>Gets the processing purpose.</summary>
+    public PluginInstructionProcessingPurpose Purpose { get; init; } = PluginInstructionProcessingPurpose.AgentRun;
+
+    /// <summary>Gets the current instruction snapshot visible to this processor.</summary>
+    public required PluginInstructionSnapshot Instructions { get; init; }
+
+    /// <summary>Gets compact manifest metadata for the composed prompt, when available.</summary>
+    public PluginInstructionManifestView? Manifest { get; init; }
+
+    /// <summary>Gets prompt part descriptors for audit and targeting. Part text is intentionally omitted.</summary>
+    public IReadOnlyList<PluginInstructionPartDescriptor> Parts { get; init; } = [];
+
+    /// <summary>Gets active tool names visible for the run.</summary>
+    public IReadOnlyList<string> ActiveToolNames { get; init; } = [];
+
+    /// <summary>Gets prior instruction transformations in this processing chain.</summary>
+    public IReadOnlyList<PluginInstructionTransformationRecord> PriorTransformations { get; init; } = [];
+
+    /// <summary>Gets host-supplied extension metadata.</summary>
+    public IReadOnlyDictionary<string, string> Metadata { get; init; } = new Dictionary<string, string>();
+}
+
+/// <summary>Immutable snapshot of final instruction text seen by a processor.</summary>
+public sealed record PluginInstructionSnapshot
+{
+    /// <summary>Gets the system message.</summary>
+    public string? SystemMessage { get; init; }
+
+    /// <summary>Gets the developer instructions.</summary>
+    public string? DeveloperInstructions { get; init; }
+
+    /// <summary>Gets the channel mapping label.</summary>
+    public string ChannelMapping { get; init; } = "native-system-and-developer";
+
+    /// <summary>Gets the hash for the current instruction text.</summary>
+    public required string InstructionHash { get; init; }
+
+    /// <summary>Gets the system-message character count.</summary>
+    public int SystemCharacterCount { get; init; }
+
+    /// <summary>Gets the developer-instruction character count.</summary>
+    public int DeveloperCharacterCount { get; init; }
+
+    /// <summary>Gets the approximate system-message token count.</summary>
+    public int SystemApproxTokens { get; init; }
+
+    /// <summary>Gets the approximate developer-instruction token count.</summary>
+    public int DeveloperApproxTokens { get; init; }
+}
+
+/// <summary>Compact read-only prompt manifest metadata exposed to instruction processors.</summary>
+public sealed record PluginInstructionManifestView
+{
+    /// <summary>Gets the prompt manifest version.</summary>
+    public int Version { get; init; }
+
+    /// <summary>Gets the prompt identifier, when known.</summary>
+    public string? PromptId { get; init; }
+
+    /// <summary>Gets the effective prompt hash before instruction processing, when known.</summary>
+    public string? EffectivePromptHash { get; init; }
+
+    /// <summary>Gets the selected system prompt name, when known.</summary>
+    public string? SystemPromptName { get; init; }
+
+    /// <summary>Gets the selected agent prompt name, when known.</summary>
+    public string? AgentPromptName { get; init; }
+
+    /// <summary>Gets a value indicating whether generated skills context was enabled.</summary>
+    public bool SkillsEnabled { get; init; }
+
+    /// <summary>Gets a value indicating whether generated project context was enabled.</summary>
+    public bool ProjectContextEnabled { get; init; }
+
+    /// <summary>Gets a value indicating whether generated runtime context was enabled.</summary>
+    public bool RuntimeContextEnabled { get; init; }
+
+    /// <summary>Gets a value indicating whether generated tool guidance was enabled.</summary>
+    public bool ToolGuidanceEnabled { get; init; }
+
+    /// <summary>Gets the prompt diagnostic count.</summary>
+    public int DiagnosticCount { get; init; }
+}
+
+/// <summary>Prompt part descriptor exposed to instruction processors without part text.</summary>
+public sealed record PluginInstructionPartDescriptor
+{
+    /// <summary>Gets the stable part key.</summary>
+    public required string Key { get; init; }
+
+    /// <summary>Gets the part kind.</summary>
+    public required string Kind { get; init; }
+
+    /// <summary>Gets the logical part name, when known.</summary>
+    public string? Name { get; init; }
+
+    /// <summary>Gets the target channel label.</summary>
+    public required string Target { get; init; }
+
+    /// <summary>Gets the part source kind.</summary>
+    public required string SourceKind { get; init; }
+
+    /// <summary>Gets the source path, when available.</summary>
+    public string? SourcePath { get; init; }
+
+    /// <summary>Gets the part order.</summary>
+    public int Order { get; init; }
+
+    /// <summary>Gets the part status.</summary>
+    public string? Status { get; init; }
+}
+
+/// <summary>Describes a final instruction processing result.</summary>
+public sealed record PluginInstructionProcessingResult
+{
+    /// <summary>Gets a continue result.</summary>
+    public static PluginInstructionProcessingResult Continue { get; } = new() { Disposition = PluginInstructionProcessingDisposition.Continue };
+
+    /// <summary>Gets the result disposition.</summary>
+    public PluginInstructionProcessingDisposition Disposition { get; init; }
+
+    /// <summary>Gets the replacement system message. <see langword="null" /> preserves the current value.</summary>
+    public string? ReplacementSystemMessage { get; init; }
+
+    /// <summary>Gets the replacement developer instructions. <see langword="null" /> preserves the current value.</summary>
+    public string? ReplacementDeveloperInstructions { get; init; }
+
+    /// <summary>Gets an audit-safe change summary.</summary>
+    public string? ChangeSummary { get; init; }
+
+    /// <summary>Gets a user-visible message for cancellation or blocking.</summary>
+    public string? UserMessage { get; init; }
+
+    /// <summary>Gets audit-safe plugin-owned metadata.</summary>
+    public IReadOnlyDictionary<string, string> Metadata { get; init; } = new Dictionary<string, string>();
+
+    /// <summary>Creates a replacement result.</summary>
+    /// <param name="systemMessage">Replacement system message, or <see langword="null" /> to preserve it.</param>
+    /// <param name="developerInstructions">Replacement developer instructions, or <see langword="null" /> to preserve them.</param>
+    /// <param name="changeSummary">Audit-safe change summary.</param>
+    /// <returns>The instruction processing result.</returns>
+    public static PluginInstructionProcessingResult Replace(string? systemMessage = null, string? developerInstructions = null, string? changeSummary = null)
+        => new()
+        {
+            Disposition = PluginInstructionProcessingDisposition.Replace,
+            ReplacementSystemMessage = systemMessage,
+            ReplacementDeveloperInstructions = developerInstructions,
+            ChangeSummary = changeSummary,
+        };
+
+    /// <summary>Creates a cancellation result.</summary>
+    /// <param name="message">User-visible cancellation reason.</param>
+    /// <returns>The instruction processing result.</returns>
+    public static PluginInstructionProcessingResult Cancel(string message)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(message);
+        return new PluginInstructionProcessingResult { Disposition = PluginInstructionProcessingDisposition.Cancel, UserMessage = message };
+    }
+}
+
+/// <summary>Identifies a final instruction processing disposition.</summary>
+public enum PluginInstructionProcessingDisposition
+{
+    /// <summary>Continue without modifying instructions.</summary>
+    Continue,
+    /// <summary>Replace one or more instruction channels.</summary>
+    Replace,
+    /// <summary>Cancel the run before provider submission.</summary>
+    Cancel,
+}
+
+/// <summary>Audit metadata for one final instruction transformation.</summary>
+public sealed record PluginInstructionTransformationRecord
+{
+    /// <summary>Gets the plugin runtime key.</summary>
+    public required string PluginRuntimeKey { get; init; }
+
+    /// <summary>Gets the runtime contribution key.</summary>
+    public required string RuntimeContributionKey { get; init; }
+
+    /// <summary>Gets the natural contribution name, when known.</summary>
+    public string? NaturalName { get; init; }
+
+    /// <summary>Gets the processor order.</summary>
+    public int Order { get; init; }
+
+    /// <summary>Gets the processing stage.</summary>
+    public PluginInstructionProcessingStages Stage { get; init; }
+
+    /// <summary>Gets the result disposition.</summary>
+    public PluginInstructionProcessingDisposition Disposition { get; init; }
+
+    /// <summary>Gets changed instruction channels.</summary>
+    public IReadOnlyList<string> ChangedChannels { get; init; } = [];
+
+    /// <summary>Gets an audit-safe change summary.</summary>
+    public string? ChangeSummary { get; init; }
+
+    /// <summary>Gets the post-transform instruction hash.</summary>
+    public string? ResultInstructionHash { get; init; }
+
+    /// <summary>Gets audit-safe plugin-owned metadata.</summary>
+    public IReadOnlyDictionary<string, string> Metadata { get; init; } = new Dictionary<string, string>();
+}
+
 /// <summary>Describes a prompt attachment.</summary>
 public sealed record PluginPromptAttachment
 {

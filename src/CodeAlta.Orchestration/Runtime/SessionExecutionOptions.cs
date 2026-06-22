@@ -63,6 +63,11 @@ public sealed class SessionExecutionOptions
     public IReadOnlyList<string> PreferredToolNames { get; init; } = [];
 
     /// <summary>
+    /// Gets or initializes the optional trusted plugin hook that can transform final system/developer instructions before provider submission.
+    /// </summary>
+    public SessionInstructionProcessor? InstructionProcessor { get; init; }
+
+    /// <summary>
     /// Gets or initializes the permission request handler.
     /// </summary>
     public required AgentPermissionRequestHandler OnPermissionRequest { get; init; }
@@ -71,4 +76,65 @@ public sealed class SessionExecutionOptions
     /// Gets or initializes the optional user-input request handler.
     /// </summary>
     public AgentUserInputRequestHandler? OnUserInputRequest { get; init; }
+}
+
+/// <summary>
+/// Processes final composed system/developer instructions for a session.
+/// </summary>
+/// <param name="request">The instruction processing request.</param>
+/// <param name="cancellationToken">The cancellation token.</param>
+/// <returns>The processed instruction result.</returns>
+public delegate ValueTask<SessionInstructionProcessingResult> SessionInstructionProcessor(
+    SessionInstructionProcessingRequest request,
+    CancellationToken cancellationToken);
+
+/// <summary>
+/// Describes final composed instructions passed to trusted plugin processors.
+/// </summary>
+public sealed record SessionInstructionProcessingRequest
+{
+    /// <summary>Gets the session identifier.</summary>
+    public string? SessionId { get; init; }
+
+    /// <summary>Gets the project identifier.</summary>
+    public string? ProjectId { get; init; }
+
+    /// <summary>Gets the project path.</summary>
+    public string? ProjectPath { get; init; }
+
+    /// <summary>Gets the model provider identifier.</summary>
+    public string? ProviderId { get; init; }
+
+    /// <summary>Gets the model identifier.</summary>
+    public string? Model { get; init; }
+
+    /// <summary>Gets the system message.</summary>
+    public string? SystemMessage { get; init; }
+
+    /// <summary>Gets the developer instructions.</summary>
+    public string? DeveloperInstructions { get; init; }
+
+    /// <summary>Gets active tool names.</summary>
+    public IReadOnlyList<string> ActiveToolNames { get; init; } = [];
+
+    /// <summary>Gets prompt manifest metadata, when available.</summary>
+    public IReadOnlyDictionary<string, string> Manifest { get; init; } = new Dictionary<string, string>();
+}
+
+/// <summary>
+/// Describes final instruction processing output.
+/// </summary>
+public sealed record SessionInstructionProcessingResult
+{
+    /// <summary>Gets the final system message.</summary>
+    public string? SystemMessage { get; init; }
+
+    /// <summary>Gets the final developer instructions.</summary>
+    public string? DeveloperInstructions { get; init; }
+
+    /// <summary>Gets a cancellation reason, when a plugin cancelled the run.</summary>
+    public string? CancelReason { get; init; }
+
+    /// <summary>Gets audit-safe transformation records.</summary>
+    public IReadOnlyList<AgentInstructionTransformationInfo> Transformations { get; init; } = [];
 }

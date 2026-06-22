@@ -92,6 +92,8 @@ The selected agent prompt is the entry point for composition: its body becomes d
 
 In the model request, the system prompt is sent as the system message. The agent prompt body and enabled generated sections are combined as developer instructions, while the user's actual request and attachments remain the user message.
 
+Trusted local plugins can also append prompt parts and, through the dedicated instruction-processor extension point, inspect or replace the final system/developer instructions after composition and before provider submission, hashing, and prompt journal metadata. This hook is for trusted in-process customization and audit metadata; it is not a security boundary.
+
 ## Built-in modes
 
 CodeAlta ships two built-in agent prompts:

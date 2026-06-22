@@ -109,6 +109,20 @@ public sealed class PluginOrchestrationBridgeTests
         StringAssert.Contains(result.AdditionalDeveloperInstructions!, "fixture agent prompt");
         CollectionAssert.Contains(result.PreferredToolNames.ToArray(), "mcp__fixture__read");
         StringAssert.Contains(string.Join("\n", result.Input!.Items.OfType<AgentInputItem.Text>().Select(static item => item.Value)), "fixture per-turn context");
+        Assert.IsNotNull(result.InstructionProcessor);
+        var processed = await result.InstructionProcessor!(new SessionInstructionProcessingRequest
+        {
+            SessionId = "session-1",
+            ProviderId = "provider-1",
+            Model = "model-1",
+            SystemMessage = "system secret",
+            DeveloperInstructions = "developer secret",
+            Manifest = new Dictionary<string, string> { ["agentPromptId"] = "default" },
+        }, CancellationToken.None);
+        Assert.AreEqual("system [filtered]", processed.SystemMessage);
+        Assert.AreEqual("developer [filtered]", processed.DeveloperInstructions);
+        Assert.AreEqual(1, processed.Transformations.Count);
+        Assert.AreEqual("filtered fixture marker", processed.Transformations[0].ChangeSummary);
 
         await active.DeactivateAsync(TimeSpan.FromSeconds(5));
     }
@@ -165,5 +179,17 @@ public sealed class PluginOrchestrationBridgeTests
                         static (_, _) => Task.FromResult(new AgentToolResult(true, [new AgentToolResultItem.Text("fixture tool result")]))),
                 ],
             });
+
+        public override IEnumerable<PluginInstructionProcessorContribution> GetInstructionProcessors()
+        {
+            yield return new PluginInstructionProcessorContribution
+            {
+                Name = "fixture-filter",
+                Handler = static (context, _) => ValueTask.FromResult(PluginInstructionProcessingResult.Replace(
+                    systemMessage: context.Instructions.SystemMessage?.Replace("secret", "[filtered]", StringComparison.Ordinal),
+                    developerInstructions: context.Instructions.DeveloperInstructions?.Replace("secret", "[filtered]", StringComparison.Ordinal),
+                    changeSummary: "filtered fixture marker")),
+            };
+        }
     }
 }

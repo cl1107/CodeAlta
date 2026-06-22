@@ -46,6 +46,30 @@ public sealed class PluginContributionAdapterServiceTests
     }
 
     [TestMethod]
+    public async Task InstructionProcessors_TransformFinalInstructionsInContributionOrder()
+    {
+        var (registry, active) = await ActivateAsync<ComprehensivePlugin>();
+        var adapter = new PluginContributionAdapterService(registry);
+
+        var result = await adapter.ProcessInstructionsAsync(
+            [active],
+            CreateInstructionProcessingTemplate(active, systemMessage: "system secret", developerInstructions: "developer secret"),
+            new PluginAdapterOperationOptions { ProviderId = "local", IsCodeAltaManagedProvider = true });
+
+        Assert.AreEqual(0, result.Diagnostics.Count, string.Join(Environment.NewLine, result.Diagnostics.Select(static diagnostic => diagnostic.Message)));
+        Assert.IsTrue(result.WasChanged);
+        Assert.AreEqual("system [redacted]", result.SystemMessage);
+        Assert.AreEqual("developer [redacted] audited", result.DeveloperInstructions);
+        Assert.AreEqual(2, result.Transformations.Count);
+        CollectionAssert.AreEqual(new[] { "developer" }, result.Transformations[0].ChangedChannels.ToArray());
+        CollectionAssert.AreEqual(new[] { "system", "developer" }, result.Transformations[1].ChangedChannels.ToArray());
+        Assert.AreEqual("append audit marker", result.Transformations[0].ChangeSummary);
+        Assert.AreEqual("redacted test marker", result.Transformations[1].ChangeSummary);
+        Assert.IsFalse(result.Transformations.Any(static record => record.ChangeSummary?.Contains("secret", StringComparison.OrdinalIgnoreCase) == true));
+        await active.DeactivateAsync(TimeSpan.FromSeconds(5));
+    }
+
+    [TestMethod]
     public async Task RuntimeCallbackAdapters_InvokeBeforeRunToolsResultsAndEvents()
     {
         var (registry, active) = await ActivateAsync<ComprehensivePlugin>();
@@ -311,6 +335,24 @@ public sealed class PluginContributionAdapterServiceTests
             Summary = "summary",
         };
 
+    private static PluginInstructionProcessingContext CreateInstructionProcessingTemplate(ActivePluginInstance active, string? systemMessage, string? developerInstructions)
+        => new()
+        {
+            Plugin = active.Descriptor,
+            Services = active.RuntimeContext.Services,
+            ProviderId = "local",
+            Stage = PluginInstructionProcessingStages.FinalBeforeProviderRequest,
+            Instructions = new PluginInstructionSnapshot
+            {
+                SystemMessage = systemMessage,
+                DeveloperInstructions = developerInstructions,
+                InstructionHash = "initial",
+                SystemCharacterCount = systemMessage?.Length ?? 0,
+                DeveloperCharacterCount = developerInstructions?.Length ?? 0,
+            },
+            ActiveToolNames = ["existing"],
+        };
+
     public sealed class ComprehensivePlugin : PluginBase
     {
         public static string? LastCommandProjectId { get; private set; }
@@ -378,6 +420,27 @@ public sealed class PluginContributionAdapterServiceTests
             yield return new PluginPromptProcessorContribution
             {
                 Handler = static (context, _) => ValueTask.FromResult(PluginPromptResult.Replace(context.Text + " processed")),
+            };
+        }
+
+        public override IEnumerable<PluginInstructionProcessorContribution> GetInstructionProcessors()
+        {
+            yield return new PluginInstructionProcessorContribution
+            {
+                Name = "append-audit-marker",
+                Order = 5,
+                Handler = static (context, _) => ValueTask.FromResult(PluginInstructionProcessingResult.Replace(
+                    developerInstructions: context.Instructions.DeveloperInstructions + " audited",
+                    changeSummary: "append audit marker")),
+            };
+            yield return new PluginInstructionProcessorContribution
+            {
+                Name = "redact-test-marker",
+                Order = 10,
+                Handler = static (context, _) => ValueTask.FromResult(PluginInstructionProcessingResult.Replace(
+                    systemMessage: context.Instructions.SystemMessage?.Replace("secret", "[redacted]", StringComparison.Ordinal),
+                    developerInstructions: context.Instructions.DeveloperInstructions?.Replace("secret", "[redacted]", StringComparison.Ordinal),
+                    changeSummary: "redacted test marker")),
             };
         }
 

@@ -63,6 +63,19 @@ public sealed class PluginOrchestrationBridge
         => _adapter.BeforeAgentRunAsync(_getActivePlugins(), template, MarkHeadless(options), cancellationToken);
 
     /// <summary>
+    /// Runs final instruction processor plugin hooks for orchestration.
+    /// </summary>
+    /// <param name="template">The instruction processing context template.</param>
+    /// <param name="options">Operation scope options.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The instruction processing adapter result.</returns>
+    public ValueTask<PluginInstructionProcessingAdapterResult> ProcessInstructionsAsync(
+        PluginInstructionProcessingContext template,
+        PluginAdapterOperationOptions? options = null,
+        CancellationToken cancellationToken = default)
+        => _adapter.ProcessInstructionsAsync(_getActivePlugins(), template, MarkHeadless(options), cancellationToken);
+
+    /// <summary>
     /// Gets plugin-contributed agent tools applicable to an orchestration scope.
     /// </summary>
     /// <param name="options">Operation scope options.</param>
@@ -131,6 +144,9 @@ public sealed class PluginOrchestrationBridge
             effectiveOptions,
             PluginPromptChannel.Developer,
             cancellationToken).ConfigureAwait(false);
+        var instructionProcessor = _adapter.GetContributions<PluginInstructionProcessorContribution>(PluginPoint.InstructionProcessor, effectiveOptions).Count == 0
+            ? null
+            : new SessionInstructionProcessor((request, token) => ProcessFinalInstructionsAsync(request, effectiveOptions, token));
 
         return new PluginAgentRunAugmentation
         {
@@ -138,6 +154,7 @@ public sealed class PluginOrchestrationBridge
             Tools = activeTools,
             AdditionalSystemMessage = systemText,
             AdditionalDeveloperInstructions = developerText,
+            InstructionProcessor = instructionProcessor,
             PreferredToolNames = before.Result.PreferredToolNames,
         };
     }
@@ -356,6 +373,96 @@ public sealed class PluginOrchestrationBridge
         => options is null
             ? new PluginAdapterOperationOptions { IsHeadless = true, HasInteractiveUi = false }
             : options with { IsHeadless = true, HasInteractiveUi = false };
+
+    private ValueTask<SessionInstructionProcessingResult> ProcessFinalInstructionsAsync(
+        SessionInstructionProcessingRequest request,
+        PluginAdapterOperationOptions options,
+        CancellationToken cancellationToken)
+        => PluginInstructionProcessingRunner.ProcessFinalInstructionsAsync(_adapter, _getActivePlugins(), request, options, cancellationToken);
+}
+
+/// <summary>
+/// Shared adapter for invoking final instruction processors from orchestration hosts.
+/// </summary>
+public static class PluginInstructionProcessingRunner
+{
+    /// <summary>
+    /// Processes final instructions through active plugin processors.
+    /// </summary>
+    /// <param name="adapter">The plugin adapter service.</param>
+    /// <param name="activePlugins">Active plugins.</param>
+    /// <param name="request">The session instruction processing request.</param>
+    /// <param name="options">Plugin operation options.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The processed session instructions.</returns>
+    public static async ValueTask<SessionInstructionProcessingResult> ProcessFinalInstructionsAsync(
+        PluginContributionAdapterService adapter,
+        IReadOnlyList<ActivePluginInstance> activePlugins,
+        SessionInstructionProcessingRequest request,
+        PluginAdapterOperationOptions options,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(adapter);
+        ArgumentNullException.ThrowIfNull(activePlugins);
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(options);
+        if (activePlugins.Count == 0)
+        {
+            return new SessionInstructionProcessingResult
+            {
+                SystemMessage = request.SystemMessage,
+                DeveloperInstructions = request.DeveloperInstructions,
+            };
+        }
+
+        var seed = activePlugins[0];
+        var template = new PluginInstructionProcessingContext
+        {
+            Plugin = seed.Descriptor,
+            Services = seed.RuntimeContext.Services,
+            Scope = seed.RuntimeContext.Scope,
+            ScopeProjectId = seed.RuntimeContext.ScopeProjectId,
+            ScopeProjectPath = seed.RuntimeContext.ScopeProjectPath,
+            ProjectId = request.ProjectId ?? options.ProjectId,
+            ProjectPath = request.ProjectPath ?? options.ProjectPath,
+            SessionId = request.SessionId ?? options.SessionId,
+            ProviderId = request.ProviderId ?? options.ProviderId,
+            Model = request.Model ?? options.Model,
+            Stage = PluginInstructionProcessingStages.FinalBeforeProviderRequest,
+            Instructions = new PluginInstructionSnapshot
+            {
+                SystemMessage = request.SystemMessage,
+                DeveloperInstructions = request.DeveloperInstructions,
+                InstructionHash = string.Empty,
+            },
+            Manifest = new PluginInstructionManifestView { AgentPromptName = request.Manifest.TryGetValue("agentPromptId", out var agentPromptId) ? agentPromptId : null },
+            Metadata = request.Manifest,
+            ActiveToolNames = request.ActiveToolNames,
+        };
+        var result = await adapter.ProcessInstructionsAsync(activePlugins, template, options, cancellationToken).ConfigureAwait(false);
+        return new SessionInstructionProcessingResult
+        {
+            SystemMessage = result.SystemMessage,
+            DeveloperInstructions = result.DeveloperInstructions,
+            CancelReason = result.CancelReason,
+            Transformations = result.Transformations.Select(ToAgentTransformation).ToArray(),
+        };
+    }
+
+    private static AgentInstructionTransformationInfo ToAgentTransformation(PluginInstructionTransformationRecord record)
+        => new()
+        {
+            PluginRuntimeKey = record.PluginRuntimeKey,
+            RuntimeContributionKey = record.RuntimeContributionKey,
+            NaturalName = record.NaturalName,
+            Order = record.Order,
+            Stage = record.Stage.ToString(),
+            Disposition = record.Disposition.ToString(),
+            ChangedChannels = record.ChangedChannels,
+            ChangeSummary = record.ChangeSummary,
+            ResultInstructionHash = record.ResultInstructionHash,
+            Metadata = record.Metadata,
+        };
 }
 
 /// <summary>
@@ -374,6 +481,9 @@ public sealed record PluginAgentRunAugmentation
 
     /// <summary>Gets additional developer instructions.</summary>
     public string? AdditionalDeveloperInstructions { get; init; }
+
+    /// <summary>Gets the final instruction processor callback.</summary>
+    public SessionInstructionProcessor? InstructionProcessor { get; init; }
 
     /// <summary>Gets preferred tool names for the run.</summary>
     public IReadOnlyList<string> PreferredToolNames { get; init; } = [];

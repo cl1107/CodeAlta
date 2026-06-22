@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using CodeAlta.Agent;
 using CodeAlta.Plugins.Abstractions;
 using XenoAtom.Logging;
@@ -84,6 +86,33 @@ public sealed record PluginBeforeAgentRunAdapterResult
 
     /// <summary>Gets diagnostics raised while invoking plugins.</summary>
     public IReadOnlyList<PluginRuntimeDiagnostic> Diagnostics { get; init; } = [];
+}
+
+/// <summary>
+/// Describes final instruction processing output from plugin adapters.
+/// </summary>
+public sealed record PluginInstructionProcessingAdapterResult
+{
+    /// <summary>Gets the final system message.</summary>
+    public string? SystemMessage { get; init; }
+
+    /// <summary>Gets the final developer instructions.</summary>
+    public string? DeveloperInstructions { get; init; }
+
+    /// <summary>Gets a value indicating whether processing changed instructions.</summary>
+    public bool WasChanged { get; init; }
+
+    /// <summary>Gets a value indicating whether processing cancelled the run.</summary>
+    public bool WasCancelled { get; init; }
+
+    /// <summary>Gets the cancellation reason, when cancelled.</summary>
+    public string? CancelReason { get; init; }
+
+    /// <summary>Gets diagnostics raised while invoking plugins.</summary>
+    public IReadOnlyList<PluginRuntimeDiagnostic> Diagnostics { get; init; } = [];
+
+    /// <summary>Gets audit-safe transformation records.</summary>
+    public IReadOnlyList<PluginInstructionTransformationRecord> Transformations { get; init; } = [];
 }
 
 /// <summary>
@@ -394,6 +423,96 @@ public sealed class PluginContributionAdapterService
             .OfType<PluginAgentToolContribution>()
             .Where(tool => ToolApplies(tool.ActivationPolicy, options))
             .ToArray();
+
+    /// <summary>
+    /// Runs final system/developer instruction processors and returns transformed instructions.
+    /// </summary>
+    /// <param name="activePlugins">Active plugins.</param>
+    /// <param name="template">The instruction processing context template.</param>
+    /// <param name="options">Operation options.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The instruction processing result.</returns>
+    public async ValueTask<PluginInstructionProcessingAdapterResult> ProcessInstructionsAsync(
+        IReadOnlyList<ActivePluginInstance> activePlugins,
+        PluginInstructionProcessingContext template,
+        PluginAdapterOperationOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(activePlugins);
+        ArgumentNullException.ThrowIfNull(template);
+        var diagnostics = new List<PluginRuntimeDiagnostic>();
+        var transformations = new List<PluginInstructionTransformationRecord>(template.PriorTransformations);
+        var systemMessage = template.Instructions.SystemMessage;
+        var developerInstructions = template.Instructions.DeveloperInstructions;
+        var wasChanged = false;
+
+        foreach (var registration in GetRegistrations(PluginPoint.InstructionProcessor, options))
+        {
+            if (registration.Contribution is not PluginInstructionProcessorContribution processor ||
+                !InstructionProcessorApplies(processor.Target, template.Stage, options) ||
+                !TryGetActivePlugin(activePlugins, registration, out var active))
+            {
+                continue;
+            }
+
+            var beforeSystem = systemMessage;
+            var beforeDeveloper = developerInstructions;
+            var context = CreateInstructionProcessingContext(active, template, options, systemMessage, developerInstructions, transformations, cancellationToken);
+            PluginInstructionProcessingResult? result;
+            try
+            {
+                result = await processor.Handler(context, cancellationToken).ConfigureAwait(false);
+                context.Invalidate();
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                context.Invalidate();
+                LogCallbackFailure(active, "Instruction processor contribution failed.", ex);
+                diagnostics.Add(AddDiagnostic(CreateCallbackDiagnostic(registration, "Instruction processor contribution failed.", ex)));
+                continue;
+            }
+
+            result ??= PluginInstructionProcessingResult.Continue;
+            if (result.Disposition == PluginInstructionProcessingDisposition.Replace)
+            {
+                if (result.ReplacementSystemMessage is not null)
+                {
+                    systemMessage = result.ReplacementSystemMessage;
+                }
+
+                if (result.ReplacementDeveloperInstructions is not null)
+                {
+                    developerInstructions = result.ReplacementDeveloperInstructions;
+                }
+            }
+
+            var changedChannels = GetChangedInstructionChannels(beforeSystem, beforeDeveloper, systemMessage, developerInstructions);
+            wasChanged |= changedChannels.Count > 0;
+            transformations.Add(CreateTransformationRecord(registration, processor, template.Stage, result, changedChannels, systemMessage, developerInstructions));
+            if (result.Disposition == PluginInstructionProcessingDisposition.Cancel)
+            {
+                return new PluginInstructionProcessingAdapterResult
+                {
+                    SystemMessage = systemMessage,
+                    DeveloperInstructions = developerInstructions,
+                    WasChanged = wasChanged,
+                    WasCancelled = true,
+                    CancelReason = result.UserMessage ?? result.ChangeSummary ?? "Plugin cancelled the agent run.",
+                    Diagnostics = diagnostics,
+                    Transformations = transformations,
+                };
+            }
+        }
+
+        return new PluginInstructionProcessingAdapterResult
+        {
+            SystemMessage = systemMessage,
+            DeveloperInstructions = developerInstructions,
+            WasChanged = wasChanged,
+            Diagnostics = diagnostics,
+            Transformations = transformations,
+        };
+    }
 
     /// <summary>Runs early startup contribution handlers and returns early resource contributions.</summary>
     public async ValueTask<PluginStartupAdapterResult> RunStartupAsync(
@@ -758,6 +877,36 @@ public sealed class PluginContributionAdapterService
         return true;
     }
 
+    private static bool InstructionProcessorApplies(PluginInstructionProcessingTarget target, PluginInstructionProcessingStages stage, PluginAdapterOperationOptions? options)
+    {
+        if ((target.Stages & stage) == 0 || target.Channels == PluginInstructionChannels.None)
+        {
+            return false;
+        }
+
+        if (target.RequiresCodeAltaManagedProvider && options?.IsCodeAltaManagedProvider != true)
+        {
+            return false;
+        }
+
+        if (target.ProviderIds.Count > 0 && !target.ProviderIds.Contains(options?.ProviderId ?? string.Empty, StringComparer.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (target.ProviderFamilies.Count > 0 && !(options?.ProviderFamilies ?? []).Intersect(target.ProviderFamilies, StringComparer.OrdinalIgnoreCase).Any())
+        {
+            return false;
+        }
+
+        if (target.ModelIds.Count > 0 && !target.ModelIds.Contains(options?.Model ?? string.Empty, StringComparer.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
     private static bool IsHeadlessOrNonInteractive(PluginAdapterOperationOptions? options)
         => options is not null && (options.IsHeadless || !options.HasInteractiveUi);
 
@@ -801,6 +950,66 @@ public sealed class PluginContributionAdapterService
             TemporaryPromptContributions = current.TemporaryPromptContributions.Concat(next.TemporaryPromptContributions).ToArray(),
         };
     }
+
+    private static IReadOnlyList<string> GetChangedInstructionChannels(string? beforeSystem, string? beforeDeveloper, string? afterSystem, string? afterDeveloper)
+    {
+        var channels = new List<string>(2);
+        if (!string.Equals(beforeSystem, afterSystem, StringComparison.Ordinal))
+        {
+            channels.Add("system");
+        }
+
+        if (!string.Equals(beforeDeveloper, afterDeveloper, StringComparison.Ordinal))
+        {
+            channels.Add("developer");
+        }
+
+        return channels;
+    }
+
+    private static PluginInstructionTransformationRecord CreateTransformationRecord(
+        PluginContributionRegistration registration,
+        PluginInstructionProcessorContribution processor,
+        PluginInstructionProcessingStages stage,
+        PluginInstructionProcessingResult result,
+        IReadOnlyList<string> changedChannels,
+        string? systemMessage,
+        string? developerInstructions)
+        => new()
+        {
+            PluginRuntimeKey = registration.Handle.PluginRuntimeKey,
+            RuntimeContributionKey = registration.Handle.RuntimeContributionKey,
+            NaturalName = registration.Handle.NaturalName,
+            Order = processor.Order,
+            Stage = stage,
+            Disposition = result.Disposition,
+            ChangedChannels = changedChannels,
+            ChangeSummary = result.ChangeSummary,
+            ResultInstructionHash = CreateInstructionSnapshot(systemMessage, developerInstructions).InstructionHash,
+            Metadata = result.Metadata,
+        };
+
+    private static PluginInstructionSnapshot CreateInstructionSnapshot(string? systemMessage, string? developerInstructions)
+    {
+        var systemChars = systemMessage?.Length ?? 0;
+        var developerChars = developerInstructions?.Length ?? 0;
+        return new PluginInstructionSnapshot
+        {
+            SystemMessage = systemMessage,
+            DeveloperInstructions = developerInstructions,
+            InstructionHash = HashText(string.Join("\n---\n", systemMessage ?? string.Empty, developerInstructions ?? string.Empty, "native-system-and-developer")),
+            SystemCharacterCount = systemChars,
+            DeveloperCharacterCount = developerChars,
+            SystemApproxTokens = EstimateApproxTokens(systemChars),
+            DeveloperApproxTokens = EstimateApproxTokens(developerChars),
+        };
+    }
+
+    private static int EstimateApproxTokens(int characterCount)
+        => characterCount == 0 ? 0 : Math.Max(1, (int)Math.Ceiling(characterCount / 4.0));
+
+    private static string HashText(string text)
+        => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text))).ToLowerInvariant();
 
     private static PluginRuntimeDiagnostic CreateCallbackDiagnostic(PluginContributionRegistration registration, string message, Exception exception)
         => new()
@@ -903,6 +1112,38 @@ public sealed class PluginContributionAdapterService
             Model = options?.Model,
             Channel = channel,
             SupportsDirectInjection = supportsDirectInjection,
+            CancellationToken = cancellationToken,
+        };
+
+    private static PluginInstructionProcessingContext CreateInstructionProcessingContext(
+        ActivePluginInstance active,
+        PluginInstructionProcessingContext template,
+        PluginAdapterOperationOptions? options,
+        string? systemMessage,
+        string? developerInstructions,
+        IReadOnlyList<PluginInstructionTransformationRecord> transformations,
+        CancellationToken cancellationToken)
+        => new()
+        {
+            Plugin = active.Descriptor,
+            Services = active.RuntimeContext.Services,
+            Scope = active.RuntimeContext.Scope,
+            ScopeProjectId = active.RuntimeContext.ScopeProjectId,
+            ScopeProjectPath = active.RuntimeContext.ScopeProjectPath,
+            ProjectId = options?.ProjectId ?? template.ProjectId,
+            ProjectPath = options?.ProjectPath ?? template.ProjectPath,
+            SessionId = options?.SessionId ?? template.SessionId,
+            RunId = options?.RunId ?? template.RunId,
+            ProviderId = options?.ProviderId ?? template.ProviderId,
+            Model = options?.Model ?? template.Model,
+            Stage = template.Stage,
+            Purpose = template.Purpose,
+            Instructions = CreateInstructionSnapshot(systemMessage, developerInstructions),
+            Manifest = template.Manifest,
+            Parts = template.Parts,
+            ActiveToolNames = template.ActiveToolNames,
+            PriorTransformations = transformations.ToArray(),
+            Metadata = template.Metadata,
             CancellationToken = cancellationToken,
         };
 

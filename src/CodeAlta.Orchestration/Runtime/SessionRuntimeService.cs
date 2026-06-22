@@ -703,6 +703,40 @@ public sealed class SessionRuntimeService : IAsyncDisposable
         }
 
         var requestedSessionId = NormalizeOptionalText(session.SessionId);
+        var systemMessage = AppendPromptPart(instructions.SystemMessage, options.AdditionalSystemMessage);
+        var finalDeveloperInstructions = AppendPromptPart(developerInstructions, additionalDeveloperInstructions);
+        IReadOnlyList<AgentInstructionTransformationInfo> instructionTransformations = [];
+        var instructionsAlreadyComposed = false;
+        if (options.InstructionProcessor is not null)
+        {
+            var processing = await options.InstructionProcessor(
+                    new SessionInstructionProcessingRequest
+                    {
+                        SessionId = requestedSessionId,
+                        ProjectId = project?.Id,
+                        ProjectPath = project?.ProjectPath,
+                        ProviderId = options.ProviderId.Value,
+                        Model = options.Model,
+                        SystemMessage = systemMessage,
+                        DeveloperInstructions = finalDeveloperInstructions,
+                        ActiveToolNames = (tools ?? []).Select(static tool => tool.Spec.Name).ToArray(),
+                        Manifest = new Dictionary<string, string>
+                        {
+                            ["agentPromptId"] = NormalizeOptionalText(session.AgentPromptId) ?? AgentPromptCatalog.DefaultPromptName,
+                        },
+                    },
+                    cancellationToken)
+                .ConfigureAwait(false);
+            if (!string.IsNullOrWhiteSpace(processing.CancelReason))
+            {
+                throw new InvalidOperationException(processing.CancelReason);
+            }
+
+            systemMessage = processing.SystemMessage;
+            finalDeveloperInstructions = processing.DeveloperInstructions;
+            instructionTransformations = processing.Transformations;
+            instructionsAlreadyComposed = instructionTransformations.Count > 0;
+        }
 
         var sessionOptions = new AgentSessionResumeOptions
         {
@@ -716,8 +750,10 @@ public sealed class SessionRuntimeService : IAsyncDisposable
             Streaming = true,
             WorkingDirectory = options.WorkingDirectory,
             ProjectRoots = options.ProjectRoots,
-            SystemMessage = AppendPromptPart(instructions.SystemMessage, options.AdditionalSystemMessage),
-            DeveloperInstructions = AppendPromptPart(developerInstructions, additionalDeveloperInstructions),
+            SystemMessage = systemMessage,
+            DeveloperInstructions = finalDeveloperInstructions,
+            InstructionsAlreadyComposed = instructionsAlreadyComposed,
+            InstructionTransformations = instructionTransformations,
             AgentPromptId = NormalizeOptionalText(session.AgentPromptId) ?? AgentPromptCatalog.DefaultPromptName,
             AgentPromptUsage = agentPromptUsage,
             Tools = tools,
@@ -802,6 +838,7 @@ public sealed class SessionRuntimeService : IAsyncDisposable
             CreateToolSignatures(options.Tools),
             options.OnPermissionRequest,
             options.OnUserInputRequest,
+            options.InstructionProcessor,
             projector,
             subscription);
 
@@ -2484,6 +2521,7 @@ public sealed class SessionRuntimeService : IAsyncDisposable
             IReadOnlyList<string> toolSignatures,
             AgentPermissionRequestHandler onPermissionRequest,
             AgentUserInputRequestHandler? onUserInputRequest,
+            SessionInstructionProcessor? instructionProcessor,
             EventProjector projector,
             IDisposable subscription)
         {
@@ -2509,6 +2547,7 @@ public sealed class SessionRuntimeService : IAsyncDisposable
             ToolSignatures = toolSignatures;
             OnPermissionRequest = onPermissionRequest;
             OnUserInputRequest = onUserInputRequest;
+            InstructionProcessor = instructionProcessor;
             Projector = projector;
             Subscription = subscription;
         }
@@ -2558,6 +2597,8 @@ public sealed class SessionRuntimeService : IAsyncDisposable
         public AgentPermissionRequestHandler OnPermissionRequest { get; }
 
         public AgentUserInputRequestHandler? OnUserInputRequest { get; }
+
+        public SessionInstructionProcessor? InstructionProcessor { get; }
 
         public IDisposable Subscription { get; }
 
@@ -2613,6 +2654,7 @@ public sealed class SessionRuntimeService : IAsyncDisposable
                 Tools = Tools,
                 AdditionalSystemMessage = AdditionalSystemMessage,
                 AdditionalDeveloperInstructions = AdditionalDeveloperInstructions,
+                InstructionProcessor = InstructionProcessor,
                 OnPermissionRequest = OnPermissionRequest,
                 OnUserInputRequest = OnUserInputRequest,
             };
@@ -2629,6 +2671,7 @@ public sealed class SessionRuntimeService : IAsyncDisposable
                 && string.Equals(AgentPromptId, resolvedAgentPromptId, StringComparison.OrdinalIgnoreCase)
                 && string.Equals(AdditionalSystemMessage, options.AdditionalSystemMessage, StringComparison.Ordinal)
                 && string.Equals(AdditionalDeveloperInstructions, options.AdditionalDeveloperInstructions, StringComparison.Ordinal)
+                && (InstructionProcessor is null) == (options.InstructionProcessor is null)
                 && ToolSignatures.SequenceEqual(CreateToolSignatures(options.Tools), StringComparer.Ordinal);
         }
 

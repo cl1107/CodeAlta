@@ -71,6 +71,7 @@ public sealed class SessionPluginToolService
             AdditionalSystemMessage = options.AdditionalSystemMessage,
             AdditionalDeveloperInstructions = options.AdditionalDeveloperInstructions,
             PreferredToolNames = preferredNames,
+            InstructionProcessor = options.InstructionProcessor,
             OnPermissionRequest = options.OnPermissionRequest,
             OnUserInputRequest = options.OnUserInputRequest,
         };

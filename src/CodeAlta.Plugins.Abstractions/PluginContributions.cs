@@ -24,6 +24,8 @@ public enum PluginPoint
     SystemPrompt,
     /// <summary>Prompt processor.</summary>
     PromptProcessor,
+    /// <summary>Final system/developer instruction processor.</summary>
+    InstructionProcessor,
     /// <summary>Prompt editor attachment.</summary>
     PromptEditor,
     /// <summary>Before-agent-run hook.</summary>
@@ -145,6 +147,12 @@ public delegate ValueTask<PluginCommandResult> PluginCommandHandler(PluginComman
 /// <param name="cancellationToken">A token to cancel the operation.</param>
 /// <returns>The prompt result.</returns>
 public delegate ValueTask<PluginPromptResult> PluginPromptProcessorHandler(PluginPromptSubmittingContext context, CancellationToken cancellationToken);
+
+/// <summary>Delegate for final system/developer instruction processors.</summary>
+/// <param name="context">The instruction processing context.</param>
+/// <param name="cancellationToken">A token to cancel the operation.</param>
+/// <returns>The instruction processing result.</returns>
+public delegate ValueTask<PluginInstructionProcessingResult> PluginInstructionProcessorHandler(PluginInstructionProcessingContext context, CancellationToken cancellationToken);
 
 /// <summary>Delegate for system prompt content providers.</summary>
 /// <param name="context">The prompt context.</param>

@@ -102,6 +102,7 @@ internal sealed class SessionPromptDispatchCoordinator
             AdditionalSystemMessage = options.AdditionalSystemMessage,
             AdditionalDeveloperInstructions = combinedInstructions,
             PreferredToolNames = options.PreferredToolNames,
+            InstructionProcessor = options.InstructionProcessor,
             OnPermissionRequest = options.OnPermissionRequest,
             OnUserInputRequest = options.OnUserInputRequest,
         };
@@ -284,6 +285,7 @@ internal sealed class SessionPromptDispatchCoordinator
             AdditionalSystemMessage = augmentation.AdditionalSystemMessage ?? source.AdditionalSystemMessage,
             AdditionalDeveloperInstructions = augmentation.AdditionalDeveloperInstructions ?? source.AdditionalDeveloperInstructions,
             PreferredToolNames = augmentation.PreferredToolNames.Count == 0 ? source.PreferredToolNames : augmentation.PreferredToolNames,
+            InstructionProcessor = augmentation.InstructionProcessor ?? source.InstructionProcessor,
             OnPermissionRequest = source.OnPermissionRequest,
             OnUserInputRequest = source.OnUserInputRequest,
         };

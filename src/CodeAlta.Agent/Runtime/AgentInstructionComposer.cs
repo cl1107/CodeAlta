@@ -16,7 +16,7 @@ internal static class AgentInstructionComposer
 
         var systemMessage = Normalize(options.SystemMessage);
         var developerInstructionsInput = Normalize(options.DeveloperInstructions);
-        var runtimeContext = ContainsSection(developerInstructionsInput, "# Runtime Context")
+        var runtimeContext = options.InstructionsAlreadyComposed || ContainsSection(developerInstructionsInput, "# Runtime Context")
             ? string.Empty
             : BuildRuntimeContextSection(options.WorkingDirectory, options.ProjectRoots);
         var developerSections = new List<string>();
@@ -25,7 +25,7 @@ internal static class AgentInstructionComposer
             developerSections.Add(developerInstructionsInput);
         }
 
-        if (!ContainsSection(developerInstructionsInput, "# Project Context"))
+        if (!options.InstructionsAlreadyComposed && !ContainsSection(developerInstructionsInput, "# Project Context"))
         {
             foreach (var path in EnumerateAgentInstructionFiles(options.WorkingDirectory, options.ProjectRoots))
             {
@@ -43,7 +43,7 @@ internal static class AgentInstructionComposer
             }
         }
 
-        if (!ContainsSection(developerInstructionsInput, "# Active Skills") &&
+        if (!options.InstructionsAlreadyComposed && !ContainsSection(developerInstructionsInput, "# Active Skills") &&
             !ContainsSection(developerInstructionsInput, "<active_skills>"))
         {
             var activeSkillsSection = BuildActiveSkillsSection(loadedSkills);

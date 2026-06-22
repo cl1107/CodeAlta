@@ -57,6 +57,31 @@ public sealed class AgentSessionTests
     }
 
     [TestMethod]
+    public void AgentInstructionComposer_DoesNotReAddRuntimeSectionsWhenInstructionsAlreadyComposed()
+    {
+        using var temp = TestTempDirectory.Create();
+        var projectRoot = Path.Combine(temp.Path, "repo");
+        Directory.CreateDirectory(projectRoot);
+        File.WriteAllText(Path.Combine(projectRoot, "AGENTS.md"), "project instructions");
+
+        var bundle = AgentInstructionComposer.Compose(
+            new AgentSessionCreateOptions
+            {
+                WorkingDirectory = projectRoot,
+                ProjectRoots = [projectRoot],
+                DeveloperInstructions = "filtered developer instructions",
+                InstructionsAlreadyComposed = true,
+                OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
+            });
+
+        Assert.AreEqual("filtered developer instructions", bundle.DeveloperInstructions);
+        Assert.AreEqual(string.Empty, bundle.RuntimeContext);
+        Assert.IsFalse(bundle.DeveloperInstructions!.Contains("# Runtime Context", StringComparison.Ordinal));
+        Assert.IsFalse(bundle.DeveloperInstructions!.Contains("# Project Context", StringComparison.Ordinal));
+        Assert.IsFalse(bundle.DeveloperInstructions!.Contains("project instructions", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public void AgentInstructionComposer_ComposesActiveSkillsSection()
     {
         var skillFilePath = @"C:\skills\code-review\SKILL.md";

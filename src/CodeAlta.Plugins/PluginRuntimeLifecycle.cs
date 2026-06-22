@@ -321,6 +321,7 @@ public sealed class PluginRuntimeActivator
         Add(PluginPoint.AltaCommand, instance.GetAltaCommands());
         Add(PluginPoint.SystemPrompt, instance.GetSystemPromptContributions());
         Add(PluginPoint.PromptProcessor, instance.GetPromptProcessors());
+        Add(PluginPoint.InstructionProcessor, instance.GetInstructionProcessors());
         Add(PluginPoint.PromptEditor, instance.GetPromptEditorContributions());
         Add(PluginPoint.Compaction, instance.GetCompactionContributions());
         Add(PluginPoint.Ui, instance.GetUiContributions());

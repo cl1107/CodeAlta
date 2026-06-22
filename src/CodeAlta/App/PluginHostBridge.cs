@@ -225,6 +225,9 @@ internal sealed class PluginHostBridge
             isManaged,
             cancellationToken);
         var additionalInput = AppendAdditionalMessages(input, before.Result.AdditionalMessages);
+        var instructionProcessor = _runtime.Adapter.GetContributions<PluginInstructionProcessorContribution>(PluginPoint.InstructionProcessor, options).Count == 0
+            ? null
+            : new SessionInstructionProcessor((request, token) => ProcessFinalInstructionsAsync(request, options, token));
 
         return new PluginAgentRunAugmentation
         {
@@ -232,6 +235,7 @@ internal sealed class PluginHostBridge
             Tools = activeTools,
             AdditionalSystemMessage = systemText,
             AdditionalDeveloperInstructions = developerText,
+            InstructionProcessor = instructionProcessor,
             PreferredToolNames = before.Result.PreferredToolNames,
         };
     }
@@ -251,6 +255,12 @@ internal sealed class PluginHostBridge
 
         return tools.Count == 0 ? null : tools;
     }
+
+    private ValueTask<SessionInstructionProcessingResult> ProcessFinalInstructionsAsync(
+        SessionInstructionProcessingRequest request,
+        PluginAdapterOperationOptions options,
+        CancellationToken cancellationToken)
+        => PluginInstructionProcessingRunner.ProcessFinalInstructionsAsync(_runtime.Adapter, _runtime.ActivePlugins, request, options, cancellationToken);
 
     private IReadOnlyList<AgentToolDefinition>? MergeRunTools(
         IReadOnlyList<AgentToolDefinition>? existingTools,
@@ -646,6 +656,8 @@ internal sealed record PluginAgentRunAugmentation
     public string? AdditionalSystemMessage { get; init; }
 
     public string? AdditionalDeveloperInstructions { get; init; }
+
+    public SessionInstructionProcessor? InstructionProcessor { get; init; }
 
     public IReadOnlyList<string> PreferredToolNames { get; init; } = [];
 

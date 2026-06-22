@@ -71,6 +71,19 @@ public class AgentSessionCreateOptions
     public string? DeveloperInstructions { get; init; }
 
     /// <summary>
+    /// Gets or initializes whether the supplied system/developer instructions are already fully composed.
+    /// </summary>
+    /// <remarks>
+    /// When set, the agent runtime does not add fallback runtime, project, or active-skill instruction sections.
+    /// </remarks>
+    public bool InstructionsAlreadyComposed { get; init; }
+
+    /// <summary>
+    /// Gets or initializes audit-safe metadata describing trusted plugin instruction transformations.
+    /// </summary>
+    public IReadOnlyList<AgentInstructionTransformationInfo> InstructionTransformations { get; init; } = [];
+
+    /// <summary>
     /// Gets or initializes the agent prompt identifier used to compose the developer instructions.
     /// </summary>
     public string? AgentPromptId { get; init; }
@@ -99,4 +112,40 @@ public class AgentSessionCreateOptions
     /// Gets or initializes the user input request handler (optional).
     /// </summary>
     public AgentUserInputRequestHandler? OnUserInputRequest { get; init; }
+}
+
+/// <summary>
+/// Audit-safe metadata describing a trusted plugin transformation of final instructions.
+/// </summary>
+public sealed record AgentInstructionTransformationInfo
+{
+    /// <summary>Gets the plugin runtime key.</summary>
+    public required string PluginRuntimeKey { get; init; }
+
+    /// <summary>Gets the runtime contribution key.</summary>
+    public required string RuntimeContributionKey { get; init; }
+
+    /// <summary>Gets the natural contribution name, when known.</summary>
+    public string? NaturalName { get; init; }
+
+    /// <summary>Gets the processor order.</summary>
+    public int Order { get; init; }
+
+    /// <summary>Gets the processing stage label.</summary>
+    public required string Stage { get; init; }
+
+    /// <summary>Gets the result disposition label.</summary>
+    public required string Disposition { get; init; }
+
+    /// <summary>Gets changed instruction channels.</summary>
+    public IReadOnlyList<string> ChangedChannels { get; init; } = [];
+
+    /// <summary>Gets an audit-safe change summary.</summary>
+    public string? ChangeSummary { get; init; }
+
+    /// <summary>Gets the post-transform instruction hash.</summary>
+    public string? ResultInstructionHash { get; init; }
+
+    /// <summary>Gets audit-safe plugin-owned metadata.</summary>
+    public IReadOnlyDictionary<string, string> Metadata { get; init; } = new Dictionary<string, string>();
 }

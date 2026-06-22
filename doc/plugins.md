@@ -120,7 +120,7 @@ Open plugin management with `Ctrl+G Ctrl+N` or the command palette (search for `
 - agent tools;
 - `alta` live command roots;
 - static and dynamic system/developer prompt parts;
-- prompt processors, prompt-editor attachments, and system/developer prompt parts;
+- prompt processors, prompt-editor attachments, system/developer prompt parts, and final instruction processors;
 - before-agent-run hooks;
 - tool-call and tool-result hooks;
 - normalized agent-event observers;
@@ -139,6 +139,16 @@ Low-ceremony factories are available through `Command`, `Startup`, `Prompt`, `Pl
 UI-only contributions remain frontend responsibilities. Headless hosts can ignore them or expose no-op services through `IPluginUiService.HasInteractiveUi == false`.
 
 When a plugin constructs a `XenoAtom.Terminal.UI.Controls.Dialog` directly, use `PluginDialogLayout.ApplyResponsiveSize(...)` with a deferred bounds delegate (for example, `() => PluginDialogLayout.ResolveDialogBounds(anchor)`) so the dialog keeps the same centered, responsive sizing behavior as built-in dialogs, including cases where the dialog is sized after it is attached to the app.
+
+## Prompt and instruction processing
+
+`PluginBase.GetPromptProcessors()` is for user prompt text and attachment preparation before a turn is submitted. It must not be used to mutate built-in system/developer instructions.
+
+Plugins that need to inspect, redact, or replace final system/developer instructions can override `PluginBase.GetInstructionProcessors()` and return `PluginInstructionProcessorContribution` records. The host runs these trusted in-process hooks after built-in prompt templates, runtime/project/tool/skill context, plugin prompt parts, and before-agent-run prompt additions are composed, and before provider submission, prompt hashing/statistics, and system-prompt journal/manifest events. Processors run in deterministic contribution order and receive a `PluginInstructionProcessingContext` with provider/model/session/project metadata, active tool names, audit-oriented part metadata, prior transformation records, and a final `PluginInstructionSnapshot` for the current system/developer channels.
+
+Instruction processors return `PluginInstructionProcessingResult.Continue`, `Replace(...)`, or `Cancel(...)`. Replacement results can replace one channel while preserving the other, and should include only audit-safe `ChangeSummary`/`Metadata`; the host records plugin identity, order, changed channels, disposition, and post-transform hash in the prompt manifest without logging pre-filter secret-bearing text. This is an extensibility/audit mechanism for trusted local plugin code, not a security boundary.
+
+The built-in `codealta-plugin-runtime` skill includes an `instruction-path-normalizer` sample that uses this hook to replace backslashes with forward slashes inside the generated `# Runtime Context` section. Copy `samples/instruction-path-normalizer/` into a plugin root to experiment with final instruction transforms.
 
 ## Prompt-editor attachments
 

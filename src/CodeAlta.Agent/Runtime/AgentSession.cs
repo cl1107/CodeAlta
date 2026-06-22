@@ -1251,7 +1251,7 @@ public sealed class AgentSession : IAgentSession, IAgentCompactionOutcomeProvide
             systemMessage,
             developerInstructions,
             new AgentSystemPromptProviderPayloadSummary("native-system-and-developer", AppliedToProvider: true, Lossy: false),
-            CreateSystemPromptManifest(effectivePromptHash, agentPromptUsage, statistics),
+            CreateSystemPromptManifest(effectivePromptHash, agentPromptUsage, statistics, _options.InstructionTransformations),
             statistics,
             new AgentSystemPromptChangeSummary(
                 previousHash is null ? "initial" : "changed",
@@ -1286,7 +1286,7 @@ public sealed class AgentSession : IAgentSession, IAgentCompactionOutcomeProvide
     private static int EstimatePromptTokens(string? text)
         => checked((int)TokenEstimator.Estimate(text));
 
-    private static JsonElement CreateSystemPromptManifest(string effectivePromptHash, AgentPromptUsageInfo? agentPromptUsage, AgentSystemPromptStatistics statistics)
+    private static JsonElement CreateSystemPromptManifest(string effectivePromptHash, AgentPromptUsageInfo? agentPromptUsage, AgentSystemPromptStatistics statistics, IReadOnlyList<AgentInstructionTransformationInfo> transformations)
     {
         using var stream = new MemoryStream();
         using (var writer = new Utf8JsonWriter(stream))
@@ -1328,6 +1328,56 @@ public sealed class AgentSession : IAgentSession, IAgentCompactionOutcomeProvide
             writer.WriteNumber("systemChars", statistics.SystemChars);
             writer.WriteNumber("developerChars", statistics.DeveloperChars);
             writer.WriteEndObject();
+            if (transformations.Count > 0)
+            {
+                writer.WriteStartArray("instructionTransformations");
+                foreach (var transformation in transformations)
+                {
+                    writer.WriteStartObject();
+                    writer.WriteString("pluginRuntimeKey", transformation.PluginRuntimeKey);
+                    writer.WriteString("runtimeContributionKey", transformation.RuntimeContributionKey);
+                    if (!string.IsNullOrWhiteSpace(transformation.NaturalName))
+                    {
+                        writer.WriteString("naturalName", transformation.NaturalName);
+                    }
+
+                    writer.WriteNumber("order", transformation.Order);
+                    writer.WriteString("stage", transformation.Stage);
+                    writer.WriteString("disposition", transformation.Disposition);
+                    writer.WriteStartArray("changedChannels");
+                    foreach (var channel in transformation.ChangedChannels)
+                    {
+                        writer.WriteStringValue(channel);
+                    }
+
+                    writer.WriteEndArray();
+                    if (!string.IsNullOrWhiteSpace(transformation.ChangeSummary))
+                    {
+                        writer.WriteString("changeSummary", transformation.ChangeSummary);
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(transformation.ResultInstructionHash))
+                    {
+                        writer.WriteString("resultInstructionHash", transformation.ResultInstructionHash);
+                    }
+
+                    if (transformation.Metadata.Count > 0)
+                    {
+                        writer.WriteStartObject("metadata");
+                        foreach (var pair in transformation.Metadata)
+                        {
+                            writer.WriteString(pair.Key, pair.Value);
+                        }
+
+                        writer.WriteEndObject();
+                    }
+
+                    writer.WriteEndObject();
+                }
+
+                writer.WriteEndArray();
+            }
+
             writer.WriteEndObject();
         }
 

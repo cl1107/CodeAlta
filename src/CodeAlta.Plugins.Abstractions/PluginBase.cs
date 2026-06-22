@@ -147,6 +147,12 @@ public abstract class PluginBase : IAsyncDisposable
     public virtual IEnumerable<PluginPromptProcessorContribution> GetPromptProcessors() => [];
 
     /// <summary>
+    /// Gets final system/developer instruction processor contributions.
+    /// </summary>
+    /// <returns>Instruction processor contributions.</returns>
+    public virtual IEnumerable<PluginInstructionProcessorContribution> GetInstructionProcessors() => [];
+
+    /// <summary>
     /// Gets plugin-owned prompt editor attachments.
     /// </summary>
     /// <returns>Prompt editor attachment contributions.</returns>
