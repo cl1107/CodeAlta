@@ -4,7 +4,7 @@
     <CentralPackageTransitivePinningEnabled>false</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="Anthropic" Version="12.30.0" />
+    <PackageVersion Include="Anthropic" Version="12.31.0" />
     <PackageVersion Include="Azure.AI.OpenAI" Version="2.9.0-beta.1" />
     <PackageVersion Include="DiffPlex" Version="1.9.0" />
     <PackageVersion Include="GitHub.Copilot.SDK" Version="1.0.0-beta.3" />
@@ -15,7 +15,7 @@
     <PackageVersion Include="Microsoft.Build.Framework" Version="18.6.3" />
     <PackageVersion Include="Microsoft.Build.Locator" Version="1.11.2" />
     <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="18.6.3" />
-    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.4" />
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.9" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.4" />
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.9" />
     <PackageVersion Include="Microsoft.NET.StringTools" Version="18.6.3" />
@@ -26,10 +26,10 @@
     <PackageVersion Include="NJsonSchema" Version="11.6.1" />
     <PackageVersion Include="NJsonSchema.CodeGeneration.CSharp" Version="11.5.2" />
     <PackageVersion Include="NuGet.Versioning" Version="7.6.0" />
-    <PackageVersion Include="Google.GenAI" Version="1.11.0" />
+    <PackageVersion Include="Google.GenAI" Version="1.12.0" />
     <PackageVersion Include="OpenAI" Version="2.11.0" />
-    <PackageVersion Include="SharpYaml" Version="3.10.0" />
-    <PackageVersion Include="Tomlyn" Version="2.7.0" />
+    <PackageVersion Include="SharpYaml" Version="3.11.0" />
+    <PackageVersion Include="Tomlyn" Version="2.9.0" />
     <PackageVersion Include="XenoAtom.CommandLine.Terminal" Version="2.0.3" />
     <PackageVersion Include="XenoAtom.Logging.Terminal" Version="1.2.0" />
     <PackageVersion Include="XenoAtom.Glob" Version="1.0.0" />
