@@ -10,7 +10,7 @@ public sealed class PluginRuntimeStartupPerformanceTests
     [TestCategory("RequiresDotNet10FileBuild")]
     public async Task StartupMeasuresStaleAndUpToDateEnabledPluginPaths()
     {
-        CodeAltaPluginRuntimeStartup.RegisterMsBuildDefaults();
+        //CodeAltaPluginRuntimeStartup.RegisterMsBuildDefaults();
         using var temp = new TestTempDirectory();
         var globalRoot = Path.Combine(temp.Path, "home");
         var projectRoot = Path.Combine(temp.Path, "project");

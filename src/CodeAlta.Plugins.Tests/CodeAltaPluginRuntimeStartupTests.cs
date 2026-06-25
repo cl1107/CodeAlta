@@ -1,3 +1,5 @@
+/*
+// Disabled for now until https://github.com/dotnet/sdk/pull/54172 is merged
 using Microsoft.Build.Locator;
 
 namespace CodeAlta.Plugins.Tests;
@@ -8,7 +10,7 @@ public sealed class CodeAltaPluginRuntimeStartupTests
     [TestMethod]
     public void RegisterMsBuildDefaultsRegistersSdkInstanceBeforeMsBuildFrameworkUse()
     {
-        CodeAltaPluginRuntimeStartup.RegisterMsBuildDefaults();
+        //CodeAltaPluginRuntimeStartup.RegisterMsBuildDefaults();
 
         Assert.IsTrue(MSBuildLocator.IsRegistered);
         var buildEventArgsType = Type.GetType("Microsoft.Build.Framework.BuildEventArgs, Microsoft.Build.Framework", throwOnError: true)!;
@@ -18,3 +20,5 @@ public sealed class CodeAltaPluginRuntimeStartupTests
         Assert.AreEqual("Default", System.Runtime.Loader.AssemblyLoadContext.GetLoadContext(buildEventArgsType.Assembly)?.Name);
     }
 }
+
+*/

@@ -19,7 +19,8 @@ try
     // Plugin runtime startup ordering: register MSBuild before any plugin build service, pipe-logger
     // event payload, or Microsoft.Build type can be touched. Safe-mode raw args/environment are
     // still read by host-owned code before dynamic plugins are built or loaded.
-    CodeAltaPluginRuntimeStartup.RegisterMsBuildDefaults();
+    // Disabled for now until https://github.com/dotnet/sdk/pull/54172 is merged
+    // //CodeAltaPluginRuntimeStartup.RegisterMsBuildDefaults();
     using var session = Terminal.Open();
 
     _ = PluginRuntimeConfigResolver.IsSafeModeEnabled(args);

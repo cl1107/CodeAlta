@@ -101,7 +101,7 @@ public sealed class PluginBuildManifestStoreTests
         });
         Assert.IsTrue((await store.TryGetUpToDateManifestAsync(package)).IsUpToDate);
 
-        CodeAltaPluginRuntimeStartup.RegisterMsBuildDefaults();
+        //CodeAltaPluginRuntimeStartup.RegisterMsBuildDefaults();
         var result = await new PluginBuildService(store).BuildAsync(new PluginBuildRequest { Package = package, ForceRebuild = true });
 
         Assert.IsFalse(result.IsUpToDate);

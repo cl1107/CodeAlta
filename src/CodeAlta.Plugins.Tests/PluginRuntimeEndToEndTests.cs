@@ -9,7 +9,7 @@ public sealed class PluginRuntimeEndToEndTests
     [TestCategory("RequiresDotNet10FileBuild")]
     public async Task EnabledSourcePluginBuildsLoadsActivatesAndDeactivates()
     {
-        CodeAltaPluginRuntimeStartup.RegisterMsBuildDefaults();
+        //CodeAltaPluginRuntimeStartup.RegisterMsBuildDefaults();
         using var temp = new TestTempDirectory();
         var root = new PluginRoot { RootPath = temp.Path, Scope = PluginScope.Global };
         CopySample("hello-command", Path.Combine(temp.Path, "hello-command"));
@@ -73,7 +73,7 @@ public sealed class PluginRuntimeEndToEndTests
     [TestCategory("RequiresDotNet10FileBuild")]
     public async Task SourcePluginCanReloadAndUnloadRepeatedly()
     {
-        CodeAltaPluginRuntimeStartup.RegisterMsBuildDefaults();
+        //CodeAltaPluginRuntimeStartup.RegisterMsBuildDefaults();
         using var temp = new TestTempDirectory();
         var (package, buildResult) = await BuildHelloCommandSampleAsync(temp);
 
@@ -95,7 +95,7 @@ public sealed class PluginRuntimeEndToEndTests
     [TestCategory("RequiresDotNet10FileBuild")]
     public async Task PrivatePackageDependencyBuildsLoadsAndExecutesThroughEnableDynamicLoading()
     {
-        CodeAltaPluginRuntimeStartup.RegisterMsBuildDefaults();
+        //CodeAltaPluginRuntimeStartup.RegisterMsBuildDefaults();
         using var temp = new TestTempDirectory();
         var (package, buildResult) = await BuildSampleAsync(temp, "package-reference");
         var registry = new PluginContributionRegistry();

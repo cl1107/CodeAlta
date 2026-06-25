@@ -8,7 +8,7 @@ public sealed class PluginBuildServiceTests
     [TestMethod]
     public async Task BuildAsyncHonorsAlreadyCanceledToken()
     {
-        CodeAltaPluginRuntimeStartup.RegisterMsBuildDefaults();
+        //CodeAltaPluginRuntimeStartup.RegisterMsBuildDefaults();
         using var temp = new TestTempDirectory();
         var package = CreatePackage(temp.Path, "public sealed class Plugin { }");
         using var cancellationTokenSource = new CancellationTokenSource();
@@ -21,7 +21,7 @@ public sealed class PluginBuildServiceTests
     [TestMethod]
     public async Task BuildAsyncReportsMissingSdkFromGlobalJsonMismatch()
     {
-        CodeAltaPluginRuntimeStartup.RegisterMsBuildDefaults();
+        //CodeAltaPluginRuntimeStartup.RegisterMsBuildDefaults();
         using var temp = new TestTempDirectory();
         await File.WriteAllTextAsync(Path.Combine(temp.Path, "global.json"), """
         {
@@ -43,7 +43,7 @@ public sealed class PluginBuildServiceTests
     [TestCategory("RequiresDotNet10FileBuild")]
     public async Task BuildAsyncRetainsCompilerErrorsInCapturedOutput()
     {
-        CodeAltaPluginRuntimeStartup.RegisterMsBuildDefaults();
+        //CodeAltaPluginRuntimeStartup.RegisterMsBuildDefaults();
         using var temp = new TestTempDirectory();
         await GenerateBuildFilesAsync(temp.Path);
         var package = CreatePackage(temp.Path, "public sealed class Plugin { public void Broken( } ");
@@ -59,7 +59,7 @@ public sealed class PluginBuildServiceTests
     [TestCategory("RequiresDotNet10FileBuild")]
     public async Task BuildAsyncRetainsCompilerWarningsInCapturedOutput()
     {
-        CodeAltaPluginRuntimeStartup.RegisterMsBuildDefaults();
+        //CodeAltaPluginRuntimeStartup.RegisterMsBuildDefaults();
         using var temp = new TestTempDirectory();
         await GenerateBuildFilesAsync(temp.Path);
         var package = CreatePackage(temp.Path, "#warning sample plugin warning\npublic sealed class Plugin { }");
@@ -75,7 +75,7 @@ public sealed class PluginBuildServiceTests
     [TestCategory("RequiresDotNet10FileBuild")]
     public async Task BuildAsyncUsesNativeFileBuildWithoutGeneratedProject()
     {
-        CodeAltaPluginRuntimeStartup.RegisterMsBuildDefaults();
+        //CodeAltaPluginRuntimeStartup.RegisterMsBuildDefaults();
         using var temp = new TestTempDirectory();
         await GenerateBuildFilesAsync(temp.Path);
         var package = CreatePackage(temp.Path, "public sealed class Plugin { }");

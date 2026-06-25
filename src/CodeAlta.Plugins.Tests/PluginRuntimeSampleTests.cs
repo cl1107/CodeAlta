@@ -37,7 +37,7 @@ public sealed class PluginRuntimeSampleTests
     [TestCategory("RequiresDotNet10FileBuild")]
     public async Task BuiltInPluginRuntimeSkillSamplesBuildLoadAndUnload()
     {
-        CodeAltaPluginRuntimeStartup.RegisterMsBuildDefaults();
+        //CodeAltaPluginRuntimeStartup.RegisterMsBuildDefaults();
         using var temp = new TestTempDirectory();
         foreach (var sampleName in ExpectedSamples)
         {

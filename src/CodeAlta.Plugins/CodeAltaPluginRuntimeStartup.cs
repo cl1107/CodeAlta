@@ -1,4 +1,6 @@
-using Microsoft.Build.Locator;
+/*
+// Disabled for now until https://github.com/dotnet/sdk/pull/54172 is merged
+ using Microsoft.Build.Locator;
 
 namespace CodeAlta.Plugins;
 
@@ -23,3 +25,4 @@ public static class CodeAltaPluginRuntimeStartup
         }
     }
 }
+*/
