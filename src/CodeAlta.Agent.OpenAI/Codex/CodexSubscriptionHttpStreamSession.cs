@@ -14,8 +14,7 @@ internal sealed class CodexSubscriptionHttpStreamSession
     private readonly OpenAIProviderOptions _provider;
     private readonly OpenAICodexSubscriptionOptions _options;
     private readonly OpenAICodexSubscriptionAuthManager _authManager;
-    private readonly string _sessionId;
-    private readonly CodexTurnState _turnState;
+    private readonly CodexSubscriptionRequestContext _requestContext;
     private readonly HttpClient _httpClient;
     private readonly bool _ownsHttpClient;
     private readonly OpenAIProtocolTraceLogger? _trace;
@@ -23,20 +22,17 @@ internal sealed class CodexSubscriptionHttpStreamSession
     public CodexSubscriptionHttpStreamSession(
         OpenAIProviderOptions provider,
         OpenAICodexSubscriptionAuthManager authManager,
-        string sessionId,
-        CodexTurnState turnState,
+        CodexSubscriptionRequestContext requestContext,
         OpenAIProtocolTraceLogger? trace = null)
     {
         ArgumentNullException.ThrowIfNull(provider);
         ArgumentNullException.ThrowIfNull(authManager);
-        ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
-        ArgumentNullException.ThrowIfNull(turnState);
+        ArgumentNullException.ThrowIfNull(requestContext);
 
         _provider = provider;
         _options = provider.CodexSubscription ?? throw new ArgumentException("Codex subscription options are required.", nameof(provider));
         _authManager = authManager;
-        _sessionId = sessionId;
-        _turnState = turnState;
+        _requestContext = requestContext;
         _httpClient = provider.HttpClient ?? provider.CodexSubscriptionHttpClient ?? new HttpClient();
         _ownsHttpClient = provider.HttpClient is null && provider.CodexSubscriptionHttpClient is null;
         _trace = trace;
@@ -105,10 +101,7 @@ internal sealed class CodexSubscriptionHttpStreamSession
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", credential.AccessToken);
         SetHeader(request, "originator", "codealta");
         SetHeader(request, "User-Agent", OpenAIProviderSdkFactory.CreateCodeAltaUserAgentApplicationId());
-        SetHeader(request, "session-id", _sessionId);
-        SetHeader(request, "thread-id", _sessionId);
-        SetHeader(request, "session_id", _sessionId);
-        SetHeader(request, "x-client-request-id", _sessionId);
+        SetHeader(request, "session_id", _requestContext.SessionId);
         if (_options.SendResponsesBetaHeader)
         {
             SetHeader(request, "OpenAI-Beta", "responses=experimental");
@@ -125,11 +118,6 @@ internal sealed class CodexSubscriptionHttpStreamSession
             SetHeader(request, "X-OpenAI-Fedramp", "true");
         }
 
-        if (_turnState.TryGetCapturedState(out var turnState))
-        {
-            SetHeader(request, "x-codex-turn-state", turnState);
-        }
-
         var extraHeaders = OpenAIModelRequestOverrides.MergeHeaders(
             _provider.ExtraHeaders,
             OpenAIModelRequestOverrides.Find(_provider.ModelRequestOverrides, options.Model));
@@ -139,6 +127,16 @@ internal sealed class CodexSubscriptionHttpStreamSession
             {
                 SetHeader(request, header.Key, header.Value);
             }
+        }
+
+        foreach (var header in _requestContext.CompatibilityHeaders)
+        {
+            SetHeader(request, header.Key, header.Value);
+        }
+
+        if (_requestContext.TurnState.TryGetCapturedState(out var turnState))
+        {
+            SetHeader(request, "x-codex-turn-state", turnState);
         }
 
         return request;
@@ -162,7 +160,7 @@ internal sealed class CodexSubscriptionHttpStreamSession
             values.FirstOrDefault() is { } state &&
             !string.IsNullOrWhiteSpace(state))
         {
-            _turnState.Capture(state);
+            _requestContext.TurnState.Capture(state);
         }
     }
 

@@ -18,6 +18,77 @@ namespace CodeAlta.Tests;
 public sealed class OpenAICodexSubscriptionPipelineTests
 {
     [TestMethod]
+    public void RequestContext_ProjectsReservedMetadataFromImmutableTurnIdentity()
+    {
+        var startedAt = DateTimeOffset.FromUnixTimeMilliseconds(1_752_124_567_890);
+        var context = new CodexSubscriptionRequestContext(
+            "session-context",
+            new AgentRunId("run-context"),
+            "turn",
+            startedAt,
+            "installation-context",
+            new CodexTurnState());
+
+        var metadata = context.ClientMetadata;
+        Assert.AreEqual("session-context", metadata["session_id"]);
+        Assert.AreEqual("session-context", metadata["thread_id"]);
+        Assert.AreEqual("run-context", metadata["turn_id"]);
+        Assert.AreEqual("installation-context", metadata["x-codex-installation-id"]);
+        using var turnMetadata = JsonDocument.Parse(metadata["x-codex-turn-metadata"]);
+        Assert.AreEqual("turn", turnMetadata.RootElement.GetProperty("request_kind").GetString());
+        Assert.AreEqual(1_752_124_567_890, turnMetadata.RootElement.GetProperty("turn_started_at_unix_ms").GetInt64());
+    }
+
+    [TestMethod]
+    public void ProtocolParser_ReadsWebSocketTurnStateOnlyFromResponseMetadata()
+    {
+        var parsed = CodexProtocolEventParser.Parse(
+            CodexProtocolTransport.WebSocket,
+            BinaryData.FromString(
+                """
+                {
+                  "type": "response.metadata",
+                  "metadata": {
+                    "x-codex-turn-state": "metadata-state"
+                  },
+                  "headers": {
+                    "x-codex-turn-state": "ignored-header-state"
+                  }
+                }
+                """));
+
+        Assert.AreEqual("metadata-state", parsed.Metadata.TurnState);
+    }
+
+    [TestMethod]
+    public void WebSocketRequest_ProjectsCurrentTurnStatePerSendAndKeepsFirstValidValue()
+    {
+        var turnState = new CodexTurnState();
+        var context = new CodexSubscriptionRequestContext(
+            "session-websocket",
+            new AgentRunId("run-websocket"),
+            "turn",
+            DateTimeOffset.UtcNow,
+            installationId: null,
+            turnState);
+        var options = new OpenAI.Responses.CreateResponseOptions
+        {
+            Model = "gpt-5.3-codex",
+            StreamingEnabled = true,
+        };
+
+        using var first = JsonDocument.Parse(OpenAICodexSubscriptionWebSocketSession.CreateWebSocketRequest(options, context));
+        Assert.IsFalse(first.RootElement.GetProperty("client_metadata").TryGetProperty("x-codex-turn-state", out _));
+
+        turnState.Capture("first-state");
+        turnState.Capture("ignored-state");
+        using var second = JsonDocument.Parse(OpenAICodexSubscriptionWebSocketSession.CreateWebSocketRequest(options, context));
+        Assert.AreEqual(
+            "first-state",
+            second.RootElement.GetProperty("client_metadata").GetProperty("x-codex-turn-state").GetString());
+    }
+
+    [TestMethod]
     public async Task Pipeline_AddsOAuthAndCodexHeadersWithoutApiKeyAuth()
     {
         using var temp = TempDirectory.Create();
@@ -514,8 +585,13 @@ public sealed class OpenAICodexSubscriptionPipelineTests
         var session = new CodexSubscriptionHttpStreamSession(
             provider,
             authManager,
-            "session-http",
-            new CodexTurnState());
+            new CodexSubscriptionRequestContext(
+                "session-http",
+                new AgentRunId("run-http"),
+                "turn",
+                DateTimeOffset.UtcNow,
+                installationId: null,
+                new CodexTurnState()));
         var options = new OpenAI.Responses.CreateResponseOptions
         {
             Model = "gpt-5.3-codex",
@@ -535,6 +611,7 @@ public sealed class OpenAICodexSubscriptionPipelineTests
         Assert.AreEqual("Bearer access-token", handler.Requests[0]["Authorization"]);
         Assert.AreEqual("text/event-stream", handler.Requests[0]["Accept"]);
         Assert.AreEqual("https://chatgpt.com/backend-api/codex/responses", handler.RequestUris[0].ToString());
+        Assert.IsTrue(handler.Requests[0].ContainsKey("x-codex-turn-metadata"));
     }
 
     [TestMethod]
@@ -578,6 +655,11 @@ public sealed class OpenAICodexSubscriptionPipelineTests
         Assert.IsTrue(visibleModels.All(static model => model.Capabilities?.ContainsKey("maxOutputTokens") == false));
         Assert.IsTrue(visibleModels.All(static model => Equals(true, model.Capabilities?["listable"])));
         Assert.IsTrue(visibleModels.All(static model => Equals(false, model.Capabilities?["hidden"])));
+        Assert.IsTrue(visibleModels.Where(static model => model.Id.StartsWith("gpt-5.6-", StringComparison.Ordinal)).All(
+            static model => Equals(true, model.Capabilities?["useResponsesLite"])));
+        Assert.AreEqual(
+            false,
+            visibleModels.Single(static model => model.Id == "gpt-5.2").Capabilities?["supportsImageDetailOriginal"]);
         CollectionAssert.AreEqual(
             new[]
             {
@@ -624,6 +706,12 @@ public sealed class OpenAICodexSubscriptionPipelineTests
         Assert.AreEqual(AgentReasoningEffort.High, models[0].DefaultReasoningEffort);
         Assert.AreEqual(true, models[0].Capabilities?["supportsImageInput"]);
         Assert.AreEqual(true, models[0].Capabilities?["supportsTextVerbosity"]);
+        Assert.AreEqual(true, models[0].Capabilities?["supportsReasoningSummaries"]);
+        Assert.AreEqual(true, models[0].Capabilities?["supportVerbosity"]);
+        Assert.AreEqual(false, models[0].Capabilities?["supportsParallelToolCalls"]);
+        Assert.AreEqual(true, models[0].Capabilities?["supportsImageDetailOriginal"]);
+        Assert.AreEqual(false, models[0].Capabilities?["useResponsesLite"]);
+        Assert.AreEqual("\"models-fixture-etag\"", models[0].Capabilities?["etag"]);
         Assert.AreEqual("websocket-only-codex", models[1].Id);
         Assert.AreEqual(true, models[1].Capabilities?["requiresWebSocket"]);
         var version = typeof(OpenAIProviderSdkFactory).Assembly.GetName().Version!;
@@ -692,6 +780,78 @@ public sealed class OpenAICodexSubscriptionPipelineTests
                 AgentReasoningEffort.Max,
             },
             models[0].SupportedReasoningEfforts!.ToArray());
+    }
+
+    [TestMethod]
+    public async Task ModelDiscovery_UsesExactCapabilityFieldsAndTreatsMissingOrWrongTypesAsFalse()
+    {
+        using var temp = TempDirectory.Create();
+        await SaveCredentialAsync(temp.Path).ConfigureAwait(false);
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(
+                """
+                {
+                  "models": [
+                    {
+                      "slug": "gpt-5.6-sol",
+                      "display_name": "GPT-5.6 Sol",
+                      "supported_in_api": true,
+                      "visibility": "list",
+                      "supports_reasoning_summaries": false,
+                      "support_verbosity": false,
+                      "supports_parallel_tool_calls": false,
+                      "supports_image_detail_original": false,
+                      "use_responses_lite": true,
+                      "supported_reasoning_levels": [{ "effort": "low" }]
+                    },
+                    {
+                      "slug": "gpt-5.5",
+                      "display_name": "GPT-5.5",
+                      "supported_in_api": true,
+                      "visibility": "list",
+                      "supports_reasoning_summaries": "true",
+                      "support_verbosity": 1,
+                      "supports_parallel_tool_calls": null,
+                      "use_responses_lite": []
+                    }
+                  ]
+                }
+                """),
+        };
+        response.Headers.ETag = new System.Net.Http.Headers.EntityTagHeaderValue("\"exact-etag\"");
+        var provider = new OpenAIProviderOptions
+        {
+            ProviderKey = "codex",
+            BaseUri = new Uri("https://chatgpt.com/backend-api/codex"),
+            StateRootPath = temp.Path,
+            CodexSubscriptionHttpClient = new HttpClient(new RecordingHttpMessageHandler(response)),
+            CodexSubscription = new OpenAICodexSubscriptionOptions
+            {
+                Experimental = true,
+                ModelDiscovery = "codex_endpoint",
+            },
+        };
+
+        var models = await OpenAIProviderSdkFactory.ListModelsAsync(
+            provider,
+            CreateProviderDescriptor(),
+            CancellationToken.None).ConfigureAwait(false);
+
+        var lite = models.Single(static model => model.Id == "gpt-5.6-sol");
+        Assert.AreEqual(false, lite.Capabilities?["supportsReasoningSummaries"]);
+        Assert.AreEqual(false, lite.Capabilities?["supportVerbosity"]);
+        Assert.AreEqual(false, lite.Capabilities?["supportsParallelToolCalls"]);
+        Assert.AreEqual(false, lite.Capabilities?["supportsImageDetailOriginal"]);
+        Assert.AreEqual(true, lite.Capabilities?["useResponsesLite"]);
+        Assert.AreEqual("\"exact-etag\"", lite.Capabilities?["etag"]);
+
+        var malformed = models.Single(static model => model.Id == "gpt-5.5");
+        Assert.AreEqual(false, malformed.Capabilities?["supportsReasoningSummaries"]);
+        Assert.AreEqual(false, malformed.Capabilities?["supportVerbosity"]);
+        Assert.AreEqual(false, malformed.Capabilities?["supportsParallelToolCalls"]);
+        Assert.AreEqual(false, malformed.Capabilities?["supportsImageDetailOriginal"]);
+        Assert.AreEqual(false, malformed.Capabilities?["useResponsesLite"]);
     }
 
     [TestMethod]
@@ -1080,7 +1240,8 @@ public sealed class OpenAICodexSubscriptionPipelineTests
     }
 
     private static HttpResponseMessage CreateModelsResponse()
-        => new(HttpStatusCode.OK)
+    {
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(
                 """
@@ -1092,7 +1253,11 @@ public sealed class OpenAICodexSubscriptionPipelineTests
                       "supported_in_api": true,
                       "visibility": "list",
                       "input_modalities": ["text", "image"],
+                      "supports_reasoning_summaries": true,
                       "support_verbosity": true,
+                      "supports_parallel_tool_calls": false,
+                      "supports_image_detail_original": true,
+                      "use_responses_lite": false,
                       "default_reasoning_level": "high",
                       "default_verbosity": "medium",
                       "context_window": 200000
@@ -1119,6 +1284,9 @@ public sealed class OpenAICodexSubscriptionPipelineTests
                 }
                 """),
         };
+        response.Headers.ETag = new System.Net.Http.Headers.EntityTagHeaderValue("\"models-fixture-etag\"");
+        return response;
+    }
 
     private sealed class RecordingHttpMessageHandler(params HttpResponseMessage[] responses) : HttpMessageHandler
     {

@@ -27,7 +27,8 @@ internal sealed record CodexResponseMetadata(
     CodexSafetyBuffering? SafetyBuffering = null,
     IReadOnlyList<CodexNamedRateLimitSnapshot>? RateLimits = null,
     string? VerificationRecommendation = null,
-    string? TurnModeration = null);
+    string? TurnModeration = null,
+    string? TurnState = null);
 
 internal sealed record CodexSafetyBuffering(
     bool RetryModelPresent,

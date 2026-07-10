@@ -1858,6 +1858,75 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
     }
 
     [TestMethod]
+    public async Task OpenAIResponsesTurnExecutor_ReusesSameImmutableCodexContextAcrossRetry()
+    {
+        var successClient = new RecordingOpenAIResponseClient(
+        [
+            [CreateTextOnlyAssistantResponseUpdate("response-context-retry", "gpt-5.3-codex", "Retried.")],
+        ]);
+        var contexts = new List<CodexSubscriptionRequestContext?>();
+        var factoryCalls = 0;
+        var executor = new OpenAIResponsesTurnExecutor(new OpenAIProviderOptions
+        {
+            ProviderKey = "codex",
+            ResponsesClientContextFactory = context =>
+            {
+                contexts.Add(context.RequestContext);
+                factoryCalls++;
+                return factoryCalls == 1
+                    ? new ThrowingOpenAIResponseClient(WithZeroRetryAfter(new HttpRequestException("retry")))
+                    : successClient;
+            },
+            CodexSubscription = new OpenAICodexSubscriptionOptions
+            {
+                Experimental = true,
+                ResponseTransport = "http",
+            },
+        });
+
+        _ = await executor.ExecuteTurnAsync(CreateCodexTurnRequest(), static (_, _) => ValueTask.CompletedTask).ConfigureAwait(false);
+
+        Assert.AreEqual(2, contexts.Count);
+        Assert.IsNotNull(contexts[0]);
+        Assert.AreSame(contexts[0], contexts[1]);
+    }
+
+    [TestMethod]
+    public async Task OpenAIResponsesTurnExecutor_ReusesSocketButPassesPerRunRequestContext()
+    {
+        var webSocketSession = new ContextRecordingOpenAIResponsesWebSocketSession(
+        [
+            [CreateTextOnlyAssistantResponseUpdate("response-context-ws-1", "gpt-5.3-codex", "First.")],
+            [CreateTextOnlyAssistantResponseUpdate("response-context-ws-2", "gpt-5.3-codex", "Second.")],
+        ]);
+        var factoryCalls = 0;
+        var executor = new OpenAIResponsesTurnExecutor(new OpenAIProviderOptions
+        {
+            ProviderKey = "codex",
+            ResponsesClientFactory = _ => new RecordingOpenAIResponseClient([]),
+            ResponsesWebSocketSessionFactory = _ =>
+            {
+                factoryCalls++;
+                return ValueTask.FromResult<IOpenAIResponsesWebSocketSession>(webSocketSession);
+            },
+            CodexSubscription = new OpenAICodexSubscriptionOptions { Experimental = true },
+        });
+
+        _ = await executor.ExecuteTurnAsync(
+            CreateCodexTurnRequest() with { RunId = new AgentRunId("run-websocket-one") },
+            static (_, _) => ValueTask.CompletedTask).ConfigureAwait(false);
+        _ = await executor.ExecuteTurnAsync(
+            CreateCodexTurnRequest() with { RunId = new AgentRunId("run-websocket-two") },
+            static (_, _) => ValueTask.CompletedTask).ConfigureAwait(false);
+
+        Assert.AreEqual(1, factoryCalls);
+        Assert.AreEqual(2, webSocketSession.Contexts.Count);
+        Assert.AreEqual("run-websocket-one", webSocketSession.Contexts[0].RunId.Value);
+        Assert.AreEqual("run-websocket-two", webSocketSession.Contexts[1].RunId.Value);
+        Assert.AreNotSame(webSocketSession.Contexts[0], webSocketSession.Contexts[1]);
+    }
+
+    [TestMethod]
     public async Task OpenAIResponsesTurnExecutor_PreservesLegacyResponsesClientFactory()
     {
         var responsesClient = new RecordingOpenAIResponseClient(
@@ -1998,8 +2067,54 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
             .GetProperty("x-codex-installation-id")
             .GetString();
         Assert.IsTrue(Guid.TryParse(installationId, out _));
+        Assert.AreEqual("session-1", document.RootElement.GetProperty("client_metadata").GetProperty("session_id").GetString());
+        Assert.AreEqual("session-1", document.RootElement.GetProperty("client_metadata").GetProperty("thread_id").GetString());
+        Assert.AreEqual("run-1", document.RootElement.GetProperty("client_metadata").GetProperty("turn_id").GetString());
         Assert.IsTrue(document.RootElement.GetProperty("include").EnumerateArray().Any(
             static item => item.GetString() == "reasoning.encrypted_content"));
+    }
+
+    [TestMethod]
+    public async Task OpenAIResponsesTurnExecutor_AppliesTrustedCodexModelCapabilitiesToRequest()
+    {
+        var responsesClient = new RecordingOpenAIResponseClient(
+        [
+            [CreateTextOnlyAssistantResponseUpdate("response-capabilities", "gpt-5.6-sol", "Answer.")],
+        ]);
+        var executor = new OpenAIResponsesTurnExecutor(new OpenAIProviderOptions
+        {
+            ProviderKey = "codex",
+            ResponsesClientFactory = _ => responsesClient,
+            CodexSubscription = new OpenAICodexSubscriptionOptions
+            {
+                Experimental = true,
+                ResponseTransport = "http",
+                TextVerbosity = "high",
+            },
+        });
+        var request = CreateCodexTurnRequest() with
+        {
+            ModelId = "gpt-5.6-sol",
+            ReasoningEffort = AgentReasoningEffort.Low,
+            ModelInfo = new AgentModelInfo(
+                "gpt-5.6-sol",
+                SupportedReasoningEfforts: [AgentReasoningEffort.Low],
+                Capabilities: new Dictionary<string, object?>(StringComparer.Ordinal)
+                {
+                    ["source"] = "codex-endpoint",
+                    ["supportsReasoningSummaries"] = false,
+                    ["supportVerbosity"] = false,
+                    ["supportsParallelToolCalls"] = false,
+                }),
+        };
+
+        _ = await executor.ExecuteTurnAsync(request, static (_, _) => ValueTask.CompletedTask).ConfigureAwait(false);
+
+        using var document = JsonDocument.Parse(responsesClient.Requests[0].SerializedOptions);
+        Assert.IsFalse(document.RootElement.GetProperty("parallel_tool_calls").GetBoolean());
+        Assert.IsFalse(document.RootElement.TryGetProperty("text", out _));
+        Assert.IsTrue(document.RootElement.TryGetProperty("reasoning", out var reasoning));
+        Assert.IsFalse(reasoning.TryGetProperty("summary", out _));
     }
 
     [TestMethod]
@@ -2147,7 +2262,43 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
             static (_, _) => ValueTask.CompletedTask).ConfigureAwait(false);
 
         using var document = JsonDocument.Parse(responsesClient.Requests[0].SerializedOptions);
-        Assert.IsFalse(document.RootElement.TryGetProperty("client_metadata", out _));
+        var metadata = document.RootElement.GetProperty("client_metadata");
+        Assert.IsFalse(metadata.TryGetProperty("x-codex-installation-id", out _));
+        Assert.AreEqual("session-1", metadata.GetProperty("session_id").GetString());
+        Assert.AreEqual("run-1", metadata.GetProperty("turn_id").GetString());
+    }
+
+    [TestMethod]
+    public async Task OpenAIResponsesTurnExecutor_ReservedCodexMetadataOverridesCustomizerConflicts()
+    {
+        var responsesClient = new RecordingOpenAIResponseClient(
+        [
+            [CreateTextOnlyAssistantResponseUpdate("response-metadata", "gpt-5.3-codex", "Answer.")],
+        ]);
+        var executor = new OpenAIResponsesTurnExecutor(new OpenAIProviderOptions
+        {
+            ProviderKey = "codex",
+            ResponsesClientFactory = _ => responsesClient,
+            ResponsesRequestCustomizer = context =>
+            {
+                context.Options.Patch.Set("$.client_metadata.session_id"u8, BinaryData.FromString("\"conflicting-session\""));
+                context.Options.Patch.Set("$.client_metadata.turn_id"u8, BinaryData.FromString("\"conflicting-turn\""));
+                context.Options.Patch.Set("$.client_metadata.custom"u8, BinaryData.FromString("\"preserved\""));
+            },
+            CodexSubscription = new OpenAICodexSubscriptionOptions
+            {
+                Experimental = true,
+                ResponseTransport = "http",
+            },
+        });
+
+        _ = await executor.ExecuteTurnAsync(CreateCodexTurnRequest(), static (_, _) => ValueTask.CompletedTask).ConfigureAwait(false);
+
+        using var document = JsonDocument.Parse(responsesClient.Requests[0].SerializedOptions);
+        var metadata = document.RootElement.GetProperty("client_metadata");
+        Assert.AreEqual("session-1", metadata.GetProperty("session_id").GetString());
+        Assert.AreEqual("run-1", metadata.GetProperty("turn_id").GetString());
+        Assert.AreEqual("preserved", metadata.GetProperty("custom").GetString());
     }
 
     [TestMethod]
@@ -4441,6 +4592,47 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
         public void Dispose()
         {
             DisposeCount++;
+        }
+    }
+
+    private sealed class ContextRecordingOpenAIResponsesWebSocketSession(
+        IReadOnlyList<IReadOnlyList<StreamingResponseUpdate>> responseBatches) : IOpenAIResponsesWebSocketSession
+    {
+        public bool HasOpenConnection => true;
+
+        public Action<OpenAIResponsesWebSocketSideChannelEvent>? SideChannelReceived { get; set; }
+
+        public List<CodexSubscriptionRequestContext> Contexts { get; } = [];
+
+        public AsyncCollectionResult<StreamingResponseUpdate> CreateResponseStreamingAsync(
+            CreateResponseOptions options,
+            CreateResponseOptions? reconnectOptions = null,
+            CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("The context-aware protocol path should be used.");
+
+        public async IAsyncEnumerable<CodexProtocolEvent> CreateProtocolEventsAsync(
+            CreateResponseOptions options,
+            CreateResponseOptions? reconnectOptions,
+            CodexSubscriptionRequestContext requestContext,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            _ = options;
+            _ = reconnectOptions;
+            cancellationToken.ThrowIfCancellationRequested();
+            Contexts.Add(requestContext);
+            foreach (var update in responseBatches[Contexts.Count - 1])
+            {
+                yield return new CodexProtocolEvent(
+                    CodexProtocolTransport.WebSocket,
+                    update.GetType().Name,
+                    update,
+                    new CodexResponseMetadata());
+                await Task.Yield();
+            }
+        }
+
+        public void Dispose()
+        {
         }
     }
 

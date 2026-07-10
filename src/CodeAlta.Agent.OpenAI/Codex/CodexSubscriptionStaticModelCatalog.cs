@@ -14,14 +14,14 @@ internal static class CodexSubscriptionStaticModelCatalog
     // User-visible Codex subscription picker entries, following the curated Codex catalog.
     private static readonly CodexStaticModel[] Models =
     [
-        new("gpt-5.6-sol", "GPT-5.6 Sol", SupportsImageInput: true, DefaultReasoningEffort: AgentReasoningEffort.Low, SupportsMaxReasoningEffort: true),
-        new("gpt-5.6-terra", "GPT-5.6 Terra", SupportsImageInput: true, DefaultReasoningEffort: AgentReasoningEffort.Medium, SupportsMaxReasoningEffort: true),
-        new("gpt-5.6-luna", "GPT-5.6 Luna", SupportsImageInput: true, DefaultReasoningEffort: AgentReasoningEffort.Medium, SupportsMaxReasoningEffort: true),
+        new("gpt-5.6-sol", "GPT-5.6 Sol", SupportsImageInput: true, DefaultReasoningEffort: AgentReasoningEffort.Low, SupportsMaxReasoningEffort: true, UseResponsesLite: true, DefaultTextVerbosity: "low"),
+        new("gpt-5.6-terra", "GPT-5.6 Terra", SupportsImageInput: true, DefaultReasoningEffort: AgentReasoningEffort.Medium, SupportsMaxReasoningEffort: true, UseResponsesLite: true, DefaultTextVerbosity: "low"),
+        new("gpt-5.6-luna", "GPT-5.6 Luna", SupportsImageInput: true, DefaultReasoningEffort: AgentReasoningEffort.Medium, SupportsMaxReasoningEffort: true, UseResponsesLite: true, DefaultTextVerbosity: "low"),
         new("gpt-5.5", "GPT-5.5", SupportsImageInput: true, DefaultReasoningEffort: AgentReasoningEffort.Medium),
         new("gpt-5.4", "GPT-5.4", SupportsImageInput: true, DefaultReasoningEffort: AgentReasoningEffort.Medium),
-        new("gpt-5.4-mini", "GPT-5.4 mini", SupportsImageInput: true, DefaultReasoningEffort: AgentReasoningEffort.Medium),
+        new("gpt-5.4-mini", "GPT-5.4 mini", SupportsImageInput: true, DefaultReasoningEffort: AgentReasoningEffort.Medium, DefaultTextVerbosity: "medium"),
         new("gpt-5.3-codex", "GPT-5.3 Codex", SupportsImageInput: true, DefaultReasoningEffort: AgentReasoningEffort.High),
-        new("gpt-5.2", "GPT-5.2", SupportsImageInput: true, DefaultReasoningEffort: AgentReasoningEffort.Medium),
+        new("gpt-5.2", "GPT-5.2", SupportsImageInput: true, DefaultReasoningEffort: AgentReasoningEffort.Medium, SupportsImageDetailOriginal: false),
     ];
 
     public static IReadOnlyList<AgentModelInfo> List(ModelProviderRuntimeDescriptor providerDescriptor)
@@ -52,10 +52,16 @@ internal static class CodexSubscriptionStaticModelCatalog
                 ["hidden"] = false,
                 ["listable"] = true,
                 ["supportsReasoningSummary"] = true,
+                ["supportsReasoningSummaries"] = true,
                 ["supportsEncryptedReasoning"] = true,
                 ["supportsTextVerbosity"] = true,
+                ["supportVerbosity"] = true,
                 ["supportsTools"] = true,
                 ["supportsImageInput"] = model.SupportsImageInput,
+                ["supportsParallelToolCalls"] = true,
+                ["supportsImageDetailOriginal"] = model.SupportsImageDetailOriginal,
+                ["useResponsesLite"] = model.UseResponsesLite,
+                ["defaultTextVerbosity"] = model.DefaultTextVerbosity,
                 ["requiresWebSocket"] = false,
                 ["contextWindow"] = DefaultContextWindow,
                 ["contextWindowTokens"] = DefaultContextWindow,
@@ -87,5 +93,8 @@ internal static class CodexSubscriptionStaticModelCatalog
         string DisplayName,
         bool SupportsImageInput,
         AgentReasoningEffort DefaultReasoningEffort,
-        bool SupportsMaxReasoningEffort = false);
+        bool SupportsMaxReasoningEffort = false,
+        bool UseResponsesLite = false,
+        bool SupportsImageDetailOriginal = true,
+        string DefaultTextVerbosity = "low");
 }

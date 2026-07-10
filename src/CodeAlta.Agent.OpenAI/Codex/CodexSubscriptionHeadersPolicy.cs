@@ -75,6 +75,14 @@ internal sealed class CodexSubscriptionHeadersPolicy : PipelinePolicy
             headers.Set("x-client-request-id", _context.SessionId);
         }
 
+        if (_context.RequestContext is { } requestContext)
+        {
+            foreach (var header in requestContext.CompatibilityHeaders)
+            {
+                headers.Set(header.Key, header.Value);
+            }
+        }
+
         if (_context.IsFedRamp || accountContext?.IsFedRamp == true)
         {
             headers.Set("X-OpenAI-Fedramp", "true");
@@ -102,4 +110,5 @@ internal sealed record CodexSubscriptionHeaderContext(
     bool IsFedRamp,
     bool SendResponsesBetaHeader,
     CodexTurnState TurnState,
-    OpenAICodexSubscriptionAuthManager? AuthManager = null);
+    OpenAICodexSubscriptionAuthManager? AuthManager = null,
+    CodexSubscriptionRequestContext? RequestContext = null);

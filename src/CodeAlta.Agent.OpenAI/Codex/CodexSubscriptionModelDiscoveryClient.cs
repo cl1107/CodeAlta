@@ -197,16 +197,22 @@ internal sealed class CodexSubscriptionModelDiscoveryClient
                 GetBoolean(modelElement, "hidden") ?? IsHiddenVisibility(visibility),
                 GetBoolean(modelElement, "requires_websocket") ?? GetBoolean(modelElement, "requiresWebSocket") ?? false,
                 GetBoolean(modelElement, "supports_reasoning_effort") ?? GetBoolean(modelElement, "supportsReasoningEffort") ?? true,
-                GetBoolean(modelElement, "supports_reasoning_summary") ?? GetBoolean(modelElement, "supportsReasoningSummary") ?? true,
+                GetBoolean(modelElement, "supports_reasoning_summaries") ??
+                    GetBoolean(modelElement, "supports_reasoning_summary") ??
+                    GetBoolean(modelElement, "supportsReasoningSummary") ??
+                    false,
                 GetBoolean(modelElement, "supports_encrypted_reasoning") ?? GetBoolean(modelElement, "supportsEncryptedReasoning") ?? true,
                 GetBoolean(modelElement, "supports_text_verbosity") ??
                     GetBoolean(modelElement, "supportsTextVerbosity") ??
                     GetBoolean(modelElement, "support_verbosity") ??
-                    true,
+                    false,
                 GetBoolean(modelElement, "supports_image_input") ??
                     GetBoolean(modelElement, "supportsImageInput") ??
                     ContainsString(modelElement, "input_modalities", "image"),
                 GetBoolean(modelElement, "supports_tools") ?? GetBoolean(modelElement, "supportsTools") ?? true,
+                GetBoolean(modelElement, "supports_parallel_tool_calls") ?? false,
+                GetBoolean(modelElement, "supports_image_detail_original") ?? false,
+                GetBoolean(modelElement, "use_responses_lite") ?? false,
                 GetReasoningEfforts(modelElement),
                 GetString(modelElement, "default_reasoning_effort") ??
                     GetString(modelElement, "defaultReasoningEffort") ??
@@ -307,6 +313,9 @@ internal sealed record CodexSubscriptionDiscoveredModel(
     bool SupportsTextVerbosity,
     bool SupportsImageInput,
     bool SupportsTools,
+    bool SupportsParallelToolCalls,
+    bool SupportsImageDetailOriginal,
+    bool UseResponsesLite,
     IReadOnlyList<string>? SupportedReasoningEfforts,
     string? DefaultReasoningEffort,
     string? DefaultTextVerbosity,

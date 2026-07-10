@@ -7,6 +7,7 @@ using System.Net;
 using System.Net.WebSockets;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using CodeAlta.Agent.Runtime;
 using CodeAlta.Agent.OpenAI.Codex;
 using OpenAI;
 using OpenAI.Responses;
@@ -23,7 +24,6 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
     private const string WebSocketWrappedErrorDataKey = "OpenAI.WebSocketWrappedError";
     private const string WebSocketConnectionLimitReachedCode = "websocket_connection_limit_reached";
     private const string WebSocketConnectionLimitReachedMessage = "Responses websocket connection limit reached (60 minutes). Create a new websocket connection to continue.";
-    private const string CodexTurnStateHeaderName = "x-codex-turn-state";
     private static readonly TimeSpan DefaultConnectTimeout = TimeSpan.FromSeconds(15);
 
     private readonly Uri _baseUri;
@@ -31,7 +31,6 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
     private readonly OpenAICodexSubscriptionAuthManager _authManager;
     private readonly string _sessionId;
     private readonly string _userAgentApplicationId;
-    private readonly CodexTurnState _turnState;
     private readonly TimeSpan _receiveIdleTimeout;
     private readonly SemaphoreSlim _streamSemaphore = new(initialCount: 1, maxCount: 1);
 
@@ -44,12 +43,10 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
         OpenAICodexSubscriptionAuthManager authManager,
         string sessionId,
         string userAgentApplicationId,
-        CodexTurnState turnState,
         TimeSpan receiveIdleTimeout)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(authManager);
-        ArgumentNullException.ThrowIfNull(turnState);
         ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
         ArgumentException.ThrowIfNullOrWhiteSpace(userAgentApplicationId);
 
@@ -58,7 +55,6 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
         _authManager = authManager;
         _sessionId = sessionId.Trim();
         _userAgentApplicationId = userAgentApplicationId.Trim();
-        _turnState = turnState;
         _receiveIdleTimeout = receiveIdleTimeout;
     }
 
@@ -92,7 +88,32 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
                 $"{nameof(CreateResponseOptions.StreamingEnabled)} must be set to true for Codex subscription WebSocket reconnect streaming.");
         }
 
-        return CreateResponseStreamingCoreAsync(options, reconnectOptions, cancellationToken);
+        var legacyContext = new CodexSubscriptionRequestContext(
+            _sessionId,
+            new AgentRunId("legacy-websocket-send"),
+            "turn",
+            DateTimeOffset.UtcNow,
+            installationId: null,
+            new CodexTurnState());
+        return CreateResponseStreamingCoreAsync(options, reconnectOptions, legacyContext, cancellationToken);
+    }
+
+    public IAsyncEnumerable<CodexProtocolEvent> CreateProtocolEventsAsync(
+        CreateResponseOptions options,
+        CreateResponseOptions? reconnectOptions,
+        CodexSubscriptionRequestContext requestContext,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(requestContext);
+        ArgumentNullException.ThrowIfNull(options);
+        if (options.StreamingEnabled != true)
+        {
+            throw new InvalidOperationException(
+                $"{nameof(CreateResponseOptions.StreamingEnabled)} must be set to true for Codex subscription WebSocket streaming.");
+        }
+
+        reconnectOptions ??= options;
+        return CreateResponseStreamingCoreAsync(options, reconnectOptions, requestContext, cancellationToken);
     }
 
     public void Dispose()
@@ -128,6 +149,7 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
     private async IAsyncEnumerable<CodexProtocolEvent> CreateResponseStreamingCoreAsync(
         CreateResponseOptions options,
         CreateResponseOptions reconnectOptions,
+        CodexSubscriptionRequestContext requestContext,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         await _streamSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -140,6 +162,7 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
             await SendRequestWithStaleReconnectAsync(
                     options,
                     reconnectOptions,
+                    requestContext,
                     reusedOpenConnection,
                     cancellationToken)
                 .ConfigureAwait(false);
@@ -251,7 +274,6 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
                     DefaultConnectTimeout,
                     cancellationToken)
                 .ConfigureAwait(false);
-            CaptureResponseTurnState(webSocket.HttpResponseHeaders);
             CaptureHandshakeSideChannels(webSocket.HttpResponseHeaders);
             return webSocket;
         }
@@ -281,11 +303,6 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
         options.SetRequestHeader("x-client-request-id", _sessionId);
         options.SetRequestHeader("User-Agent", _userAgentApplicationId);
         options.CollectHttpResponseDetails = true;
-        if (_turnState.TryGetCapturedState(out var turnState))
-        {
-            options.SetRequestHeader(CodexTurnStateHeaderName, turnState);
-        }
-
         var accountId = !string.IsNullOrWhiteSpace(_options.AccountId)
             ? _options.AccountId
             : accountContext.AccountId;
@@ -303,18 +320,19 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
     private async Task SendRequestWithStaleReconnectAsync(
         CreateResponseOptions options,
         CreateResponseOptions reconnectOptions,
+        CodexSubscriptionRequestContext requestContext,
         bool reusedOpenConnection,
         CancellationToken cancellationToken)
     {
         try
         {
-            await SendRequestAsync(CreateWebSocketRequest(options), cancellationToken).ConfigureAwait(false);
+            await SendRequestAsync(CreateWebSocketRequest(options, requestContext), cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (reusedOpenConnection && ex is not OperationCanceledException)
         {
             await CloseWebSocketSilentlyAsync().ConfigureAwait(false);
             await EnsureConnectedAsync(cancellationToken).ConfigureAwait(false);
-            await SendRequestAsync(CreateWebSocketRequest(reconnectOptions), cancellationToken).ConfigureAwait(false);
+            await SendRequestAsync(CreateWebSocketRequest(reconnectOptions, requestContext), cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -445,16 +463,6 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
         }
     }
 
-    private void CaptureResponseTurnState(IReadOnlyDictionary<string, IEnumerable<string>>? headers)
-    {
-        if (!TryGetHeaderValue(headers, CodexTurnStateHeaderName, out var turnState))
-        {
-            return;
-        }
-
-        _turnState.Capture(turnState);
-    }
-
     private void CaptureHandshakeSideChannels(IReadOnlyDictionary<string, IEnumerable<string>>? headers)
     {
         var hasServerModel = TryGetHeaderValue(headers, "OpenAI-Model", out var serverModel);
@@ -558,8 +566,12 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
         }
     }
 
-    private static BinaryData CreateWebSocketRequest(CreateResponseOptions options)
+    internal static BinaryData CreateWebSocketRequest(
+        CreateResponseOptions options,
+        CodexSubscriptionRequestContext requestContext)
     {
+        ArgumentNullException.ThrowIfNull(requestContext);
+        requestContext.ApplyClientMetadata(options, includeTurnState: true);
         using var optionsDocument = JsonDocument.Parse(SerializeModel(options));
         using var stream = new MemoryStream();
         using (var writer = new Utf8JsonWriter(stream))

@@ -123,7 +123,8 @@ internal static class CodexProtocolEventParser
             SafetyBuffering: parsedSafety,
             RateLimits: ParseRateLimits(root, headers),
             VerificationRecommendation: GetBoundedJson(metadata, "openai_verification_recommendation"),
-            TurnModeration: GetBoundedJson(metadata, "turn_moderation"));
+            TurnModeration: GetBoundedJson(metadata, "turn_moderation"),
+            TurnState: GetString(metadata, "x-codex-turn-state"));
     }
 
     private static CodexTerminalMetadata? ParseTerminal(JsonElement root, string? type)

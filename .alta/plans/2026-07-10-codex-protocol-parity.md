@@ -84,19 +84,19 @@
 
 ### 3. Parse and apply exact model capabilities
 
-- [ ] Update `CodexSubscriptionDiscoveredModel` and `CodexSubscriptionModelDiscoveryClient` to read exact current fields and types: `supports_reasoning_summaries`, `support_verbosity`, `supports_parallel_tool_calls`, `supports_image_detail_original`, and `use_responses_lite`; preserve tolerant unknown properties and explicit legacy aliases only where existing fixtures require them.
-- [ ] Add current Codex `/models` fixture subsets for Lite GPT-5.6 and non-Lite models, including explicit false values, missing values, wrong types, reasoning efforts, and ETag propagation.
-- [ ] Add stable capability keys in `OpenAIProviderSdkFactory.CreateModelInfo` and the static catalog without removing current keys; mark GPT-5.6 Sol/Terra/Luna as Lite and align their relevant advertised capabilities with the reference fixture.
-- [ ] Centralize internal capability lookup so request construction omits reasoning summaries/verbosity when unsupported and sets parallel-tool-call behavior from model metadata instead of forcing true.
-- [ ] Preserve non-Codex and models lacking trusted metadata on their current conservative request path; cover manual/static selection and discovered selection separately.
+- [x] Update `CodexSubscriptionDiscoveredModel` and `CodexSubscriptionModelDiscoveryClient` to read exact current fields and types: `supports_reasoning_summaries`, `support_verbosity`, `supports_parallel_tool_calls`, `supports_image_detail_original`, and `use_responses_lite`; preserve tolerant unknown properties and explicit legacy aliases only where existing fixtures require them.
+- [x] Add current Codex `/models` fixture subsets for Lite GPT-5.6 and non-Lite models, including explicit false values, missing values, wrong types, reasoning efforts, and ETag propagation.
+- [x] Add stable capability keys in `OpenAIProviderSdkFactory.CreateModelInfo` and the static catalog without removing current keys; mark GPT-5.6 Sol/Terra/Luna as Lite and align their relevant advertised capabilities with the reference fixture.
+- [x] Centralize internal capability lookup so request construction omits reasoning summaries/verbosity when unsupported and sets parallel-tool-call behavior from model metadata instead of forcing true.
+- [x] Preserve non-Codex and models lacking trusted metadata on their current conservative request path; cover manual/static selection and discovered selection separately.
 
 ### 4. Create canonical per-request metadata and fix turn-state ownership
 
-- [ ] Add an immutable `CodexSubscriptionRequestContext` built once per executor call from `SessionId`, `RunId`, request kind, start timestamp, optional installation id, and current logical turn state; reuse the same snapshot across retries and WebSocket-to-HTTP fallback.
-- [ ] Generate `client_metadata` and compatibility headers from that context, map session/thread to `SessionId` and turn to `RunId`, and reject/overwrite conflicting reserved metadata patches deterministically.
-- [ ] Remove `CodexTurnState` from the cached WebSocket session constructor; pass the current per-run state into every `response.create` and stale reconnect request.
-- [ ] Send WebSocket turn state as `client_metadata["x-codex-turn-state"]`, stop sending it on the upgrade handshake, and capture the first valid returned state from `response.metadata` for the active send.
-- [ ] Retain HTTP turn-state header behavior, and add cross-transport tests for same-run retry reuse, same-turn continuation, socket reuse across runs, stale reconnect, and first-valid-value-wins capture.
+- [x] Add an immutable `CodexSubscriptionRequestContext` built once per executor call from `SessionId`, `RunId`, request kind, start timestamp, optional installation id, and current logical turn state; reuse the same snapshot across retries and WebSocket-to-HTTP fallback.
+- [x] Generate `client_metadata` and compatibility headers from that context, map session/thread to `SessionId` and turn to `RunId`, and reject/overwrite conflicting reserved metadata patches deterministically.
+- [x] Remove `CodexTurnState` from the cached WebSocket session constructor; pass the current per-run state into every `response.create` and stale reconnect request.
+- [x] Send WebSocket turn state as `client_metadata["x-codex-turn-state"]`, stop sending it on the upgrade handshake, and capture the first valid returned state from `response.metadata` for the active send.
+- [x] Retain HTTP turn-state header behavior, and add cross-transport tests for same-run retry reuse, same-turn continuation, socket reuse across runs, stale reconnect, and first-valid-value-wins capture.
 
 ### 5. Implement Responses Lite and reasoning event parity
 

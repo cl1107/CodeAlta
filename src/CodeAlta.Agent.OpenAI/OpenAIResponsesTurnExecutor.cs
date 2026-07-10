@@ -89,6 +89,7 @@ internal sealed class OpenAIResponsesTurnExecutor(
 
         try
         {
+            var requestContext = await CreateCodexRequestContextAsync(request, cancellationToken).ConfigureAwait(false);
             // The Codex endpoint can drop long-lived response streams, so retry a small
             // turn-level budget before surfacing the failure.
             var retryBudget = provider.CodexSubscription is null ? 1 : 6;
@@ -102,7 +103,7 @@ internal sealed class OpenAIResponsesTurnExecutor(
                 var initialTransport = ResolveInitialTransport(request);
                 try
                 {
-                    var turnState = GetCodexTurnState(request);
+                    var turnState = requestContext?.TurnState;
                     var modelRequest = OpenAIModelRequestOverrides.Find(provider.ModelRequestOverrides, request.ModelId);
                     using var headerScope = provider.RequestHeaderContext?.Push(
                         OpenAIModelRequestOverrides.MergeHeaders(provider.ExtraHeaders, modelRequest));
@@ -117,8 +118,9 @@ internal sealed class OpenAIResponsesTurnExecutor(
                             request.SessionId,
                             request.RunId,
                             request.Provider,
-                            turnState));
-                    var fullOptions = await CreateRequestPayloadAsync(request, cancellationToken).ConfigureAwait(false);
+                             turnState,
+                             requestContext));
+                    var fullOptions = await CreateRequestPayloadAsync(request, requestContext, cancellationToken).ConfigureAwait(false);
                     LogCodexDiagnostic("request", request, attempt);
                     WriteCodexConsoleDiagnostic(
                         provider,
@@ -136,10 +138,16 @@ internal sealed class OpenAIResponsesTurnExecutor(
                                 client,
                                 request,
                                 fullOptions,
+                                requestContext,
                                 transport,
                                 sideChannelEvents,
                                 cancellationToken).ConfigureAwait(false))
                         {
+                            if (requestContext is not null && !string.IsNullOrWhiteSpace(protocolEvent.Metadata.TurnState))
+                            {
+                                requestContext.TurnState.Capture(protocolEvent.Metadata.TurnState);
+                            }
+
                             var update = protocolEvent.Update;
                             if (update is null)
                             {
@@ -537,12 +545,18 @@ internal sealed class OpenAIResponsesTurnExecutor(
         ResponsesClient client,
         AgentTurnRequest request,
         CreateResponseOptions fullOptions,
+        CodexSubscriptionRequestContext? requestContext,
         OpenAIResponsesTransport transport,
         List<OpenAIResponsesWebSocketSideChannelEvent> sideChannelEvents,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         if (transport == OpenAIResponsesTransport.WebSocket)
         {
+            if (requestContext is null)
+            {
+                throw new InvalidOperationException("Codex WebSocket requests require an immutable request context.");
+            }
+
             var entry = await GetOrCreateWebSocketSessionAsync(request, cancellationToken).ConfigureAwait(false);
             var options = entry.Session.HasOpenConnection
                 ? CreateWebSocketContinuationRequestOptions(request, fullOptions)
@@ -556,7 +570,7 @@ internal sealed class OpenAIResponsesTurnExecutor(
                     previousSideChannelReceived?.Invoke(sideChannelEvent);
                 };
                 await foreach (var protocolEvent in entry.Session
-                    .CreateProtocolEventsAsync(options, fullOptions, cancellationToken)
+                    .CreateProtocolEventsAsync(options, fullOptions, requestContext, cancellationToken)
                     .ConfigureAwait(false))
                 {
                     yield return protocolEvent;
@@ -583,8 +597,7 @@ internal sealed class OpenAIResponsesTurnExecutor(
             var session = new CodexSubscriptionHttpStreamSession(
                 provider,
                 authManager,
-                request.SessionId,
-                GetCodexTurnState(request) ?? new CodexTurnState(),
+                requestContext ?? throw new InvalidOperationException("Codex HTTP requests require an immutable request context."),
                 trace);
             await foreach (var protocolEvent in session.CreateResponseStreamingAsync(fullOptions, cancellationToken).ConfigureAwait(false))
             {
@@ -623,9 +636,7 @@ internal sealed class OpenAIResponsesTurnExecutor(
                     new OpenAIResponsesWebSocketSessionFactoryContext(
                         request.ModelId,
                         request.SessionId,
-                        request.RunId,
-                        request.Provider,
-                        GetCodexTurnState(request) ?? new CodexTurnState()))
+                        request.Provider))
                 .ConfigureAwait(false)
             : await CreateDefaultWebSocketSessionAsync(request, cancellationToken).ConfigureAwait(false);
         var createdEntry = new OpenAIResponsesWebSocketSessionEntry(created);
@@ -664,7 +675,6 @@ internal sealed class OpenAIResponsesTurnExecutor(
             authManager,
             request.SessionId,
             OpenAIProviderSdkFactory.CreateCodeAltaUserAgentApplicationId(),
-            GetCodexTurnState(request) ?? new CodexTurnState(),
             provider.ResponsesWebSocketIdleTimeout ?? DefaultWebSocketIdleTimeout);
         return ValueTask.FromResult(session);
     }
@@ -924,7 +934,9 @@ internal sealed class OpenAIResponsesTurnExecutor(
             writer.WriteStartObject();
             foreach (var property in document.RootElement.EnumerateObject())
             {
-                if (!property.NameEquals("input"u8) && !property.NameEquals("previous_response_id"u8))
+                if (!property.NameEquals("input"u8) &&
+                    !property.NameEquals("previous_response_id"u8) &&
+                    !property.NameEquals("client_metadata"u8))
                 {
                     property.WriteTo(writer);
                 }
@@ -1191,6 +1203,7 @@ internal sealed class OpenAIResponsesTurnExecutor(
 
     private async ValueTask<CreateResponseOptions> CreateRequestPayloadAsync(
         AgentTurnRequest request,
+        CodexSubscriptionRequestContext? requestContext,
         CancellationToken cancellationToken)
     {
         var toolDefinitions = request.Tools.Select(CreateFunctionTool).Cast<ResponseTool>().ToArray();
@@ -1224,11 +1237,15 @@ internal sealed class OpenAIResponsesTurnExecutor(
             request.ReasoningEffort is { } reasoningEffort &&
             SupportsRequestedReasoningEffort(request, reasoningEffort))
         {
+            var modelCapabilities = CodexSubscriptionModelCapabilities.FromModel(request.ModelInfo);
             options.ReasoningOptions = new ResponseReasoningOptions
             {
-                ReasoningSummaryVerbosity = ResponseReasoningSummaryVerbosity.Detailed,
                 ReasoningEffortLevel = MapReasoningEffortLevel(reasoningEffort),
             };
+            if (provider.CodexSubscription is null || modelCapabilities.SupportsReasoningSummaries)
+            {
+                options.ReasoningOptions.ReasoningSummaryVerbosity = ResponseReasoningSummaryVerbosity.Detailed;
+            }
         }
 
         var modelRequest = OpenAIModelRequestOverrides.Find(provider.ModelRequestOverrides, request.ModelId);
@@ -1243,6 +1260,7 @@ internal sealed class OpenAIResponsesTurnExecutor(
                 request,
                 options,
                 provider.CodexSubscription,
+                requestContext ?? throw new InvalidOperationException("Codex requests require an immutable request context."),
                 cancellationToken).ConfigureAwait(false);
         }
 
@@ -1273,10 +1291,11 @@ internal sealed class OpenAIResponsesTurnExecutor(
             supportedReasoningEfforts.Contains(reasoningEffort);
     }
 
-    private async ValueTask ApplyCodexSubscriptionRequestCustomizationAsync(
+    private ValueTask ApplyCodexSubscriptionRequestCustomizationAsync(
         AgentTurnRequest request,
         CreateResponseOptions options,
         OpenAICodexSubscriptionOptions codexOptions,
+        CodexSubscriptionRequestContext requestContext,
         CancellationToken cancellationToken)
     {
         options.StoredOutputEnabled = false;
@@ -1284,7 +1303,8 @@ internal sealed class OpenAIResponsesTurnExecutor(
         options.PreviousResponseId = null;
         // The Codex subscription responses endpoint currently rejects max_output_tokens.
         options.MaxOutputTokenCount = null;
-        options.ParallelToolCallsEnabled = true;
+        var modelCapabilities = CodexSubscriptionModelCapabilities.FromModel(request.ModelInfo);
+        options.ParallelToolCallsEnabled = modelCapabilities.SupportsParallelToolCalls;
         options.ToolChoice ??= ResponseToolChoice.CreateAutoChoice();
 
         if (codexOptions.IncludeEncryptedReasoning &&
@@ -1294,7 +1314,24 @@ internal sealed class OpenAIResponsesTurnExecutor(
         }
 
         options.Patch.Set("$.prompt_cache_key"u8, request.SessionId);
-        options.Patch.Set("$.text.verbosity"u8, codexOptions.TextVerbosity);
+        if (modelCapabilities.SupportsVerbosity)
+        {
+            options.Patch.Set("$.text.verbosity"u8, codexOptions.TextVerbosity);
+        }
+
+        _ = cancellationToken;
+        requestContext.ApplyClientMetadata(options, includeTurnState: false);
+        return ValueTask.CompletedTask;
+    }
+
+    private async ValueTask<CodexSubscriptionRequestContext?> CreateCodexRequestContextAsync(
+        AgentTurnRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (provider.CodexSubscription is not { } codexOptions)
+        {
+            return null;
+        }
 
         var stateRootPath = string.IsNullOrWhiteSpace(provider.StateRootPath)
             ? Path.Combine(AppContext.BaseDirectory, ".codealta-state")
@@ -1306,10 +1343,13 @@ internal sealed class OpenAIResponsesTurnExecutor(
             codexOptions.SendInstallationId,
             codexOptions.InstallationIdSource,
             cancellationToken).ConfigureAwait(false);
-        if (!string.IsNullOrWhiteSpace(installationId))
-        {
-            options.Patch.Set("$.client_metadata.x-codex-installation-id"u8, installationId);
-        }
+        return new CodexSubscriptionRequestContext(
+            request.SessionId,
+            request.RunId,
+            "turn",
+            DateTimeOffset.UtcNow,
+            installationId,
+            GetCodexTurnState(request) ?? new CodexTurnState());
     }
 
     private static string? ComposeInstructions(AgentTurnRequest request)

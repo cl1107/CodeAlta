@@ -284,10 +284,15 @@ internal static class OpenAIProviderSdkFactory
             ["hidden"] = model.Hidden,
             ["listable"] = model.Listable,
             ["supportsReasoningSummary"] = model.SupportsReasoningSummary,
+            ["supportsReasoningSummaries"] = model.SupportsReasoningSummary,
             ["supportsEncryptedReasoning"] = model.SupportsEncryptedReasoning,
             ["supportsTextVerbosity"] = model.SupportsTextVerbosity,
+            ["supportVerbosity"] = model.SupportsTextVerbosity,
             ["supportsTools"] = model.SupportsTools,
             ["supportsImageInput"] = model.SupportsImageInput,
+            ["supportsParallelToolCalls"] = model.SupportsParallelToolCalls,
+            ["supportsImageDetailOriginal"] = model.SupportsImageDetailOriginal,
+            ["useResponsesLite"] = model.UseResponsesLite,
             ["requiresWebSocket"] = model.RequiresWebSocket,
         };
         if (model.ContextWindow is { } contextWindow)
@@ -525,7 +530,8 @@ internal static class OpenAIProviderSdkFactory
                     IsFedRamp: false,
                     SendResponsesBetaHeader: options.SendResponsesBetaHeader,
                     TurnState: context.TurnState ?? new CodexTurnState(),
-                    AuthManager: authManager)),
+                    AuthManager: authManager,
+                    RequestContext: context.RequestContext)),
             PipelinePosition.BeforeTransport);
 
         return new ResponsesClient(

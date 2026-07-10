@@ -272,14 +272,13 @@ internal sealed record OpenAIResponsesClientFactoryContext(
     string SessionId,
     AgentRunId RunId,
     ModelProviderRuntimeDescriptor Provider,
-    CodexTurnState? TurnState = null);
+    CodexTurnState? TurnState = null,
+    CodexSubscriptionRequestContext? RequestContext = null);
 
 internal sealed record OpenAIResponsesWebSocketSessionFactoryContext(
     string? ModelId,
     string SessionId,
-    AgentRunId RunId,
-    ModelProviderRuntimeDescriptor Provider,
-    CodexTurnState TurnState);
+    ModelProviderRuntimeDescriptor Provider);
 
 internal sealed record OpenAIResponsesRequestCustomizationContext(
     AgentTurnRequest Request,
@@ -313,5 +312,15 @@ internal interface IOpenAIResponsesWebSocketSession : IDisposable
                 update,
                 new CodexResponseMetadata());
         }
+    }
+
+    IAsyncEnumerable<CodexProtocolEvent> CreateProtocolEventsAsync(
+        CreateResponseOptions options,
+        CreateResponseOptions? reconnectOptions,
+        CodexSubscriptionRequestContext requestContext,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(requestContext);
+        return CreateProtocolEventsAsync(options, reconnectOptions, cancellationToken);
     }
 }
