@@ -430,7 +430,7 @@ public sealed class OpenAICodexSubscriptionPipelineTests
 
         var visibleModels = CodexSubscriptionStaticModelCatalog.List(provider);
         Assert.AreEqual(
-            "gpt-5.5|gpt-5.4|gpt-5.4-mini|gpt-5.3-codex|gpt-5.2",
+            "gpt-5.6-sol|gpt-5.6-terra|gpt-5.6-luna|gpt-5.5|gpt-5.4|gpt-5.4-mini|gpt-5.3-codex|gpt-5.2",
             string.Join('|', visibleModels.Select(static model => model.Id)));
         Assert.IsFalse(visibleModels.Any(static model => model.Id == "codex-auto-review"));
         Assert.IsTrue(visibleModels.All(static model => Equals(400000L, model.Capabilities?["contextWindow"])));
@@ -442,6 +442,16 @@ public sealed class OpenAICodexSubscriptionPipelineTests
         Assert.IsTrue(visibleModels.All(static model => model.Capabilities?.ContainsKey("maxOutputTokens") == false));
         Assert.IsTrue(visibleModels.All(static model => Equals(true, model.Capabilities?["listable"])));
         Assert.IsTrue(visibleModels.All(static model => Equals(false, model.Capabilities?["hidden"])));
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                AgentReasoningEffort.Low,
+                AgentReasoningEffort.Medium,
+                AgentReasoningEffort.High,
+                AgentReasoningEffort.XHigh,
+                AgentReasoningEffort.Max,
+            },
+            visibleModels.Single(static model => model.Id == "gpt-5.6-sol").SupportedReasoningEfforts!.ToArray());
     }
 
     [TestMethod]
@@ -488,6 +498,64 @@ public sealed class OpenAICodexSubscriptionPipelineTests
         Assert.AreEqual("acct_configured", handler.Requests[0]["ChatGPT-Account-Id"]);
         Assert.AreEqual("codealta", handler.Requests[0]["originator"]);
         Assert.AreEqual("responses=experimental", handler.Requests[0]["OpenAI-Beta"]);
+    }
+
+    [TestMethod]
+    public async Task ModelDiscovery_UsesAdvertisedMaxAndIgnoresUnsupportedUltraReasoningEffort()
+    {
+        using var temp = TempDirectory.Create();
+        await SaveCredentialAsync(temp.Path).ConfigureAwait(false);
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(
+                """
+                {
+                  "models": [
+                    {
+                      "slug": "gpt-5.6-sol",
+                      "display_name": "GPT-5.6 Sol",
+                      "supported_in_api": true,
+                      "visibility": "list",
+                      "default_reasoning_level": "low",
+                      "supported_reasoning_levels": [
+                        { "effort": "low", "description": "Fast" },
+                        { "effort": "xhigh", "description": "Extra high" },
+                        { "effort": "max", "description": "Maximum" },
+                        { "effort": "ultra", "description": "Maximum with delegation" }
+                      ]
+                    }
+                  ]
+                }
+                """),
+        };
+        var provider = new OpenAIProviderOptions
+        {
+            ProviderKey = "codex",
+            BaseUri = new Uri("https://chatgpt.com/backend-api/codex"),
+            StateRootPath = temp.Path,
+            CodexSubscriptionHttpClient = new HttpClient(new RecordingHttpMessageHandler(response)),
+            CodexSubscription = new OpenAICodexSubscriptionOptions
+            {
+                Experimental = true,
+                ModelDiscovery = "codex_endpoint",
+            },
+        };
+
+        var models = await OpenAIProviderSdkFactory.ListModelsAsync(
+            provider,
+            CreateProviderDescriptor(),
+            CancellationToken.None).ConfigureAwait(false);
+
+        Assert.AreEqual(1, models.Count);
+        Assert.AreEqual(AgentReasoningEffort.Low, models[0].DefaultReasoningEffort);
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                AgentReasoningEffort.Low,
+                AgentReasoningEffort.XHigh,
+                AgentReasoningEffort.Max,
+            },
+            models[0].SupportedReasoningEfforts!.ToArray());
     }
 
     [TestMethod]
@@ -576,7 +644,7 @@ public sealed class OpenAICodexSubscriptionPipelineTests
             CancellationToken.None).ConfigureAwait(false);
 
         Assert.AreEqual(
-            "gpt-5.5|gpt-5.4|gpt-5.4-mini|gpt-5.3-codex|gpt-5.2",
+            "gpt-5.6-sol|gpt-5.6-terra|gpt-5.6-luna|gpt-5.5|gpt-5.4|gpt-5.4-mini|gpt-5.3-codex|gpt-5.2",
             string.Join('|', models.Select(static model => model.Id)));
 
         provider.CodexSubscriptionHttpClient = new HttpClient(new RecordingHttpMessageHandler(

@@ -99,6 +99,7 @@ internal sealed class SessionRuntimeTimelineRenderer
 
                 if (!ChatMarkdownFormatter.ShouldDisplayCompletedContent(completed))
                 {
+                    tab.Timeline.DiscardCompletedContent(completed);
                     break;
                 }
 

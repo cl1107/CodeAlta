@@ -92,7 +92,15 @@ internal static class ModelProviderPresentation
         {
             { Count: > 0 } supported => supported,
             { Count: 0 } => [AgentReasoningEffort.None],
-            _ => Enum.GetValues<AgentReasoningEffort>(),
+            _ =>
+            [
+                AgentReasoningEffort.None,
+                AgentReasoningEffort.Minimal,
+                AgentReasoningEffort.Low,
+                AgentReasoningEffort.Medium,
+                AgentReasoningEffort.High,
+                AgentReasoningEffort.XHigh,
+            ],
         };
 
         return efforts
@@ -297,6 +305,7 @@ internal static class ModelProviderPresentation
             AgentReasoningEffort.Medium => SR.T("Medium"),
             AgentReasoningEffort.High => SR.T("High"),
             AgentReasoningEffort.XHigh => SR.T("X High"),
+            AgentReasoningEffort.Max => SR.T("Max"),
             _ => SR.T(SplitPascalCase(effort.ToString())),
         };
 

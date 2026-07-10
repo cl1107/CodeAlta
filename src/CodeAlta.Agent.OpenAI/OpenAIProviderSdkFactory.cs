@@ -310,16 +310,35 @@ internal static class OpenAIProviderSdkFactory
             DisplayName: model.DisplayName,
             Provider: providerDescriptor.ProviderKey,
             DefaultReasoningEffort: ParseReasoningEffort(model.DefaultReasoningEffort),
-            SupportedReasoningEfforts: model.SupportsReasoningEffort
-                ?
-                [
-                    AgentReasoningEffort.Low,
-                    AgentReasoningEffort.Medium,
-                    AgentReasoningEffort.High,
-                    AgentReasoningEffort.XHigh,
-                ]
-                : [],
+            SupportedReasoningEfforts: GetSupportedReasoningEfforts(model),
             Capabilities: capabilities);
+    }
+
+    private static IReadOnlyList<AgentReasoningEffort> GetSupportedReasoningEfforts(
+        CodexSubscriptionDiscoveredModel model)
+    {
+        if (!model.SupportsReasoningEffort)
+        {
+            return [];
+        }
+
+        if (model.SupportedReasoningEfforts is { } advertisedEfforts)
+        {
+            return advertisedEfforts
+                .Select(ParseReasoningEffort)
+                .Where(static effort => effort is not null)
+                .Select(static effort => effort!.Value)
+                .Distinct()
+                .ToArray();
+        }
+
+        return
+        [
+            AgentReasoningEffort.Low,
+            AgentReasoningEffort.Medium,
+            AgentReasoningEffort.High,
+            AgentReasoningEffort.XHigh,
+        ];
     }
 
     private static bool AllowsWebSocketRequiredModels(OpenAICodexSubscriptionOptions? options)
@@ -337,6 +356,7 @@ internal static class OpenAIProviderSdkFactory
             "medium" => AgentReasoningEffort.Medium,
             "high" => AgentReasoningEffort.High,
             "xhigh" => AgentReasoningEffort.XHigh,
+            "max" => AgentReasoningEffort.Max,
             _ => null,
         };
 

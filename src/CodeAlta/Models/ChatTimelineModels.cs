@@ -100,6 +100,8 @@ namespace CodeAlta.Models
 
         public StringBuilder Buffer { get; } = buffer;
 
+        public SortedDictionary<int, StringBuilder>? ReasoningSummaryPartBuffers { get; set; }
+
         public AgentContentKind Kind { get; } = kind;
 
         public AgentRunId? RunId { get; } = runId;

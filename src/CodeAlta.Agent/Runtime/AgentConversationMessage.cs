@@ -62,10 +62,12 @@ public abstract record AgentMessagePart
     /// <param name="Value">The optional visible reasoning text.</param>
     /// <param name="ProtectedData">Optional provider-protected reasoning payload.</param>
     /// <param name="Provenance">Optional provider/model identity that produced the reasoning payload.</param>
+    /// <param name="SummaryParts">Optional provider reasoning-summary parts in their original order.</param>
     public sealed record Reasoning(
         string? Value,
         string? ProtectedData = null,
-        AgentReasoningProvenance? Provenance = null) : AgentMessagePart;
+        AgentReasoningProvenance? Provenance = null,
+        IReadOnlyList<string>? SummaryParts = null) : AgentMessagePart;
 
     /// <summary>
     /// A tool-call message part.

@@ -25,6 +25,14 @@ namespace CodeAlta.Tests;
 public sealed class OpenAIRawApiModelProviderRuntimeTests
 {
     [TestMethod]
+    public void OpenAIResponsesTurnExecutor_MapsMaxInferenceEffort()
+    {
+        Assert.AreEqual(
+            new ResponseReasoningEffortLevel("max"),
+            OpenAIResponsesTurnExecutor.MapReasoningEffortLevel(AgentReasoningEffort.Max));
+    }
+
+    [TestMethod]
     public async Task OpenAIResponsesModelProviderRuntime_UsesLocalReplayAndDoesNotSetPreviousResponseId()
     {
         using var temp = TestTempDirectory.Create();
@@ -66,6 +74,7 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
                         new AgentModelInfo(
                             "gpt-test",
                             DisplayName: "GPT Test",
+                            SupportedReasoningEfforts: [AgentReasoningEffort.Max],
                             Capabilities: new Dictionary<string, object?>(StringComparer.Ordinal)
                             {
                                 ["inputTokenLimit"] = 200000L,
@@ -85,7 +94,7 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
             WorkingDirectory = temp.Path,
             SystemMessage = "System instructions",
             DeveloperInstructions = "Developer instructions",
-            ReasoningEffort = AgentReasoningEffort.High,
+            ReasoningEffort = AgentReasoningEffort.Max,
             Tools =
             [
                 new AgentToolDefinition(
@@ -109,7 +118,7 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
         Assert.IsNull(responsesClient.Requests[0].Options.PreviousResponseId);
         Assert.IsNull(responsesClient.Requests[1].Options.PreviousResponseId);
         Assert.IsNotNull(responsesClient.Requests[0].Options.ReasoningOptions);
-        Assert.AreEqual(ResponseReasoningEffortLevel.High, responsesClient.Requests[0].Options.ReasoningOptions!.ReasoningEffortLevel);
+        Assert.AreEqual(new ResponseReasoningEffortLevel("max"), responsesClient.Requests[0].Options.ReasoningOptions!.ReasoningEffortLevel);
         Assert.AreEqual(ResponseReasoningSummaryVerbosity.Detailed, responsesClient.Requests[0].Options.ReasoningOptions.ReasoningSummaryVerbosity);
         Assert.IsTrue(
             responsesClient.Requests[1].InputItems.OfType<FunctionCallOutputResponseItem>()
@@ -117,7 +126,11 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
 
         var history = await session.GetHistoryAsync().ConfigureAwait(false);
         Assert.IsTrue(history.OfType<AgentContentCompletedEvent>().Any(static e => e.Kind == AgentContentKind.ToolOutput && e.Content == "README contents"));
-        Assert.IsTrue(history.OfType<AgentContentCompletedEvent>().Any(static e => e.Kind == AgentContentKind.Reasoning && e.Content == "Looked at the file."));
+        var completedReasoning = history.OfType<AgentContentCompletedEvent>().Single(static e =>
+            e.Kind == AgentContentKind.Reasoning && e.Content == "Looked at the file.");
+        Assert.AreEqual(
+            "Looked at the file.",
+            completedReasoning.Details!.Value.GetProperty("summaryParts")[0].GetString());
         Assert.IsTrue(history.OfType<AgentContentCompletedEvent>().Any(static e => e.Kind == AgentContentKind.Assistant && e.Content == "Inspection complete."));
         var usageEvent = history.OfType<AgentSessionUpdateEvent>().Last(static e => e.Kind == AgentSessionUpdateKind.UsageUpdated);
         Assert.IsNotNull(usageEvent.Usage);
@@ -1301,7 +1314,7 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
                 CreateOutputTextDeltaUpdate("rotating-message-2", "world.", outputIndex: 0),
                 CreateOutputItemAddedUpdate(1, streamReasoningItem),
                 CreateReasoningSummaryTextDeltaUpdate("rotating-reasoning-1", "Thinking ", summaryIndex: 0),
-                CreateReasoningSummaryTextDeltaUpdate("rotating-reasoning-2", "done.", summaryIndex: 0),
+                CreateReasoningSummaryTextDeltaUpdate("rotating-reasoning-2", "done.", summaryIndex: 1),
                 CreateCompletedUpdate(completedResponse),
             ],
         ]);
@@ -1334,8 +1347,54 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
             new[] { "rs_stream", "rs_stream" },
             deltas.Where(static delta => delta.Kind == AgentContentKind.Reasoning).Select(static delta => delta.ContentId).ToArray());
         CollectionAssert.AreEqual(
+            new[] { 0, 1 },
+            deltas
+                .Where(static delta => delta.Kind == AgentContentKind.Reasoning)
+                .Select(static delta => delta.Details!.Value.GetProperty("summaryIndex").GetInt32())
+                .ToArray());
+        CollectionAssert.AreEqual(
             new[] { "msg_stream", "rs_stream" },
             response.AssistantPartContentIds!.ToArray());
+    }
+
+    [TestMethod]
+    public async Task OpenAIResponsesTurnExecutor_PreservesCompletedReasoningSummaryParts()
+    {
+        var completedResponse = new ResponseResult
+        {
+            Id = "response-summary-parts",
+            CreatedAt = DateTimeOffset.UtcNow,
+            Model = "gpt-5.6-sol",
+            Status = ResponseStatus.Completed,
+        };
+        completedResponse.OutputItems.Add(ResponseItem.CreateAssistantMessageItem("Done.", []));
+        completedResponse.OutputItems.Add(
+            new ReasoningResponseItem(
+            [
+                ReasoningSummaryPart.CreateTextPart("**Planning**\n\nInspect the repository."),
+                ReasoningSummaryPart.CreateTextPart("**Checking tests**\n\n<!-- -->"),
+            ]));
+        var executor = new OpenAIResponsesTurnExecutor(new OpenAIProviderOptions
+        {
+            ProviderKey = "openai",
+            ResponsesClientFactory = _ => new RecordingOpenAIResponseClient([[CreateCompletedUpdate(completedResponse)]]),
+        });
+
+        var response = await executor.ExecuteTurnAsync(
+            CreateTurnRequest(),
+            static (_, _) => ValueTask.CompletedTask).ConfigureAwait(false);
+
+        var reasoning = response.AssistantMessage.Parts.OfType<AgentMessagePart.Reasoning>().Single();
+        Assert.AreEqual(
+            "**Planning**\n\nInspect the repository.**Checking tests**\n\n<!-- -->",
+            reasoning.Value);
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "**Planning**\n\nInspect the repository.",
+                "**Checking tests**\n\n<!-- -->",
+            },
+            reasoning.SummaryParts!.ToArray());
     }
 
     [TestMethod]
@@ -1830,7 +1889,7 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
         var models = await providerRuntime.ListModelsAsync().ConfigureAwait(false);
 
         Assert.AreEqual(
-            "gpt-5.5|gpt-5.4|gpt-5.4-mini|gpt-5.3-codex|gpt-5.2",
+            "gpt-5.6-sol|gpt-5.6-terra|gpt-5.6-luna|gpt-5.5|gpt-5.4|gpt-5.4-mini|gpt-5.3-codex|gpt-5.2",
             string.Join('|', models.Select(static model => model.Id)));
         Assert.IsTrue(models.All(static model => Equals("codex-static-fallback", model.Capabilities?["source"])));
         Assert.AreEqual(1, handler.Requests.Count);

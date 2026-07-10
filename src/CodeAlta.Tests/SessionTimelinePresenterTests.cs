@@ -137,6 +137,7 @@ public sealed class SessionTimelinePresenterTests
         presenter.FinalizeContent(completed);
 
         Assert.AreEqual(1, presenter.Flow.Items.Count);
+        Assert.AreEqual("Streaming reply", GetOnlyMarkdown(presenter).Markdown);
     }
 
     [TestMethod]
@@ -236,6 +237,76 @@ public sealed class SessionTimelinePresenterTests
         presenter.DiscardDraftContent(update);
 
         Assert.AreEqual(0, presenter.Flow.Items.Count);
+    }
+
+    [TestMethod]
+    public void FinalizeContent_KeepsStreamedReasoningHeadingAfterPlaceholderArrives()
+    {
+        var presenter = CreatePresenter();
+        var timestamp = DateTimeOffset.UtcNow;
+        var delta = new AgentContentDeltaEvent(
+            ModelProviderIds.Codex,
+            "session-1",
+            timestamp,
+            new AgentRunId("run-1"),
+            AgentContentKind.Reasoning,
+            "reasoning-1",
+            null,
+            "**Checking tests**",
+            CreateJsonDetails("""{"summaryIndex":0}"""));
+        var placeholderDelta = delta with
+        {
+            Timestamp = timestamp.AddMilliseconds(500),
+            Delta = "\n\n<!-- -->",
+        };
+        var completed = new AgentContentCompletedEvent(
+            ModelProviderIds.Codex,
+            "session-1",
+            timestamp.AddSeconds(1),
+            new AgentRunId("run-1"),
+            AgentContentKind.Reasoning,
+            "reasoning-1",
+            null,
+            "**Checking tests**\n\n<!-- -->",
+            CreateJsonDetails("""{"summaryParts":["**Checking tests**\n\n<!-- -->"]}"""));
+
+        presenter.AppendContent(delta);
+        presenter.AppendContent(placeholderDelta);
+        Assert.AreEqual(1, presenter.Flow.Items.Count);
+        Assert.AreEqual(string.Empty, GetOnlyMarkdown(presenter).Markdown);
+        Assert.IsTrue(CodeAlta.Presentation.Formatting.ChatMarkdownFormatter.ShouldDisplayCompletedContent(completed));
+
+        presenter.FinalizeContent(completed);
+
+        Assert.AreEqual(1, presenter.Flow.Items.Count);
+        Assert.AreEqual(string.Empty, GetOnlyMarkdown(presenter).Markdown);
+    }
+
+    [TestMethod]
+    public void AppendContent_RemovesPlaceholderDeltaBeforeReasoningHeading()
+    {
+        var presenter = CreatePresenter();
+        var timestamp = DateTimeOffset.UtcNow;
+        var delta = new AgentContentDeltaEvent(
+            ModelProviderIds.Codex,
+            "session-1",
+            timestamp,
+            new AgentRunId("run-1"),
+            AgentContentKind.Reasoning,
+            "reasoning-1",
+            null,
+            "<!-- -->",
+            CreateJsonDetails("""{"summaryIndex":0}"""));
+
+        presenter.AppendContent(delta);
+        presenter.AppendContent(delta with
+        {
+            Timestamp = timestamp.AddMilliseconds(500),
+            Delta = "**Planning Codex model inspection**",
+        });
+
+        Assert.AreEqual(1, presenter.Flow.Items.Count);
+        Assert.AreEqual(string.Empty, GetOnlyMarkdown(presenter).Markdown);
     }
 
     [TestMethod]

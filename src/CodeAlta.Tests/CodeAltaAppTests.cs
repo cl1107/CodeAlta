@@ -409,6 +409,110 @@ public sealed class CodeAltaAppTests
     }
 
     [TestMethod]
+    public void CompletedReasoningContent_HidesPlaceholdersButKeepsMeaningfulHeadings()
+    {
+        static AgentContentCompletedEvent CreateCompleted(params string[] summaryParts)
+            => new(
+                ModelProviderIds.Codex,
+                "session-1",
+                DateTimeOffset.Parse("2026-07-10T12:00:00+00:00"),
+                new AgentRunId("turn-1"),
+                AgentContentKind.Reasoning,
+                "reasoning-1",
+                null,
+                string.Concat(summaryParts),
+                JsonSerializer.SerializeToElement(new { summaryParts }));
+
+        var placeholderOnly = CreateCompleted("<!-- -->");
+        var headingAndPlaceholder = CreateCompleted("**Planning parallel command execution**\n\n<!-- -->");
+        var laterPlaceholder = CreateCompleted(
+            "**Plan**\n\nInspect the repository.",
+            "**Checking tests**\n\n<!-- -->");
+
+        Assert.IsFalse(ChatMarkdownFormatter.ShouldDisplayCompletedContent(placeholderOnly));
+        Assert.IsTrue(ChatMarkdownFormatter.ShouldDisplayCompletedContent(headingAndPlaceholder));
+        Assert.AreEqual("Planning parallel command execution", ChatMarkdownFormatter.GetCompletedChatContentHeaderSecondary(headingAndPlaceholder));
+        Assert.AreEqual(string.Empty, ChatMarkdownFormatter.FormatCompletedChatContentMarkdown(headingAndPlaceholder));
+        Assert.AreEqual("Plan", ChatMarkdownFormatter.GetCompletedChatContentHeaderSecondary(laterPlaceholder));
+        Assert.AreEqual(
+            "Inspect the repository.\n\n**Checking tests**",
+            ChatMarkdownFormatter.FormatCompletedChatContentMarkdown(laterPlaceholder));
+    }
+
+    [TestMethod]
+    public void CompletedReasoningContent_PreservesSubstantiveHtmlCommentsAndNormalSummaries()
+    {
+        static AgentContentCompletedEvent CreateCompleted(string summaryPart)
+            => new(
+                ModelProviderIds.Codex,
+                "session-1",
+                DateTimeOffset.Parse("2026-07-10T12:00:00+00:00"),
+                new AgentRunId("turn-1"),
+                AgentContentKind.Reasoning,
+                "reasoning-1",
+                null,
+                summaryPart,
+                JsonSerializer.SerializeToElement(new { summaryParts = new[] { summaryPart } }));
+
+        const string prose = "**Plan**\n\nUse <!-- --> in JSX.";
+        const string standaloneProse = "**Plan**\n\nThe literal marker is:\n\n<!-- -->\n\nKeep it in the prose.";
+        const string fenced = "**Example**\n\n```html\n<!-- -->\n```";
+        const string normal = "**Checking tests**\n\nAll tests passed.";
+
+        Assert.AreEqual("Use <!-- --> in JSX.", ChatMarkdownFormatter.FormatCompletedChatContentMarkdown(CreateCompleted(prose)));
+        Assert.AreEqual(
+            "The literal marker is:\n\n<!-- -->\n\nKeep it in the prose.",
+            ChatMarkdownFormatter.FormatCompletedChatContentMarkdown(CreateCompleted(standaloneProse)));
+        Assert.AreEqual("```html\n<!-- -->\n```", ChatMarkdownFormatter.FormatCompletedChatContentMarkdown(CreateCompleted(fenced)));
+        Assert.AreEqual("All tests passed.", ChatMarkdownFormatter.FormatCompletedChatContentMarkdown(CreateCompleted(normal)));
+    }
+
+    [TestMethod]
+    public void StreamingReasoningSummary_SquashesPlaceholderPartWithoutFilteringLiteralComments()
+    {
+        Assert.AreEqual(
+            string.Empty,
+            ChatMarkdownFormatter.FormatStreamingReasoningSummaryMarkdown(["<!-- -->"]));
+        Assert.AreEqual(
+            string.Empty,
+            ChatMarkdownFormatter.FormatStreamingReasoningSummaryMarkdown(
+                ["**Checking tests**\n\n<!-- -->"]));
+        Assert.AreEqual(
+            "Checking tests",
+            ChatMarkdownFormatter.GetStreamingReasoningSummaryHeaderSecondary(
+                ["**Checking tests**\n\n<!-- -->"]));
+        Assert.AreEqual(
+            "Use <!-- --> in JSX.",
+            ChatMarkdownFormatter.FormatStreamingReasoningSummaryMarkdown(
+                ["**Plan**\n\nUse <!-- --> in JSX."]));
+        Assert.AreEqual(
+            "```html\n<!-- -->\n```",
+            ChatMarkdownFormatter.FormatStreamingReasoningSummaryMarkdown(
+                ["**Example**\n\n```html\n<!-- -->\n```"]));
+    }
+
+    [TestMethod]
+    public void StreamingReasoningSummary_RemovesPlaceholderSeparatorsWithoutLosingHeadings()
+    {
+        Assert.AreEqual(
+            string.Empty,
+            ChatMarkdownFormatter.FormatStreamingReasoningSummaryMarkdown(
+                ["<!-- -->**Verifying whitespace and formatting changes**"]));
+        Assert.AreEqual(
+            "Verifying whitespace and formatting changes",
+            ChatMarkdownFormatter.GetStreamingReasoningSummaryHeaderSecondary(
+                ["<!-- -->**Verifying whitespace and formatting changes**"]));
+        Assert.AreEqual(
+            "**Planning Codex model inspection**",
+            ChatMarkdownFormatter.FormatStreamingReasoningSummaryMarkdown(
+                ["<!-- -->\n**Verifying whitespace and formatting changes**\n\n<!-- -->**Planning Codex model inspection**\n\n<!-- -->"]));
+        Assert.AreEqual(
+            "Verifying whitespace and formatting changes",
+            ChatMarkdownFormatter.GetStreamingReasoningSummaryHeaderSecondary(
+                ["<!-- -->\n**Verifying whitespace and formatting changes**\n\n<!-- -->**Planning Codex model inspection**\n\n<!-- -->"]));
+    }
+
+    [TestMethod]
     public void FormatChatPlanMarkdown_RendersExplanationAndStatuses()
     {
         var markdown = ChatMarkdownFormatter.FormatChatPlanMarkdown(
@@ -2141,6 +2245,21 @@ public sealed class CodeAltaAppTests
         CollectionAssert.AreEqual(
             new[] { "Minimal", "High" },
             options.Select(static option => option.Label).ToArray());
+    }
+
+    [TestMethod]
+    public void BuildChatReasoningOptions_OffersExtendedEffortsOnlyWhenAdvertised()
+    {
+        var defaultOptions = ModelProviderPresentation.BuildReasoningOptions(model: null);
+        var advertisedOptions = ModelProviderPresentation.BuildReasoningOptions(
+            new AgentModelInfo(
+                "gpt-5.6-sol",
+                SupportedReasoningEfforts: [AgentReasoningEffort.XHigh, AgentReasoningEffort.Max]));
+
+        Assert.IsFalse(defaultOptions.Any(static option => option.Effort is AgentReasoningEffort.Max));
+        CollectionAssert.AreEqual(
+            new AgentReasoningEffort?[] { AgentReasoningEffort.XHigh, AgentReasoningEffort.Max },
+            advertisedOptions.Select(static option => option.Effort).ToArray());
     }
 
     [TestMethod]

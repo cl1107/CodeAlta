@@ -22,6 +22,7 @@ internal sealed class OpenAIResponsesTurnExecutor(
 {
     private static readonly Logger Logger = LogManager.GetLogger("CodeAlta.Agent.OpenAI");
     private static readonly ResponseReasoningEffortLevel XHighReasoningEffortLevel = new("xhigh");
+    private static readonly ResponseReasoningEffortLevel MaxReasoningEffortLevel = new("max");
     private static readonly TimeSpan CodexBaseRetryDelay = TimeSpan.FromMilliseconds(250);
     private static readonly TimeSpan DefaultWebSocketIdleTimeout = TimeSpan.FromMinutes(5);
     private static readonly Random SharedRandom = Random.Shared;
@@ -204,6 +205,7 @@ internal sealed class OpenAIResponsesTurnExecutor(
                                                 activeReasoningOutputIndex),
                                             Text = reasoningSummaryDelta.Delta,
                                             AttemptId = attemptState.DraftAttemptId,
+                                             Details = CreateReasoningSummaryDeltaDetails(reasoningSummaryDelta.SummaryIndex),
                                         },
                                         cancellationToken).ConfigureAwait(false);
                                     break;
@@ -1146,16 +1148,7 @@ internal sealed class OpenAIResponsesTurnExecutor(
             options.ReasoningOptions = new ResponseReasoningOptions
             {
                 ReasoningSummaryVerbosity = ResponseReasoningSummaryVerbosity.Detailed,
-                ReasoningEffortLevel = reasoningEffort switch
-                {
-                    AgentReasoningEffort.None => null,
-                    AgentReasoningEffort.Minimal => ResponseReasoningEffortLevel.Minimal,
-                    AgentReasoningEffort.Low => ResponseReasoningEffortLevel.Low,
-                    AgentReasoningEffort.Medium => ResponseReasoningEffortLevel.Medium,
-                    AgentReasoningEffort.High => ResponseReasoningEffortLevel.High,
-                    AgentReasoningEffort.XHigh => XHighReasoningEffortLevel,
-                    _ => null,
-                },
+                ReasoningEffortLevel = MapReasoningEffortLevel(reasoningEffort),
             };
         }
 
@@ -1176,6 +1169,19 @@ internal sealed class OpenAIResponsesTurnExecutor(
 
         return options;
     }
+
+    internal static ResponseReasoningEffortLevel? MapReasoningEffortLevel(AgentReasoningEffort effort)
+        => effort switch
+        {
+            AgentReasoningEffort.None => null,
+            AgentReasoningEffort.Minimal => ResponseReasoningEffortLevel.Minimal,
+            AgentReasoningEffort.Low => ResponseReasoningEffortLevel.Low,
+            AgentReasoningEffort.Medium => ResponseReasoningEffortLevel.Medium,
+            AgentReasoningEffort.High => ResponseReasoningEffortLevel.High,
+            AgentReasoningEffort.XHigh => XHighReasoningEffortLevel,
+            AgentReasoningEffort.Max => MaxReasoningEffortLevel,
+            _ => null,
+        };
 
     private static bool SupportsRequestedReasoningEffort(AgentTurnRequest request, AgentReasoningEffort reasoningEffort)
     {
@@ -1305,7 +1311,9 @@ internal sealed class OpenAIResponsesTurnExecutor(
                     contentParts.Add(ResponseContentPart.CreateOutputTextPart(data.Name ?? data.MediaType ?? "attachment", []));
                     break;
                 case AgentMessagePart.Reasoning reasoning:
-                    var reasoningItem = ResponseItem.CreateReasoningItem(reasoning.Value ?? string.Empty);
+                    var reasoningItem = reasoning.SummaryParts is { Count: > 0 } summaryParts
+                        ? new ReasoningResponseItem(summaryParts.Select(ReasoningSummaryPart.CreateTextPart))
+                        : ResponseItem.CreateReasoningItem(reasoning.Value ?? string.Empty);
                     if (!string.IsNullOrWhiteSpace(reasoning.ProtectedData))
                     {
                         reasoningItem.EncryptedContent = reasoning.ProtectedData;
@@ -1451,12 +1459,18 @@ internal sealed class OpenAIResponsesTurnExecutor(
 
                     break;
                 case ReasoningResponseItem reasoning:
-                    if (!string.IsNullOrWhiteSpace(reasoning.GetSummaryText()) || !string.IsNullOrWhiteSpace(reasoning.EncryptedContent))
+                    var summaryParts = reasoning.SummaryParts
+                        .OfType<ReasoningSummaryTextPart>()
+                        .Select(static part => part.Text ?? string.Empty)
+                        .ToArray();
+                    var summaryText = string.Concat(summaryParts);
+                    if (!string.IsNullOrWhiteSpace(summaryText) || !string.IsNullOrWhiteSpace(reasoning.EncryptedContent))
                     {
                         parts.Add(new AgentMessagePart.Reasoning(
-                            reasoning.GetSummaryText() ?? string.Empty,
+                            summaryText,
                             string.IsNullOrWhiteSpace(reasoning.EncryptedContent) ? null : reasoning.EncryptedContent,
-                            reasoningProvenance));
+                            reasoningProvenance,
+                            summaryParts));
                         partContentIds.Add(stableItemId);
                     }
 
@@ -1472,6 +1486,19 @@ internal sealed class OpenAIResponsesTurnExecutor(
         }
 
         return (new AgentConversationMessage(AgentConversationRole.Assistant, parts), partContentIds);
+    }
+
+    private static JsonElement CreateReasoningSummaryDeltaDetails(int summaryIndex)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+        {
+            writer.WriteStartObject();
+            writer.WriteNumber("summaryIndex", summaryIndex);
+            writer.WriteEndObject();
+        }
+
+        return JsonDocument.Parse(stream.ToArray()).RootElement.Clone();
     }
 
     private static void ValidateCodexTerminalResponseShape(

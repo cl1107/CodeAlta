@@ -84,7 +84,7 @@ public static class AltaModelRef
             var reasoningText = modelAndReasoning[(at + 1)..].Trim();
             if (!TryParseReasoning(reasoningText, out var parsedReasoning))
             {
-                error = $"Reasoning effort '{reasoningText}' is not valid. Use minimal, low, medium, high, xhigh, or none.";
+                error = $"Reasoning effort '{reasoningText}' is not valid. Use minimal, low, medium, high, xhigh, max, or none.";
                 return false;
             }
 
@@ -121,6 +121,7 @@ public static class AltaModelRef
             "medium" => AgentReasoningEffort.Medium,
             "high" => AgentReasoningEffort.High,
             "xhigh" => AgentReasoningEffort.XHigh,
+            "max" => AgentReasoningEffort.Max,
             "none" => AgentReasoningEffort.None,
             _ => null,
         };
@@ -136,6 +137,7 @@ public static class AltaModelRef
             AgentReasoningEffort.Medium => "medium",
             AgentReasoningEffort.High => "high",
             AgentReasoningEffort.XHigh => "xhigh",
+            AgentReasoningEffort.Max => "max",
             AgentReasoningEffort.None => "none",
             _ => effort.ToString().ToLowerInvariant(),
         };

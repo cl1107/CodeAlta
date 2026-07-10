@@ -75,7 +75,7 @@ Common provider fields are:
 | `display_name` | Label shown in provider selectors and dialogs. |
 | `type` | Provider type. Common aliases such as `openai`, `responses`, `aoai`, `gemini`, `vertex`, and `github-copilot` are normalized to the canonical types above. |
 | `model` | Default model id for this provider. |
-| `reasoning_effort` | Default reasoning effort: `none`, `minimal`, `low`, `medium`, `high`, or `xhigh`. |
+| `reasoning_effort` | Default reasoning effort: `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. Providers advertise the values supported per model. |
 | `api_key` / `api_key_env` | Literal API key or environment variable name for API-key providers. Prefer `api_key_env`. |
 | `api_url` | Absolute endpoint override. Azure OpenAI, Codex, and Copilot require HTTPS except localhost test transports. |
 | `network_timeout_seconds` | Positive OpenAI/Azure SDK network timeout override for `openai-chat`, `openai-responses`, `azure-openai`, and `codex`. Leave unset for the OpenAI SDK default timeout of 100 seconds. |
@@ -381,6 +381,8 @@ model_discovery = "codex_endpoint_with_static_fallback"
 ```
 
 Codex credentials are stored in CodeAlta-owned state through its login flow. It does not accept `api_key`, `api_key_env`, or arbitrary `extra_body`.
+
+CodeAlta follows Codex's ordered per-model reasoning-effort catalog for recognized inference values. GPT-5.6 Sol, Terra, and Luna support `max` as their highest inference effort in the static fallback catalog. CodeAlta does not expose Codex's `ultra` client tier because CodeAlta does not implement its separate proactive delegation policy. A reasoning-summary part whose body, after an optional bold heading, is exactly `<!-- -->` has no body while streaming, then is hidden from completed chat history with that heading. Literal comments in real prose or fenced examples and raw session data are retained.
 
 ### Copilot
 

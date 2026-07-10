@@ -189,9 +189,31 @@ internal sealed class SessionTimelinePresenter
         }
 
         state.Buffer.Append(delta.Delta);
-        var content = state.Buffer.ToString();
-        var markdown = ChatMarkdownFormatter.FormatChatContentMarkdown(delta.Kind, content);
-        var headerSecondary = ChatMarkdownFormatter.GetChatContentHeaderSecondary(delta.Kind, content);
+        string markdown;
+        string? headerSecondary;
+        if (delta.Kind is AgentContentKind.Reasoning or AgentContentKind.ReasoningSummary &&
+            TryGetReasoningSummaryIndex(delta.Details, out var summaryIndex))
+        {
+            state.ReasoningSummaryPartBuffers ??= [];
+            if (!state.ReasoningSummaryPartBuffers.TryGetValue(summaryIndex, out var summaryPartBuffer))
+            {
+                summaryPartBuffer = new StringBuilder();
+                state.ReasoningSummaryPartBuffers.Add(summaryIndex, summaryPartBuffer);
+            }
+
+            summaryPartBuffer.Append(delta.Delta);
+            var summaryParts = state.ReasoningSummaryPartBuffers.Values
+                .Select(static part => part.ToString())
+                .ToArray();
+            markdown = ChatMarkdownFormatter.FormatStreamingReasoningSummaryMarkdown(summaryParts);
+            headerSecondary = ChatMarkdownFormatter.GetStreamingReasoningSummaryHeaderSecondary(summaryParts);
+        }
+        else
+        {
+            var content = state.Buffer.ToString();
+            markdown = ChatMarkdownFormatter.FormatChatContentMarkdown(delta.Kind, content);
+            headerSecondary = ChatMarkdownFormatter.GetChatContentHeaderSecondary(delta.Kind, content);
+        }
         UiDispatch.Post(_uiDispatcher, () =>
         {
             ChatTimelineVisualFactory.ApplyHeader(
@@ -311,8 +333,8 @@ internal sealed class SessionTimelinePresenter
         state.Buffer.Clear();
         state.Buffer.Append(content);
         state.IsCompleted = true;
-        var markdown = ChatMarkdownFormatter.FormatChatContentMarkdown(completed.Kind, content);
-        var headerSecondary = ChatMarkdownFormatter.GetChatContentHeaderSecondary(completed.Kind, content);
+        var markdown = ChatMarkdownFormatter.FormatCompletedChatContentMarkdown(completed, content);
+        var headerSecondary = ChatMarkdownFormatter.GetCompletedChatContentHeaderSecondary(completed, content);
         UiDispatch.Post(_uiDispatcher, () =>
         {
             ChatTimelineVisualFactory.ApplyHeader(
@@ -322,6 +344,28 @@ internal sealed class SessionTimelinePresenter
                 headerSecondary);
             state.Markdown.Markdown = markdown;
         });
+    }
+
+    public void DiscardCompletedContent(AgentContentCompletedEvent completed)
+    {
+        ArgumentNullException.ThrowIfNull(completed);
+
+        var key = ChatTimelineVisualFactory.CreateContentKey(completed.Kind, completed.ContentId);
+        if (!_contentStates.TryGetValue(key, out var state) &&
+            !TryFindEquivalentStreamingContentState(completed, out key, out state))
+        {
+            return;
+        }
+
+        _contentStates.Remove(key);
+        foreach (var alias in _contentStateAliases.Where(alias =>
+                     string.Equals(alias.Key, key, StringComparison.Ordinal) ||
+                     string.Equals(alias.Value, key, StringComparison.Ordinal)).ToArray())
+        {
+            _contentStateAliases.Remove(alias.Key);
+        }
+
+        RemoveTimelineItems([state.Item]);
     }
 
     public bool ShouldSkipEmptyAssistantCompletion(AgentContentCompletedEvent completed)
@@ -1194,6 +1238,21 @@ internal sealed class SessionTimelinePresenter
 
         return TryGetStringProperty(root, "attemptId", out attemptId) &&
                !string.IsNullOrWhiteSpace(attemptId);
+    }
+
+    private static bool TryGetReasoningSummaryIndex(System.Text.Json.JsonElement? details, out int summaryIndex)
+    {
+        if (details is { ValueKind: System.Text.Json.JsonValueKind.Object } root &&
+            TryGetProperty(root, "summaryIndex", out var summaryIndexProperty) &&
+            summaryIndexProperty.ValueKind is System.Text.Json.JsonValueKind.Number &&
+            summaryIndexProperty.TryGetInt32(out summaryIndex) &&
+            summaryIndex >= 0)
+        {
+            return true;
+        }
+
+        summaryIndex = 0;
+        return false;
     }
 
     private static bool TryGetDiscardDraftAttemptId(System.Text.Json.JsonElement? details, out string attemptId)

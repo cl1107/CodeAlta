@@ -486,6 +486,7 @@ public sealed class CodeAltaConfigStore
             "medium" => AgentReasoningEffort.Medium,
             "high" => AgentReasoningEffort.High,
             "xhigh" => AgentReasoningEffort.XHigh,
+            "max" => AgentReasoningEffort.Max,
             _ => null,
         };
     }
@@ -501,6 +502,7 @@ public sealed class CodeAltaConfigStore
             AgentReasoningEffort.Medium => "medium",
             AgentReasoningEffort.High => "high",
             AgentReasoningEffort.XHigh => "xhigh",
+            AgentReasoningEffort.Max => "max",
             _ => null,
         };
     }

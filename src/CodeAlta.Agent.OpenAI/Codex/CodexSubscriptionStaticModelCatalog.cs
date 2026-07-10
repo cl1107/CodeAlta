@@ -11,9 +11,12 @@ internal static class CodexSubscriptionStaticModelCatalog
     private const long DefaultInputTokenLimit = 272_000;
     private const long DefaultOutputTokenLimit = 128_000;
 
-    // User-visible Codex subscription picker entries, following the curated Codex/pi-mono catalog.
+    // User-visible Codex subscription picker entries, following the curated Codex catalog.
     private static readonly CodexStaticModel[] Models =
     [
+        new("gpt-5.6-sol", "GPT-5.6 Sol", SupportsImageInput: true, DefaultReasoningEffort: AgentReasoningEffort.Low, SupportsMaxReasoningEffort: true),
+        new("gpt-5.6-terra", "GPT-5.6 Terra", SupportsImageInput: true, DefaultReasoningEffort: AgentReasoningEffort.Medium, SupportsMaxReasoningEffort: true),
+        new("gpt-5.6-luna", "GPT-5.6 Luna", SupportsImageInput: true, DefaultReasoningEffort: AgentReasoningEffort.Medium, SupportsMaxReasoningEffort: true),
         new("gpt-5.5", "GPT-5.5", SupportsImageInput: true, DefaultReasoningEffort: AgentReasoningEffort.Medium),
         new("gpt-5.4", "GPT-5.4", SupportsImageInput: true, DefaultReasoningEffort: AgentReasoningEffort.Medium),
         new("gpt-5.4-mini", "GPT-5.4 mini", SupportsImageInput: true, DefaultReasoningEffort: AgentReasoningEffort.Medium),
@@ -41,13 +44,7 @@ internal static class CodexSubscriptionStaticModelCatalog
             DisplayName: model.DisplayName,
             Provider: providerDescriptor.ProviderKey,
             DefaultReasoningEffort: model.DefaultReasoningEffort,
-            SupportedReasoningEfforts:
-            [
-                AgentReasoningEffort.Low,
-                AgentReasoningEffort.Medium,
-                AgentReasoningEffort.High,
-                AgentReasoningEffort.XHigh,
-            ],
+            SupportedReasoningEfforts: CreateSupportedReasoningEfforts(model),
             Capabilities: new Dictionary<string, object?>(StringComparer.Ordinal)
             {
                 ["source"] = "codex-static-fallback",
@@ -68,9 +65,27 @@ internal static class CodexSubscriptionStaticModelCatalog
                 ["maxTokens"] = DefaultOutputTokenLimit,
             });
 
+    private static IReadOnlyList<AgentReasoningEffort> CreateSupportedReasoningEfforts(CodexStaticModel model)
+    {
+        var efforts = new List<AgentReasoningEffort>
+        {
+            AgentReasoningEffort.Low,
+            AgentReasoningEffort.Medium,
+            AgentReasoningEffort.High,
+            AgentReasoningEffort.XHigh,
+        };
+        if (model.SupportsMaxReasoningEffort)
+        {
+            efforts.Add(AgentReasoningEffort.Max);
+        }
+
+        return efforts;
+    }
+
     private sealed record CodexStaticModel(
         string Id,
         string DisplayName,
         bool SupportsImageInput,
-        AgentReasoningEffort DefaultReasoningEffort);
+        AgentReasoningEffort DefaultReasoningEffort,
+        bool SupportsMaxReasoningEffort = false);
 }

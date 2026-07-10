@@ -19,6 +19,17 @@ namespace CodeAlta.Tests;
 public sealed class AltaLiveToolTests
 {
     [TestMethod]
+    [DataRow("max", AgentReasoningEffort.Max)]
+    public void ModelRef_RoundTripsMaxReasoningEffort(string wireName, AgentReasoningEffort expected)
+    {
+        Assert.IsTrue(AltaModelRef.TryParse($"codex:gpt-5.6-sol@{wireName}", out var selection, out var error));
+        Assert.IsNull(error);
+        Assert.AreEqual(expected, selection!.ReasoningEffort);
+        Assert.AreEqual($"codex:gpt-5.6-sol@{wireName}", selection.ModelRef);
+        Assert.AreEqual(wireName, AltaModelRef.ToWireName(expected));
+    }
+
+    [TestMethod]
     public async Task Dispatcher_Version_ReturnsJsonlResultHeaderAndVersionRecord()
     {
         var result = await CreateDispatcher().InvokeAsync(["version"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);

@@ -504,6 +504,9 @@ public sealed class MistralModelProviderRuntime : IAgentModelProviderRuntime
             case "xhigh":
                 effort = AgentReasoningEffort.XHigh;
                 return true;
+            case "max":
+                effort = AgentReasoningEffort.Max;
+                return true;
             default:
                 return false;
         }

@@ -45,6 +45,7 @@ internal sealed class ModelProvidersDialog
         new("medium", SR.T("Medium")),
         new("high", SR.T("High")),
         new("xhigh", SR.T("XHigh")),
+        new("max", SR.T("Max")),
     ];
 
     private readonly IModelProviderDialogService _modelProviders;

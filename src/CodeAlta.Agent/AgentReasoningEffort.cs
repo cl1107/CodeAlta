@@ -26,6 +26,11 @@ public enum AgentReasoningEffort
     XHigh = 3,
 
     /// <summary>
+    /// Maximum reasoning effort.
+    /// </summary>
+    Max = 6,
+
+    /// <summary>
     /// No additional reasoning effort.
     /// </summary>
     None = 4,

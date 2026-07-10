@@ -207,6 +207,7 @@ internal sealed class CodexSubscriptionModelDiscoveryClient
                     GetBoolean(modelElement, "supportsImageInput") ??
                     ContainsString(modelElement, "input_modalities", "image"),
                 GetBoolean(modelElement, "supports_tools") ?? GetBoolean(modelElement, "supportsTools") ?? true,
+                GetReasoningEfforts(modelElement),
                 GetString(modelElement, "default_reasoning_effort") ??
                     GetString(modelElement, "defaultReasoningEffort") ??
                     GetString(modelElement, "default_reasoning_level"),
@@ -255,6 +256,37 @@ internal sealed class CodexSubscriptionModelDiscoveryClient
         return false;
     }
 
+    private static IReadOnlyList<string>? GetReasoningEfforts(JsonElement element)
+    {
+        if (!element.TryGetProperty("supported_reasoning_levels", out var values) &&
+            !element.TryGetProperty("supportedReasoningEfforts", out values))
+        {
+            return null;
+        }
+
+        if (values.ValueKind is not JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        var efforts = new List<string>();
+        foreach (var value in values.EnumerateArray())
+        {
+            var effort = value.ValueKind switch
+            {
+                JsonValueKind.String => value.GetString(),
+                JsonValueKind.Object => GetString(value, "effort"),
+                _ => null,
+            };
+            if (!string.IsNullOrWhiteSpace(effort))
+            {
+                efforts.Add(effort.Trim());
+            }
+        }
+
+        return efforts;
+    }
+
     private static long? GetInt64(JsonElement element, string name)
         => element.TryGetProperty(name, out var value) && value.ValueKind is JsonValueKind.Number &&
             value.TryGetInt64(out var number)
@@ -275,6 +307,7 @@ internal sealed record CodexSubscriptionDiscoveredModel(
     bool SupportsTextVerbosity,
     bool SupportsImageInput,
     bool SupportsTools,
+    IReadOnlyList<string>? SupportedReasoningEfforts,
     string? DefaultReasoningEffort,
     string? DefaultTextVerbosity,
     long? ContextWindow,

@@ -3702,6 +3702,12 @@
   fr: "Corps Markdown"
   ja: "Markdown 本文"
   zh: "Markdown 正文"
+"Max":
+  de: "Maximal"
+  es: "Máximo"
+  fr: "Maximal"
+  ja: "最大"
+  zh: "最大"
 "Medium":
   de: "Mittel"
   es: "Medio"

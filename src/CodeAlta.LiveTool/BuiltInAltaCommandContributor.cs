@@ -1138,7 +1138,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         command.Add("same-model-as=", "Inherit model selection from a session id.", value => options.SameModelAsSessionId = value);
         command.Add("provider=", "Provider id.", value => options.ProviderKey = value);
         command.Add("model=", "Model id.", value => options.ModelId = value);
-        command.Add("reasoning=", "Reasoning effort: minimal, low, medium, high, xhigh, or none.", value => options.ReasoningEffort = ParseReasoningOption(value));
+        command.Add("reasoning=", "Reasoning effort: minimal, low, medium, high, xhigh, max, or none.", value => options.ReasoningEffort = ParseReasoningOption(value));
         command.Add("prompt-id=", "Agent prompt id from `alta prompt list`. Defaults to `default` for new sessions.", value => options.PromptId = value);
     }
 
@@ -1150,7 +1150,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         }
 
         throw new CommandOptionException(
-            $"Reasoning effort '{value}' is not valid. Use minimal, low, medium, high, xhigh, or none.",
+            $"Reasoning effort '{value}' is not valid. Use minimal, low, medium, high, xhigh, max, or none.",
             "--reasoning");
     }
 

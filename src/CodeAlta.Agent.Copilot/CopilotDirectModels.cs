@@ -233,6 +233,7 @@ internal sealed class CopilotModelDiscoveryClient
             "medium" => AgentReasoningEffort.Medium,
             "high" => AgentReasoningEffort.High,
             "xhigh" => AgentReasoningEffort.XHigh,
+            "max" => AgentReasoningEffort.Max,
             _ => null,
         };
 

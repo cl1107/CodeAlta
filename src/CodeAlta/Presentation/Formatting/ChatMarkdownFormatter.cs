@@ -35,6 +35,60 @@ internal static class ChatMarkdownFormatter
         };
     }
 
+    public static string FormatCompletedChatContentMarkdown(AgentContentCompletedEvent completed)
+    {
+        ArgumentNullException.ThrowIfNull(completed);
+        return FormatCompletedChatContentMarkdown(completed, completed.Content);
+    }
+
+    public static string FormatCompletedChatContentMarkdown(
+        AgentContentCompletedEvent completed,
+        string resolvedContent)
+    {
+        ArgumentNullException.ThrowIfNull(completed);
+        ArgumentNullException.ThrowIfNull(resolvedContent);
+        return FormatChatContentMarkdown(
+            completed.Kind,
+            GetCompletedContentForPresentation(completed, resolvedContent));
+    }
+
+    public static string? GetCompletedChatContentHeaderSecondary(AgentContentCompletedEvent completed)
+    {
+        ArgumentNullException.ThrowIfNull(completed);
+        return GetCompletedChatContentHeaderSecondary(completed, completed.Content);
+    }
+
+    public static string? GetCompletedChatContentHeaderSecondary(
+        AgentContentCompletedEvent completed,
+        string resolvedContent)
+    {
+        ArgumentNullException.ThrowIfNull(completed);
+        ArgumentNullException.ThrowIfNull(resolvedContent);
+
+        if (completed.Kind is AgentContentKind.Reasoning or AgentContentKind.ReasoningSummary &&
+            TryGetReasoningSummaryParts(completed.Details, out var summaryParts))
+        {
+            return GetReasoningSummaryPartHeader(BuildReasoningSummaryPartPresentation(summaryParts));
+        }
+
+        return GetChatContentHeaderSecondary(
+            completed.Kind,
+            GetCompletedContentForPresentation(completed, resolvedContent));
+    }
+
+    public static string FormatStreamingReasoningSummaryMarkdown(IReadOnlyList<string> summaryParts)
+    {
+        ArgumentNullException.ThrowIfNull(summaryParts);
+        var presentation = BuildReasoningSummaryPartPresentation(summaryParts);
+        return TrimReasoningContent(presentation.Content);
+    }
+
+    public static string? GetStreamingReasoningSummaryHeaderSecondary(IReadOnlyList<string> summaryParts)
+    {
+        ArgumentNullException.ThrowIfNull(summaryParts);
+        return GetReasoningSummaryPartHeader(BuildReasoningSummaryPartPresentation(summaryParts));
+    }
+
     public static string FormatChatPlanMarkdown(AgentPlanSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
@@ -808,7 +862,8 @@ internal static class ChatMarkdownFormatter
 
         return completed.Kind switch
         {
-            AgentContentKind.Reasoning or AgentContentKind.ReasoningSummary => !string.IsNullOrWhiteSpace(completed.Content),
+            AgentContentKind.Reasoning or AgentContentKind.ReasoningSummary =>
+                ShouldDisplayCompletedReasoning(completed),
             AgentContentKind.CommandOutput or AgentContentKind.FileChangeOutput or AgentContentKind.ToolOutput or AgentContentKind.Notice => false,
             _ => true,
         };
@@ -1077,6 +1132,281 @@ internal static class ChatMarkdownFormatter
         var summary = end >= 0 ? normalized[..end] : normalized;
         return TrimSummaryText(summary);
     }
+
+    private static string GetCompletedContentForPresentation(
+        AgentContentCompletedEvent completed,
+        string resolvedContent)
+    {
+        if (completed.Kind is not (AgentContentKind.Reasoning or AgentContentKind.ReasoningSummary) ||
+            !TryGetReasoningSummaryParts(completed.Details, out var summaryParts))
+        {
+            return resolvedContent;
+        }
+
+        return BuildReasoningSummaryPartPresentation(summaryParts).Content;
+    }
+
+    private static bool TryGetReasoningSummaryParts(JsonElement? details, out IReadOnlyList<string> summaryParts)
+    {
+        if (details is not { ValueKind: JsonValueKind.Object } detailsValue ||
+            !detailsValue.TryGetProperty("summaryParts", out var summaryPartsElement) ||
+            summaryPartsElement.ValueKind is not JsonValueKind.Array)
+        {
+            summaryParts = [];
+            return false;
+        }
+
+        var parts = new List<string>(summaryPartsElement.GetArrayLength());
+        foreach (var part in summaryPartsElement.EnumerateArray())
+        {
+            if (part.ValueKind is not JsonValueKind.String)
+            {
+                summaryParts = [];
+                return false;
+            }
+
+            parts.Add(part.GetString() ?? string.Empty);
+        }
+
+        summaryParts = parts;
+        return true;
+    }
+
+    private static bool TryGetLeadingBoldHeadingEnd(string content, out int headingEnd)
+    {
+        headingEnd = 0;
+        if (!content.StartsWith("**", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var closingIndex = content.IndexOf("**", 2, StringComparison.Ordinal);
+        if (closingIndex <= 2)
+        {
+            return false;
+        }
+
+        headingEnd = closingIndex + 2;
+        return true;
+    }
+
+    private static bool ShouldDisplayCompletedReasoning(AgentContentCompletedEvent completed)
+    {
+        if (!TryGetReasoningSummaryParts(completed.Details, out var summaryParts))
+        {
+            return !string.IsNullOrWhiteSpace(completed.Content);
+        }
+
+        var presentation = BuildReasoningSummaryPartPresentation(summaryParts);
+        return !string.IsNullOrWhiteSpace(presentation.Content) || presentation.HeadingOnly is not null;
+    }
+
+    private static ReasoningSummaryPartPresentation BuildReasoningSummaryPartPresentation(
+        IReadOnlyList<string> summaryParts)
+    {
+        var visibleParts = new List<string>(summaryParts.Count);
+        foreach (var summaryPart in summaryParts)
+        {
+            var part = NormalizeReasoningSummaryPart(summaryPart);
+            if (part.Length == 0)
+            {
+                continue;
+            }
+
+            visibleParts.Add(part);
+        }
+
+        if (visibleParts.Count == 1 && TryGetHeadingOnly(visibleParts[0], out var headingOnly))
+        {
+            return new ReasoningSummaryPartPresentation(string.Empty, headingOnly);
+        }
+
+        return new ReasoningSummaryPartPresentation(
+            string.Join("\n\n", visibleParts),
+            null);
+    }
+
+    private static string NormalizeReasoningSummaryPart(string summaryPart)
+    {
+        const string emptyHtmlComment = "<!-- -->";
+        var normalizedLines = summaryPart.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+        var visibleLines = new List<string>(normalizedLines.Length);
+        var fencedLines = GetFencedLines(normalizedLines);
+        var skipBlankAfterPlaceholder = false;
+
+        for (var lineIndex = 0; lineIndex < normalizedLines.Length; lineIndex++)
+        {
+            var line = normalizedLines[lineIndex];
+            var trimmedLine = line.Trim();
+            if (fencedLines[lineIndex])
+            {
+                visibleLines.Add(line);
+                skipBlankAfterPlaceholder = false;
+                continue;
+            }
+
+            if (string.Equals(trimmedLine, emptyHtmlComment, StringComparison.Ordinal) &&
+                ShouldRemoveStandalonePlaceholder(normalizedLines, fencedLines, lineIndex))
+            {
+                skipBlankAfterPlaceholder = true;
+                continue;
+            }
+
+            if (skipBlankAfterPlaceholder && trimmedLine.Length == 0)
+            {
+                continue;
+            }
+
+            skipBlankAfterPlaceholder = false;
+            line = StripPlaceholderPrefixFromHeading(line);
+            visibleLines.Add(line);
+        }
+
+        return string.Join("\n", visibleLines).Trim();
+    }
+
+    private static bool[] GetFencedLines(IReadOnlyList<string> lines)
+    {
+        var fencedLines = new bool[lines.Count];
+        string? fenceMarker = null;
+        for (var lineIndex = 0; lineIndex < lines.Count; lineIndex++)
+        {
+            var trimmedLine = lines[lineIndex].Trim();
+            if (fenceMarker is not null)
+            {
+                fencedLines[lineIndex] = true;
+                if (IsClosingFence(trimmedLine, fenceMarker))
+                {
+                    fenceMarker = null;
+                }
+
+                continue;
+            }
+
+            if (TryGetFenceMarker(trimmedLine, out fenceMarker))
+            {
+                fencedLines[lineIndex] = true;
+            }
+        }
+
+        return fencedLines;
+    }
+
+    private static bool ShouldRemoveStandalonePlaceholder(
+        IReadOnlyList<string> lines,
+        IReadOnlyList<bool> fencedLines,
+        int placeholderIndex)
+    {
+        var previous = FindAdjacentSummaryLine(lines, fencedLines, placeholderIndex, -1);
+        var next = FindAdjacentSummaryLine(lines, fencedLines, placeholderIndex, 1);
+        return (previous is null && next is null) ||
+               (previous is not null && IsBoldHeadingLine(previous)) ||
+               (next is not null && IsBoldHeadingLine(next));
+    }
+
+    private static string? FindAdjacentSummaryLine(
+        IReadOnlyList<string> lines,
+        IReadOnlyList<bool> fencedLines,
+        int placeholderIndex,
+        int direction)
+    {
+        const string emptyHtmlComment = "<!-- -->";
+        for (var lineIndex = placeholderIndex + direction;
+             lineIndex >= 0 && lineIndex < lines.Count;
+             lineIndex += direction)
+        {
+            if (fencedLines[lineIndex])
+            {
+                return lines[lineIndex].Trim();
+            }
+
+            var line = lines[lineIndex].Trim();
+            if (line.Length == 0 || string.Equals(line, emptyHtmlComment, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            return line;
+        }
+
+        return null;
+    }
+
+    private static bool IsBoldHeadingLine(string line)
+    {
+        var normalizedLine = StripPlaceholderPrefixFromHeading(line);
+        return TryGetLeadingBoldHeadingEnd(normalizedLine, out var headingEnd) &&
+               string.IsNullOrWhiteSpace(normalizedLine[headingEnd..]);
+    }
+
+    private static string StripPlaceholderPrefixFromHeading(string line)
+    {
+        const string emptyHtmlComment = "<!-- -->";
+        var indentationLength = line.Length - line.TrimStart().Length;
+        var remainder = line[indentationLength..];
+        var removedPlaceholder = false;
+        while (remainder.StartsWith(emptyHtmlComment, StringComparison.Ordinal))
+        {
+            removedPlaceholder = true;
+            remainder = remainder[emptyHtmlComment.Length..].TrimStart();
+        }
+
+        return removedPlaceholder && TryGetLeadingBoldHeadingEnd(remainder, out _)
+            ? string.Concat(line.AsSpan(0, indentationLength), remainder)
+            : line;
+    }
+
+    private static bool TryGetFenceMarker(string trimmedLine, out string? marker)
+    {
+        marker = null;
+        if (trimmedLine.Length < 3 || trimmedLine[0] is not ('`' or '~'))
+        {
+            return false;
+        }
+
+        var markerCharacter = trimmedLine[0];
+        var markerLength = 1;
+        while (markerLength < trimmedLine.Length && trimmedLine[markerLength] == markerCharacter)
+        {
+            markerLength++;
+        }
+
+        if (markerLength < 3)
+        {
+            return false;
+        }
+
+        marker = trimmedLine[..markerLength];
+        return true;
+    }
+
+    private static bool IsClosingFence(string trimmedLine, string fenceMarker)
+    {
+        if (!trimmedLine.StartsWith(fenceMarker, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        return trimmedLine.AsSpan(fenceMarker.Length).Trim().IsEmpty;
+    }
+
+    private static bool TryGetHeadingOnly(string content, out string heading)
+    {
+        if (TryGetLeadingBoldHeadingEnd(content, out var headingEnd) &&
+            string.IsNullOrWhiteSpace(content[headingEnd..]))
+        {
+            heading = content[2..(headingEnd - 2)].Trim();
+            return true;
+        }
+
+        heading = string.Empty;
+        return false;
+    }
+
+    private static string? GetReasoningSummaryPartHeader(ReasoningSummaryPartPresentation presentation)
+        => presentation.HeadingOnly ?? BuildReasoningSummary(presentation.Content);
+
+    private readonly record struct ReasoningSummaryPartPresentation(string Content, string? HeadingOnly);
 
     private static bool TryExtractReasoningHeading(string content, out string? heading, out string? remainder)
     {

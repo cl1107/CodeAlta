@@ -117,6 +117,8 @@ Current behavior:
 - `response_transport = "http"` or `"sse"` forces the HTTP/SSE SDK path;
 - encrypted reasoning is included by default;
 - model discovery defaults to `codex_endpoint_with_static_fallback`, which reads the subscription `/models` endpoint and falls back to the static allow-list if discovery fails;
+- recognized reasoning efforts follow the order advertised by Codex, including model-specific `max`; CodeAlta ignores Codex's `ultra` client tier because its distinct proactive delegation policy is not implemented;
+- the static fallback includes GPT-5.6 Sol, Terra, and Luna with `max` as their highest reasoning effort;
 - `send_installation_id` defaults to `false` and sends a CodeAlta-owned stable id only when explicitly enabled;
 - requests use CodeAlta-owned stored subscription credentials and do not convert subscription tokens into platform API keys.
 
@@ -157,6 +159,7 @@ Implementation notes verified against `OpenAIResponsesTurnExecutor` and `OpenAIC
 - WebSocket handshakes send bearer subscription auth plus `OpenAI-Beta: responses_websockets=2026-02-06`, `originator: codealta`, `session_id`, `x-client-request-id`, `User-Agent`, optional `ChatGPT-Account-Id`, optional `X-OpenAI-Fedramp`, and captured `x-codex-turn-state` when present.
 - HTTP/SSE requests use the SDK `ResponsesClient` with subscription auth policy and `CodexSubscriptionHeadersPolicy`. That policy sends `originator`, optional account/session headers, optional `OpenAI-Beta: responses=experimental`, and captures `x-codex-turn-state` from responses.
 - Codex subscription request customization disables stored output, keeps streaming enabled, omits `max_output_tokens`, enables auto tool choice, adds encrypted reasoning when configured, sets `prompt_cache_key` to the CodeAlta session id, sets `text.verbosity`, and optionally adds `client_metadata.x-codex-installation-id`.
+- Reasoning summaries retain the SDK's `summary_index` and completed summary-part boundaries. A streaming part whose body, after an optional bold heading, is exactly `<!-- -->` keeps a compact card with no body; on completion that part and its heading are hidden. Literal comments in substantive prose or fenced examples and raw provider/session data are retained.
 - Active in-memory WebSocket sessions can reuse provider continuation with `previous_response_id` only when the replayed request prefix still matches. This continuation is not a persisted recovery mechanism; journals remain the durable source of truth.
 - WebSocket sessions are cached per CodeAlta session and expire after an idle timeout, defaulting to five minutes.
 - The turn executor retries subscription streams with a small bounded budget and `Retry-After`/exponential backoff when it is safe to retry. It avoids retrying after committed final content, dispatched tool side effects, or observed tool-call items.

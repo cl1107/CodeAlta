@@ -2599,7 +2599,7 @@ public sealed class AgentSession : IAgentSession, IAgentCompactionOutcomeProvide
         AgentMessagePart.Reasoning reasoning,
         bool redactProtectedData = false)
     {
-        if (string.IsNullOrWhiteSpace(reasoning.ProtectedData))
+        if (string.IsNullOrWhiteSpace(reasoning.ProtectedData) && reasoning.SummaryParts is null)
         {
             return null;
         }
@@ -2608,11 +2608,23 @@ public sealed class AgentSession : IAgentSession, IAgentCompactionOutcomeProvide
         using (var writer = new Utf8JsonWriter(stream))
         {
             writer.WriteStartObject();
-            if (redactProtectedData)
+            if (reasoning.SummaryParts is { } summaryParts)
+            {
+                writer.WritePropertyName("summaryParts");
+                writer.WriteStartArray();
+                foreach (var summaryPart in summaryParts)
+                {
+                    writer.WriteStringValue(summaryPart);
+                }
+
+                writer.WriteEndArray();
+            }
+
+            if (!string.IsNullOrWhiteSpace(reasoning.ProtectedData) && redactProtectedData)
             {
                 writer.WriteBoolean("protectedDataRedacted", true);
             }
-            else
+            else if (!string.IsNullOrWhiteSpace(reasoning.ProtectedData))
             {
                 writer.WriteString("protectedData", reasoning.ProtectedData);
             }
