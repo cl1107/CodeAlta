@@ -643,6 +643,37 @@ public sealed class OpenAICodexSubscriptionPipelineTests
     }
 
     [TestMethod]
+    public void ProtocolParser_PreservesCreditsOnlyAndDiscardsInvalidRateLimitValues()
+    {
+        using var response = new HttpResponseMessage(HttpStatusCode.OK);
+        response.Headers.Add("x-reasoning-included", "false");
+        response.Headers.Add("x-codex-credits-has-credits", "true");
+        response.Headers.Add("x-codex-credits-unlimited", "false");
+        response.Headers.Add("x-codex-credits-balance", "7");
+        response.Headers.Add("x-codex-primary-used-percent", "NaN");
+        response.Headers.Add("x-codex-primary-reset-at", long.MaxValue.ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+        var initial = CodexProtocolEventParser.CreateInitialHttpEvent(response);
+        var eventMetadata = CodexProtocolEventParser.Parse(
+            CodexProtocolTransport.WebSocket,
+            BinaryData.FromString(
+                """
+                {
+                  "type":"codex.rate_limits",
+                  "rate_limits":{"primary":{"used_percent":"NaN","reset_at":9223372036854775807}},
+                  "credits":{"has_credits":true,"unlimited":false,"balance":"7"}
+                }
+                """));
+
+        Assert.AreEqual(true, initial.Metadata.ReasoningIncluded, "Codex treats response-header presence as authoritative.");
+        Assert.AreEqual("7", initial.Metadata.RateLimits?.Single().Credits?.Balance);
+        Assert.IsNull(initial.Metadata.RateLimits?.Single().Primary);
+        Assert.AreEqual("7", eventMetadata.Metadata.RateLimits?.Single().Credits?.Balance);
+        Assert.IsNull(eventMetadata.Metadata.RateLimits?.Single().Primary?.UsedPercent);
+        Assert.IsNull(eventMetadata.Metadata.RateLimits?.Single().Primary?.ResetAt);
+    }
+
+    [TestMethod]
     public void ProtocolParser_TracksEndTurnFalseTrueAndAbsentOnlyOnTerminalEvents()
     {
         static CodexProtocolEvent Parse(string endTurn)

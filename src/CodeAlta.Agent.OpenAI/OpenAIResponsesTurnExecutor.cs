@@ -3261,7 +3261,10 @@ internal sealed class OpenAIResponsesTurnExecutor(
             {
                 foreach (var snapshot in metadata.RateLimits.Take(8))
                 {
-                    RateLimits[snapshot.Name] = snapshot;
+                    if (RateLimits.ContainsKey(snapshot.Name) || RateLimits.Count < 8)
+                    {
+                        RateLimits[snapshot.Name] = snapshot;
+                    }
                 }
 
                 var snapshots = RateLimits.Values.Select(MapRateLimitSnapshot).ToArray();

@@ -90,7 +90,7 @@ internal static class CodexProtocolEventParser
             RequestId: Header("x-request-id"),
             EffectiveModel: Header("OpenAI-Model"),
             ModelsETag: Header("x-models-etag"),
-            ReasoningIncluded: ParseBoolean(Header("x-reasoning-included")),
+            ReasoningIncluded: Header("x-reasoning-included") is not null ? true : null,
             SafetyBuffering: CreateHeaderSafetyBuffering(
                 Header("x-codex-safety-buffering-enabled"),
                 Header("x-codex-safety-buffering-faster-model")),
@@ -188,6 +188,12 @@ internal static class CodexProtocolEventParser
                 Credits: string.Equals(name, "codex", StringComparison.Ordinal) ? ParseHeaderCredits(values) : null));
         }
 
+        if (limits.All(static limit => !string.Equals(limit.Name, "codex", StringComparison.Ordinal)) &&
+            ParseHeaderCredits(values) is { } credits)
+        {
+            limits.Insert(0, new CodexNamedRateLimitSnapshot("codex", Credits: credits));
+        }
+
         return limits.Count == 0 ? null : limits.AsReadOnly();
     }
 
@@ -207,6 +213,12 @@ internal static class CodexProtocolEventParser
                 ParseJsonHeaderRateLimitWindow(headers, name, "secondary"),
                 GetString(headers, $"x-{name.Replace('_', '-')}-limit-name"),
                 Credits: string.Equals(name, "codex", StringComparison.Ordinal) ? ParseJsonHeaderCredits(headers) : null));
+        }
+
+        if (limits.All(static limit => !string.Equals(limit.Name, "codex", StringComparison.Ordinal)) &&
+            ParseJsonHeaderCredits(headers) is { } credits)
+        {
+            limits.Insert(0, new CodexNamedRateLimitSnapshot("codex", Credits: credits));
         }
     }
 
@@ -361,17 +373,21 @@ internal static class CodexProtocolEventParser
         => element.TryGetProperty(name, out var value) ? GetDouble(value) : null;
 
     private static double? GetDouble(JsonElement value)
-        => value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out var parsed)
-            ? parsed
-            : value.ValueKind == JsonValueKind.String && double.TryParse(value.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out parsed)
-                ? parsed
-                : null;
+    {
+        var parsed = value.ValueKind switch
+        {
+            JsonValueKind.Number when value.TryGetDouble(out var number) => number,
+            JsonValueKind.String when double.TryParse(value.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var number) => number,
+            _ => (double?)null,
+        };
+        return parsed is { } finite && double.IsFinite(finite) ? finite : null;
+    }
 
     private static long? GetInt64(JsonElement element, string name)
         => element.TryGetProperty(name, out var value) && value.TryGetInt64(out var parsed) ? parsed : null;
 
     private static DateTimeOffset? GetUnixTime(JsonElement element, string name)
-        => GetInt64(element, name) is { } seconds ? DateTimeOffset.FromUnixTimeSeconds(seconds) : null;
+        => GetInt64(element, name) is { } seconds ? TryCreateUnixTime(seconds) : null;
 
     private static string? GetBoundedJson(JsonElement? element, string name)
     {
@@ -406,7 +422,7 @@ internal static class CodexProtocolEventParser
         => TryGetProperty(element, name, out var value) && value.TryGetInt64(out var parsed) ? parsed : null;
 
     private static DateTimeOffset? GetUnixTimeProperty(JsonElement element, string name)
-        => GetInt64Property(element, name) is { } seconds ? DateTimeOffset.FromUnixTimeSeconds(seconds) : null;
+        => GetInt64Property(element, name) is { } seconds ? TryCreateUnixTime(seconds) : null;
 
     private static string? TryGetHeader(HttpHeaders headers, string name)
         => headers.TryGetValues(name, out var values) ? values.FirstOrDefault() : null;
@@ -450,5 +466,17 @@ internal static class CodexProtocolEventParser
         => values.TryGetValue(name, out var value) && !string.IsNullOrWhiteSpace(value) ? value : null;
 
     private static DateTimeOffset? TryGetUnixTime(IReadOnlyDictionary<string, string?> values, string name)
-        => TryGetLong(values, name) is { } seconds ? DateTimeOffset.FromUnixTimeSeconds(seconds) : null;
+        => TryGetLong(values, name) is { } seconds ? TryCreateUnixTime(seconds) : null;
+
+    private static DateTimeOffset? TryCreateUnixTime(long seconds)
+    {
+        try
+        {
+            return DateTimeOffset.FromUnixTimeSeconds(seconds);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return null;
+        }
+    }
 }
