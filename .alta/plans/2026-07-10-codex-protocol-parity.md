@@ -100,12 +100,12 @@
 
 ### 5. Implement Responses Lite and reasoning event parity
 
-- [ ] Add request snapshot tests for GPT-5.6 Sol/Terra/Luna and a non-Lite model before changing payload construction; assert input order, tool schema, instructions, image detail, reasoning context, top-level omissions, metadata, and HTTP/WebSocket equivalence.
-- [ ] Implement the Lite transformation in a narrow Codex request builder: prepend developer `additional_tools`, then developer instructions when nonempty; strip image detail; omit top-level tools/instructions; preserve conversation/reasoning/tool-result order; and set reasoning context to all turns.
-- [ ] Leave standard Codex and generic OpenAI request creation byte-shape compatible except for independently planned capability/header corrections.
-- [ ] Handle reasoning summary part added/done, `response.reasoning_summary_text.done`, and `response.reasoning_text.done`; correlate summary completion by `item_id` and `summary_index`, and retain final encrypted reasoning/summary parts from `output_item.done`.
-- [ ] Add sequential-cutoff reducer tests for done-only sections, interleaved item IDs, ordinary legacy deltas, duplicate/stale/gapped indexes, and no visible duplication; do not add ordering or gap validation that Codex itself does not enforce.
-- [ ] Add an internal/test-only request switch for `stream_options.reasoning_summary_delivery="sequential_cutoff"`, default it off, and verify the reducer works before any future user-facing enablement.
+- [x] Add request snapshot tests for GPT-5.6 Sol/Terra/Luna and a non-Lite model before changing payload construction; assert input order, tool schema, instructions, image detail, reasoning context, top-level omissions, metadata, and HTTP/WebSocket equivalence.
+- [x] Implement the Lite transformation in a narrow Codex request builder: prepend developer `additional_tools`, then developer instructions when nonempty; strip image detail; omit top-level tools/instructions; preserve conversation/reasoning/tool-result order; and set reasoning context to all turns.
+- [x] Leave standard Codex and generic OpenAI request creation byte-shape compatible except for independently planned capability/header corrections.
+- [x] Handle reasoning summary part added/done, `response.reasoning_summary_text.done`, and `response.reasoning_text.done`; correlate summary completion by `item_id` and `summary_index`, and retain final encrypted reasoning/summary parts from `output_item.done`.
+- [x] Add sequential-cutoff reducer tests for done-only sections, interleaved item IDs, ordinary legacy deltas, duplicate/stale/gapped indexes, and no visible duplication; do not add ordering or gap validation that Codex itself does not enforce.
+- [x] Add an internal/test-only request switch for `stream_options.reasoning_summary_delivery="sequential_cutoff"`, default it off, and verify the reducer works before any future user-facing enablement.
 
 ### 6. Surface selected metadata and honor `end_turn`
 

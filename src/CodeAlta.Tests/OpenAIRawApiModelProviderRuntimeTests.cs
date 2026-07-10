@@ -2118,6 +2118,188 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
     }
 
     [TestMethod]
+    [DataRow("gpt-5.6-sol")]
+    [DataRow("gpt-5.6-terra")]
+    [DataRow("gpt-5.6-luna")]
+    public async Task OpenAIResponsesTurnExecutor_UsesResponsesLiteRequestDialect(string modelId)
+    {
+        var responsesClient = new RecordingOpenAIResponseClient(
+        [
+            [CreateTextOnlyAssistantResponseUpdate("response-lite", modelId, "Answer.")],
+        ]);
+        var executor = new OpenAIResponsesTurnExecutor(new OpenAIProviderOptions
+        {
+            ProviderKey = "codex",
+            ResponsesClientFactory = _ => responsesClient,
+            ResponsesRequestCustomizer = context =>
+            {
+                var content = ((MessageResponseItem)context.Options.InputItems[0]).Content;
+                var image = content
+                    .Single(static part => part.Kind == ResponseContentPartKind.InputImage);
+                content.Remove(image);
+                content.Add(ResponseContentPart.CreateInputImagePart(
+                    new Uri(image.InputImageUri!),
+                    ResponseImageDetailLevel.High));
+            },
+            CodexSubscription = new OpenAICodexSubscriptionOptions
+            {
+                Experimental = true,
+                ResponseTransport = "http",
+            },
+        });
+        var request = CreateCodexTurnRequest() with
+        {
+            ModelId = modelId,
+            SystemMessage = "System instructions",
+            DeveloperInstructions = "Developer instructions",
+            ReasoningEffort = AgentReasoningEffort.Medium,
+            ModelInfo = new AgentModelInfo(
+                modelId,
+                SupportedReasoningEfforts: [AgentReasoningEffort.Medium],
+                Capabilities: new Dictionary<string, object?>(StringComparer.Ordinal)
+                {
+                    ["source"] = "codex-endpoint",
+                    ["useResponsesLite"] = true,
+                    ["supportsReasoningSummaries"] = true,
+                    ["supportsParallelToolCalls"] = true,
+                }),
+            Conversation =
+            [
+                new AgentConversationMessage(
+                    AgentConversationRole.User,
+                    [
+                        new AgentMessagePart.Text("Inspect this image."),
+                        new AgentMessagePart.Data("AQID", "image/png", "image.png"),
+                    ]),
+                new AgentConversationMessage(
+                    AgentConversationRole.Assistant,
+                    [
+                        new AgentMessagePart.Reasoning(
+                            "Need a tool.",
+                            "encrypted",
+                            new AgentReasoningProvenance("codex", "codex", AgentTransportKind.OpenAIResponses, modelId)),
+                        new AgentMessagePart.ToolCall("call-1", "inspect_file", JsonDocument.Parse("{}").RootElement.Clone()),
+                    ]),
+                new AgentConversationMessage(
+                    AgentConversationRole.Tool,
+                    [new AgentMessagePart.ToolResult("call-1", new AgentToolResult(true, [new AgentToolResultItem.Text("ok")]))]),
+            ],
+            Tools =
+            [
+                new AgentToolDefinition(
+                    new AgentToolSpec(
+                        "inspect_file",
+                        "Inspect a file.",
+                        JsonDocument.Parse("""{"type":"object"}""").RootElement.Clone()),
+                    static (_, _) => Task.FromResult(new AgentToolResult(true, [new AgentToolResultItem.Text("ok")]))),
+            ],
+        };
+
+        _ = await executor.ExecuteTurnAsync(request, static (_, _) => ValueTask.CompletedTask).ConfigureAwait(false);
+
+        using var document = JsonDocument.Parse(responsesClient.Requests.Single().SerializedOptions);
+        var root = document.RootElement;
+        Assert.IsFalse(root.TryGetProperty("instructions", out _));
+        Assert.IsFalse(root.TryGetProperty("tools", out _));
+        Assert.IsFalse(root.GetProperty("parallel_tool_calls").GetBoolean());
+        Assert.AreEqual("all_turns", root.GetProperty("reasoning").GetProperty("context").GetString());
+        Assert.IsFalse(root.TryGetProperty("stream_options", out _));
+        var input = root.GetProperty("input").EnumerateArray().ToArray();
+        Assert.AreEqual("additional_tools", input[0].GetProperty("type").GetString());
+        Assert.AreEqual("developer", input[0].GetProperty("role").GetString());
+        Assert.AreEqual("function", input[0].GetProperty("tools")[0].GetProperty("type").GetString());
+        Assert.AreEqual("message", input[1].GetProperty("type").GetString());
+        Assert.AreEqual("developer", input[1].GetProperty("role").GetString());
+        StringAssert.Contains(input[1].GetProperty("content")[0].GetProperty("text").GetString(), "Developer instructions");
+        CollectionAssert.AreEqual(
+            new[] { "message", "reasoning", "function_call", "function_call_output" },
+            input.Skip(2).Select(static item => item.GetProperty("type").GetString()).ToArray());
+        Assert.IsFalse(input[2].GetProperty("content")[1].TryGetProperty("detail", out _));
+        Assert.IsTrue(root.TryGetProperty("client_metadata", out _));
+    }
+
+    [TestMethod]
+    public async Task OpenAIResponsesTurnExecutor_CanNegotiateSequentialCutoffThroughInternalSeam()
+    {
+        var responsesClient = new RecordingOpenAIResponseClient(
+        [
+            [CreateTextOnlyAssistantResponseUpdate("response-cutoff", "gpt-5.6-sol", "Answer.")],
+        ]);
+        var executor = new OpenAIResponsesTurnExecutor(new OpenAIProviderOptions
+        {
+            ProviderKey = "codex",
+            ResponsesClientFactory = _ => responsesClient,
+            CodexSubscription = new OpenAICodexSubscriptionOptions
+            {
+                Experimental = true,
+                ResponseTransport = "http",
+                EnableSequentialCutoffReasoningSummaries = true,
+            },
+        });
+
+        _ = await executor.ExecuteTurnAsync(
+            CreateCodexTurnRequest(),
+            static (_, _) => ValueTask.CompletedTask).ConfigureAwait(false);
+
+        using var document = JsonDocument.Parse(responsesClient.Requests.Single().SerializedOptions);
+        Assert.AreEqual(
+            "sequential_cutoff",
+            document.RootElement.GetProperty("stream_options").GetProperty("reasoning_summary_delivery").GetString());
+    }
+
+    [TestMethod]
+    public async Task OpenAIResponsesTurnExecutor_SequentialCutoffDoneEventsDoNotDuplicateLegacyDeltas()
+    {
+        var reasoningItem = new ReasoningResponseItem(string.Empty) { Id = "reasoning-1" };
+        var response = new ResponseResult
+        {
+            Id = "response-reasoning-done",
+            CreatedAt = DateTimeOffset.UtcNow,
+            Model = "gpt-5.6-sol",
+            Status = ResponseStatus.Completed,
+        };
+        response.OutputItems.Add(ResponseItem.CreateAssistantMessageItem("Done.", []));
+        response.OutputItems.Add(new ReasoningResponseItem([ReasoningSummaryPart.CreateTextPart("Final summary")])
+        {
+            Id = "reasoning-1",
+            EncryptedContent = "encrypted-final",
+        });
+        var updates = new List<StreamingResponseUpdate>
+        {
+            CreateOutputItemAddedUpdate(1, reasoningItem),
+            CreateReasoningSummaryPartUpdate("response.reasoning_summary_part.added", "reasoning-1", summaryIndex: 2),
+            CreateReasoningSummaryTextDoneUpdate("other-item", "Ignored interleaved", summaryIndex: 0),
+            CreateReasoningSummaryTextDoneUpdate("reasoning-1", "Done only", summaryIndex: 2),
+            CreateReasoningSummaryPartUpdate("response.reasoning_summary_part.done", "reasoning-1", summaryIndex: 2),
+            CreateReasoningSummaryTextDoneUpdate("reasoning-1", "Duplicate", summaryIndex: 2),
+            CreateReasoningSummaryTextDeltaUpdate("reasoning-1", "Legacy", summaryIndex: 3),
+            CreateReasoningSummaryTextDoneUpdate("reasoning-1", "Legacy", summaryIndex: 3),
+            CreateReasoningTextDoneUpdate("reasoning-1", "Raw done", contentIndex: 0),
+            CreateReasoningTextDoneUpdate("reasoning-1", "Raw duplicate", contentIndex: 0),
+            CreateOutputItemDoneUpdate(1, response.OutputItems[1]),
+            CreateCompletedUpdate(response),
+        };
+        var responsesClient = new RecordingOpenAIResponseClient([updates]);
+        var executor = CreateCodexExecutor(responsesClient);
+        var deltas = new List<AgentTurnDelta>();
+
+        var result = await executor.ExecuteTurnAsync(
+            CreateCodexTurnRequest(),
+            (delta, _) =>
+            {
+                deltas.Add(delta);
+                return ValueTask.CompletedTask;
+            }).ConfigureAwait(false);
+
+        CollectionAssert.AreEqual(
+            new[] { "Done only", "Legacy", "Raw done" },
+            deltas.Where(static delta => delta.Kind == AgentContentKind.Reasoning).Select(static delta => delta.Text).ToArray());
+        var finalReasoning = result.AssistantMessage.Parts.OfType<AgentMessagePart.Reasoning>().Single();
+        Assert.AreEqual("encrypted-final", finalReasoning.ProtectedData);
+        CollectionAssert.AreEqual(new[] { "Final summary" }, finalReasoning.SummaryParts!.ToArray());
+    }
+
+    [TestMethod]
     public async Task OpenAIResponsesModelProviderRuntime_CodexModelDiscoveryHttpFailureUsesStaticFallback()
     {
         using var temp = TestTempDirectory.Create();
@@ -4119,6 +4301,54 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
                 "item_id": "{{itemId}}",
                 "summary_index": {{summaryIndex}},
                 "delta": "{{delta}}"
+              }
+              """);
+
+    private static StreamingResponseUpdate CreateReasoningSummaryTextDoneUpdate(
+        string itemId,
+        string text,
+        int summaryIndex)
+        => DeserializeStreamingResponseUpdate(
+            $$"""
+              {
+                "type": "response.reasoning_summary_text.done",
+                "sequence_number": 2,
+                "item_id": "{{itemId}}",
+                "output_index": 1,
+                "summary_index": {{summaryIndex}},
+                "text": "{{text}}"
+              }
+              """);
+
+    private static StreamingResponseUpdate CreateReasoningSummaryPartUpdate(
+        string type,
+        string itemId,
+        int summaryIndex)
+        => DeserializeStreamingResponseUpdate(
+            $$"""
+              {
+                "type": "{{type}}",
+                "sequence_number": 2,
+                "item_id": "{{itemId}}",
+                "output_index": 1,
+                "summary_index": {{summaryIndex}},
+                "part": { "type": "summary_text", "text": "Done only" }
+              }
+              """);
+
+    private static StreamingResponseUpdate CreateReasoningTextDoneUpdate(
+        string itemId,
+        string text,
+        int contentIndex)
+        => DeserializeStreamingResponseUpdate(
+            $$"""
+              {
+                "type": "response.reasoning_text.done",
+                "sequence_number": 3,
+                "item_id": "{{itemId}}",
+                "output_index": 1,
+                "content_index": {{contentIndex}},
+                "text": "{{text}}"
               }
               """);
 

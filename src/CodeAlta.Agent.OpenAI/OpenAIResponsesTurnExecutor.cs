@@ -129,6 +129,8 @@ internal sealed class OpenAIResponsesTurnExecutor(
                     ResponseResult? latestResponse = null;
                     var streamedOutputItems = new SortedDictionary<int, ResponseItem>();
                     var streamedOutputItemIds = new Dictionary<int, string>();
+                    var streamedReasoningSummarySections = new HashSet<(string ItemId, int SummaryIndex)>();
+                    var streamedReasoningTextSections = new HashSet<(string ItemId, int ContentIndex)>();
                     int? activeReasoningOutputIndex = null;
                     var sideChannelEvents = new List<OpenAIResponsesWebSocketSideChannelEvent>();
 
@@ -212,6 +214,7 @@ internal sealed class OpenAIResponsesTurnExecutor(
                                         cancellationToken).ConfigureAwait(false);
                                     break;
                                 case StreamingResponseReasoningSummaryTextDeltaUpdate reasoningSummaryDelta when !string.IsNullOrEmpty(reasoningSummaryDelta.Delta):
+                                    streamedReasoningSummarySections.Add((reasoningSummaryDelta.ItemId, reasoningSummaryDelta.SummaryIndex));
                                     attemptState.EmittedReasoningDelta = true;
                                     await onUpdate(
                                         new AgentTurnDelta
@@ -228,7 +231,28 @@ internal sealed class OpenAIResponsesTurnExecutor(
                                         },
                                         cancellationToken).ConfigureAwait(false);
                                     break;
+                                case StreamingResponseReasoningSummaryTextDoneUpdate reasoningSummaryDone
+                                    when !string.IsNullOrEmpty(reasoningSummaryDone.Text) &&
+                                         IsActiveReasoningItem(reasoningSummaryDone.ItemId, reasoningSummaryDone.OutputIndex, streamedOutputItemIds, activeReasoningOutputIndex) &&
+                                         streamedReasoningSummarySections.Add((reasoningSummaryDone.ItemId, reasoningSummaryDone.SummaryIndex)):
+                                    attemptState.EmittedReasoningDelta = true;
+                                    await onUpdate(
+                                        new AgentTurnDelta
+                                        {
+                                            Kind = AgentContentKind.Reasoning,
+                                            ContentId = reasoningSummaryDone.ItemId,
+                                            Text = reasoningSummaryDone.Text,
+                                            AttemptId = attemptState.DraftAttemptId,
+                                            Details = CreateReasoningSummaryDeltaDetails(reasoningSummaryDone.SummaryIndex),
+                                        },
+                                        cancellationToken).ConfigureAwait(false);
+                                    break;
+                                case StreamingResponseReasoningSummaryPartAddedUpdate:
+                                case StreamingResponseReasoningSummaryPartDoneUpdate:
+                                    // Section boundaries carry no visible text. Text delta/done events own rendering.
+                                    break;
                                 case StreamingResponseReasoningTextDeltaUpdate reasoningTextDelta when !string.IsNullOrEmpty(reasoningTextDelta.Delta):
+                                    streamedReasoningTextSections.Add((reasoningTextDelta.ItemId, reasoningTextDelta.ContentIndex));
                                     attemptState.EmittedReasoningDelta = true;
                                     await onUpdate(
                                         new AgentTurnDelta
@@ -241,6 +265,21 @@ internal sealed class OpenAIResponsesTurnExecutor(
                                                 reasoningTextDelta.ContentIndex,
                                                 streamedOutputItemIds),
                                             Text = reasoningTextDelta.Delta,
+                                            AttemptId = attemptState.DraftAttemptId,
+                                        },
+                                        cancellationToken).ConfigureAwait(false);
+                                    break;
+                                case StreamingResponseReasoningTextDoneUpdate reasoningTextDone
+                                    when !string.IsNullOrEmpty(reasoningTextDone.Text) &&
+                                         IsActiveReasoningItem(reasoningTextDone.ItemId, reasoningTextDone.OutputIndex, streamedOutputItemIds, activeReasoningOutputIndex) &&
+                                         streamedReasoningTextSections.Add((reasoningTextDone.ItemId, reasoningTextDone.ContentIndex)):
+                                    attemptState.EmittedReasoningDelta = true;
+                                    await onUpdate(
+                                        new AgentTurnDelta
+                                        {
+                                            Kind = AgentContentKind.Reasoning,
+                                            ContentId = reasoningTextDone.ItemId,
+                                            Text = reasoningTextDone.Text,
                                             AttemptId = attemptState.DraftAttemptId,
                                         },
                                         cancellationToken).ConfigureAwait(false);
@@ -306,6 +345,8 @@ internal sealed class OpenAIResponsesTurnExecutor(
                         latestResponse = null;
                         streamedOutputItems.Clear();
                         streamedOutputItemIds.Clear();
+                        streamedReasoningSummarySections.Clear();
+                        streamedReasoningTextSections.Clear();
                         activeReasoningOutputIndex = null;
                         sideChannelEvents.Clear();
                         attemptState.ResetAfterTransportFallback();
@@ -1120,6 +1161,18 @@ internal sealed class OpenAIResponsesTurnExecutor(
         return $"responses:reasoning:{outputIndex.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
     }
 
+    private static bool IsActiveReasoningItem(
+        string? itemId,
+        int outputIndex,
+        IReadOnlyDictionary<int, string> outputItemIds,
+        int? activeReasoningOutputIndex)
+        => !string.IsNullOrWhiteSpace(itemId) &&
+           ((outputItemIds.TryGetValue(outputIndex, out var outputItemId) &&
+             string.Equals(outputItemId, itemId, StringComparison.Ordinal)) ||
+            (activeReasoningOutputIndex is { } activeOutputIndex &&
+             outputItemIds.TryGetValue(activeOutputIndex, out var activeItemId) &&
+             string.Equals(activeItemId, itemId, StringComparison.Ordinal)));
+
     private static ResponseResult? CreateResponseFromTerminalOrStreamedItems(
         AgentTurnRequest request,
         ResponseResult? completedResponse,
@@ -1317,6 +1370,16 @@ internal sealed class OpenAIResponsesTurnExecutor(
         if (modelCapabilities.SupportsVerbosity)
         {
             options.Patch.Set("$.text.verbosity"u8, codexOptions.TextVerbosity);
+        }
+
+        if (codexOptions.EnableSequentialCutoffReasoningSummaries)
+        {
+            options.Patch.Set("$.stream_options.reasoning_summary_delivery"u8, "sequential_cutoff");
+        }
+
+        if (modelCapabilities.UseResponsesLite)
+        {
+            CodexResponsesLiteRequestBuilder.Apply(options, options.Instructions);
         }
 
         _ = cancellationToken;

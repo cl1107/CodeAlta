@@ -211,6 +211,8 @@ public sealed class OpenAIProtocolTraceOptions
 /// </summary>
 public sealed class OpenAICodexSubscriptionOptions
 {
+    internal bool EnableSequentialCutoffReasoningSummaries { get; set; }
+
     /// <summary>
     /// Gets or sets the ChatGPT/Codex OAuth credential source.
     /// </summary>
