@@ -40,7 +40,7 @@ public sealed class OpenAICodexSubscriptionPipelineTests
     }
 
     [TestMethod]
-    public void ProtocolParser_ReadsWebSocketTurnStateOnlyFromResponseMetadata()
+    public void ProtocolParser_ReadsWebSocketTurnStateOnlyFromResponseMetadataHeaders()
     {
         var parsed = CodexProtocolEventParser.Parse(
             CodexProtocolTransport.WebSocket,
@@ -48,11 +48,11 @@ public sealed class OpenAICodexSubscriptionPipelineTests
                 """
                 {
                   "type": "response.metadata",
-                  "metadata": {
+                  "headers": {
                     "x-codex-turn-state": "metadata-state"
                   },
-                  "headers": {
-                    "x-codex-turn-state": "ignored-header-state"
+                  "metadata": {
+                    "x-codex-turn-state": "ignored-metadata-state"
                   }
                 }
                 """));
