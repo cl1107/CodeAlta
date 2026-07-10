@@ -299,4 +299,19 @@ internal interface IOpenAIResponsesWebSocketSession : IDisposable
         CreateResponseOptions options,
         CreateResponseOptions? reconnectOptions = null,
         CancellationToken cancellationToken = default);
+
+    async IAsyncEnumerable<CodexProtocolEvent> CreateProtocolEventsAsync(
+        CreateResponseOptions options,
+        CreateResponseOptions? reconnectOptions = null,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        await foreach (var update in CreateResponseStreamingAsync(options, reconnectOptions, cancellationToken).ConfigureAwait(false))
+        {
+            yield return new CodexProtocolEvent(
+                CodexProtocolTransport.WebSocket,
+                update.GetType().Name,
+                update,
+                new CodexResponseMetadata());
+        }
+    }
 }

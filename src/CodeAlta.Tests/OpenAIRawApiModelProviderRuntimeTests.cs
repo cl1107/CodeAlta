@@ -1195,6 +1195,160 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
     }
 
     [TestMethod]
+    public async Task OpenAIResponsesTurnExecutor_RejectsGenericEofAfterToolCall()
+    {
+        var toolCall = ResponseItem.CreateFunctionCallItem(
+            "call-unterminated",
+            "inspect_file",
+            BinaryData.FromString("""{"path":"README.md"}"""));
+        var responsesClient = new RecordingOpenAIResponseClient(
+        [
+            [
+                CreateCreatedResponseUpdate("response-unterminated-tool", "gpt-test"),
+                CreateOutputItemDoneUpdate(0, toolCall),
+            ],
+        ]);
+        var executor = new OpenAIResponsesTurnExecutor(new OpenAIProviderOptions
+        {
+            ProviderKey = "openai",
+            ResponsesClientFactory = _ => responsesClient,
+        });
+
+        var exception = await Assert.ThrowsExactlyAsync<AgentTurnExecutionException>(
+            () => executor.ExecuteTurnAsync(
+                CreateTurnRequest(),
+                static (_, _) => ValueTask.CompletedTask)).ConfigureAwait(false);
+
+        var protocolException = Assert.IsInstanceOfType<OpenAIResponsesProtocolException>(exception.InnerException);
+        Assert.AreEqual(OpenAIResponsesProtocolErrorCode.StreamClosedAfterToolCall, protocolException.ErrorCode);
+    }
+
+    [TestMethod]
+    public async Task OpenAIResponsesTurnExecutor_CodexStopsAtFirstCompletedEventWithoutWaitingForTransportEof()
+    {
+        var terminal = new ResponseResult
+        {
+            Id = "response-first-terminal",
+            CreatedAt = DateTimeOffset.UtcNow,
+            Model = "gpt-5.3-codex",
+            Status = ResponseStatus.Completed,
+        };
+        terminal.OutputItems.Add(ResponseItem.CreateAssistantMessageItem("Completed promptly.", []));
+        var responsesClient = new PendingAfterFirstUpdateResponseClient(CreateCompletedUpdate(terminal));
+        var executor = CreateCodexExecutor(responsesClient);
+
+        var executeTask = executor.ExecuteTurnAsync(
+            CreateCodexTurnRequest(),
+            static (_, _) => ValueTask.CompletedTask);
+        var response = await executeTask.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+
+        Assert.AreEqual("Completed promptly.", response.AssistantMessage.Parts.OfType<AgentMessagePart.Text>().Single().Value);
+    }
+
+    [TestMethod]
+    public async Task OpenAIResponsesTurnExecutor_CodexFirstTerminalEventWins()
+    {
+        var completed = new ResponseResult
+        {
+            Id = "response-completed-first",
+            CreatedAt = DateTimeOffset.UtcNow,
+            Model = "gpt-5.3-codex",
+            Status = ResponseStatus.Completed,
+        };
+        completed.OutputItems.Add(ResponseItem.CreateAssistantMessageItem("First terminal wins.", []));
+        var responsesClient = new RecordingOpenAIResponseClient(
+        [
+            [
+                CreateCompletedUpdate(completed),
+                CreateFailedResponseUpdate("response-late-failure", "gpt-5.3-codex", "bio_policy", "Must not be observed."),
+            ],
+        ]);
+        var response = await CreateCodexExecutor(responsesClient).ExecuteTurnAsync(
+            CreateCodexTurnRequest(),
+            static (_, _) => ValueTask.CompletedTask).ConfigureAwait(false);
+
+        Assert.AreEqual("First terminal wins.", response.AssistantMessage.Parts.OfType<AgentMessagePart.Text>().Single().Value);
+    }
+
+    [TestMethod]
+    public async Task OpenAIResponsesTurnExecutor_DoesNotRetryCodexBioPolicyFailure()
+    {
+        var responsesClient = new PendingAfterFirstUpdateResponseClient(
+            CreateFailedResponseUpdate("response-bio-policy", "gpt-5.3-codex", "bio_policy", "Biological policy rejected the request."));
+
+        var exception = await Assert.ThrowsExactlyAsync<AgentTurnExecutionException>(
+            () => CreateCodexExecutor(responsesClient).ExecuteTurnAsync(
+                CreateCodexTurnRequest(),
+                static (_, _) => ValueTask.CompletedTask)).ConfigureAwait(false);
+
+        Assert.AreEqual(1, responsesClient.RequestCount);
+        StringAssert.Contains(exception.Failure.Message, "bio_policy");
+    }
+
+    [TestMethod]
+    public async Task OpenAIResponsesTurnExecutor_CodexIncompleteFailsImmediatelyWithoutWaitingForTransportEof()
+    {
+        var incomplete = new ResponseResult
+        {
+            Id = "response-incomplete-pending",
+            CreatedAt = DateTimeOffset.UtcNow,
+            Model = "gpt-5.3-codex",
+            Status = ResponseStatus.Incomplete,
+        };
+        var completed = new ResponseResult
+        {
+            Id = "response-after-incomplete",
+            CreatedAt = DateTimeOffset.UtcNow,
+            Model = "gpt-5.3-codex",
+            Status = ResponseStatus.Completed,
+        };
+        completed.OutputItems.Add(ResponseItem.CreateAssistantMessageItem("Retried after incomplete.", []));
+        var responsesClient = new SequentialPendingAfterFirstUpdateResponseClient(
+            [CreateIncompleteUpdate(incomplete), CreateCompletedUpdate(completed)]);
+
+        var response = await CreateCodexExecutor(responsesClient).ExecuteTurnAsync(
+                CreateCodexTurnRequest(),
+                static (_, _) => ValueTask.CompletedTask)
+            .WaitAsync(TimeSpan.FromSeconds(2))
+            .ConfigureAwait(false);
+
+        Assert.AreEqual(2, responsesClient.RequestCount);
+        Assert.AreEqual("Retried after incomplete.", response.AssistantMessage.Parts.OfType<AgentMessagePart.Text>().Single().Value);
+    }
+
+    [TestMethod]
+    public async Task OpenAIResponsesTurnExecutor_UsesIndexedDoneItemsAsAuthoritativeTerminalOutput()
+    {
+        var terminal = new ResponseResult
+        {
+            Id = "response-merged",
+            CreatedAt = DateTimeOffset.UtcNow,
+            Model = "gpt-5.3-codex",
+            Status = ResponseStatus.Completed,
+        };
+        terminal.OutputItems.Add(ResponseItem.CreateAssistantMessageItem("Stale terminal zero.", []));
+        terminal.OutputItems.Add(ResponseItem.CreateAssistantMessageItem("Terminal-only one.", []));
+        terminal.OutputItems.Add(ResponseItem.CreateAssistantMessageItem("Terminal-only two.", []));
+        var responsesClient = new RecordingOpenAIResponseClient(
+        [
+            [
+                CreateOutputItemDoneUpdate(0, ResponseItem.CreateAssistantMessageItem("Older streamed zero.", [])),
+                CreateOutputItemDoneUpdate(0, ResponseItem.CreateAssistantMessageItem("Authoritative streamed zero.", [])),
+                CreateOutputItemDoneUpdate(1, ResponseItem.CreateAssistantMessageItem("Authoritative streamed one.", [])),
+                CreateCompletedUpdate(terminal),
+            ],
+        ]);
+
+        var response = await CreateCodexExecutor(responsesClient).ExecuteTurnAsync(
+            CreateCodexTurnRequest(),
+            static (_, _) => ValueTask.CompletedTask).ConfigureAwait(false);
+
+        CollectionAssert.AreEqual(
+            new[] { "Authoritative streamed zero.", "Authoritative streamed one.", "Terminal-only two." },
+            response.AssistantMessage.Parts.OfType<AgentMessagePart.Text>().Select(static part => part.Value).ToArray());
+    }
+
+    [TestMethod]
     public async Task OpenAIResponsesTurnExecutor_CodexRejectsStreamWithoutCompletedPayload()
     {
         var partialUpdates = new StreamingResponseUpdate[]
@@ -3858,6 +4012,18 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
             """);
     }
 
+    private static OpenAIResponsesTurnExecutor CreateCodexExecutor(ResponsesClient responsesClient)
+        => new(new OpenAIProviderOptions
+        {
+            ProviderKey = "codex",
+            ResponsesClientFactory = _ => responsesClient,
+            CodexSubscription = new OpenAICodexSubscriptionOptions
+            {
+                Experimental = true,
+                ResponseTransport = "http",
+            },
+        });
+
     private static StreamingResponseUpdate CreateFailedResponseUpdate(
         string responseId,
         string modelId,
@@ -4429,6 +4595,37 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
         }
     }
 
+    private sealed class PendingAfterFirstUpdateResponseClient(StreamingResponseUpdate update)
+        : ResponsesClient(new ApiKeyCredential("test-key"))
+    {
+        public int RequestCount { get; private set; }
+
+        public override AsyncCollectionResult<StreamingResponseUpdate> CreateResponseStreamingAsync(
+            CreateResponseOptions options,
+            CancellationToken cancellationToken = default)
+        {
+            _ = options;
+            RequestCount++;
+            return new PendingAfterFirstAsyncCollectionResult<StreamingResponseUpdate>(update, cancellationToken);
+        }
+    }
+
+    private sealed class SequentialPendingAfterFirstUpdateResponseClient(
+        IReadOnlyList<StreamingResponseUpdate> updates)
+        : ResponsesClient(new ApiKeyCredential("test-key"))
+    {
+        public int RequestCount { get; private set; }
+
+        public override AsyncCollectionResult<StreamingResponseUpdate> CreateResponseStreamingAsync(
+            CreateResponseOptions options,
+            CancellationToken cancellationToken = default)
+        {
+            _ = options;
+            var index = RequestCount++;
+            return new PendingAfterFirstAsyncCollectionResult<StreamingResponseUpdate>(updates[index], cancellationToken);
+        }
+    }
+
     private sealed class FlakyOpenAIResponseClient(
         IReadOnlyList<Exception> failures,
         IReadOnlyList<StreamingResponseUpdate> successUpdates)
@@ -4612,6 +4809,24 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
                 yield return value;
                 await Task.Yield();
             }
+        }
+
+        public override ContinuationToken GetContinuationToken(ClientResult page) => default!;
+    }
+
+    private sealed class PendingAfterFirstAsyncCollectionResult<T>(T firstValue, CancellationToken cancellationToken)
+        : AsyncCollectionResult<T>
+    {
+        public override async IAsyncEnumerable<ClientResult> GetRawPagesAsync()
+        {
+            yield return ClientResult.FromResponse(new TestPipelineResponse());
+            await Task.CompletedTask.ConfigureAwait(false);
+        }
+
+        protected override async IAsyncEnumerable<T> GetValuesFromPageAsync(ClientResult page)
+        {
+            yield return firstValue;
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
         }
 
         public override ContinuationToken GetContinuationToken(ClientResult page) => default!;

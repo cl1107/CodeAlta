@@ -4,6 +4,7 @@ using System.ClientModel.Primitives;
 using System.Net;
 using System.Net.WebSockets;
 using System.Reflection;
+using System.Text.Json;
 using Azure.AI.OpenAI;
 using CodeAlta.Agent;
 using CodeAlta.Agent.Runtime;
@@ -399,6 +400,141 @@ public sealed class OpenAICodexSubscriptionPipelineTests
 
         Assert.IsTrue(found);
         Assert.AreEqual("ws-sticky-state", turnState);
+    }
+
+    [TestMethod]
+    public void ProtocolParser_ProjectsAllowlistedMetadataBeforeSdkUpdateAndDiscardsUnknownFields()
+    {
+        var protocolEvent = CodexProtocolEventParser.Parse(
+            CodexProtocolTransport.WebSocket,
+            BinaryData.FromString(
+                """
+                {
+                  "type": "response.created",
+                  "authorization": "Bearer secret",
+                  "cookie": "session=secret",
+                  "arbitrary": { "secret": "must-not-survive" },
+                  "headers": {
+                    "x-request-id": "request-123",
+                    "OpenAI-Model": "gpt-5.3-codex",
+                    "x-models-etag": "models-v1",
+                    "x-reasoning-included": "true",
+                    "authorization": "Bearer nested-secret"
+                  },
+                  "response": {
+                    "id": "resp_1",
+                    "object": "response",
+                    "created_at": 1,
+                    "model": "gpt-5.3-codex",
+                    "status": "in_progress",
+                    "output": []
+                  }
+                }
+                """));
+
+        Assert.AreEqual("response.created", protocolEvent.Type);
+        Assert.AreEqual("request-123", protocolEvent.Metadata.RequestId);
+        Assert.AreEqual("gpt-5.3-codex", protocolEvent.Metadata.EffectiveModel);
+        Assert.AreEqual("models-v1", protocolEvent.Metadata.ModelsETag);
+        Assert.AreEqual(true, protocolEvent.Metadata.ReasoningIncluded);
+        Assert.IsNotNull(protocolEvent.Update, "Metadata must be available on the envelope that carries the SDK update.");
+        var serialized = JsonSerializer.Serialize(protocolEvent.Metadata);
+        Assert.IsFalse(serialized.Contains("secret", StringComparison.Ordinal));
+        Assert.IsFalse(serialized.Contains("authorization", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(serialized.Contains("cookie", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(serialized.Contains("arbitrary", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
+    public void ProtocolParser_DistinguishesMissingAndExplicitNullSafetyRetryModel()
+    {
+        var omitted = CodexProtocolEventParser.Parse(
+            CodexProtocolTransport.Http,
+            BinaryData.FromString("""{"type":"safety_buffering","safety_buffering":{"treatment":"buffered"}}"""));
+        var explicitNull = CodexProtocolEventParser.Parse(
+            CodexProtocolTransport.Http,
+            BinaryData.FromString("""{"type":"safety_buffering","safety_buffering":{"retry_model":null,"treatment":"buffered"}}"""));
+
+        Assert.IsNotNull(omitted.Metadata.SafetyBuffering);
+        Assert.IsFalse(omitted.Metadata.SafetyBuffering.RetryModelPresent);
+        Assert.IsNotNull(explicitNull.Metadata.SafetyBuffering);
+        Assert.IsTrue(explicitNull.Metadata.SafetyBuffering.RetryModelPresent);
+        Assert.IsNull(explicitNull.Metadata.SafetyBuffering.RetryModel);
+    }
+
+    [TestMethod]
+    public void ProtocolParser_ToleratesUnknownAndMalformedNonterminalEvents()
+    {
+        var unknown = CodexProtocolEventParser.Parse(
+            CodexProtocolTransport.Http,
+            BinaryData.FromString("""{"type":"response.future_extension","future":true}"""));
+        var malformed = CodexProtocolEventParser.Parse(
+            CodexProtocolTransport.Http,
+            BinaryData.FromString("not-json"),
+            "response.future_extension");
+
+        Assert.AreEqual("response.future_extension", unknown.Type);
+        Assert.IsNotNull(unknown.Update);
+        Assert.AreEqual("response.future_extension", malformed.Type);
+        Assert.IsNull(malformed.Update);
+    }
+
+    [TestMethod]
+    public async Task HttpStreamSession_EmitsInitialMetadataBeforeSseUpdatesAndUsesConfiguredClient()
+    {
+        using var temp = TempDirectory.Create();
+        await SaveCredentialAsync(temp.Path).ConfigureAwait(false);
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(
+                "data: {\"type\":\"response.created\",\"sequence_number\":0,\"response\":{\"id\":\"resp_http\",\"object\":\"response\",\"created_at\":1,\"model\":\"gpt-5.3-codex\",\"status\":\"in_progress\",\"output\":[]}}\n\n" +
+                "data: {\"type\":\"response.completed\",\"sequence_number\":1,\"response\":{\"id\":\"resp_http\",\"object\":\"response\",\"created_at\":1,\"model\":\"gpt-5.3-codex\",\"status\":\"completed\",\"output\":[]}}\n\n"),
+        };
+        response.Headers.Add("x-request-id", "request-http");
+        response.Headers.Add("OpenAI-Model", "gpt-5.3-codex");
+        response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/event-stream");
+        var handler = new RecordingHttpMessageHandler(response);
+        using var httpClient = new HttpClient(handler);
+        var provider = new OpenAIProviderOptions
+        {
+            ProviderKey = "codex",
+            BaseUri = new Uri("https://chatgpt.com/backend-api/codex"),
+            StateRootPath = temp.Path,
+            HttpClient = httpClient,
+            CodexSubscription = new OpenAICodexSubscriptionOptions
+            {
+                Experimental = true,
+                ResponseTransport = "http",
+            },
+        };
+        var authManager = OpenAIProviderSdkFactory.CreateCodexSubscriptionAuthManager(
+            provider,
+            provider.CodexSubscription,
+            temp.Path);
+        var session = new CodexSubscriptionHttpStreamSession(
+            provider,
+            authManager,
+            "session-http",
+            new CodexTurnState());
+        var options = new OpenAI.Responses.CreateResponseOptions
+        {
+            Model = "gpt-5.3-codex",
+            StreamingEnabled = true,
+        };
+
+        var events = await session.CreateResponseStreamingAsync(options, CancellationToken.None)
+            .ToListAsync()
+            .ConfigureAwait(false);
+
+        Assert.AreEqual(3, events.Count);
+        Assert.IsNull(events[0].Type);
+        Assert.AreEqual("request-http", events[0].Metadata.RequestId);
+        Assert.IsNull(events[0].Update);
+        Assert.IsInstanceOfType<OpenAI.Responses.StreamingResponseCreatedUpdate>(events[1].Update);
+        Assert.IsInstanceOfType<OpenAI.Responses.StreamingResponseCompletedUpdate>(events[2].Update);
+        Assert.AreEqual("Bearer access-token", handler.Requests[0]["Authorization"]);
+        Assert.AreEqual("text/event-stream", handler.Requests[0]["Accept"]);
+        Assert.AreEqual("https://chatgpt.com/backend-api/codex/responses", handler.RequestUris[0].ToString());
     }
 
     [TestMethod]

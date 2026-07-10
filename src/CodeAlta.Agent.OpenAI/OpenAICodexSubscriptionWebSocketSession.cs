@@ -70,6 +70,13 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
         CreateResponseOptions options,
         CreateResponseOptions? reconnectOptions = null,
         CancellationToken cancellationToken = default)
+        => new OpenAIResponsesWebSocketUpdateCollection(
+            SelectUpdatesAsync(CreateProtocolEventsAsync(options, reconnectOptions, cancellationToken)));
+
+    public IAsyncEnumerable<CodexProtocolEvent> CreateProtocolEventsAsync(
+        CreateResponseOptions options,
+        CreateResponseOptions? reconnectOptions = null,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(options);
         if (options.StreamingEnabled != true)
@@ -85,8 +92,7 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
                 $"{nameof(CreateResponseOptions.StreamingEnabled)} must be set to true for Codex subscription WebSocket reconnect streaming.");
         }
 
-        return new OpenAIResponsesWebSocketUpdateCollection(
-            CreateResponseStreamingCoreAsync(options, reconnectOptions, cancellationToken));
+        return CreateResponseStreamingCoreAsync(options, reconnectOptions, cancellationToken);
     }
 
     public void Dispose()
@@ -119,7 +125,7 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
         return builder.Uri;
     }
 
-    private async IAsyncEnumerable<StreamingResponseUpdate> CreateResponseStreamingCoreAsync(
+    private async IAsyncEnumerable<CodexProtocolEvent> CreateResponseStreamingCoreAsync(
         CreateResponseOptions options,
         CreateResponseOptions reconnectOptions,
         [EnumeratorCancellation] CancellationToken cancellationToken)
@@ -161,18 +167,11 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
                     continue;
                 }
 
-                StreamingResponseUpdate? update;
-                try
-                {
-                    update = ModelReaderWriter.Read<StreamingResponseUpdate>(
-                        normalizedMessage,
-                        new ModelReaderWriterOptions("J"),
-                        OpenAIContext.Default);
-                }
-                catch (JsonException) when (!IsTerminalEvent(eventType))
-                {
-                    continue;
-                }
+                var protocolEvent = CodexProtocolEventParser.Parse(
+                    CodexProtocolTransport.WebSocket,
+                    normalizedMessage,
+                    eventType);
+                var update = protocolEvent.Update;
 
                 if (update is null)
                 {
@@ -186,7 +185,7 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
                     continue;
                 }
 
-                yield return update;
+                yield return protocolEvent;
 
                 if (IsTerminalEvent(eventType))
                 {
@@ -210,6 +209,18 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
             }
 
             _streamSemaphore.Release();
+        }
+    }
+
+    private static async IAsyncEnumerable<StreamingResponseUpdate> SelectUpdatesAsync(
+        IAsyncEnumerable<CodexProtocolEvent> events)
+    {
+        await foreach (var protocolEvent in events.ConfigureAwait(false))
+        {
+            if (protocolEvent.Update is { } update)
+            {
+                yield return update;
+            }
         }
     }
 

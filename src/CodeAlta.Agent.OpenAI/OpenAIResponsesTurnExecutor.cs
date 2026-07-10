@@ -132,7 +132,7 @@ internal sealed class OpenAIResponsesTurnExecutor(
 
                     async Task ProcessStreamAsync(OpenAIResponsesTransport transport)
                     {
-                        await foreach (var update in CreateResponseStreamingAsync(
+                        await foreach (var protocolEvent in CreateResponseStreamingEventsAsync(
                                 client,
                                 request,
                                 fullOptions,
@@ -140,6 +140,12 @@ internal sealed class OpenAIResponsesTurnExecutor(
                                 sideChannelEvents,
                                 cancellationToken).ConfigureAwait(false))
                         {
+                            var update = protocolEvent.Update;
+                            if (update is null)
+                            {
+                                continue;
+                            }
+
                             WriteCodexConsoleDiagnostic(
                                 provider,
                                 $"stream transport={transport} update={update.GetType().Name} payload={FormatCodexConsolePayload(SerializeModel(update))}");
@@ -152,6 +158,11 @@ internal sealed class OpenAIResponsesTurnExecutor(
                                     latestResponse = inProgress.Response;
                                     break;
                                 case StreamingResponseOutputItemAddedUpdate outputItemAdded when outputItemAdded.Item is not null:
+                                    if (IsToolCallResponseItem(outputItemAdded.Item))
+                                    {
+                                        attemptState.ObservedToolCallItem = true;
+                                    }
+
                                     TrackStreamingOutputItem(
                                         outputItemAdded.OutputIndex,
                                         outputItemAdded.Item,
@@ -249,6 +260,11 @@ internal sealed class OpenAIResponsesTurnExecutor(
                                 case StreamingResponseIncompleteUpdate incomplete:
                                     latestResponse = incomplete.Response;
                                     completedResponse = incomplete.Response;
+                                    if (provider.CodexSubscription is not null)
+                                    {
+                                        throw CreateResponseFailureException(incomplete.Response, "incomplete");
+                                    }
+
                                     break;
                                 case StreamingResponseFailedUpdate failed:
                                     throw CreateResponseFailureException(failed.Response, "failed");
@@ -257,6 +273,11 @@ internal sealed class OpenAIResponsesTurnExecutor(
                                 case StreamingResponseCompletedUpdate completed:
                                     latestResponse = completed.Response;
                                     completedResponse = completed.Response;
+                                    if (provider.CodexSubscription is not null)
+                                    {
+                                        return;
+                                    }
+
                                     break;
                             }
                         }
@@ -294,11 +315,19 @@ internal sealed class OpenAIResponsesTurnExecutor(
                             "ChatGPT/Codex response stream closed before response.completed.");
                     }
 
+                    if (!receivedTerminalResponse && attemptState.ObservedToolCallItem)
+                    {
+                        throw new OpenAIResponsesProtocolException(
+                            OpenAIResponsesProtocolErrorCode.StreamClosedAfterToolCall,
+                            "The OpenAI Responses stream closed after a tool call but before a terminal response; the unterminated tool call was discarded.");
+                    }
+
                     completedResponse = CreateResponseFromTerminalOrStreamedItems(
                         request,
                         completedResponse,
                         latestResponse,
-                        streamedOutputItems);
+                        streamedOutputItems,
+                        provider.CodexSubscription is not null);
 
                     if (completedResponse is null)
                     {
@@ -504,7 +533,7 @@ internal sealed class OpenAIResponsesTurnExecutor(
         return false;
     }
 
-    private async IAsyncEnumerable<StreamingResponseUpdate> CreateResponseStreamingAsync(
+    private async IAsyncEnumerable<CodexProtocolEvent> CreateResponseStreamingEventsAsync(
         ResponsesClient client,
         AgentTurnRequest request,
         CreateResponseOptions fullOptions,
@@ -526,11 +555,11 @@ internal sealed class OpenAIResponsesTurnExecutor(
                     sideChannelEvents.Add(sideChannelEvent);
                     previousSideChannelReceived?.Invoke(sideChannelEvent);
                 };
-                await foreach (var update in entry.Session
-                    .CreateResponseStreamingAsync(options, fullOptions, cancellationToken)
+                await foreach (var protocolEvent in entry.Session
+                    .CreateProtocolEventsAsync(options, fullOptions, cancellationToken)
                     .ConfigureAwait(false))
                 {
-                    yield return update;
+                    yield return protocolEvent;
                 }
             }
             finally
@@ -542,9 +571,36 @@ internal sealed class OpenAIResponsesTurnExecutor(
             yield break;
         }
 
+        if (provider.CodexSubscription is not null &&
+            provider.ResponsesClientFactory is null &&
+            provider.ResponsesClientContextFactory is null)
+        {
+            var authManager = OpenAIProviderSdkFactory.CreateCodexSubscriptionAuthManager(
+                provider,
+                provider.CodexSubscription,
+                OpenAIProviderSdkFactory.ResolveStateRootPath(provider));
+            var trace = OpenAIProtocolTraceLogger.Create(provider.ProtocolTracing, request);
+            var session = new CodexSubscriptionHttpStreamSession(
+                provider,
+                authManager,
+                request.SessionId,
+                GetCodexTurnState(request) ?? new CodexTurnState(),
+                trace);
+            await foreach (var protocolEvent in session.CreateResponseStreamingAsync(fullOptions, cancellationToken).ConfigureAwait(false))
+            {
+                yield return protocolEvent;
+            }
+
+            yield break;
+        }
+
         await foreach (var update in client.CreateResponseStreamingAsync(fullOptions, cancellationToken).ConfigureAwait(false))
         {
-            yield return update;
+            yield return new CodexProtocolEvent(
+                CodexProtocolTransport.Http,
+                update.GetType().Name,
+                update,
+                new CodexResponseMetadata());
         }
     }
 
@@ -1056,13 +1112,36 @@ internal sealed class OpenAIResponsesTurnExecutor(
         AgentTurnRequest request,
         ResponseResult? completedResponse,
         ResponseResult? latestResponse,
-        IReadOnlyDictionary<int, ResponseItem> streamedOutputItems)
+        IReadOnlyDictionary<int, ResponseItem> streamedOutputItems,
+        bool useIndexedDoneItems)
     {
         if (completedResponse is not null)
         {
-            return completedResponse.OutputItems.Count > 0 || streamedOutputItems.Count == 0
-                ? completedResponse
-                : CreateResponseWithStreamedOutputItems(request, completedResponse, streamedOutputItems);
+            if (!useIndexedDoneItems)
+            {
+                return completedResponse.OutputItems.Count > 0 || streamedOutputItems.Count == 0
+                    ? completedResponse
+                    : CreateResponseWithStreamedOutputItems(request, completedResponse, streamedOutputItems);
+            }
+
+            if (streamedOutputItems.Count > 0)
+            {
+                var mergedItems = completedResponse.OutputItems
+                    .Select(static (item, index) => new KeyValuePair<int, ResponseItem>(index, item))
+                    .ToDictionary();
+                foreach (var streamedItem in streamedOutputItems)
+                {
+                    mergedItems[streamedItem.Key] = streamedItem.Value;
+                }
+
+                completedResponse.OutputItems.Clear();
+                foreach (var item in mergedItems.OrderBy(static pair => pair.Key).Select(static pair => pair.Value))
+                {
+                    completedResponse.OutputItems.Add(item);
+                }
+            }
+
+            return completedResponse;
         }
 
         return TryCreateResponseWithoutTerminalPayload(request, latestResponse, streamedOutputItems);
@@ -2058,8 +2137,22 @@ internal sealed class OpenAIResponsesTurnExecutor(
         => new(
             new AgentTurnFailure(
                 ex.Message,
-                IsContextOverflowMessage(ex.Message)),
+                IsContextOverflow(ex)),
             ex);
+
+    private static bool IsContextOverflow(Exception exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is OpenAIResponsesStreamErrorException streamError &&
+                string.Equals(streamError.Code, "context_length_exceeded", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return IsContextOverflowMessage(exception.Message);
+    }
 
     private static Exception TranslateCodexSubscriptionException(OpenAIProviderOptions provider, Exception exception)
     {
@@ -2459,7 +2552,8 @@ internal sealed class OpenAIResponsesTurnExecutor(
             or "usage_not_included"
             or "usage_limit_reached"
             or "invalid_prompt"
-            or "cyber_policy";
+            or "cyber_policy"
+            or "bio_policy";
     }
 
     private static bool IsWebSocketTransportTimeout(Exception exception)

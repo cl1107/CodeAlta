@@ -6,6 +6,7 @@ internal enum OpenAIResponsesProtocolErrorCode
     StreamCompletedWithoutTerminalPayload,
     TerminalResponseWithoutAssistantOutput,
     UnsupportedTerminalResponseUpdate,
+    StreamClosedAfterToolCall,
 }
 
 internal sealed class OpenAIResponsesProtocolException : InvalidOperationException
