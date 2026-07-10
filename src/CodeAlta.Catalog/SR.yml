@@ -5244,6 +5244,12 @@
   fr: "Quotas"
   ja: "クォータ"
   zh: "配额"
+"Rate limit":
+  de: "Grenzwert"
+  es: "Límite de tarifa"
+  fr: "Limite de débit"
+  ja: "レート制限"
+  zh: "速率限制"
 "Rate limits":
   de: "Grenzwerte"
   es: "Límites de tarifas"

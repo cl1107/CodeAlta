@@ -823,6 +823,8 @@ public sealed class CopilotDirectProviderTests
                     event: response.completed
                     data: {"type":"response.completed","response":{"id":"resp_test","object":"response","created_at":1762845696,"status":"completed","model":"gpt-test","output":[{"id":"fc_test","type":"function_call","status":"completed","call_id":"call_test","name":"list_dir","arguments":"{\"path\":\"C:\\\\code\\\\CodeAlta\"}"}],"usage":{"input_tokens":3,"output_tokens":2,"total_tokens":5}}}
 
+                    data: [DONE]
+
                     """,
                     Encoding.UTF8,
                     "text/event-stream"),
