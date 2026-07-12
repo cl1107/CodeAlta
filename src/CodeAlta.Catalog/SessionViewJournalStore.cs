@@ -25,6 +25,7 @@ public sealed class SessionViewJournalStore
 
     private const int LineageProbeHeadByteCount = 128 * 1024;
     private static readonly UTF8Encoding Utf8WithoutBom = new(encoderShouldEmitUTF8Identifier: false);
+    private static readonly TimeSpan ReadRetryTime = TimeSpan.FromMilliseconds(250);
 
     private readonly AgentRuntimePathLayout _layout;
     private readonly AgentSessionJournalFile _journalFile;
@@ -386,7 +387,7 @@ public sealed class SessionViewJournalStore
         Func<string, bool> handleLine,
         CancellationToken cancellationToken)
     {
-        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 16 * 1024, useAsync: true);
+        await using var stream = await OpenReadStreamAsync(path, 16 * 1024, cancellationToken).ConfigureAwait(false);
         var buffer = ArrayPool<byte>.Shared.Rent(16 * 1024);
         var lineBuffer = ArrayPool<byte>.Shared.Rent(4096);
         var remainingBytes = Math.Min(LineageProbeHeadByteCount, stream.Length);
@@ -472,7 +473,7 @@ public sealed class SessionViewJournalStore
             return null;
         }
 
-        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 4096, useAsync: true);
+        await using var stream = await OpenReadStreamAsync(path, 4096, cancellationToken).ConfigureAwait(false);
         using var reader = new StreamReader(stream, Utf8WithoutBom, detectEncodingFromByteOrderMarks: true);
         var line = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(line) || !TryDeserializeRawEvent(line, out var rawEvent) || rawEvent.BackendEventType != SessionHeaderEventType)
@@ -489,7 +490,7 @@ public sealed class SessionViewJournalStore
         Func<string, bool> handleLine,
         CancellationToken cancellationToken)
     {
-        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 4096, useAsync: true);
+        await using var stream = await OpenReadStreamAsync(path, 4096, cancellationToken).ConfigureAwait(false);
         var length = stream.Length;
         var position = length;
         var buffer = ArrayPool<byte>.Shared.Rent(chunkSize);
@@ -565,6 +566,18 @@ public sealed class SessionViewJournalStore
             ArrayPool<byte>.Shared.Return(lineBuffer);
         }
     }
+
+    private static Task<FileStream> OpenReadStreamAsync(string path, int bufferSize, CancellationToken cancellationToken)
+        => AgentSessionJournalFile.RetryFileOperationAsync(
+            () => Task.FromResult(new FileStream(
+                path,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete,
+                bufferSize,
+                useAsync: true)),
+            ReadRetryTime,
+            cancellationToken);
 
     private static string DecodeForwardLine(byte[] line, int length, bool stripBom)
     {
