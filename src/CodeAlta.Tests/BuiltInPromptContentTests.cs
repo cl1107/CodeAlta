@@ -56,6 +56,9 @@ public sealed class BuiltInPromptContentTests
         StringAssert.Contains(defaultPrompt.Body, "Do not ask questions or use `alta ask --stdin` by default");
         StringAssert.Contains(defaultPrompt.Body, "explicitly asks for interactive questions/approval");
         StringAssert.Contains(defaultPrompt.Body, "choose the narrowest safe interpretation and proceed");
+        StringAssert.Contains(defaultPrompt.Body, "Never commit when the user asks not to commit");
+        StringAssert.Contains(defaultPrompt.Body, "requests review or approval before committing");
+        StringAssert.Contains(defaultPrompt.Body, "repository-local commit guidance");
         Assert.IsFalse(defaultPrompt.Body.Contains("ask a concise question in the normal chat and stop", StringComparison.Ordinal));
         StringAssert.Contains(defaultPrompt.Body, "GitHub-style blockquotes");
         StringAssert.Contains(defaultPrompt.Body, "commit the plan update with the implementation step it records");
